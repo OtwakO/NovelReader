@@ -67,6 +67,7 @@ func cssQueryList(html, selector string) ([]string, error) {
 }
 
 // cssQueryElements returns elements as interface{} for further chaining.
+// ponytail: caps at 50 to avoid wasting parse work on huge lists.
 func cssQueryElements(html, selector string) ([]interface{}, error) {
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
@@ -74,11 +75,17 @@ func cssQueryElements(html, selector string) ([]interface{}, error) {
 	}
 
 	sel, _ := splitCSSAttr(selector)
+	selection := doc.Find(sel)
+	total := selection.Length()
+	limit := total
+	if limit > 50 {
+		limit = 50
+	}
 	var results []interface{}
-	doc.Find(sel).Each(func(i int, s *goquery.Selection) {
-		h, _ := s.Html()
+	for i := 0; i < limit; i++ {
+		h, _ := selection.Eq(i).Html()
 		results = append(results, h)
-	})
+	}
 	return results, nil
 }
 

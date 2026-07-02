@@ -171,11 +171,27 @@ func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ru
 		return nil, fmt.Errorf("search: bookList: %w", err)
 	}
 
+	// Cap early — don't waste parse work on discarded elements
+	if len(elements) > maxResultsPerSource {
+		elements = elements[:maxResultsPerSource]
+	}
+
+	// Pre-extract non-empty field rules to skip rule-string parsing per element
+	var fieldRules []struct {
+		key  string
+		rule string
+	}
+	for _, key := range []string{"name", "author", "bookUrl", "coverUrl", "intro", "kind", "lastChapter"} {
+		if r := rules[key]; r != "" {
+			fieldRules = append(fieldRules, struct {
+				key  string
+				rule string
+			}{key, r})
+		}
+	}
+
 	var results []SearchResult
 	for _, el := range elements {
-		if len(results) >= maxResultsPerSource {
-			break
-		}
 		elHTML := analyzer.ToString(el)
 		elAn := analyzer.New(elHTML, src.BookSourceURL, s.jsVM, s.cache)
 
@@ -183,26 +199,26 @@ func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ru
 			SourceURL:  src.BookSourceURL,
 			SourceName: src.BookSourceName,
 		}
-		if v := mustString(elAn, rules["name"]); v != "" {
-			r.Name = v
-		}
-		if v := mustString(elAn, rules["author"]); v != "" {
-			r.Author = v
-		}
-		if v := mustString(elAn, rules["bookUrl"]); v != "" {
-			r.BookURL = v
-		}
-		if v := mustString(elAn, rules["coverUrl"]); v != "" {
-			r.CoverURL = v
-		}
-		if v := mustString(elAn, rules["intro"]); v != "" {
-			r.Intro = v
-		}
-		if v := mustString(elAn, rules["kind"]); v != "" {
-			r.Kind = v
-		}
-		if v := mustString(elAn, rules["lastChapter"]); v != "" {
-			r.LastChapter = v
+
+		for _, f := range fieldRules {
+			if v := mustString(elAn, f.rule); v != "" {
+				switch f.key {
+				case "name":
+					r.Name = v
+				case "author":
+					r.Author = v
+				case "bookUrl":
+					r.BookURL = v
+				case "coverUrl":
+					r.CoverURL = v
+				case "intro":
+					r.Intro = v
+				case "kind":
+					r.Kind = v
+				case "lastChapter":
+					r.LastChapter = v
+				}
+			}
 		}
 
 		if r.Name != "" && r.BookURL != "" {

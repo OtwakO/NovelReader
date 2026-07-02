@@ -53,7 +53,7 @@ func jsonQueryList(content, expr string) ([]string, error) {
 	}
 }
 
-// jsonQueryElements returns elements as interface{} list from JSONPath.
+// jsonQueryElements returns elements as interface{} list from JSONPath, capped at 50.
 func jsonQueryElements(content, expr string) ([]interface{}, error) {
 	v, err := jsonpath.Get(expr, []byte(content))
 	if err != nil {
@@ -68,6 +68,9 @@ func jsonQueryElements(content, expr string) ([]interface{}, error) {
 
 	switch typed := v.(type) {
 	case []interface{}:
+		if len(typed) > 50 {
+			typed = typed[:50]
+		}
 		return typed, nil
 	case interface{}:
 		return []interface{}{typed}, nil

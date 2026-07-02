@@ -47,7 +47,7 @@ func xpathQueryList(htmlContent, expr string) ([]string, error) {
 	return results, nil
 }
 
-// xpathQueryElements returns matching element HTML snippets.
+// xpathQueryElements returns matching element HTML snippets, capped at 50.
 func xpathQueryElements(htmlContent, expr string) ([]interface{}, error) {
 	doc, err := htmlquery.Parse(strings.NewReader(htmlContent))
 	if err != nil {
@@ -59,8 +59,12 @@ func xpathQueryElements(htmlContent, expr string) ([]interface{}, error) {
 		return nil, fmt.Errorf("xpath: query all: %w", err)
 	}
 
+	limit := len(nodes)
+	if limit > 50 {
+		limit = 50
+	}
 	var results []interface{}
-	for _, node := range nodes {
+	for _, node := range nodes[:limit] {
 		var b strings.Builder
 		if err := html.Render(&b, node); err == nil {
 			results = append(results, b.String())
