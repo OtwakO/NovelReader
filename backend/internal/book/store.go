@@ -127,6 +127,15 @@ func (s *Store) Init() error {
 	return nil
 }
 
+// bookColumns is the explicit column list for SELECT queries.
+// Using explicit columns (not SELECT *) ensures scan order is deterministic
+// regardless of whether the DB was created by CREATE TABLE or ALTER TABLE.
+var bookColumns = `id, name, author, cover_url, intro, kind,
+	source_url, book_url, toc_url, origin, variable_map,
+	last_chapter, update_time, word_count,
+	dur_chapter_index, dur_chapter_pos, total_chapter_num,
+	alternate_sources, created_at, updated_at`
+
 // AddBook inserts a book into the shelf.
 func (s *Store) AddBook(b *Book) error {
 	now := time.Now().UnixMilli()
@@ -166,7 +175,7 @@ func (s *Store) DeleteBook(id string) error {
 
 // ListBooks returns all books on the shelf.
 func (s *Store) ListBooks() ([]Book, error) {
-	rows, err := s.db.Query(`SELECT * FROM books ORDER BY updated_at DESC`)
+	rows, err := s.db.Query(`SELECT ` + bookColumns + ` FROM books ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +185,7 @@ func (s *Store) ListBooks() ([]Book, error) {
 
 // GetBook returns a single book by ID.
 func (s *Store) GetBook(id string) (*Book, error) {
-	row := s.db.QueryRow(`SELECT * FROM books WHERE id = ?`, id)
+	row := s.db.QueryRow(`SELECT `+bookColumns+` FROM books WHERE id = ?`, id)
 	var b Book
 	if err := scanBookRow(row, &b); err != nil {
 		if err == sql.ErrNoRows {
@@ -321,8 +330,7 @@ type scanner interface {
 func scanBookFromScanner(s scanner) (*Book, error) {
 	var b Book
 	var altSourcesStr string
-	// IMPORTANT: Scan order MUST match column order from CREATE TABLE books.
-	// alternate_sources is at position 17 (before created_at/updated_at).
+	// Scan order MUST match bookColumns (explicit column list, not SELECT *).
 	if err := s.Scan(
 		&b.ID, &b.Name, &b.Author, &b.CoverURL, &b.Intro, &b.Kind,
 		&b.SourceURL, &b.BookURL, &b.TocURL, &b.Origin, &b.VariableMap,
