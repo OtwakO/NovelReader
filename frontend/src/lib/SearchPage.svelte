@@ -36,6 +36,8 @@
       q,
       (source, items) => {
         results = [...results, ...items];
+        // Sort by relevance: higher score first, stable so arrival order is tiebreaker
+        results.sort((a, b) => (b.score || 0) - (a.score || 0));
         sourcesDone++;
       },
       (source, msg) => {
@@ -65,6 +67,7 @@
           id, name: r.name, author: r.author || '',
           coverUrl: r.coverUrl || '', intro: r.intro || '',
           sourceUrl: r.sourceUrl, bookUrl: r.bookUrl,
+          alternateSources: r.alternateSources,
         });
       } catch {
         await addBook({
@@ -117,6 +120,9 @@
             {#if r.kind}<span class="kind">{r.kind}</span>{/if}
             {#if r.lastChapter}<span class="last">{r.lastChapter}</span>{/if}
             <span class="source">{r.sourceName}</span>
+            {#if r.alternateSources && r.alternateSources.length > 0}
+              <span class="alt-count">+{r.alternateSources.length} more</span>
+            {/if}
           </div>
           <button class="add-btn" onclick={() => addToShelf(r)} disabled={adding === r.bookUrl}>
             +
@@ -167,6 +173,7 @@
   .kind { font-size: 0.75rem; color: var(--accent); }
   .last { font-size: 0.75rem; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .source { font-size: 0.7rem; color: #aaa; }
+  .alt-count { font-size: 0.7rem; color: var(--accent); }
   .add-btn {
     background: var(--accent); color: white; border: none;
     width: 2rem; height: 2rem; border-radius: 50%; font-size: 1.2rem;

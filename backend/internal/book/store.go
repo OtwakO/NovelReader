@@ -3,9 +3,17 @@ package book
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 )
+
+// AltSource is a secondary source for the same book.
+type AltSource struct {
+	SourceURL  string `json:"sourceUrl"`
+	BookURL    string `json:"bookUrl"`
+	SourceName string `json:"sourceName"`
+}
 
 // Book represents a book on the user's shelf.
 type Book struct {
@@ -27,6 +35,8 @@ type Book struct {
 	DurChapterIndex int     `json:"durChapterIndex" db:"dur_chapter_index"`
 	DurChapterPos   float64 `json:"durChapterPos" db:"dur_chapter_pos"`
 	TotalChapterNum int     `json:"totalChapterNum" db:"total_chapter_num"`
+
+	AlternateSources []AltSource `json:"alternateSources,omitempty" db:"alternate_sources"`
 
 	CreatedAt int64 `json:"createdAt" db:"created_at"`
 	UpdatedAt int64 `json:"updatedAt" db:"updated_at"`
@@ -57,6 +67,8 @@ type SearchResult struct {
 	BookURL    string `json:"bookUrl"`
 	SourceURL  string `json:"sourceUrl"`
 	SourceName string `json:"sourceName"`
+	Score      int           `json:"score"`
+	AlternateSources []AltSource `json:"alternateSources,omitempty"`
 }
 
 // Store handles book persistence.
@@ -88,6 +100,7 @@ func (s *Store) Init() error {
 			dur_chapter_index INTEGER DEFAULT 0,
 			dur_chapter_pos REAL DEFAULT 0,
 			total_chapter_num INTEGER DEFAULT 0,
+			alternate_sources TEXT DEFAULT '[]',
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`,
@@ -109,6 +122,8 @@ func (s *Store) Init() error {
 			return fmt.Errorf("book: init: %w", err)
 		}
 	}
+	// Migrate: add column if missing on existing DBs
+	s.db.Exec(`ALTER TABLE books ADD COLUMN alternate_sources TEXT DEFAULT '[]'`)
 	return nil
 }
 
@@ -117,17 +132,23 @@ func (s *Store) AddBook(b *Book) error {
 	now := time.Now().UnixMilli()
 	b.CreatedAt = now
 	b.UpdatedAt = now
+	altJSON, _ := json.Marshal(b.AlternateSources)
+	if len(altJSON) == 0 {
+		altJSON = []byte("[]")
+	}
 	_, err := s.db.Exec(`INSERT OR REPLACE INTO books (
 		id, name, author, cover_url, intro, kind,
 		source_url, book_url, toc_url, origin, variable_map,
 		last_chapter, update_time, word_count,
 		dur_chapter_index, dur_chapter_pos, total_chapter_num,
+		alternate_sources,
 		created_at, updated_at
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		b.ID, b.Name, b.Author, b.CoverURL, b.Intro, b.Kind,
 		b.SourceURL, b.BookURL, b.TocURL, b.Origin, b.VariableMap,
 		b.LastChapter, b.UpdateTime, b.WordCount,
 		b.DurChapterIndex, b.DurChapterPos, b.TotalChapterNum,
+		string(altJSON),
 		b.CreatedAt, b.UpdatedAt,
 	)
 	return err
@@ -218,33 +239,102 @@ func (s *Store) UpdateTotalChapters(bookID string, total int) error {
 	return err
 }
 
+// SwitchSource swaps the active source for a book and clears chapters/progress.
+// The old source becomes an alternate; the new one is promoted to active.
+// ponytail: progress is reset on switch — chapter indices differ across sources.
+func (s *Store) SwitchSource(bookID, sourceURL, bookURL, sourceName string) error {
+	b, err := s.GetBook(bookID)
+	if err != nil || b == nil {
+		return fmt.Errorf("switch source: book not found")
+	}
+
+	// Build new alternates: push current active out, remove the chosen one from alts
+	var newAlts []AltSource
+	if b.SourceURL != "" {
+		newAlts = append(newAlts, AltSource{
+			SourceURL:  b.SourceURL,
+			BookURL:    b.BookURL,
+			SourceName: b.Origin,
+		})
+	}
+	for _, a := range b.AlternateSources {
+		if a.SourceURL == sourceURL && a.BookURL == bookURL {
+			continue // this one becomes the new active
+		}
+		newAlts = append(newAlts, a)
+	}
+
+	altJSON, _ := json.Marshal(newAlts)
+	now := time.Now().UnixMilli()
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`UPDATE books SET
+		source_url = ?, book_url = ?, origin = ?, toc_url = '',
+		dur_chapter_index = 0, dur_chapter_pos = 0, total_chapter_num = 0,
+		alternate_sources = ?, updated_at = ?
+		WHERE id = ?`,
+		sourceURL, bookURL, sourceName, string(altJSON), now, bookID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(`DELETE FROM chapters WHERE book_id = ?`, bookID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 // scanBooks scans book rows.
 func scanBooks(rows *sql.Rows) ([]Book, error) {
 	var list []Book
 	for rows.Next() {
-		var b Book
-		if err := rows.Scan(
-			&b.ID, &b.Name, &b.Author, &b.CoverURL, &b.Intro, &b.Kind,
-			&b.SourceURL, &b.BookURL, &b.TocURL, &b.Origin, &b.VariableMap,
-			&b.LastChapter, &b.UpdateTime, &b.WordCount,
-			&b.DurChapterIndex, &b.DurChapterPos, &b.TotalChapterNum,
-			&b.CreatedAt, &b.UpdatedAt,
-		); err != nil {
+		b, err := scanBookFromScanner(rows)
+		if err != nil {
 			return nil, err
 		}
-		list = append(list, b)
+		list = append(list, *b)
 	}
 	return list, rows.Err()
 }
 
 func scanBookRow(row *sql.Row, b *Book) error {
-	return row.Scan(
+	loaded, err := scanBookFromScanner(row)
+	if err != nil {
+		return err
+	}
+	*b = *loaded
+	return nil
+}
+
+// scanBookFromScanner scans a single book row, handling alternate_sources.
+type scanner interface {
+	Scan(dest ...interface{}) error
+}
+
+func scanBookFromScanner(s scanner) (*Book, error) {
+	var b Book
+	var altSourcesStr string
+	if err := s.Scan(
 		&b.ID, &b.Name, &b.Author, &b.CoverURL, &b.Intro, &b.Kind,
 		&b.SourceURL, &b.BookURL, &b.TocURL, &b.Origin, &b.VariableMap,
 		&b.LastChapter, &b.UpdateTime, &b.WordCount,
 		&b.DurChapterIndex, &b.DurChapterPos, &b.TotalChapterNum,
+		&altSourcesStr,
 		&b.CreatedAt, &b.UpdatedAt,
-	)
+	); err != nil {
+		return nil, err
+	}
+	if altSourcesStr != "" && altSourcesStr != "[]" {
+		json.Unmarshal([]byte(altSourcesStr), &b.AlternateSources)
+	}
+	return &b, nil
 }
 
 func scanChapters(rows *sql.Rows) ([]Chapter, error) {

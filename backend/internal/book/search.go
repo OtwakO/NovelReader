@@ -151,7 +151,15 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	if src.RuleSearch == "" {
 		return nil, fmt.Errorf("source %q has no search rules", src.BookSourceName)
 	}
-	return s.parseSearchResultWithRule(src, resp.Body, src.RuleSearch)
+	results, err := s.parseSearchResultWithRule(src, resp.Body, src.RuleSearch)
+	if err != nil {
+		return nil, err
+	}
+	// Score each result against the query for relevance sorting
+	for i := range results {
+		results[i].Score = scoreResult(query, results[i].Name)
+	}
+	return results, nil
 }
 
 // parseSearchResultWithRule parses search results using structured SearchRule JSON.

@@ -97,6 +97,9 @@ func (s *Server) registerRoutes() {
 	// Progress
 	s.mux.HandleFunc("PUT /api/books/{id}/progress", s.handleUpdateProgress)
 
+	// Source switching
+	s.mux.HandleFunc("PUT /api/books/{id}/source", s.handleSwitchSource)
+
 	// Fonts — IDs are simple UUIDs/timestamps, path-safe
 	s.mux.HandleFunc("GET /api/fonts", s.handleListFonts)
 	s.mux.HandleFunc("POST /api/fonts", s.handleUploadFont)
@@ -317,6 +320,8 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if results == nil {
 		results = []book.SearchResult{}
 	}
+	// Merge same books, sort by relevance
+	results = book.MergeAndSort(query, results)
 	writeJSON(w, http.StatusOK, results)
 }
 
@@ -472,7 +477,7 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 // --- Progress ---
 
 func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
-	bookID := r.PathValue("id") // fix: update route should also be query-param-based; kept as path for now
+	bookID := r.PathValue("id")
 	var req struct {
 		ChapterIndex int     `json:"chapterIndex"`
 		Position     float64 `json:"position"`
@@ -488,6 +493,41 @@ func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
+func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
+	bookID := r.PathValue("id")
+	var req struct {
+		SourceURL  string `json:"sourceUrl"`
+		BookURL    string `json:"bookUrl"`
+		SourceName string `json:"sourceName,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	defer r.Body.Close()
+
+	if req.SourceURL == "" || req.BookURL == "" {
+		writeError(w, http.StatusBadRequest, "sourceUrl and bookUrl required")
+		return
+	}
+
+	// Look up source name if not provided
+	sourceName := req.SourceName
+	if sourceName == "" {
+		if src, err := s.sourceStore.GetByID(req.SourceURL); err == nil && src != nil {
+			sourceName = src.BookSourceName
+		}
+	}
+
+	if err := s.bookStore.SwitchSource(bookID, req.SourceURL, req.BookURL, sourceName); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	b, _ := s.bookStore.GetBook(bookID)
+	writeJSON(w, http.StatusOK, b)
 }
 
 // --- Fonts ---

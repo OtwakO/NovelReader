@@ -47,6 +47,12 @@ export function deleteSource(url: string) {
 }
 
 // --- Search ---
+export interface AltSource {
+  sourceUrl: string;
+  bookUrl: string;
+  sourceName: string;
+}
+
 export interface SearchResult {
   name: string;
   author: string;
@@ -57,6 +63,8 @@ export interface SearchResult {
   bookUrl: string;
   sourceUrl: string;
   sourceName: string;
+  score?: number;
+  alternateSources?: AltSource[];
 }
 
 export function searchBooks(query: string) {
@@ -113,6 +121,7 @@ export interface Book {
   lastChapter: string;
   durChapterIndex: number;
   totalChapterNum: number;
+  alternateSources?: AltSource[];
 }
 
 export function listBooks() {
@@ -140,6 +149,7 @@ export function enrichBook(data: {
   intro?: string;
   sourceUrl: string;
   bookUrl: string;
+  alternateSources?: AltSource[];
 }) {
   return req<Book>('/books/enrich', {
     method: 'POST',
@@ -178,6 +188,13 @@ export function getChapterContent(bookId: string, chapterIdx: number) {
 }
 
 // --- Progress ---
+export function switchBookSource(bookId: string, sourceUrl: string, bookUrl: string, sourceName?: string) {
+  return req<Book>(`/books/${encodeURIComponent(bookId)}/source`, {
+    method: 'PUT',
+    body: JSON.stringify({ sourceUrl, bookUrl, sourceName }),
+  });
+}
+
 export function saveProgress(
   bookId: string,
   chapterIndex: number,
