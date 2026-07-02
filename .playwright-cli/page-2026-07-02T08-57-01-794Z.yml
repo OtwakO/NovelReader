@@ -1,0 +1,12 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - button "←" [ref=e5] [cursor=pointer]
+    - heading "NovelReader" [level=1] [ref=e6]
+    - navigation [ref=e7]:
+      - button "Sources" [ref=e8] [cursor=pointer]: 📚
+      - button "Search" [active] [ref=e9] [cursor=pointer]: 🔍
+      - button "Settings" [ref=e10] [cursor=pointer]: ⚙️
+  - main [ref=e11]:
+    - generic [ref=e2052]:
+      - searchbox "Search books..." [ref=e2053]
+      - button "Search" [ref=e2054] [cursor=pointer]

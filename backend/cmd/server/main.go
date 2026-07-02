@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -60,8 +61,12 @@ func main() {
 	// Create API server
 	apiSrv := api.NewServer(sourceStore, bookStore, searcher, fStore, httpClient, jsVM, cache, procCfg, cfg.DataDir)
 
-	// Serve frontend static files if directory exists
-	staticDir := "./frontend/dist"
+	// Serve frontend static files from the project frontend dist
+	staticDir := "../frontend/dist"
+	if _, err := os.Stat(staticDir); os.IsNotExist(err) {
+		staticDir = "./frontend/dist"
+	}
+	log.Printf("Serving static files from: %s", staticDir)
 	fs := http.FileServer(http.Dir(staticDir))
 	apiSrv.ServeStatic(apiSrv.Mux(), staticDir, fs)
 
