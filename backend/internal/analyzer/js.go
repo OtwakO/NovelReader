@@ -238,17 +238,26 @@ func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]inter
 			_ = s
 		}
 	}
-	if h.vm.hc == nil {
-		return map[string]interface{}{"body": "", "code": 0}
+
+	finalURL := urlStr
+	body := ""
+	code := 0
+
+	if h.vm.hc != nil {
+		resp, err := h.vm.hc.Get(urlStr, headers)
+		if err == nil {
+			body = resp.Body
+			code = resp.StatusCode
+			finalURL = resp.URL
+		}
 	}
-	resp, err := h.vm.hc.Get(urlStr, headers)
-	if err != nil {
-		return map[string]interface{}{"body": "", "code": 0, "error": err.Error()}
-	}
-	finalURL := resp.URL
+
 	return map[string]interface{}{
-		"body": resp.Body,
-		"code": resp.StatusCode,
+		"body": body,
+		"code": code,
+		// ponytail: raw.request.url chain always present (even on error) so
+		// sources using java.connect(src.getKey()).raw().request().url()
+		// to discover redirect targets don't get "Object has no member 'raw'".
 		"raw": func() map[string]interface{} {
 			return map[string]interface{}{
 				"request": func() map[string]interface{} {
