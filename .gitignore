@@ -1,0 +1,49 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+backend/server
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+node_modules/
+
+# Frontend build
+frontend/dist/
+
+# Environment files
+.env
+.env.local
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Docker
+.docker/
+
+# Pi agent
+.pi/
+
+# Large test data
+test_booksource.json
+test_booksource2.json
+reference/legado
