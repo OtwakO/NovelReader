@@ -12,6 +12,43 @@ import (
 	"strings"
 )
 
+// splitTopLevel splits a rule string on a separator (||, &&, %%) at top level,
+// respecting <js>...</js> blocks and {{...}} expressions.
+func splitTopLevel(s, sep string) []string {
+	var result []string
+	depth := 0
+	doubleBrace := false
+	inJS := false
+	start := 0
+	for i := 0; i < len(s); i++ {
+		switch {
+		case i+3 < len(s) && s[i:i+4] == "<js>":
+			inJS = true
+			i += 3
+		case i+4 < len(s) && s[i:i+5] == "</js>":
+			inJS = false
+			i += 4
+		case s[i] == '{' && !inJS:
+			depth++
+			if i+1 < len(s) && s[i+1] == '{' {
+				doubleBrace = true
+			}
+		case s[i] == '}' && !inJS:
+			if doubleBrace && i+1 < len(s) && s[i+1] == '}' {
+				doubleBrace = false
+				i++
+			}
+			depth--
+		case depth == 0 && !inJS && !doubleBrace && i+len(sep) <= len(s) && s[i:i+len(sep)] == sep:
+			result = append(result, strings.TrimSpace(s[start:i]))
+			start = i + len(sep)
+			i += len(sep) - 1
+		}
+	}
+	result = append(result, strings.TrimSpace(s[start:]))
+	return result
+}
+
 // Mode indicates which parser to use for a rule.
 type Mode int
 
@@ -77,12 +114,53 @@ func (a *Analyzer) SetBookData(b map[string]string) { a.book = b }
 func (a *Analyzer) SetChapterData(c map[string]string) { a.chapter = c }
 
 // GetString evaluates a rule string and returns the first text result.
+// Supports && (concatenate) and || (OR-first) between entire rule expressions.
 func (a *Analyzer) GetString(ruleStr string) (string, error) {
-	rules, err := ParseRules(ruleStr, a.isJSON)
-	if err != nil {
-		return "", err
+	// Handle && concatenation at the top level
+	if andParts := splitTopLevel(ruleStr, "&&"); len(andParts) > 1 {
+		var parts []string
+		for _, part := range andParts {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			// Each &&-separated part may contain || chains
+			v, err := a.getFirstOr(part)
+			if err == nil && v != "" {
+				parts = append(parts, v)
+			}
+		}
+		return strings.Join(parts, " "), nil
 	}
-	return a.evalString(rules)
+	return a.getFirstOr(ruleStr)
+}
+
+// getFirstOr evaluates a rule string handling || (try first non-empty).
+func (a *Analyzer) getFirstOr(ruleStr string) (string, error) {
+	segments := splitTopLevel(ruleStr, "||")
+	for _, seg := range segments {
+		seg = strings.TrimSpace(seg)
+		if seg == "" {
+			continue
+		}
+		rules, err := ParseRules(seg, a.isJSON)
+		if err != nil {
+			continue
+		}
+		result, err := a.evalString(rules)
+		if err == nil && result != "" {
+			return result, nil
+		}
+	}
+	// If all || options failed, try the last one even if empty
+	if len(segments) > 0 {
+		seg := strings.TrimSpace(segments[len(segments)-1])
+		rules, err := ParseRules(seg, a.isJSON)
+		if err == nil {
+			return a.evalString(rules)
+		}
+	}
+	return "", nil
 }
 
 // GetStringList evaluates a rule string and returns a list of text results.
@@ -104,10 +182,33 @@ func (a *Analyzer) GetElement(ruleStr string) (interface{}, error) {
 }
 
 // GetElements evaluates a rule and returns a list of elements.
-// || in element extraction means OR: try each segment, return first with results.
+// || means OR (try each, return first with results).
+// && means merge (return all results from all branches).
 func (a *Analyzer) GetElements(ruleStr string) ([]interface{}, error) {
-	// Split on || for OR semantics
-	segments := strings.Split(ruleStr, "||")
+	// Handle && merge at top level
+	if andParts := splitTopLevel(ruleStr, "&&"); len(andParts) > 1 {
+		var all []interface{}
+		for _, part := range andParts {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			result, err := a.getElementsOR(part)
+			if err == nil && len(result) > 0 {
+				all = append(all, result...)
+			}
+		}
+		if len(all) > 0 {
+			return all, nil
+		}
+		return nil, fmt.Errorf("analyzer: no elements matched")
+	}
+	return a.getElementsOR(ruleStr)
+}
+
+// getElementsOR handles || (OR) semantics for element extraction.
+func (a *Analyzer) getElementsOR(ruleStr string) ([]interface{}, error) {
+	segments := splitTopLevel(ruleStr, "||")
 	for _, seg := range segments {
 		seg = strings.TrimSpace(seg)
 		if seg == "" {

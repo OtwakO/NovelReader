@@ -235,6 +235,8 @@ func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]inter
 	headers := make(map[string]string)
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok && s != "" {
+			// ponytail: header JSON string parsed but not forwarded to fetch —
+			// Connect is mostly used for redirect discovery, not full requests.
 			_ = s
 		}
 	}
@@ -242,6 +244,7 @@ func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]inter
 	finalURL := urlStr
 	body := ""
 	code := 0
+	respHeaders := make(map[string]interface{})
 
 	if h.vm.hc != nil {
 		resp, err := h.vm.hc.Get(urlStr, headers)
@@ -249,20 +252,29 @@ func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]inter
 			body = resp.Body
 			code = resp.StatusCode
 			finalURL = resp.URL
+			for k, vals := range resp.Headers {
+				if len(vals) > 0 {
+					respHeaders[k] = vals[0]
+				}
+			}
 		}
 	}
 
 	return map[string]interface{}{
-		"body": body,
-		"code": code,
-		// ponytail: raw.request.url chain always present (even on error) so
-		// sources using java.connect(src.getKey()).raw().request().url()
-		// to discover redirect targets don't get "Object has no member 'raw'".
+		"body":    body,
+		"code":    code,
+		"headers": respHeaders,
+		// ponytail: raw.request.url chain matches legado's StrResponse shape.
+		// .body(), .code(), .headers() also work as direct properties.
 		"raw": func() map[string]interface{} {
 			return map[string]interface{}{
+				"body":    body,
+				"code":    code,
+				"headers": respHeaders,
 				"request": func() map[string]interface{} {
 					return map[string]interface{}{
-						"url": func() string { return finalURL },
+						"url":     func() string { return finalURL },
+						"headers": respHeaders,
 					}
 				},
 			}
@@ -424,17 +436,7 @@ func (s *jsSource) Put(key, value string) string {
 
 // --- cookie.* bridge ---
 
-type jsCookie struct{}
-
-func (c *jsCookie) RemoveCookie(url string) string {
-	// ponytail: cookie removal is a no-op in single-user mode.
-	// In legado this deletes cookies for the domain from the persistent store.
-	return ""
-}
-
-func (c *jsCookie) GetCookie(url string) string  { return "" }
-func (c *jsCookie) GetKey(url, key string) string { return "" }
-func (c *jsCookie) SetCookie(url, cookie string)  {}
+// ponytail: jsCookie struct removed — makeCookieObj returns an inline map.
 
 // --- cache.* bridge ---
 

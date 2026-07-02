@@ -46,16 +46,31 @@ func ParseRules(ruleStr string, isJSON bool) ([]Rule, error) {
 	return rules, nil
 }
 
-// nextSegment extracts the next rule segment, splitting on || at top level.
+// nextSegment extracts the next rule segment, splitting on:
+//   || — OR connector (top level only)
+//   <js> — start of JS block in mid-chain (e.g. tag.li<js>result+='x'</js>)
+//   </js> — end of JS block
 func nextSegment(s string) (string, string, error) {
 	depth := 0
 	inJS := false
 	for i := 0; i < len(s); i++ {
 		switch {
 		case i+3 < len(s) && s[i:i+4] == "<js>":
+			if !inJS && depth == 0 {
+				// <js> acts as a segment boundary — return everything before it
+				pre := strings.TrimSpace(s[:i])
+				if pre != "" {
+					return pre, s[i:], nil
+				}
+			}
 			inJS = true
 			i += 3
 		case i+4 < len(s) && s[i:i+5] == "</js>":
+			if inJS && depth == 0 {
+				// </js> ends the JS block — return the whole <js>...</js> segment
+				end := i + 5
+				return s[:end], strings.TrimSpace(s[end:]), nil
+			}
 			inJS = false
 			i += 4
 		case s[i] == '{' && !inJS:

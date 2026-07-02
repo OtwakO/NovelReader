@@ -66,10 +66,11 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 		Headers: make(map[string]string),
 	}
 
-	// Strip newlines for non-@js: URLs. @js: URLs need newlines for JS code.
+	// Strip newlines and carriage returns for non-@js: URLs.
+	// @js: URLs need newlines for JS code. We remove newlines entirely so
+	// that ,\n{ stays adjacent (crucial for findJSONOption detection).
 	if !strings.HasPrefix(urlStr, "@js:") {
-		urlStr = strings.ReplaceAll(urlStr, "\n", " ")
-		urlStr = strings.ReplaceAll(urlStr, "\r", "")
+		urlStr = strings.NewReplacer("\n", "", "\r", "").Replace(urlStr)
 		urlStr = strings.TrimSpace(urlStr)
 	}
 
@@ -152,6 +153,22 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 		}
 	}
 
+	// Handle <,{{page}}> page-selection syntax: <,a,b,c> picks page 1→a, 2→b, 3→c.
+	// For page 1, <,...> should be removed (produces empty string).
+	// We use a simple regex to remove <...> segments that match the page pattern.
+	// ponytail: only handles the common case; complex JS inside <...> is deferred.
+	if strings.Contains(urlStr, "<,") {
+		pageSelRe := regexp.MustCompile(`<[^>]*{{[^}]*}}[^>]*>`)
+		urlStr = pageSelRe.ReplaceAllStringFunc(urlStr, func(match string) string {
+			parts := strings.Split(match[1:len(match)-1], ",")
+			// parts[0] is empty (from <,) or the content before first comma
+			if page > 0 && page <= len(parts)-1 {
+				return strings.TrimSpace(parts[page])
+			}
+			return ""
+		})
+	}
+
 	// Evaluate {{...}} JS expressions in the URL (handles {{cookie.removeCookie(source.key)}}, etc.)
 	// First pass: simple variable replacement for {{key}} and {{page}} (no JS overhead)
 	urlStr = strings.ReplaceAll(urlStr, "{{key}}", key)
@@ -209,18 +226,67 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 // evalTemplateExpressions finds all {{...}} patterns and evaluates the content as JS.
 // Handles cases like {{cookie.removeCookie(source.key)}}, {{source.key}}, etc.
 // ponytail: simple regex-based extraction, no nesting support for {{...}} inside {{...}}.
-var tmplRe = regexp.MustCompile(`\{\{([^}]+)\}\}`)
-
+// evalTemplateExpressions finds all {{...}} patterns and evaluates the inner content as JS.
+// Uses brace-counting instead of regex to handle nested braces like {{var x={a:1}; x}}.
 func evalTemplateExpressions(s string, jsVM *JSVM, baseURL string, extra ...map[string]interface{}) string {
 	var bindings map[string]interface{}
 	if len(extra) > 0 {
 		bindings = extra[0]
 	}
-	return tmplRe.ReplaceAllStringFunc(s, func(match string) string {
-		inner := strings.TrimSpace(match[2 : len(match)-2])
-		if inner == "" {
-			return match
+
+	var result strings.Builder
+	i := 0
+	for i < len(s) {
+		// Find next {{
+		start := strings.Index(s[i:], "{{")
+		if start == -1 {
+			result.WriteString(s[i:])
+			break
 		}
+		start += i
+		result.WriteString(s[i:start])
+		i = start + 2
+
+		// Find matching }} with brace-counting for nested {}
+		depth := 0
+		end := -1
+		for j := i; j < len(s); j++ {
+			if s[j] == '{' && j+1 < len(s) && s[j+1] == '{' {
+				// Nested {{ — shouldn't happen but handle safely
+				depth++
+				j++
+			} else if j+1 < len(s) && s[j] == '}' && s[j+1] == '}' {
+				if depth == 0 {
+					end = j
+					break
+				}
+				depth--
+				j++
+			} else if s[j] == '{' {
+				depth++
+			} else if s[j] == '}' {
+				depth--
+				if depth < 0 {
+					// Unbalanced — treat as literal
+					end = -1
+					break
+				}
+			}
+		}
+
+		if end == -1 {
+			// No matching }}, keep as literal
+			result.WriteString(s[start : i])
+			continue
+		}
+
+		inner := strings.TrimSpace(s[i:end])
+		if inner == "" {
+			result.WriteString(s[start : end+2])
+			i = end + 2
+			continue
+		}
+
 		var v interface{}
 		var err error
 		if bindings != nil {
@@ -230,10 +296,13 @@ func evalTemplateExpressions(s string, jsVM *JSVM, baseURL string, extra ...map[
 		}
 		if err != nil {
 			slog.Warn("urlbuilder: template eval failed", "expr", inner[:min(len(inner), 60)], "err", err)
-			return match
+			result.WriteString(s[start : end+2])
+		} else {
+			result.WriteString(ToString(v))
 		}
-		return ToString(v)
-	})
+		i = end + 2
+	}
+	return result.String()
 }
 
 // EncodeParamValue URL-encodes a value in the specified charset.
@@ -299,17 +368,37 @@ func lookupEncoding(charset string) (encoding.Encoding, error) {
 }
 
 // findJSONOption finds the start of a ,{...} JSON option suffix in a URL.
-// It scans from the end, counting brace depth to handle nested JSON.
+// It scans from the end, skipping whitespace between comma and brace.
+// Uses brace-counting (not json.Valid) to handle trailing junk after the option
+// (e.g. ,{...}\n@js:... which is valid legado but invalid json.Valid).
 // Returns -1 if no valid JSON option is found.
 func findJSONOption(url string) int {
-	// Look for ",{" starting from the end (it's a suffix)
 	for i := len(url) - 2; i >= 0; i-- {
-		if url[i] == ',' && i+1 < len(url) && url[i+1] == '{' {
-			// Verify it parses as valid JSON
-			if json.Valid([]byte(url[i+1:])) {
-				return i
+		if url[i] == ',' {
+			// Skip whitespace between comma and expected brace
+			j := i + 1
+			for j < len(url) && (url[j] == ' ' || url[j] == '\t' || url[j] == '\n' || url[j] == '\r') {
+				j++
 			}
-			// Not valid JSON at this comma — try earlier ones
+			if j < len(url) && url[j] == '{' {
+				// Brace-count to extract just the JSON object, ignoring trailing junk
+				depth := 1
+				k := j + 1
+				for k < len(url) && depth > 0 {
+					if url[k] == '{' {
+						depth++
+					} else if url[k] == '}' {
+						depth--
+					}
+					k++
+				}
+				if depth == 0 {
+					optionStr := url[j:k]
+					if json.Valid([]byte(optionStr)) {
+						return i
+					}
+				}
+			}
 		}
 	}
 	return -1
