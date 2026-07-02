@@ -11,3 +11,4 @@ data/
 node_modules/
 reference/
 backend/server
+.playwright-cli/

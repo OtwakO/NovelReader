@@ -113,6 +113,15 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 		go func(src booksource.BookSource) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			// Recover from panics in individual source search to avoid killing the process
+			defer func() {
+				if rec := recover(); rec != nil {
+					slog.Error("search: panic in source goroutine",
+						"source", src.BookSourceName,
+						"panic", fmt.Sprintf("%v", rec))
+					ch <- jobResult{src, nil, fmt.Errorf("panic: %v", rec)}
+				}
+			}()
 			r, err := s.searchSource(ctx, src, query)
 			ch <- jobResult{src, r, err}
 		}(src)
