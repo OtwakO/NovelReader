@@ -38,7 +38,7 @@ func NewSearcher(
 ) *Searcher {
 	return &Searcher{
 		fetcher:       hc,
-		searchFetcher: fetcher.NewWithTimeout(perSourceTimeout),
+		searchFetcher: fetcher.NewStateless(perSourceTimeout), // no cookie jar = safe for multi-user
 		jsVM:          jsVM,
 		cache:         cache,
 		sourceStore:   sourceStore,

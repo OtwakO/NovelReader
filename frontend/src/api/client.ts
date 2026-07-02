@@ -65,6 +65,7 @@ export function searchBooks(query: string) {
 
 // SSE streaming search. Calls onResult per source, onDone when all complete.
 // Returns an EventSource that the caller can close() to cancel.
+// ponytail: no cross-source dedup — showing same book from different sources is useful (user picks source).
 export function searchBooksStream(
   query: string,
   onResult: (source: string, items: SearchResult[]) => void,
@@ -72,20 +73,30 @@ export function searchBooksStream(
   onDone: (total: number, sourcesDone: number) => void,
 ): EventSource {
   const es = new EventSource(`/api/search/stream?q=${encodeURIComponent(query)}`);
+  let finished = false;
+
   es.onmessage = (e) => {
     try {
       const ev = JSON.parse(e.data);
       if (ev.type === 'results') onResult(ev.source, ev.data);
       else if (ev.type === 'error') onError(ev.source, ev.message);
       else if (ev.type === 'done') {
+        finished = true;
         onDone(ev.total, ev.sourcesDone);
         es.close();
       }
     } catch { /* ignore malformed */ }
   };
+
   es.onerror = () => {
-    // EventSource auto-reconnects on error. Close if done already handled.
+    // Auto-reconnect is harmful for one-shot search: it restarts the fan-out.
+    // Close instead, unless we already finished.
+    if (!finished) {
+      es.close();
+      onDone(0, 0); // signal completion with zero results
+    }
   };
+
   return es;
 }
 

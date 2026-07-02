@@ -11,6 +11,13 @@
   let error = $state('');
   let es = $state<EventSource | null>(null);
 
+  // Clean up EventSource on unmount (route change, back nav)
+  $effect(() => {
+    return () => {
+      if (es) { es.close(); es = null; }
+    };
+  });
+
   function handleSearch(e: Event) {
     e.preventDefault();
     if (!query.trim()) return;
@@ -29,9 +36,9 @@
       q,
       (source, items) => {
         results = [...results, ...items];
+        sourcesDone++;
       },
       (source, msg) => {
-        // silently track errors per source; don't spam the user
         sourcesDone++;
       },
       (total, done) => {

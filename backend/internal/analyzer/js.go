@@ -52,22 +52,13 @@ func (vm *JSVM) LoadLib(code string) error {
 	return nil
 }
 
-// Eval evaluates JS and returns a result string.
-// Each eval re-initializes the runtime with shared libs to prevent state leakage between sources.
+// Eval evaluates JS on a borrowed runtime.
+// initCode is loaded once into each runtime by LoadLib.
+// Per-eval we only set bindings — no re-init.
 func (vm *JSVM) Eval(script, content, baseURL string) (interface{}, error) {
 	rt := <-vm.pool
 	defer func() { vm.pool <- rt }()
 
-	vm.mu.Lock()
-	initCode := vm.initCode
-	vm.mu.Unlock()
-
-	// Re-init to get a clean state
-	if initCode != "" {
-		if _, err := rt.RunString(initCode); err != nil {
-			return "", fmt.Errorf("js: init: %w", err)
-		}
-	}
 	_ = rt.Set("result", content)
 	_ = rt.Set("baseUrl", baseURL)
 	_ = rt.Set("java", &jsHelpers{rt: rt})

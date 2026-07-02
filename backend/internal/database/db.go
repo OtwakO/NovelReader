@@ -23,9 +23,10 @@ func Open(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("database: open: %w", err)
 	}
 
-	// ponytail: sensible defaults. WAL for concurrent reads, 5s busy timeout, 8MB cache.
-	db.SetMaxOpenConns(1) // SQLite doesn't support concurrent writes
-	db.SetMaxIdleConns(1)
+	// ponytail: WAL mode + small read pool for concurrent readers.
+	// SQLite WAL allows concurrent reads + one writer.
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(2)
 
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("database: ping: %w", err)

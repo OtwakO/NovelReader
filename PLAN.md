@@ -2,7 +2,7 @@
 
 ## Objective
 
-A web-first, mobile-friendly novel reading application with a Go backend and Svelte 5 frontend. At its core is a legado-compatible **booksource system** that can import, manage, search, and crawl books from arbitrary websites using the legado BookSource JSON format. Designed for Docker deployment, single-user first but architecturally ready for multi-user.
+A web-first, mobile-friendly novel reading application with a Go backend and Svelte 5 frontend. At its core is a legado-compatible **booksource system** that can import, manage, search, and crawl books from arbitrary websites using the legado BookSource JSON format. Designed for Docker deployment, single-user first but architecturally multi-user ready.
 
 ## Architecture
 
@@ -11,219 +11,229 @@ A web-first, mobile-friendly novel reading application with a Go backend and Sve
 ```
 novelreader/
 ├── backend/
-│   ├── cmd/server/            # Entry point
+│   ├── cmd/server/            # Entry point (port 8888)
 │   ├── internal/
-│   │   ├── api/               # HTTP handlers, routes, middleware
+│   │   ├── api/               # HTTP handlers, SSE, routes
 │   │   ├── booksource/        # BookSource entity, CRUD, import/export
-│   │   ├── fetcher/           # HTTP client with cookie/header management
-│   │   ├── analyzer/          # Rule parsing engine (CSS, XPath, JSONPath, Regex, JS)
-│   │   ├── book/              # Book, chapter, content management
-│   │   ├── processor/         # Content processing (replace rules, C2C, paragraph)
-│   │   └── config/            # Server configuration
-│   ├── Dockerfile
+│   │   ├── fetcher/           # HTTP client (stateless + cookie jar variants)
+│   │   ├── analyzer/          # Rule engine: CSS, XPath, JSONPath, Regex, JS
+│   │   ├── book/              # Search stream, TOC parser, content, store
+│   │   ├── processor/         # Content sanitization, paragraph formatting
+│   │   ├── config/            # ENV-based config
+│   │   └── database/          # SQLite (WAL, read pool)
 │   ├── go.mod
 │   └── go.sum
 ├── frontend/
 │   ├── src/
-│   │   ├── lib/               # Reusable components (reader, settings, etc.)
-│   │   ├── routes/            # Page components
-│   │   ├── stores/            # Svelte stores for state
-│   │   └── api/               # API client module
-│   ├── static/
+│   │   ├── lib/               # Bookshelf, SearchPage, Reader, Settings, SourceList, BookDetail
+│   │   └── api/               # Typed API client with SSE streaming
+│   ├── index.html
 │   ├── package.json
-│   └── vite.config.js
+│   └── vite.config.ts
+├── dev.sh                     # Build/run script
 ├── docker-compose.yml
-├── .gitignore
-├── README.md
-└── PLAN.md
+├── test_booksource.json       # Test sources (26 search sources)
+├── test_booksource2.json      # Test sources (230 full sources)
+├── reference/legado/          # Legado source repo reference
+├── PLAN.md
+└── README.md
 ```
 
 ### Key Modules
 
 | Module | Responsibility |
 |--------|---------------|
-| `backend/internal/analyzer` | Port of legado's AnalyzeRule + AnalyzeUrl. Parses rule strings, dispatches to CSS/XPath/JSONPath/Regex/JS engines. |
-| `backend/internal/booksource` | BookSource entity struct, SQLite persistence, JSON import/export, validation. |
-| `backend/internal/fetcher` | HTTP client with cookie jar, header map, login support, concurrent rate limiting. |
-| `backend/internal/book` | Book/chapter persistence, search orchestration, TOC fetching, content caching. |
-| `backend/internal/processor` | ContentProcessor: replace rules, Chinese conversion, paragraph reflow, duplicate title removal. |
-| `backend/internal/api` | REST handlers using `net/http` with a lightweight router. |
-| `frontend/` | Svelte 5 SPA. Vite for build. Tailwind CSS for styling. |
+| `analyzer` | Rule parsing engine. Dispatches CSS (goquery), XPath (antchfx), JSONPath, Regex, JS (goja pool×4). Handles `##` replacement, `||` OR/chain, `@js:` blocks. |
+| `booksource` | BookSource entity with custom `UnmarshalJSON` (accepts nested rule objects). SQLite CRUD. |
+| `fetcher` | `Client` with context support. Two variants: `New()` with cookie jar (content fetching), `NewStateless()` without (search — no cross-user leak). |
+| `book` | `Searcher` with `SearchStream()` (per-source callback), `ChapterListParser` (legado ToC with pagination/volumes), chapter/content fetching. |
+| `processor` | `ContentProcessor`: strips HTML tags (XSS prevention), converts `<br>`/`</p>` to newlines, dedup title, paragraph formatting. No Chinese conversion yet. |
+| `api` | REST handlers: sources, books, search, chapters, content, fonts, progress. SSE endpoint at `GET /api/search/stream`. |
 
-
-### Data Flow — Search
+### Data Flow — Search (SSE streaming)
 
 ```
-User types keyword → API /api/search?q=...
-  → backend selects enabled book sources
-  → For each source:
-      → analyzer.BuildURL(searchUrl, key, page) → constructs fetch URL with JS interpolation
-      → fetcher.Get(url, headers) → raw HTTP response (HTML/JSON)
-      → analyzer.ParseSearchResult(body, ruleSearch) → extracts book list
-  → Aggregate deduped results → return JSON
+User types "凡人修仙传" + Enter
+  → Frontend opens EventSource: GET /api/search/stream?q=凡人修仙传
+  → Backend fans out across 256 sources (50 concurrent, 8s each, 30s total)
+  → Per-source callback fires when each source completes:
+      SSE event: {type:"results", source:"365小说网", data:[...]}
+  → Frontend appends results reactively (Svelte $state)
+  → On error: {type:"error", source:"五二书库", message:"timeout"}
+  → On all done: {type:"done", total:42, sourcesDone:18}
+  → User can cancel mid-search (es.close() → r.Context() cancels all in-flight)
+  → Per-source cap: max 20 results per source, enforced in parser
 ```
 
 ### Data Flow — Chapter Content
 
 ```
-User taps chapter → API GET /api/books/:id/chapters/:idx/content
-  → book.GetChapter(bookId, idx) → chapter URL
-  → fetcher.Get(chapterUrl, headers) → raw HTML
-  → analyzer.ParseContent(html, ruleContent) → extracted text
-  → processor.Process(text, book settings) → cleaned paragraphs
-  → return JSON { title, paragraphs: [...] }
+User taps chapter in reader
+  → GET /api/books/:id/chapters/:idx/content
+  → Backend fetches chapter URL from source via ruleContent
+  → Processor strips HTML tags, converts <br> to newlines, formats paragraphs
+  → Returns { title, paragraphs: [...] }
+  → Frontend renders as plain text paragraphs (no {@html} — XSS safe)
 ```
 
-### Data Flow — BookSource Import
+### Concurrency Design
 
 ```
-User uploads JSON (array of sources or single) → API POST /api/sources
-  → Validate JSON structure
-  → For each source:
-      → Upsert by bookSourceUrl
-      → Store rule fields as JSON strings in SQLite
-  → Return imported count
+Request-scoped (per user, per search):
+  ├── 50 goroutines (semaphore), each with 8s per-source deadline
+  ├── ctx derived from r.Context() → cancelled on client disconnect
+  ├── buffered channel (len=candidates) — no goroutine leak on early exit
+  └── JSVM pool (4 runtimes) — Eval borrows one, resets bindings, returns
+
+Shared across users (safe):
+  ├── searchFetcher: *http.Client with Jar: nil (stateless, no-cookie)
+  ├── fetcher: *http.Client with shared cookie jar (correct: per-host cookies)
+  ├── CacheManager: LRU with 4096 max entries (container/list)
+  ├── SQLite: WAL mode, SetMaxOpenConns(4) for concurrent reads
+  └── sourceStore/bookStore: database access (reads concurrent, writes serialized)
 ```
-
-### BookSource JSON Format (Legado Compatible)
-
-```json
-{
-  "bookSourceUrl": "https://example.com",
-  "bookSourceName": "Example",
-  "bookSourceGroup": "Group",
-  "bookSourceType": 0,
-  "enabled": true,
-  "enabledExplore": true,
-  "searchUrl": "https://example.com/search?q={{key}}",
-  "ruleSearch": {
-    "bookList": ".result-list .book-item",
-    "name": "h3 a@text",
-    "author": ".author@text",
-    "coverUrl": "img@src",
-    "intro": ".desc@text",
-    "kind": ".tag@text",
-    "lastChapter": ".latest@text",
-    "bookUrl": "h3 a@href"
-  },
-  "ruleBookInfo": { "name": "…", "author": "…", "coverUrl": "…" },
-  "ruleToc": { "chapterList": "…", "chapterName": "…", "chapterUrl": "…" },
-  "ruleContent": { "content": "…" },
-  "ruleExplore": { "bookList": "…" },
-  "header": null,
-  "jsLib": null,
-  "loginUrl": null
-}
-```
-
-### Frontend Routes
-
-| Route | Component | Purpose |
-|-------|-----------|---------|
-| `/` | SourceList | Manage book sources (import, enable/disable, delete) |
-| `/search` | SearchPage | Search across sources |
-| `/book/:id` | BookDetail | Book info, chapter list |
-| `/read/:bookId/:chapterIdx` | Reader | Chapter reader with typography controls |
-| `/settings` | SettingsPage | Typography, fonts, display preferences |
 
 ## Phases
 
 ### Phase 1 — Booksource Engine Core (current)
-- [x] Project scaffolding: Go backend module, Svelte 5 frontend, Go 1.22 stdlib router
-- [x] Database schema: book_sources, books, chapters, fonts tables with SQLite
-- [x] BookSource CRUD: import JSON (array/single), list, delete (query-param), enable/disable
-- [x] HTTP fetcher with cookie jar, timeout, redirect handling, 10MB limit
-- [x] Analyzer engine: CSS (goquery), XPath (htmlquery), JSONPath, Regex, JS (goja)
-- [x] Rule parser: `||` chaining, `<js>`/`@js:` blocks, `##` suffix replacement, auto-mode detection
-- [x] Search: concurrent across sources, dedup, flat-map rule parsing
-- [x] Book info: parse via ruleBookInfo (not wired to API yet)
-- [x] TOC: fetch and parse chapter list via ruleToc
-- [x] Content: fetch and parse chapter content via ruleContent
-- [x] Content processor: duplicate title, re-segment, replace rules, paragraph formatting
-- [x] Minimal reader UI: font size, font weight, line height, font family, bg/text color
-- [x] Font upload (multipart) and selection in reader
-- [ ] Wire book info fetch into add-flow (currently adds without fetching full info)
-- [~] Docker build setup (dev.sh created, multi-stage Dockerfile pending)
-- [~] E2E test: tested with 230 real sources; search/concurrency/context working; some sources behind Cloudflare
+- [x] Project scaffolding: Go module, Svelte 5, Go 1.22 ServeMux, dev.sh
+- [x] Database: book_sources, books, chapters, fonts — SQLite WAL, pure Go
+- [x] BookSource CRUD: JSON import (nested rules as RawMessage), list, delete, enable/disable
+- [x] HTTP fetcher: context-aware, stateless search variant, cookie jar variant, 10MB cap
+- [x] Analyzer: CSS, XPath, JSONPath, Regex, JSVM pool×4, `##` replacement, `||` OR/chaining
+- [x] Search: SSE streaming, 50 concurrent, 30s timeout, 8s per-source, 20-result cap
+- [x] TOC parser: legado-compatible, pagination (nextTocUrl), volume detection, reverse ordering
+- [x] Content: fetch via ruleContent, strip HTML, sanitize, paragraph format
+- [x] Content processor: HTML→text (XSS safe), title dedup, paragraph reflow
+- [x] Reader: font size/weight/line-height/family, bg/text color, preset themes
+- [x] Font upload and selection
+- [x] Bookshelf: cover, author, last chapter, progress bar, broken-cover fallback
+- [x] Book enrichment: fetch full info (cover, intro, author) from source on add
+- [ ] Docker build setup (dev.sh exists, multi-stage Dockerfile pending)
+- [ ] E2E test with a known-working book source
 
 ### Phase 2 — Reading Experience
-- [ ] Reading progress sync
-- [ ] Bookmarks
-- [ ] Page turn animations
-- [ ] Dark mode themes
-- [ ] CSS custom properties for theming
-- [ ] Offline caching of read chapters
-- [ ] Explore/discover page
+- Reading progress sync
+- Bookmarks
+- Page turn animations
+- Dark mode themes
+- Offline caching
+- Explore/discover page
 
 ### Phase 3 — Polish & Extras
-- [ ] Replace rules editor in UI
-- [ ] Book source debug tool
-- [ ] Multi-user support (user table, auth, scoped data)
-- [ ] OPDS/Calibre integration
-- [ ] Progress sync across devices
-- [ ] PWA support
+- Replace rules editor
+- Book source debug tool
+- Multi-user auth
+- Chinese conversion (opencc)
+- PWA support
 
 ## Out of Scope (Phase 1)
-- Audio books
-- RSS sources
-- TTS (text-to-speech)
-- WebSocket debug tools
-- EPub export
-- Multi-user auth
+- Multi-user auth (design supports it, implementation deferred)
+- Chinese conversion (partial map removed — garbled output)
+- Audio books, TTS, RSS, EPUB export
+- WebSocket (SSE is sufficient — unidirectional search)
+- Virtual scrolling (YAGNI at 20-200 results)
 
 ## Current State
 
-- **Phase**: Phase 1 — scaffolding complete, core engine built
-- **Last completed**: Go backend + Svelte 5 frontend scaffolded, both compile clean
-- **Completed items**:
-  - Go module with `modernc.org/sqlite`, goquery, htmlquery, jsonpath, goja dependencies
-  - Database schema: book_sources, books, chapters, fonts tables
-  - BookSource entity with JSON import (array/single), CRUD via query-param API
-  - HTTP fetcher with cookie jar, 30s timeout, 10MB limit, redirect handling
-  - Analyzer engine: CSS (goquery), XPath (htmlquery), JSONPath (PaesslerAG), Regex, JS (goja)
-  - Rule parser handles: `||` chain, `<js>`/`@js:` blocks, `##` suffix replacement, auto-mode detection
-  - Search: concurrent across sources, dedup by bookURL, structured rule parsing
-  - Content processor: duplicate title removal, re-segment, paragraph formatting, replace rules
-  - REST API: sources, search, books, chapters, content, fonts, progress
-  - Svelte 5 SPA with hash routing: SourceList, SearchPage, BookDetail, Reader, Settings
-  - Reader: adjustable font size/weight/line-height/family, background/text color with presets
-  - Font upload (multipart) and selection in reader
-  - Frontend builds to 58KB JS + 8KB CSS
-- **Default port**: 8888 (configurable via PORT env)
+**Phase**: Phase 1 — core engine operational, search streaming, bookshelf, reader all functional.
 
-## Open Questions (resolved)
+**Last completed**: SSE streaming search with per-source cap, multi-user safety (stateless fetcher, LRU cache), frontend bug fixes (auto-reconnect, live counter, route-away cleanup).
 
-- Use Chi router or stdlib `net/http` → Go 1.22 `http.ServeMux` with path params — no external router needed.
-- Go SQLite driver → `modernc.org/sqlite` (pure Go, no CGO).
+**Working**: Import 256 sources → SSE search (results stream in) → enrich book (fetch cover/intro) → bookshelf (cover, progress) → chapter list (pagination, volumes) → reader (typography, fonts)
 
-## Decisions made
+**Known limitations**: Many sources behind Cloudflare (server-side HTTP client can't bypass). Book source rules go stale over time — users find fresh sources.
 
-- Source CRUD uses query params for URL PKs (bookSourceUrl contains slashes, can't go in path segments)
-- Chinese conversion deferred until a proper library (opencc) is integrated
-- CacheManager wired but unused — will be used for chapter/content caching in Phase 2
+## Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Router | Go 1.22 `http.ServeMux` | No external dep, path params built in |
+| SQLite | `modernc.org/sqlite` | Pure Go, no CGO, simpler Docker |
+| Database pool | `SetMaxOpenConns(4)` | WAL mode permits concurrent readers |
+| Search transport | SSE (text/event-stream) | stdlib only, native EventSource, r.Context()→cancel free |
+| Search fetcher | Stateless (no cookie jar) | Prevents cross-user cookie contamination |
+| Cache | LRU with 4096 max (container/list) | Bounded memory, stdlib only |
+| JSVM | Pool of 4, no per-eval re-init | init loaded once at startup; bindings reset per-eval |
+| Per-source cap | 20 results, enforced in parser | Prevents source flooding, before dedup |
+| Cross-source dedup | None | Showing same book from 2 sources is useful (user picks) |
+| Virtual scroll | YAGNI | 20-200 results, `{#each}` is fine |
+| Chinese conversion | Deferred | Partial map was garbled; needs opencc |
+| Port | 8888 | 8080 commonly taken |
+
+## Scaling Notes (Multi-User)
+
+| Concern | Current | Future |
+|---------|---------|--------|
+| Cookie isolation | Search: stateless client. Content: shared jar (correct — per-host cookies) | Per-user clients if source logins added |
+| JSVM | Pool of 4, no per-eval re-init | Increase pool or use per-user pools if bottleneck measured |
+| SQLite writes | Serialized (single writer) | Fine for 3-10 users. Migrate to Postgres for >50 concurrent users |
+| Cache | LRU 4096 entries | Increase or use Redis if distributed |
+| Goroutine count | 50 per search, fine at 3-10 users | Add global cap if >20 concurrent users |
+| SSE per connection | One stream per active search | HTTP/2 multiplexing handles this |
 
 ## Issues & Fixes
 
-### [2026-07-02] Source delete/update routes broken by URL-in-path issue
-- **Problem**: Source URLs contain slashes (`https://...`), making them impossible to pass as Go 1.22 `ServeMux` path segments. DELETE and PUT routes were silently no-ops.
-- **Fix**: Changed to query-param-based: `DELETE /api/sources?url=...` and `PUT /api/sources?url=...`. Same for book delete.
-- **Affected**: `backend/internal/api/server.go` (routes + handlers), `frontend/src/api/client.ts`
-- **Watch out**: All source CRUD in frontend must use query params, not path segments.
+### [2026-07-03] Search fetcher had shared cookie jar — cross-user leak
+- **Problem**: `searchFetcher` used `NewWithTimeout` which creates a cookie jar. Cookies accumulated from one user's search could leak to another.
+- **Fix**: Created `NewStateless(timeout)` constructor with `Jar: nil`. Search uses stateless client. Content/intro/TOC fetching still uses jar (correct — per-host cookies benefit both users).
+- **Affected**: `backend/internal/fetcher/fetcher.go`, `backend/internal/book/search.go`
+- **Watch out**: Content fetching (GetChapterContent, GetBookInfo) still shares cookies. Correct for now but revisit if per-user source logins are added.
 
-### [2026-07-02] `##pattern##replacement` suffix not stripped from CSS/XPath/JSON rules
-- **Problem**: Legado sources append `##广告##` etc. to field rules. The old code never extracted this, passing the full string including `##` junk to parsers.
-- **Fix**: Added `extractReplaceSuffix` in `ruleparser.go` — strips `##regex##replacement###` from any rule expression before mode detection and populates `Rule.ReplaceRegex`/`Replacement`/`ReplaceFirst`.
-- **Affected**: `backend/internal/analyzer/ruleparser.go` (new file), `analyzer.go` (removed old parser)
-- **Watch out**: The `applyRuleString`/`applyRuleStringList` methods in `analyzer.go` already had the post-extraction replace branch — it's now fed correctly.
+### [2026-07-03] JSVM per-eval re-init wasted CPU + blocked pool
+- **Problem**: `Eval` re-ran `initCode` on every call via `RunString`. With 4 runtimes and 50 goroutines, each eval held its runtime longer than needed, inflating contention.
+- **Fix**: Removed per-eval `RunString`. `initCode` is loaded once by `LoadLib` into each runtime when it enters the pool. Per-eval only sets `result`/`baseUrl`/`java` bindings.
+- **Affected**: `backend/internal/analyzer/js.go`
+- **Watch out**: `LoadLib` must be called before any eval. Currently called once at startup.
 
-### [2026-07-02] `@js:` rules split on `||` broke JS logical-OR
-- **Problem**: Old parser split `@js:...` on `||` thinking it's a chain separator. JS uses `||` as logical OR, common in legado rules.
-- **Fix**: `ruleparser.go` handles `<js>...</js>` and `@js:...` as terminal segments — no `||` splitting inside JS blocks.
-- **Affected**: `backend/internal/analyzer/ruleparser.go`
-- **Watch out**: JS chain via `||` must be done with multiple `<js>` blocks.
+### [2026-07-03] CacheManager was unbounded
+- **Problem**: `CacheManager` used a plain `map[string]string` with no size limit. Memory grows without bound under multi-user load.
+- **Fix**: Rewrote with `container/list` LRU eviction, `maxEntries = 4096`.
+- **Affected**: `backend/internal/analyzer/cache.go`
+- **Watch out**: Eviction is LRU by access order. Tunable via `maxEntries` const.
 
-### [2026-07-02] Partial Chinese conversion map removed
-- **Problem**: 50-character s2t/t2s map produced mixed-script garbled text. Worse than no conversion.
-- **Fix**: Removed maps and made `convertChinese` a no-op. Awaiting opencc integration.
+### [2026-07-03] EventSource auto-reconnect restarted search on transient errors
+- **Problem**: EventSource's default behavior on any network error is to reconnect to the same URL, restarting the entire 256-source fan-out.
+- **Fix**: Track `finished` flag. On `onerror`, close EventSource if not finished. Trade auto-reconnect for clean stop.
+- **Affected**: `frontend/src/api/client.ts`
+- **Watch out**: User must manually re-submit search after error. Acceptable for a one-shot search.
+
+### [2026-07-03] Live search counter only counted errors
+- **Problem**: `sourcesDone` was only incremented in `onError` callback, not in `onResult`. Status always showed "from 0 sources" during search.
+- **Fix**: Increment `sourcesDone` in both callbacks.
+- **Affected**: `frontend/src/lib/SearchPage.svelte`
+
+### [2026-07-03] EventSource not closed on route-away
+- **Problem**: Navigating away mid-search left EventSource open. Backend kept searching 30s doing wasted work.
+- **Fix**: Added `$effect` cleanup that closes EventSource on component unmount.
+- **Affected**: `frontend/src/lib/SearchPage.svelte`
+
+### [2026-07-02] XSS via `{@html}` rendering unsanitized source HTML
+- **Problem**: Reader used `{@html p}` to render paragraphs. Source HTML (from `@html` attr rules) was injected directly into DOM — `<img src=x onerror=…>` or `<script>` could execute.
+- **Fix**: Processor strips all HTML tags, converts `<br>`/`</p>` to newlines, unescapes entities. Reader uses `{p}` (plain text).
+- **Affected**: `backend/internal/processor/processor.go`, `frontend/src/lib/Reader.svelte`
+
+### [2026-07-02] Chapter URLs resolved against wrong base
+- **Problem**: Chapter URLs were resolved against source root URL instead of the page they were found on. A relative href `456.html` on `https://site.com/book/123/` would resolve to `https://site.com/456.html` instead of `https://site.com/book/123/456.html`.
+- **Fix**: `parsePage` now resolves chapter URLs against the TOC page URL (where the selector found them). Added `resolveURL` helper.
+- **Affected**: `backend/internal/book/chapterlist.go`
+
+### [2026-07-02] `total_chapter_num` never populated → progress bar dead
+- **Problem**: After fetching chapters, `books.total_chapter_num` was never updated. Progress bar always showed "Ch.1 / ?".
+- **Fix**: Added `UpdateTotalChapters()` called after TOC fetch. Bookshelf progress bar now renders.
+- **Affected**: `backend/internal/book/store.go`, `backend/internal/api/server.go`
+
+### [2026-07-02] Volume entries became broken chapters
+- **Problem**: Chapters with empty URL were stored as regular chapters. Opening one resolved the empty URL against source base → garbage URL → 500.
+- **Fix**: Empty URL now infers `isVolume=true`. Volume chapters are stored but won't be fetched for content.
+- **Affected**: `backend/internal/book/chapterlist.go`
+
+### [2026-07-02] Source routes broken — URLs in path segments
+- **Problem**: DELETE/PUT routes used path segments `{url}`. URLs contain slashes — impossible to match.
+- **Fix**: Changed to query params. `DELETE /api/sources?url=...`, `PUT /api/sources?url=...`.
+- **Affected**: `backend/internal/api/server.go`, `frontend/src/api/client.ts`
+
+### [2026-07-02] Partial Chinese conversion removed
+- **Problem**: 50-character s2t/t2s map produced mixed-script garbled text.
+- **Fix**: Removed maps, `convertChinese` is a no-op. Awaiting opencc.
 - **Affected**: `backend/internal/processor/processor.go`
-- **Watch out**: Add opencc or `golang.org/x/text` for proper conversion in Phase 2.

@@ -1,4 +1,3 @@
-// Package fetcher provides an HTTP client with cookie/header management for book source requests.
 package fetcher
 
 import (
@@ -12,19 +11,19 @@ import (
 	"time"
 )
 
-// Client wraps http.Client with context support and cookie jar.
+// Client wraps http.Client with context support and optional cookie jar.
 type Client struct {
 	httpClient *http.Client
 	jar        http.CookieJar
 	headers    map[string]string
 }
 
-// New creates a fetcher Client with a 15s default timeout.
+// New creates a fetcher Client with a 15s timeout and cookie jar.
 func New() *Client {
 	return NewWithTimeout(15 * time.Second)
 }
 
-// NewWithTimeout creates a fetcher with a custom timeout.
+// NewWithTimeout creates a fetcher with a custom timeout and cookie jar.
 func NewWithTimeout(timeout time.Duration) *Client {
 	jar, _ := cookiejar.New(nil)
 	return &Client{
@@ -42,17 +41,31 @@ func NewWithTimeout(timeout time.Duration) *Client {
 	}
 }
 
-// SetHeaders sets default headers for all requests.
-func (c *Client) SetHeaders(h map[string]string) {
-	c.headers = h
+// NewStateless creates a fetcher without a cookie jar.
+// Safe for concurrent multi-user use — no cross-user cookie leakage.
+func NewStateless(timeout time.Duration) *Client {
+	return &Client{
+		httpClient: &http.Client{
+			Timeout: timeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 5 {
+					return fmt.Errorf("fetcher: too many redirects")
+				}
+				return nil
+			},
+		},
+	}
 }
 
-// Get performs a GET request. Uses a background context internally.
+// SetHeaders sets default headers for all requests.
+func (c *Client) SetHeaders(h map[string]string) { c.headers = h }
+
+// Get performs a GET request with a background context.
 func (c *Client) Get(rawURL string, extraHeaders map[string]string) (*Response, error) {
 	return c.GetContext(context.Background(), rawURL, extraHeaders)
 }
 
-// GetContext performs a GET request with context support (cancellation, deadlines).
+// GetContext performs a GET with context support (cancellation, deadlines).
 func (c *Client) GetContext(ctx context.Context, rawURL string, extraHeaders map[string]string) (*Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
@@ -72,17 +85,14 @@ func (c *Client) Post(rawURL, contentType, body string, extraHeaders map[string]
 }
 
 func (c *Client) do(req *http.Request, extraHeaders map[string]string) (*Response, error) {
-	// Set default User-Agent if not already set
 	if _, ok := req.Header["User-Agent"]; !ok {
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
 	}
-	// Apply default headers
 	for k, v := range c.headers {
 		if _, ok := req.Header[k]; !ok {
 			req.Header.Set(k, v)
 		}
 	}
-	// Apply extra headers (override defaults)
 	for k, v := range extraHeaders {
 		req.Header.Set(k, v)
 	}
@@ -114,13 +124,12 @@ type Response struct {
 	URL        string
 }
 
-// CookieJar returns the underlying cookie jar for direct manipulation.
-func (c *Client) CookieJar() http.CookieJar {
-	return c.jar
-}
+func (c *Client) CookieJar() http.CookieJar { return c.jar }
 
-// SetCookies sets cookies for a given URL.
 func (c *Client) SetCookies(rawURL string, cookies []*http.Cookie) error {
+	if c.jar == nil {
+		return nil // stateless client, no-op
+	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return err
@@ -129,8 +138,10 @@ func (c *Client) SetCookies(rawURL string, cookies []*http.Cookie) error {
 	return nil
 }
 
-// Cookies returns stored cookies for a given URL.
 func (c *Client) Cookies(rawURL string) []*http.Cookie {
+	if c.jar == nil {
+		return nil
+	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil
