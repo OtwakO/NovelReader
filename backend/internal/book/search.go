@@ -3,6 +3,7 @@ package book
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -38,7 +39,7 @@ func NewSearcher(
 ) *Searcher {
 	return &Searcher{
 		fetcher:       hc,
-		searchFetcher: fetcher.NewStateless(perSourceTimeout), // no cookie jar = safe for multi-user
+		searchFetcher: fetcher.NewWithTimeout(perSourceTimeout), // cookie jar helps sites with cookie-based browser checks
 		jsVM:          jsVM,
 		cache:         cache,
 		sourceStore:   sourceStore,
@@ -146,6 +147,9 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	resp, err := s.searchFetcher.GetContext(srcCtx, searchURL, headers)
 	if err != nil {
 		return nil, fmt.Errorf("fetch: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch: status %d from %s", resp.StatusCode, src.BookSourceName)
 	}
 
 	if src.RuleSearch == "" {
