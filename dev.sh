@@ -24,7 +24,7 @@ case "$ACTION" in
     shift 2>/dev/null || true
     echo "==> Starting server on port ${PORT:-8888}..."
     cd "$ROOT/backend"
-    exec go run ./cmd/server/ "$@"
+    DEBUG=1 exec go run ./cmd/server/ "$@"
     ;;
   build)
     "$0" build-backend
@@ -43,7 +43,7 @@ case "$ACTION" in
     echo "Environment:"
     echo "  PORT             Server port (default: 8888)"
     echo "  DATABASE_PATH    SQLite path (default: ./data/novelreader.db)"
-    echo "  DEBUG=1          Enable debug-level logging (search URLs, etc.)"
+    echo "  DEBUG=0          Disable debug-level logging (on by default in dev mode)"
     echo ""
     echo "Examples:"
     echo "  $0 server              # Start dev server"
