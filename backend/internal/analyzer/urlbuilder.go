@@ -59,10 +59,18 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 		return nil, fmt.Errorf("analyzer: empty URL template")
 	}
 
-	urlStr := template
+	urlStr := strings.TrimSpace(template)
+
 	meta := &URLMeta{
 		Method:  "GET",
 		Headers: make(map[string]string),
+	}
+
+	// Strip newlines for non-@js: URLs. @js: URLs need newlines for JS code.
+	if !strings.HasPrefix(urlStr, "@js:") {
+		urlStr = strings.ReplaceAll(urlStr, "\n", " ")
+		urlStr = strings.ReplaceAll(urlStr, "\r", "")
+		urlStr = strings.TrimSpace(urlStr)
 	}
 
 	// Store the js option for eval after URL is fully constructed
@@ -136,7 +144,11 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 			v, err := jsVM.Eval(jsCode, "", baseURL)
 			if err == nil {
 				urlStr = ToString(v)
+			} else {
+				return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
 			}
+		} else {
+			return nil, fmt.Errorf("urlbuilder: @js: no JS engine available")
 		}
 	}
 
