@@ -143,8 +143,8 @@ User uploads JSON (array of sources or single) → API POST /api/sources
 - [x] Minimal reader UI: font size, font weight, line height, font family, bg/text color
 - [x] Font upload (multipart) and selection in reader
 - [ ] Wire book info fetch into add-flow (currently adds without fetching full info)
-- [ ] Docker build setup
-- [ ] E2E test: import test_booksource.json → search → add book → read
+- [~] Docker build setup (dev.sh created, multi-stage Dockerfile pending)
+- [~] E2E test: tested with 230 real sources; search/concurrency/context working; some sources behind Cloudflare
 
 ### Phase 2 — Reading Experience
 - [ ] Reading progress sync

@@ -90,12 +90,25 @@ func (a *Analyzer) GetElement(ruleStr string) (interface{}, error) {
 }
 
 // GetElements evaluates a rule and returns a list of elements.
+// || in element extraction means OR: try each segment, return first with results.
 func (a *Analyzer) GetElements(ruleStr string) ([]interface{}, error) {
-	rules, err := ParseRules(ruleStr, a.isJSON)
-	if err != nil {
-		return nil, err
+	// Split on || for OR semantics
+	segments := strings.Split(ruleStr, "||")
+	for _, seg := range segments {
+		seg = strings.TrimSpace(seg)
+		if seg == "" {
+			continue
+		}
+		rules, err := ParseRules(seg, a.isJSON)
+		if err != nil {
+			continue
+		}
+		result, err := a.evalElements(rules)
+		if err == nil && len(result) > 0 {
+			return result, nil
+		}
 	}
-	return a.evalElements(rules)
+	return nil, fmt.Errorf("analyzer: no elements matched")
 }
 
 // evalString evaluates a chain of rules returning a single string.

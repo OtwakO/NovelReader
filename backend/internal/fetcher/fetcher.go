@@ -2,6 +2,7 @@
 package fetcher
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,29 +12,28 @@ import (
 	"time"
 )
 
-// Client wraps http.Client with book-source-friendly defaults.
+// Client wraps http.Client with context support and cookie jar.
 type Client struct {
 	httpClient *http.Client
 	jar        http.CookieJar
 	headers    map[string]string
 }
 
-// New creates a fetcher Client with cookie jar support.
+// New creates a fetcher Client with a 15s default timeout.
 func New() *Client {
+	return NewWithTimeout(15 * time.Second)
+}
+
+// NewWithTimeout creates a fetcher with a custom timeout.
+func NewWithTimeout(timeout time.Duration) *Client {
 	jar, _ := cookiejar.New(nil)
 	return &Client{
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: timeout,
 			Jar:     jar,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				if len(via) >= 5 {
 					return fmt.Errorf("fetcher: too many redirects")
-				}
-				// Preserve auth headers on redirect
-				if len(via) > 0 {
-					for k, v := range via[0].Header {
-						req.Header[k] = v
-					}
 				}
 				return nil
 			},
@@ -47,9 +47,14 @@ func (c *Client) SetHeaders(h map[string]string) {
 	c.headers = h
 }
 
-// Get performs a GET request.
+// Get performs a GET request. Uses a background context internally.
 func (c *Client) Get(rawURL string, extraHeaders map[string]string) (*Response, error) {
-	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	return c.GetContext(context.Background(), rawURL, extraHeaders)
+}
+
+// GetContext performs a GET request with context support (cancellation, deadlines).
+func (c *Client) GetContext(ctx context.Context, rawURL string, extraHeaders map[string]string) (*Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetcher: new request: %w", err)
 	}
@@ -88,7 +93,7 @@ func (c *Client) do(req *http.Request, extraHeaders map[string]string) (*Respons
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10MB limit
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 	if err != nil {
 		return nil, fmt.Errorf("fetcher: read body: %w", err)
 	}
@@ -132,6 +137,3 @@ func (c *Client) Cookies(rawURL string) []*http.Cookie {
 	}
 	return c.jar.Cookies(u)
 }
-
-// ponytail: single user-agent string, no rotation. Add when a source blocks it.
-// ponytail: 10MB body limit. Add streaming for very large pages when needed.

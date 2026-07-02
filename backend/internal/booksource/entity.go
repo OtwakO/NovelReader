@@ -1,7 +1,10 @@
 // Package booksource implements the legado-compatible BookSource entity and persistence.
 package booksource
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // BookSource mirrors the legado book source JSON format.
 // Fields are tagged with db column names for SQLite storage and JSON for import/export.
@@ -96,7 +99,7 @@ func ColumnDefs() string {
 // NewFromJSON creates a BookSource from raw JSON bytes (single source).
 func NewFromJSON(data []byte) (*BookSource, error) {
 	var s BookSource
-	if err := unmarshalStrict(data, &s); err != nil {
+	if err := json.Unmarshal(data, &s); err != nil {
 		return nil, err
 	}
 	now := time.Now().UnixMilli()

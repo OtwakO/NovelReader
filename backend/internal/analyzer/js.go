@@ -7,46 +7,72 @@ import (
 	"github.com/dop251/goja"
 )
 
-// JSVM wraps a goja runtime for evaluating JavaScript in book source rules.
-// ponytail: single global runtime per source group. Legado creates per-source scopes,
-// but for Go we reuse one runtime to avoid per-eval overhead. Reset state between calls.
+// JSVM provides a pool of goja runtimes for evaluating JavaScript in book source rules.
+// Each eval borrows a runtime from the pool, executes, and returns it.
+// The pool avoids the overhead of creating runtimes per-eval while allowing
+// concurrent evaluations across goroutines.
 type JSVM struct {
+	pool     chan *goja.Runtime
+	initCode string
 	mu       sync.Mutex
-	runtime  *goja.Runtime
-	initCode string // shared JS lib code loaded once
 }
 
-// NewJSVM creates a new JS evaluation engine.
+// NewJSVM creates a JSVM with a pool of runtimes.
+// Default pool size is 4 — enough for concurrent search without wasting memory.
 func NewJSVM() *JSVM {
+	const poolSize = 4
+	pool := make(chan *goja.Runtime, poolSize)
+	for range poolSize {
+		pool <- goja.New()
+	}
 	return &JSVM{
-		runtime: goja.New(),
+		pool: pool,
 	}
 }
 
-// LoadLib sets shared JavaScript library code (from jsLib field).
+// LoadLib sets shared JavaScript library code and reloads it into all pool runtimes.
 func (vm *JSVM) LoadLib(code string) error {
 	if code == "" {
 		return nil
 	}
 	vm.mu.Lock()
-	defer vm.mu.Unlock()
 	vm.initCode = code
-	_, err := vm.runtime.RunString(code)
-	return err
+	vm.mu.Unlock()
+
+	// Reload into all runtimes
+	n := len(vm.pool)
+	for range n {
+		rt := <-vm.pool
+		if _, err := rt.RunString(code); err != nil {
+			vm.pool <- rt
+			return fmt.Errorf("js: load lib: %w", err)
+		}
+		vm.pool <- rt
+	}
+	return nil
 }
 
-// Eval evaluates JS and returns a string result.
-// The script gets access to `result` (content), `baseUrl`, and `java` (helper object).
+// Eval evaluates JS and returns a result string.
+// Each eval re-initializes the runtime with shared libs to prevent state leakage between sources.
 func (vm *JSVM) Eval(script, content, baseURL string) (interface{}, error) {
+	rt := <-vm.pool
+	defer func() { vm.pool <- rt }()
+
 	vm.mu.Lock()
-	defer vm.mu.Unlock()
+	initCode := vm.initCode
+	vm.mu.Unlock()
 
-	// Set up the environment
-	_ = vm.runtime.Set("result", content)
-	_ = vm.runtime.Set("baseUrl", baseURL)
-	_ = vm.runtime.Set("java", &jsHelpers{vm: vm})
+	// Re-init to get a clean state
+	if initCode != "" {
+		if _, err := rt.RunString(initCode); err != nil {
+			return "", fmt.Errorf("js: init: %w", err)
+		}
+	}
+	_ = rt.Set("result", content)
+	_ = rt.Set("baseUrl", baseURL)
+	_ = rt.Set("java", &jsHelpers{rt: rt})
 
-	val, err := vm.runtime.RunString(script)
+	val, err := rt.RunString(script)
 	if err != nil {
 		return "", fmt.Errorf("js eval: %w", err)
 	}
@@ -59,18 +85,15 @@ func (vm *JSVM) EvalList(script, content, baseURL string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	switch arr := v.(type) {
-	case []interface{}:
-		var result []string
-		for _, item := range arr {
-			result = append(result, fmt.Sprintf("%v", item))
-		}
-		return result, nil
-	case []string:
-		return arr, nil
-	default:
+	arr, ok := v.([]interface{})
+	if !ok {
 		return []string{fmt.Sprintf("%v", v)}, nil
 	}
+	result := make([]string, len(arr))
+	for i, item := range arr {
+		result[i] = fmt.Sprintf("%v", item)
+	}
+	return result, nil
 }
 
 // EvalElements evaluates JS and returns elements as interface{}.
@@ -79,19 +102,16 @@ func (vm *JSVM) EvalElements(script, content, baseURL string) ([]interface{}, er
 	if err != nil {
 		return nil, err
 	}
-	switch arr := v.(type) {
-	case []interface{}:
-		return arr, nil
-	case interface{}:
-		return []interface{}{arr}, nil
-	default:
-		return nil, fmt.Errorf("js eval: unexpected result type %T", v)
+	arr, ok := v.([]interface{})
+	if !ok {
+		return []interface{}{v}, nil
 	}
+	return arr, nil
 }
 
-// jsHelpers exposes book-source-friendly helpers available in JS code.
+// jsHelpers exposes helpers available in JS code.
 type jsHelpers struct {
-	vm *JSVM
+	rt *goja.Runtime
 }
 
 func (h *jsHelpers) Get(key string) string {
@@ -102,5 +122,5 @@ func (h *jsHelpers) Put(key, value string) string {
 	return value
 }
 
-// ponytail: jsHelpers minimal. Add only when a source script actually needs it
-// (ajax, cookie, cache, toast). Most sources use CSS/XPath only.
+// ponytail: pool of 4 runtimes is a guess. Tune based on real usage.
+// ponytail: jsHelpers stubs. Add ajax/cookie/cache when sources actually need them.

@@ -108,6 +108,9 @@ func (s *Server) handleListSources(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if sources == nil {
+		sources = []booksource.BookSource{}
+	}
 	writeJSON(w, http.StatusOK, sources)
 }
 
