@@ -134,6 +134,22 @@ Shared across users (safe):
 - WebSocket (SSE is sufficient — unidirectional search)
 - Virtual scrolling (YAGNI at 20-200 results)
 
+## Deferred Work
+
+Items intentionally skipped or deferred, documented so they don't get forgotten.
+
+| Deferred Item | Affected Sources | Why Deferred | Revisit When |
+|---------------|-----------------|-------------|--------------|
+| `loginUrl`/`loginUI`/`loginCheckJS` — source auth portal | ~179 sources (19% have loginUrl) | Login flows need UI interaction (credential input, captcha). Not feasible server-side-only. | If user demand for locked sources. Likely need WebView bridge. |
+| `coverDecodeJs` — cover image decoding | ~1 source (0.1%, likely Pixiv) | Pixiv covers need JS-based URL transform. Single source. | If Pixiv source becomes critical. Add `evalCoverDecode` in enrichment path. |
+| `customButton`/`eventListener` — legado reader UI actions | ~285 sources (30%) | These are legado-app UI extensions (custom buttons, event hooks). Not fetch/crawl logic. Permanently out of scope for backend-only. | Never — belongs in a mobile/desktop client, not this API. |
+| `concurrentRate` — per-source request throttle | ~11 sources (1%) | Per-source rate limiting adds complexity (per-source semaphore). 50-way fan-out already limited by semaphore. | If a specific source consistently 503s under concurrent load. |
+| `enabledCookieJar` per-source control on content path | All 939 sources (100% set false) | Content fetcher uses shared cookie jar. Stateless content fetcher per source needs more refactoring. | If sources start relying on per-source cookie isolation for login sessions. |
+| `enabledReview` — review/book-rating rules | ~9 sources (1%) | Needs a review-parsing engine and UI for displaying reviews. Separate feature. | Phase 3 — polish features. |
+| Explore/Discovery (`exploreUrl` + `ruleExplore`) | ~723 sources (76%) | Needs new endpoint, crawl logic, and UI screens. Phase 2 feature. | Phase 2. Design already extensible: exploreUrl → BuildURL → parseRuleExplore. |
+| `phonehttp` — mobile UA toggle | ~1 source (0.1%) | Flips User-Agent to mobile. Trivial to add header override. | If the one source is critical. |
+| WebView rendering (headless browser) | ~19 sources (2%) | Sources with `webView:true` need a JS-capable browser. Requires chromedp/playwright integration. | When WebView-exclusive sources become critical. Plug-and-go: add a headless-browser fetcher, swap in search path. |
+
 ## Current State
 
 **Phase**: Phase 1 — core engine operational, search streaming, bookshelf, reader all functional.
