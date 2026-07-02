@@ -3,6 +3,7 @@ package book
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -39,7 +40,7 @@ func NewSearcher(
 ) *Searcher {
 	return &Searcher{
 		fetcher:       hc,
-		searchFetcher: fetcher.NewWithTimeout(perSourceTimeout), // cookie jar helps sites with cookie-based browser checks
+		searchFetcher: fetcher.NewInsecure(perSourceTimeout), // matches legado's unsafeTrustManager
 		jsVM:          jsVM,
 		cache:         cache,
 		sourceStore:   sourceStore,
@@ -97,6 +98,9 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, maxConcurrentSearch)
 
+	slog.Info("search: starting fan-out",
+		"query", query, "sources", len(candidates), "concurrent", maxConcurrentSearch)
+
 	for _, src := range candidates {
 		wg.Add(1)
 		sem <- struct{}{}
@@ -110,12 +114,30 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 
 	go func() { wg.Wait(); close(ch) }()
 
+	successCount := 0
+	errorCount := 0
 	for r := range ch {
 		if ctx.Err() != nil {
 			break
 		}
+		if r.err != nil {
+			errorCount++
+			slog.Debug("search: source failed",
+				"source", r.src.BookSourceName, "err", r.err)
+		} else {
+			successCount++
+			slog.Debug("search: source completed",
+				"source", r.src.BookSourceName, "results", len(r.results))
+		}
 		onResult(r.src, r.results, r.err)
 	}
+
+	slog.Info("search: finished",
+		"query", query,
+		"success", successCount,
+		"errors", errorCount,
+		"total_sources", len(candidates),
+		"cancelled", ctx.Err() != nil)
 	return ctx.Err()
 }
 
@@ -139,12 +161,29 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	srcCtx, cancel := context.WithTimeout(ctx, perSourceTimeout)
 	defer cancel()
 
-	searchURL, headers, err := analyzer.BuildURL(src.SearchURL, query, 1, src.BookSourceURL, s.jsVM)
-	if err != nil || searchURL == "" {
+	meta, err := analyzer.BuildURL(src.SearchURL, query, 1, src.BookSourceURL, s.jsVM)
+	if err != nil || meta == nil || meta.URL == "" {
 		return nil, fmt.Errorf("build url: %w", err)
 	}
 
-	resp, err := s.searchFetcher.GetContext(srcCtx, searchURL, headers)
+	// Merge headers: source-level header first, then URL-option headers overlay
+	headers := parseHeaderJSON(src.Header)
+	for k, v := range meta.Headers {
+		headers[k] = v
+	}
+
+	if meta.WebView {
+		slog.Warn("search: source needs WebView (JS rendering), skipping",
+			"source", src.BookSourceName)
+		return nil, fmt.Errorf("source requires JS rendering (webView:true)")
+	}
+
+	var resp *fetcher.Response
+	if meta.Method == "POST" {
+		resp, err = s.searchFetcher.PostContext(srcCtx, meta.URL, meta.Body, headers, meta.Retry)
+	} else {
+		resp, err = s.searchFetcher.GetContext(srcCtx, meta.URL, headers, meta.Retry)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("fetch: %w", err)
 	}
@@ -159,7 +198,6 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	if err != nil {
 		return nil, err
 	}
-	// Score each result against the query for relevance sorting
 	for i := range results {
 		results[i].Score = scoreResult(query, results[i].Name)
 	}
