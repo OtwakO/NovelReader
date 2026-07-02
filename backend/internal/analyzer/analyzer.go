@@ -16,11 +16,12 @@ import (
 type Mode int
 
 const (
-	ModeCSS    Mode = iota // Default / @CSS:
+	ModeCSS    Mode = iota // @CSS: prefix
 	ModeXPath             // / or @XPath:
 	ModeJSON              // $. or $[ or @Json:
 	ModeRegex             // ## patterns
 	ModeJS                // <js> or @js:
+	ModeDefault           // legado Default: class.odd.0@tag.a.0@text
 )
 
 // Result holds the output of a rule evaluation.
@@ -226,6 +227,8 @@ func (a *Analyzer) dispatch(mode Mode, content, expr string) (interface{}, error
 	switch mode {
 	case ModeCSS:
 		return cssQuery(content, expr)
+	case ModeDefault:
+		return defaultQuery(content, expr)
 	case ModeXPath:
 		return xpathQuery(content, expr)
 	case ModeJSON:
@@ -244,6 +247,8 @@ func (a *Analyzer) dispatchList(mode Mode, content, expr string) ([]string, erro
 	switch mode {
 	case ModeCSS:
 		return cssQueryList(content, expr)
+	case ModeDefault:
+		return defaultQueryList(content, expr)
 	case ModeXPath:
 		return xpathQueryList(content, expr)
 	case ModeJSON:
@@ -262,6 +267,8 @@ func (a *Analyzer) dispatchElements(mode Mode, content, expr string) ([]interfac
 	switch mode {
 	case ModeCSS:
 		return cssQueryElements(content, expr)
+	case ModeDefault:
+		return defaultQueryElements(content, expr)
 	case ModeXPath:
 		return xpathQueryElements(content, expr)
 	case ModeJSON:

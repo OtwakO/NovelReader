@@ -274,6 +274,13 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 		headers[k] = v
 	}
 
+	// Log the resolved search URL at Debug level for troubleshooting
+	slog.Debug("search: fetching source",
+		"source", src.BookSourceName,
+		"method", meta.Method,
+		"url", meta.URL,
+		"charset", meta.Charset)
+
 	if meta.WebView {
 		slog.Warn("search: source needs WebView (JS rendering), skipping",
 			"source", src.BookSourceName)

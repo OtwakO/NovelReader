@@ -169,8 +169,120 @@ func detectMode(expr string, isJSON bool) Mode {
 		return ModeJSON
 	}
 
+	// Detect legado Default mode: class.odd.0@tag.a@text or tag.li or similar
+	// Patterns that distinguish Default from CSS:
+	// 1. Multiple @ separators (segment@segment@getter)
+	// 2. A segment ending with .N where N is a number (position index)
+	// 3. A @getter suffix where getter is a Default keyword
+	// 4. Starts with a numeric index like [0], [-1:0], 0
+	if looksLikeDefault(expr) {
+		return ModeDefault
+	}
+
 	// Default: CSS
 	return ModeCSS
+}
+
+// looksLikeDefault heuristically checks if expr is a legado Default rule.
+func looksLikeDefault(expr string) bool {
+	// Multiple @ separators — definitely Default
+	if strings.Count(expr, "@") > 1 {
+		return true
+	}
+
+	n := strings.Count(expr, ".")
+
+	// Single @: could be CSS (tag@attr) or Default (type.name@next)
+	if atIdx := strings.LastIndex(expr, "@"); atIdx >= 0 {
+		beforeAt := expr[:atIdx]
+		afterAt := expr[atIdx+1:]
+
+		// If after @ is a Default getter keyword AND before @ is structured → Default
+		if isDefaultGetter(afterAt) {
+			// But simple things like "a@text" are CSS unless they have Default structure
+			if n > 0 || strings.ContainsAny(beforeAt, ">+~:#") {
+				return true
+			}
+		}
+
+		// If before @ has a Default type prefix (class., id., tag.)
+		firstDot := strings.Index(beforeAt, ".")
+		if firstDot > 0 {
+			typePrefix := beforeAt[:firstDot]
+			switch typePrefix {
+			case "class", "id", "tag", "text", "children":
+				return true
+			}
+		}
+
+		// If before @ has multiple dots with a numeric end, it's Default
+		if n >= 2 {
+			segments := strings.Split(beforeAt, ".")
+			last := segments[len(segments)-1]
+			if isAllDigits(last) || last == "-1" || (strings.HasPrefix(last, "!") && len(last) > 1 && isAllDigits(last[1:])) {
+				return true
+			}
+		}
+
+		// before @ has #id selector — probably CSS
+		// before @ is just a word + attr — probably CSS
+		return false
+	}
+
+	// No @: check for Default patterns (multi-segment with type prefix, or numeric index)
+	dotSegments := strings.Split(expr, ".")
+
+	// Check type prefix
+	typePrefix := dotSegments[0]
+	switch typePrefix {
+	case "class", "id", "tag", "text":
+		// tag.div.0@... (but without @, this could be CSS)
+		// tag.div → could be CSS (.div class on tag), or Default (find div)
+		// With 3+ segments it's always Default
+		// With 2 segments: if there's an @ somewhere, it's Default
+		if len(dotSegments) >= 3 || strings.Contains(expr, "@") {
+			return true
+		}
+	case "children":
+		return true
+	}
+
+	// Array index syntax at start
+	if strings.HasPrefix(expr, "[") && strings.Contains(expr, ":") {
+		return true
+	}
+
+	return false
+}
+
+// isDefaultGetter returns true if s is a known Default-mode getter keyword.
+func isDefaultGetter(s string) bool {
+	switch s {
+	case "text", "textNodes", "ownText", "href", "src", "html", "all", "children":
+		return true
+	}
+	return false
+}
+
+// isAllDigits returns true if s is non-empty and consists only of digits.
+// Accepts an optional leading minus sign for negative indices.
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	start := 0
+	if s[0] == '-' {
+		if len(s) == 1 {
+			return false
+		}
+		start = 1
+	}
+	for _, c := range s[start:] {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // ponytail: {{...}} template interpolation (get-variable) not implemented here.
