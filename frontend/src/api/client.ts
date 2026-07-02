@@ -79,6 +79,7 @@ export function searchBooksStream(
   onResult: (source: string, items: SearchResult[]) => void,
   onError: (source: string, msg: string) => void,
   onDone: (total: number, sourcesDone: number) => void,
+  onMerged?: (items: SearchResult[]) => void,
 ): EventSource {
   const es = new EventSource(`/api/search/stream?q=${encodeURIComponent(query)}`);
   let finished = false;
@@ -91,17 +92,17 @@ export function searchBooksStream(
       else if (ev.type === 'done') {
         finished = true;
         onDone(ev.total, ev.sourcesDone);
+        if (ev.merged && onMerged) onMerged(ev.merged);
         es.close();
       }
     } catch { /* ignore malformed */ }
   };
 
   es.onerror = () => {
-    // Auto-reconnect is harmful for one-shot search: it restarts the fan-out.
-    // Close instead, unless we already finished.
     if (!finished) {
       es.close();
-      onDone(0, 0); // signal completion with zero results
+      onDone(0, 0);
+      if (onMerged) onMerged([]);
     }
   };
 

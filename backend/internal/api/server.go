@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -352,6 +353,10 @@ func (s *Server) handleSearchStream(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	// Collect all results for cross-source merge at the end
+	var allResults []book.SearchResult
+	var mu sync.Mutex
+
 	total := 0
 	sourcesDone := 0
 	err := s.searcher.SearchStream(ctx, query, func(src booksource.BookSource, results []book.SearchResult, e error) {
@@ -365,6 +370,9 @@ func (s *Server) handleSearchStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		total += len(results)
+		mu.Lock()
+		allResults = append(allResults, results...)
+		mu.Unlock()
 		writeSSE(map[string]interface{}{
 			"type":   "results",
 			"source": src.BookSourceName,
@@ -372,10 +380,14 @@ func (s *Server) handleSearchStream(w http.ResponseWriter, r *http.Request) {
 		})
 	})
 
+	// Merge same books from different sources, sort by relevance
+	merged := book.MergeAndSort(query, allResults)
+
 	writeSSE(map[string]interface{}{
 		"type":        "done",
 		"total":       total,
 		"sourcesDone": sourcesDone,
+		"merged":      merged,
 		"error":       err != nil && err != context.Canceled,
 	})
 }

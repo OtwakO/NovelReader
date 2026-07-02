@@ -48,6 +48,10 @@
         sourcesDone = done;
         searching = false;
         es = null;
+      },
+      // Called after all search completes — replace with cross-source merged results
+      (merged) => {
+        if (merged) results = merged;
       }
     );
   }
