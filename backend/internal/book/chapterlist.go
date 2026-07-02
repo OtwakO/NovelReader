@@ -105,8 +105,8 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 	return allChapters, nil
 }
 
-func (p *ChapterListParser) parsePage(body, baseURL, listRule string, rules map[string]string) ([]Chapter, string, error) {
-	an := analyzer.New(body, baseURL, p.jsVM, p.cache)
+func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[string]string) ([]Chapter, string, error) {
+	an := analyzer.New(body, pageURL, p.jsVM, p.cache)
 	elements, err := an.GetElements(listRule)
 	if err != nil {
 		return nil, "", fmt.Errorf("toc: get elements: %w", err)
@@ -121,19 +121,25 @@ func (p *ChapterListParser) parsePage(body, baseURL, listRule string, rules map[
 	var chapters []Chapter
 	for _, el := range elements {
 		elHTML := analyzer.ToString(el)
-		elAn := analyzer.New(elHTML, baseURL, p.jsVM, p.cache)
+		elAn := analyzer.New(elHTML, pageURL, p.jsVM, p.cache)
 
 		title := mustString(elAn, nameRule)
 		chURL := mustString(elAn, urlRule)
 		if title == "" {
 			continue
 		}
-		if chURL == "" {
-			// Volume without URL: use title+index as placeholder
-			chURL = title
+
+		// Resolve chapter URL against the page it was found on
+		if chURL != "" && !strings.HasPrefix(chURL, "http://") && !strings.HasPrefix(chURL, "https://") {
+			chURL = strings.TrimRight(pageURL, "/") + "/" + strings.TrimLeft(chURL, "/")
 		}
 
+		// Volume detection: empty URL or explicit isVolume rule
 		isVolume := mustString(elAn, volumeRule)
+		if chURL == "" {
+			isVolume = "true" // infer volume from missing URL
+		}
+
 		ch := Chapter{
 			Title:    title,
 			URL:      chURL,
@@ -142,7 +148,7 @@ func (p *ChapterListParser) parsePage(body, baseURL, listRule string, rules map[
 		}
 
 		if t := mustString(elAn, timeRule); t != "" {
-			_ = t // store updateTime if needed
+			_ = t
 		}
 
 		chapters = append(chapters, ch)

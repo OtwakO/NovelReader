@@ -256,6 +256,21 @@ func resolveURL(urlStr, baseURL string) string {
 	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
 }
 
+// resolveURLPage resolves a relative URL against a specific page URL (for chapter/toc links).
+func resolveURLPage(urlStr, pageURL string) string {
+	if urlStr == "" {
+		return ""
+	}
+	if strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://") {
+		return urlStr
+	}
+	// Resolve against the page URL's directory
+	if idx := strings.LastIndex(pageURL, "/"); idx > 8 { // past "http://"
+		return pageURL[:idx+1] + strings.TrimLeft(urlStr, "/")
+	}
+	return strings.TrimRight(pageURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
+}
+
 // GetChapterList fetches and parses the TOC using the legado-compatible chapter list parser.
 // Handles pagination (nextTocUrl), volume detection, reverse ordering, VIP/pay markers.
 func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL string) ([]Chapter, error) {

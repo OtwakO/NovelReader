@@ -140,7 +140,7 @@
       <p class="loading">Loading...</p>
     {:else}
       {#each content.paragraphs as p, i}
-        <p class="paragraph">{@html p}</p>
+        <p class="paragraph">{p}</p>
       {/each}
     {/if}
   </div>

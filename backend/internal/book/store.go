@@ -204,10 +204,17 @@ func (s *Store) GetChapters(bookID string) ([]Chapter, error) {
 	return scanChapters(rows)
 }
 
-// UpdateProgress saves reading progress for a book.
+// UpdateProgress saves reading progress and total chapter count for a book.
 func (s *Store) UpdateProgress(bookID string, chapterIndex int, position float64) error {
 	_, err := s.db.Exec(`UPDATE books SET dur_chapter_index = ?, dur_chapter_pos = ?, updated_at = ? WHERE id = ?`,
 		chapterIndex, position, time.Now().UnixMilli(), bookID)
+	return err
+}
+
+// UpdateTotalChapters updates the total chapter count for a book.
+func (s *Store) UpdateTotalChapters(bookID string, total int) error {
+	_, err := s.db.Exec(`UPDATE books SET total_chapter_num = ?, updated_at = ? WHERE id = ?`,
+		total, time.Now().UnixMilli(), bookID)
 	return err
 }
 

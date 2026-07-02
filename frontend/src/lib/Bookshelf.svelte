@@ -5,6 +5,12 @@
 
   let books = $state<Book[]>([]);
   let loading = $state(true);
+  let brokenCovers = $state<Set<string>>(new Set());
+
+  function coverFailed(bookId: string) {
+    brokenCovers.add(bookId);
+    brokenCovers = brokenCovers; // trigger reactivity
+  }
 
   $effect(() => { load(); });
 
@@ -35,10 +41,10 @@
     <div class="book-list">
       {#each books as b (b.id)}
         <button class="book-card" onclick={() => go(`book?id=${b.id}`)}>
-          {#if b.coverUrl}
-            <img src={b.coverUrl} alt={b.name} class="cover" loading="lazy" onerror={(e) => (e.target as HTMLImageElement).style.display='none'} />
+          {#if b.coverUrl && !brokenCovers.has(b.id)}
+            <img src={b.coverUrl} alt={b.name} class="cover" loading="lazy" onerror={() => coverFailed(b.id)} />
           {:else}
-            <div class="cover-placeholder">{b.name[0]}</div>
+            <div class="cover-placeholder">{b.name[0] || '?'}</div>
           {/if}
           <div class="info">
             <strong class="title">{b.name}</strong>

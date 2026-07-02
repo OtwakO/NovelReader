@@ -2,6 +2,7 @@
 package processor
 
 import (
+	"html"
 	"regexp"
 	"strings"
 )
@@ -144,6 +145,11 @@ func (p *ContentProcessor) applyReplaceRules(content string, rules []ReplaceRule
 }
 
 func (p *ContentProcessor) toParagraphs(title, content string) []string {
+	// Strip HTML tags, convert <br>/<p> to newlines
+	content = stripHTMLToNewlines(content)
+	// Unescape HTML entities
+	content = html.UnescapeString(content)
+
 	lines := strings.Split(content, "\n")
 	var paragraphs []string
 
@@ -154,7 +160,6 @@ func (p *ContentProcessor) toParagraphs(title, content string) []string {
 			continue
 		}
 		if i == 0 {
-			// First paragraph is the title (re-added)
 			paragraphs = append(paragraphs, trimmed)
 		} else {
 			paragraphs = append(paragraphs, p.config.ParagraphIndent+trimmed)
@@ -165,6 +170,29 @@ func (p *ContentProcessor) toParagraphs(title, content string) []string {
 		paragraphs = append(paragraphs, title)
 	}
 	return paragraphs
+}
+
+// stripHTMLToNewlines converts block-level HTML tags to newlines and strips all remaining tags.
+// This prevents XSS via {@html} in the frontend reader.
+func stripHTMLToNewlines(s string) string {
+	// Convert common block tags to newlines
+	repl := strings.NewReplacer(
+		"<br>", "\n", "<br/>", "\n", "<br />", "\n",
+		"</p>", "\n", "</div>", "\n", "</li>", "\n",
+		"</tr>", "\n", "</h1>", "\n", "</h2>", "\n",
+		"</h3>", "\n", "</h4>", "\n", "</h5>", "\n", "</h6>", "\n",
+	)
+	s = repl.Replace(s)
+
+	// Strip remaining HTML tags
+	tagRe := regexp.MustCompile(`<[^>]*>`)
+	s = tagRe.ReplaceAllString(s, "")
+
+	// Collapse multiple newlines
+	multiNewline := regexp.MustCompile(`\n{3,}`)
+	s = multiNewline.ReplaceAllString(s, "\n\n")
+
+	return s
 }
 
 func trimSpacePunct(s string) string {

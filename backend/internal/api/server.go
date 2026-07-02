@@ -236,6 +236,11 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
+	if req.ID == "" || req.SourceURL == "" || req.BookURL == "" {
+		writeError(w, http.StatusBadRequest, "id, sourceUrl, and bookUrl are required")
+		return
+	}
+
 	// Create book with available info
 	b := &book.Book{
 		ID:       req.ID,
@@ -346,6 +351,11 @@ func (s *Server) handleGetChapters(w http.ResponseWriter, r *http.Request) {
 	if err := s.bookStore.SaveChapters(bookID, chapters); err != nil {
 		log.Printf("api: save chapters: %v", err)
 		// non-fatal: return fetched chapters anyway
+	}
+
+	// Update total chapter count on the book
+	if err := s.bookStore.UpdateTotalChapters(bookID, len(chapters)); err != nil {
+		log.Printf("api: update chapter count: %v", err)
 	}
 
 	writeJSON(w, http.StatusOK, chapters)
