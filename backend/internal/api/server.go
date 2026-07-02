@@ -80,7 +80,9 @@ func (s *Server) registerRoutes() {
 
 	// Books
 	s.mux.HandleFunc("GET /api/books", s.handleListBooks)
+	s.mux.HandleFunc("GET /api/books/{id}", s.handleGetBook)
 	s.mux.HandleFunc("POST /api/books", s.handleAddBook)
+	s.mux.HandleFunc("POST /api/books/enrich", s.handleEnrichBook)
 	s.mux.HandleFunc("DELETE /api/books", s.handleDeleteBook)
 
 	// Search
@@ -193,6 +195,16 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, books)
 }
 
+func (s *Server) handleGetBook(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	b, err := s.bookStore.GetBook(id)
+	if err != nil || b == nil {
+		writeError(w, http.StatusNotFound, "book not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, b)
+}
+
 func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 	var b book.Book
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
@@ -206,6 +218,70 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, b)
+}
+
+func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		Author    string `json:"author,omitempty"`
+		CoverURL  string `json:"coverUrl,omitempty"`
+		Intro     string `json:"intro,omitempty"`
+		SourceURL string `json:"sourceUrl"`
+		BookURL   string `json:"bookUrl"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	defer r.Body.Close()
+
+	// Create book with available info
+	b := &book.Book{
+		ID:       req.ID,
+		Name:     req.Name,
+		Author:   req.Author,
+		CoverURL: req.CoverURL,
+		Intro:    req.Intro,
+		SourceURL: req.SourceURL,
+		BookURL:  req.BookURL,
+		Origin:   req.SourceURL,
+	}
+
+	// Try to enrich from source (non-fatal if fails)
+	src, err := s.sourceStore.GetByID(req.SourceURL)
+	if err == nil && src != nil {
+		enriched, err := s.searcher.GetBookInfo(*src, req.BookURL)
+		if err == nil && enriched != nil {
+			if enriched.Name != "" {
+				b.Name = enriched.Name
+			}
+			if enriched.Author != "" {
+				b.Author = enriched.Author
+			}
+			if enriched.CoverURL != "" {
+				b.CoverURL = enriched.CoverURL
+			}
+			if enriched.Intro != "" {
+				b.Intro = enriched.Intro
+			}
+			if enriched.LastChapter != "" {
+				b.LastChapter = enriched.LastChapter
+			}
+			if enriched.TocURL != "" {
+				b.TocURL = enriched.TocURL
+			}
+			if enriched.Kind != "" {
+				b.Kind = enriched.Kind
+			}
+		}
+	}
+
+	if err := s.bookStore.AddBook(b); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, b)
 }
 
 func (s *Server) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
@@ -309,14 +385,19 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rawContent, err := s.searcher.GetChapterContent(*src, ch.URL)
+	rawContent, contentTitle, err := s.searcher.GetChapterContent(*src, ch.URL)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	displayTitle := ch.Title
+	if contentTitle != "" {
+		displayTitle = contentTitle
+	}
+
 	proc := processor.New(s.processorCfg)
-	result := proc.Process(ch.Title, rawContent)
+	result := proc.Process(displayTitle, rawContent)
 
 	writeJSON(w, http.StatusOK, result)
 }

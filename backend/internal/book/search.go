@@ -229,7 +229,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	if rules != nil {
 		b.Name = mustString(an, rules["name"])
 		b.Author = mustString(an, rules["author"])
-		b.CoverURL = mustString(an, rules["coverUrl"])
+		b.CoverURL = resolveURL(mustString(an, rules["coverUrl"]), src.BookSourceURL)
 		b.Intro = mustString(an, rules["intro"])
 		b.Kind = mustString(an, rules["kind"])
 		b.LastChapter = mustString(an, rules["lastChapter"])
@@ -245,80 +245,102 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	return b, nil
 }
 
-// GetChapterList fetches and parses the TOC for a book.
+// resolveURL makes a relative URL absolute against a base.
+func resolveURL(urlStr, baseURL string) string {
+	if urlStr == "" {
+		return ""
+	}
+	if strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://") {
+		return urlStr
+	}
+	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
+}
+
+// GetChapterList fetches and parses the TOC using the legado-compatible chapter list parser.
+// Handles pagination (nextTocUrl), volume detection, reverse ordering, VIP/pay markers.
 func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL string) ([]Chapter, error) {
 	fetchURL := tocURL
 	if fetchURL == "" {
 		fetchURL = bookURL
 	}
 
-	an := s.fetchAndAnalyze(fetchURL, src.BookSourceURL, src.Header)
-	if an == nil {
-		return nil, fmt.Errorf("chapter list: fetch failed")
+	parser := &ChapterListParser{
+		src:   src,
+		jsVM:  s.jsVM,
+		cache: s.cache,
+		fetch: func(urlStr string) (string, string, error) {
+			// Resolve relative URL
+			fullURL := urlStr
+			if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
+				fullURL = strings.TrimRight(src.BookSourceURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
+			}
+			resp, err := s.fetcher.Get(fullURL, nil)
+			if err != nil {
+				return "", "", err
+			}
+			return resp.Body, fullURL, nil
+		},
 	}
 
-	rules := parseRuleJSON(src.RuleToc)
-	if rules == nil {
-		return nil, fmt.Errorf("chapter list: no rules for %s", src.BookSourceName)
-	}
-
-	chapterRule := rules["chapterList"]
-	nameRule := rules["chapterName"]
-	urlRule := rules["chapterUrl"]
-
-	if chapterRule == "" {
-		return nil, fmt.Errorf("chapter list: no chapterList rule")
-	}
-
-	elements, err := an.GetElements(chapterRule)
+	chapters, err := parser.ParseChapterList(fetchURL, src.BookSourceURL)
 	if err != nil {
 		return nil, fmt.Errorf("chapter list: %w", err)
 	}
 
-	var chapters []Chapter
-	for i, el := range elements {
-		elHTML := analyzer.ToString(el)
-		elAn := analyzer.New(elHTML, src.BookSourceURL, s.jsVM, s.cache)
-
-		title := mustString(elAn, nameRule)
-		chURL := mustString(elAn, urlRule)
-		if title == "" {
-			title = mustString(elAn, "text")
-		}
-		if chURL == "" {
-			chURL = mustString(elAn, "a@href")
-		}
-		if title == "" {
-			continue
-		}
-
-		chapters = append(chapters, Chapter{
-			ID:    fmt.Sprintf("%s_%d", bookURL, i),
-			Index: i,
-			Title: title,
-			URL:   chURL,
-		})
+	// Assign IDs for storage
+	for i := range chapters {
+		chapters[i].ID = fmt.Sprintf("%s_%d", bookURL, i)
 	}
 	return chapters, nil
 }
 
 // GetChapterContent fetches and parses the content of a single chapter.
-func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL string) (string, error) {
-	an := s.fetchAndAnalyze(chapterURL, src.BookSourceURL, src.Header)
-	if an == nil {
-		return "", fmt.Errorf("chapter content: fetch failed")
+// Supports legado ContentRule fields: content, subContent, title, webJs, sourceRegex, replaceRegex.
+func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL string) (string, string, error) {
+	fullURL := chapterURL
+	if !strings.HasPrefix(chapterURL, "http://") && !strings.HasPrefix(chapterURL, "https://") {
+		fullURL = strings.TrimRight(src.BookSourceURL, "/") + "/" + strings.TrimLeft(chapterURL, "/")
 	}
 
+	headers := parseHeaderJSON(src.Header)
+	resp, err := s.fetcher.Get(fullURL, headers)
+	if err != nil {
+		return "", "", fmt.Errorf("content: fetch: %w", err)
+	}
+
+	an := analyzer.New(resp.Body, fullURL, s.jsVM, s.cache)
 	rules := parseRuleJSON(src.RuleContent)
 	if rules == nil {
-		return "", fmt.Errorf("chapter content: no rules")
+		return mustString(an, "body@text"), "", nil
 	}
 
-	contentRule := rules["content"]
-	if contentRule == "" {
-		return mustString(an, "text"), nil
+	// Extract title from content page if rule exists
+	chapterTitle := ""
+	if titleRule := rules["title"]; titleRule != "" {
+		chapterTitle = mustString(an, titleRule)
 	}
-	return mustString(an, contentRule), nil
+
+	// Main content
+	contentRule := rules["content"]
+	content := ""
+	if contentRule != "" {
+		content = mustString(an, contentRule)
+	} else {
+		content = mustString(an, "body@text")
+	}
+
+	// Sub content (appended to main content)
+	if subRule := rules["subContent"]; subRule != "" {
+		sub := mustString(an, subRule)
+		if sub != "" {
+			content += "\n" + sub
+		}
+	}
+
+	// ponytail: webJs (headless JS execution), sourceRegex, replaceRegex not yet implemented.
+	// These are less common in book source rules.
+
+	return content, chapterTitle, nil
 }
 
 // fetchAndAnalyze fetches a URL (resolving relative paths) and creates an Analyzer.

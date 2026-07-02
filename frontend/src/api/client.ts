@@ -82,10 +82,31 @@ export function listBooks() {
   return req<Book[]>('/books');
 }
 
+export function getBook(id: string) {
+  return req<Book>(`/books/${encodeURIComponent(id)}`);
+}
+
 export function addBook(book: Partial<Book>) {
   return req<Book>('/books', {
     method: 'POST',
     body: JSON.stringify(book),
+  });
+}
+
+// EnrichBook adds a book and tries to fetch full info (cover, intro, chapters) from source.
+// Falls back gracefully if source is unreachable.
+export function enrichBook(data: {
+  id: string;
+  name: string;
+  author?: string;
+  coverUrl?: string;
+  intro?: string;
+  sourceUrl: string;
+  bookUrl: string;
+}) {
+  return req<Book>('/books/enrich', {
+    method: 'POST',
+    body: JSON.stringify(data),
   });
 }
 

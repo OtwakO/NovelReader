@@ -26,20 +26,32 @@
   async function addToShelf(r: SearchResult) {
     adding = r.bookUrl;
     try {
-      // Fetch book info first
-      // ponytail: for now, just add directly with available info
-      const book = {
-        id: crypto.randomUUID(),
-        name: r.name,
-        author: r.author,
-        coverUrl: r.coverUrl,
-        intro: r.intro,
-        kind: r.kind,
-        sourceUrl: r.sourceUrl,
-        bookUrl: r.bookUrl,
-      };
-      await addBook(book);
-      go(`book?id=${book.id}`);
+      const id = crypto.randomUUID();
+      // Try enrich first (fetches full info from source), fall back to basic add
+      try {
+        await enrichBook({
+          id,
+          name: r.name,
+          author: r.author,
+          coverUrl: r.coverUrl,
+          intro: r.intro,
+          sourceUrl: r.sourceUrl,
+          bookUrl: r.bookUrl,
+        });
+      } catch {
+        // Fallback: add with what we have from search
+        await addBook({
+          id,
+          name: r.name,
+          author: r.author,
+          coverUrl: r.coverUrl,
+          intro: r.intro,
+          kind: r.kind,
+          sourceUrl: r.sourceUrl,
+          bookUrl: r.bookUrl,
+        });
+      }
+      go(`book?id=${id}`);
     } catch (e: unknown) {
       alert('Failed: ' + (e as Error).message);
     }
