@@ -18,6 +18,30 @@ type Client struct {
 	headers    map[string]string
 }
 
+// tunedTransport returns an http.Transport optimized for throughput.
+// Higher MaxIdleConnsPerHost benefits reading many chapters from the same source.
+func tunedTransport() *http.Transport {
+	return &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	}
+}
+
+func newHTTPClient(timeout time.Duration, jar http.CookieJar) *http.Client {
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: tunedTransport(),
+		Jar:       jar,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 5 {
+				return fmt.Errorf("fetcher: too many redirects")
+			}
+			return nil
+		},
+	}
+}
+
 // New creates a fetcher Client with a 15s timeout and cookie jar.
 func New() *Client {
 	return NewWithTimeout(15 * time.Second)
@@ -26,35 +50,13 @@ func New() *Client {
 // NewWithTimeout creates a fetcher with a custom timeout and cookie jar.
 func NewWithTimeout(timeout time.Duration) *Client {
 	jar, _ := cookiejar.New(nil)
-	return &Client{
-		httpClient: &http.Client{
-			Timeout: timeout,
-			Jar:     jar,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 5 {
-					return fmt.Errorf("fetcher: too many redirects")
-				}
-				return nil
-			},
-		},
-		jar: jar,
-	}
+	return &Client{httpClient: newHTTPClient(timeout, jar), jar: jar}
 }
 
 // NewStateless creates a fetcher without a cookie jar.
 // Safe for concurrent multi-user use — no cross-user cookie leakage.
 func NewStateless(timeout time.Duration) *Client {
-	return &Client{
-		httpClient: &http.Client{
-			Timeout: timeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 5 {
-					return fmt.Errorf("fetcher: too many redirects")
-				}
-				return nil
-			},
-		},
-	}
+	return &Client{httpClient: newHTTPClient(timeout, nil)}
 }
 
 // SetHeaders sets default headers for all requests.

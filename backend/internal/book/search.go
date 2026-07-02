@@ -15,7 +15,7 @@ import (
 const (
 	maxConcurrentSearch  = 50               // max concurrent HTTP fetches for search
 	searchOverallTimeout = 30 * time.Second // max time for the entire search
-	perSourceTimeout     = 8 * time.Second  // max time per single source
+	perSourceTimeout     = 10 * time.Second // max time per single source
 	maxResultsPerSource  = 20               // max results returned per source
 )
 

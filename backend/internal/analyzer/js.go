@@ -18,9 +18,10 @@ type JSVM struct {
 }
 
 // NewJSVM creates a JSVM with a pool of runtimes.
-// Default pool size is 4 — enough for concurrent search without wasting memory.
+// ponytail: 16 runtimes — JS eval is fast (ms-scale) but 50 goroutines contend for it.
+// Increased from 4 for search throughput; ~15/256 sources use JS URLs.
 func NewJSVM() *JSVM {
-	const poolSize = 4
+	const poolSize = 16
 	pool := make(chan *goja.Runtime, poolSize)
 	for range poolSize {
 		pool <- goja.New()
