@@ -149,7 +149,7 @@ func (vm *JSVM) makeSourceObj(baseURL string) map[string]interface{} {
 		"getVariable": func() string { return src.GetVariable() },
 		"putVariable": func(v string) { src.PutVariable(v) },
 		"get":         func(k string) string { return src.Get(k) },
-		"put":         func(k, v string) string { return src.Put(k, v); return v },
+		"put":         func(k, v string) string { return src.Put(k, v) },
 	}
 }
 

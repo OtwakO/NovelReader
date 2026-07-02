@@ -138,11 +138,11 @@ Shared across users (safe):
 
 **Phase**: Phase 1 — core engine operational, search streaming, bookshelf, reader all functional.
 
-**Last completed**: SSE streaming search with per-source cap, multi-user safety (stateless fetcher, LRU cache), frontend bug fixes (auto-reconnect, live counter, route-away cleanup).
+**Last completed**: BookSource field audit + fixes. Missing headers on TOC path (BLOCKER), JSLib never loaded (MAJOR), stateless search fetcher, bookSourceType filter, bookUrlPattern validation, enabledCookieJar defaults.
 
-**Working**: Import 256 sources → SSE search (results stream in) → enrich book (fetch cover/intro) → bookshelf (cover, progress) → chapter list (pagination, volumes) → reader (typography, fonts)
+**Working**: Import 939 sources → SSE search (results stream in, text-only sources only) → enrich book (fetch cover/intro) → bookshelf → chapter list (pagination, volumes) → reader
 
-**Known limitations**: Many sources behind Cloudflare (server-side HTTP client can't bypass). Book source rules go stale over time — users find fresh sources.
+**Known limitations**: Many sources behind Cloudflare (server-side HTTP client can't bypass). Book source rules go stale over time — users find fresh sources. `customButton` (30%) and `eventListener` (30%) are legado-reader UI fields intentionally not mapped. `concurrentRate` stored but not enforced yet.
 
 ## Decisions
 
@@ -237,3 +237,49 @@ Shared across users (safe):
 - **Problem**: 50-character s2t/t2s map produced mixed-script garbled text.
 - **Fix**: Removed maps, `convertChinese` is a no-op. Awaiting opencc.
 - **Affected**: `backend/internal/processor/processor.go`
+
+### [2026-07-03] TOC fetch ignored source headers (BLOCKER)
+- **Problem**: `GetChapterList` passed `nil` for headers. Any source needing `Cookie`, `Referer`, or custom `User-Agent` to serve the TOC page got empty results.
+- **Fix**: Now passes `parseHeaderJSON(src.Header)` instead of `nil`.
+- **Affected**: `backend/internal/book/search.go` (line ~376)
+- **Watch out**: Same fix applied to pagination fetches within ChapterListParser (both go through the same closure).
+
+### [2026-07-03] JSLib never loaded into JSVM (MAJOR)
+- **Problem**: `src.JSLib` was stored in DB but never evaluated. Sources relying on JSLib-defined helper functions got undefined-reference errors on every rule eval.
+- **Fix**: Analyzer now prepends `src.JSLib` to every `jsEval`/`jsEvalList`/`jsEvalElements` call via `SetJSLib()`.
+- **Affected**: `backend/internal/analyzer/analyzer.go`, `backend/internal/book/search.go`, `backend/internal/book/chapterlist.go`
+- **Watch out**: URL template eval (`@js:` in BuildURL) doesn't get JSLib prepended — only rule eval paths through Analyzer do. Fix if @js: URL sources also use JSLib.
+
+### [2026-07-03] Search used shared cookie jar — cross-source contamination
+- **Problem**: `searchFetcher` used `NewInsecure()` which creates a cookie jar. With 50 concurrent source searches, cookies set by one source's redirect domain leaked into another's request.
+- **Fix**: Added `NewInsecureStateless()` constructor with `Jar: nil`. Search uses it.
+- **Affected**: `backend/internal/fetcher/fetcher.go`, `backend/internal/book/search.go`
+- **Watch out**: Content fetcher (`s.fetcher`) still has a cookie jar. Correct for per-host cookie reuse during chapter reading.
+
+### [2026-07-03] Search included audio/image sources (MAJOR)
+- **Problem**: `searchCandidates` only checked `SearchURL != "" && RuleSearch != ""`, letting `BookSourceType=1` (audio) and `2` (image) sources through. These produce garbled results when searched with text parsing.
+- **Fix**: Added `src.BookSourceType == 0` filter.
+- **Affected**: `backend/internal/book/search.go`
+- **Watch out**: 30 removed sources from search. None were producing valid text results anyway.
+
+### [2026-07-03] bookUrlPattern stored but never validated
+- **Problem**: `src.BookURLPattern` was persisted but never used. Search results with over-matching `bookList` selectors (ad/promo links) were accepted as valid books.
+- **Fix**: Pre-compile pattern regex before parsing loop; skip results where `bookUrl` doesn't match.
+- **Affected**: `backend/internal/book/search.go`
+- **Watch out**: Invalid regex patterns are silently ignored (not all sources have valid patterns).
+
+### [2026-07-03] Divergent defaults between NewFromJSON and ImportSources
+- **Problem**: `NewFromJSON` set `CreatedAt`/`UpdatedAt`/`LastUpdateTime` defaults that were already handled by `UnmarshalJSON` and the store's `Upsert`/`ImportBatch`. Redundant addition+removal for single-source imports.
+- **Fix**: Removed redundant defaults from `NewFromJSON`. All path go through `UnmarshalJSON` for field defaults, then `Upsert`/`ImportBatch` for timestamp initialization.
+- **Affected**: `backend/internal/booksource/entity.go`
+
+### [2026-07-03] Intentionally unmapped legado fields undocumented
+- **Problem**: `customButton` (30%), `eventListener` (30%), `enabledReview` (1%), `phonehttp` (0.1%), `userid` (0%) were silently dropped on import. No documentation explaining why.
+- **Fix**: Added ponytail comment on `BookSource` struct listing intentionally-omitted fields and why.
+- **Affected**: `backend/internal/booksource/entity.go`
+- **Watch out**: These fields are LOST on re-export. Acceptable — they're legado-reader UI features, not fetch logic.
+
+### [2026-07-03] concurrentRate not enforced — documented
+- **Problem**: `src.ConcurrentRate` exists in DB but no code enforces per-source rate limiting.
+- **Fix**: Added ponytail comment on `searchCandidates` describing the ceiling and upgrade path.
+- **Affected**: `backend/internal/book/search.go`

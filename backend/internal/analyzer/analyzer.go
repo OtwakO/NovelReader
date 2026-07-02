@@ -48,6 +48,7 @@ type Analyzer struct {
 	isJSON  bool
 	jsVM    *JSVM
 	cache   *CacheManager
+	jsLib   string // prepended to every JS eval (from source's jsLib field)
 }
 
 // New creates an Analyzer for the given content.
@@ -61,6 +62,10 @@ func New(content, baseURL string, jsVM *JSVM, cache *CacheManager) *Analyzer {
 		cache:   cache,
 	}
 }
+
+// SetJSLib sets the JS library code to prepend to every JS evaluation.
+// legado evaluates jsLib once before source-specific JS; we prepend it per-eval.
+func (a *Analyzer) SetJSLib(jsLib string) { a.jsLib = jsLib }
 
 // GetString evaluates a rule string and returns the first text result.
 func (a *Analyzer) GetString(ruleStr string) (string, error) {
@@ -262,25 +267,34 @@ func (a *Analyzer) dispatchElements(mode Mode, content, expr string) ([]interfac
 	}
 }
 
+// prependJSLib prepends the source's JSLib code before the script.
+// ponytail: simple concat, no caching — JSLib is tiny for most sources.
+func (a *Analyzer) prependJSLib(script string) string {
+	if a.jsLib == "" {
+		return script
+	}
+	return a.jsLib + "\n" + script
+}
+
 func (a *Analyzer) jsEval(expr, content string) (interface{}, error) {
 	if a.jsVM == nil {
 		return "", fmt.Errorf("analyzer: JS engine not available")
 	}
-	return a.jsVM.Eval(expr, content, a.baseURL)
+	return a.jsVM.Eval(a.prependJSLib(expr), content, a.baseURL)
 }
 
 func (a *Analyzer) jsEvalList(expr, content string) ([]string, error) {
 	if a.jsVM == nil {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
-	return a.jsVM.EvalList(expr, content, a.baseURL)
+	return a.jsVM.EvalList(a.prependJSLib(expr), content, a.baseURL)
 }
 
 func (a *Analyzer) jsEvalElements(expr, content string) ([]interface{}, error) {
 	if a.jsVM == nil {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
-	return a.jsVM.EvalElements(expr, content, a.baseURL)
+	return a.jsVM.EvalElements(a.prependJSLib(expr), content, a.baseURL)
 }
 
 // ToString converts a value to string.

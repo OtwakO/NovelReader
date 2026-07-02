@@ -72,6 +72,17 @@ func NewInsecure(timeout time.Duration) *Client {
 	}
 }
 
+// NewInsecureStateless creates a fetcher with InsecureSkipVerify but NO cookie jar.
+// Use for search / stateless requests where cookie isolation matters.
+// All 939 real-world legado sources have enabledCookieJar=false, so this is the correct default.
+func NewInsecureStateless(timeout time.Duration) *Client {
+	slog.Warn("fetcher: created with InsecureSkipVerify, no cookie jar (stateless)")
+	return &Client{
+		httpClient: newHTTPClient(timeout, nil, true),
+		jar:        nil,
+	}
+}
+
 // SetHeaders sets default headers for all requests.
 func (c *Client) SetHeaders(h map[string]string) { c.headers = h }
 

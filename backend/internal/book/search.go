@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -40,7 +41,7 @@ func NewSearcher(
 ) *Searcher {
 	return &Searcher{
 		fetcher:       hc,
-		searchFetcher: fetcher.NewInsecure(perSourceTimeout), // matches legado's unsafeTrustManager
+		searchFetcher: fetcher.NewInsecureStateless(perSourceTimeout), // no cookie jar — search is stateless
 		jsVM:          jsVM,
 		cache:         cache,
 		sourceStore:   sourceStore,
@@ -182,7 +183,10 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 	return ctx.Err()
 }
 
-// searchCandidates returns enabled sources with search capability.
+// searchCandidates returns enabled text-type sources with search capability.
+// ponytail: src.ConcurrentRate (1% coverage) is stored but not enforced yet.
+// Legado uses it as millis-between-requests throttle. Add per-source semaphore
+// when sources with explicit rate limits produce measurable failures.
 func (s *Searcher) searchCandidates() ([]booksource.BookSource, error) {
 	sources, err := s.sourceStore.ListEnabled()
 	if err != nil {
@@ -190,7 +194,7 @@ func (s *Searcher) searchCandidates() ([]booksource.BookSource, error) {
 	}
 	var candidates []booksource.BookSource
 	for _, src := range sources {
-		if src.SearchURL != "" && src.RuleSearch != "" {
+		if src.BookSourceType == 0 && src.SearchURL != "" && src.RuleSearch != "" {
 			candidates = append(candidates, src)
 		}
 	}
@@ -260,6 +264,7 @@ func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ru
 	}
 
 	an := analyzer.New(html, src.BookSourceURL, s.jsVM, s.cache)
+	an.SetJSLib(src.JSLib)
 	elements, err := an.GetElements(bookListRule)
 	if err != nil {
 		return nil, fmt.Errorf("search: bookList: %w", err)
@@ -284,10 +289,19 @@ func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ru
 		}
 	}
 
+	// pre-compile bookUrlPattern regex if the source provides one
+	var urlRe *regexp.Regexp
+	if src.BookURLPattern != "" {
+		if re, err := regexp.Compile(src.BookURLPattern); err == nil {
+			urlRe = re
+		}
+	}
+
 	var results []SearchResult
 	for _, el := range elements {
 		elHTML := analyzer.ToString(el)
 		elAn := analyzer.New(elHTML, src.BookSourceURL, s.jsVM, s.cache)
+		elAn.SetJSLib(src.JSLib)
 
 		r := SearchResult{
 			SourceURL:  src.BookSourceURL,
@@ -316,6 +330,9 @@ func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ru
 		}
 
 		if r.Name != "" && r.BookURL != "" {
+			if urlRe != nil && !urlRe.MatchString(r.BookURL) {
+				continue // bookUrl doesn't match source's urlPattern
+			}
 			results = append(results, r)
 		}
 	}
@@ -324,7 +341,7 @@ func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ru
 
 // GetBookInfo fetches and parses book info using ruleBookInfo.
 func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book, error) {
-	an := s.fetchAndAnalyze(bookURL, src.BookSourceURL, src.Header)
+	an := s.fetchAndAnalyze(bookURL, src.BookSourceURL, src.Header, src.JSLib)
 	if an == nil {
 		return nil, fmt.Errorf("book info: fetch failed for %s", bookURL)
 	}
@@ -370,7 +387,7 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 			if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
 				fullURL = strings.TrimRight(src.BookSourceURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
 			}
-			resp, err := s.fetcher.Get(fullURL, nil)
+			resp, err := s.fetcher.Get(fullURL, parseHeaderJSON(src.Header))
 			if err != nil {
 				return "", "", err
 			}
@@ -402,6 +419,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	}
 
 	an := analyzer.New(resp.Body, fullURL, s.jsVM, s.cache)
+	an.SetJSLib(src.JSLib)
 	rules := parseRuleJSON(src.RuleContent)
 	if rules == nil {
 		return mustString(an, "body@text"), "", nil
@@ -428,7 +446,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	return content, chapterTitle, nil
 }
 
-func (s *Searcher) fetchAndAnalyze(urlStr, baseURL, headerJSON string) *analyzer.Analyzer {
+func (s *Searcher) fetchAndAnalyze(urlStr, baseURL, headerJSON, jsLib string) *analyzer.Analyzer {
 	headers := parseHeaderJSON(headerJSON)
 	fullURL := urlStr
 	if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
@@ -438,7 +456,9 @@ func (s *Searcher) fetchAndAnalyze(urlStr, baseURL, headerJSON string) *analyzer
 	if err != nil {
 		return nil
 	}
-	return analyzer.New(resp.Body, fullURL, s.jsVM, s.cache)
+	an := analyzer.New(resp.Body, fullURL, s.jsVM, s.cache)
+	an.SetJSLib(jsLib)
+	return an
 }
 
 func mustString(a *analyzer.Analyzer, rule string) string {

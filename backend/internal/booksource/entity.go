@@ -3,11 +3,14 @@ package booksource
 
 import (
 	"encoding/json"
-	"time"
 )
 
 // BookSource mirrors the legado book source JSON format.
 // Fields are tagged with db column names for SQLite storage and JSON for import/export.
+//
+// ponytail: Intentionally omitted legado fields (reader-UI, not fetch logic):
+//   customButton (30%), eventListener (30%) — legado app UI actions, out of scope
+//   enabledReview (1%), userid (0%), phonehttp (0.1%) — low coverage, deferred
 type BookSource struct {
 	BookSourceURL    string `json:"bookSourceUrl" db:"id"`
 	BookSourceName   string `json:"bookSourceName" db:"name"`
@@ -97,19 +100,11 @@ func ColumnDefs() string {
 }
 
 // NewFromJSON creates a BookSource from raw JSON bytes (single source).
+// Defaults are consolidated in UnmarshalJSON — this just unmarshals.
 func NewFromJSON(data []byte) (*BookSource, error) {
 	var s BookSource
 	if err := json.Unmarshal(data, &s); err != nil {
 		return nil, err
 	}
-	now := time.Now().UnixMilli()
-	if s.LastUpdateTime == 0 {
-		s.LastUpdateTime = now
-	}
-	if s.RespondTime == 0 {
-		s.RespondTime = 180000
-	}
-	s.CreatedAt = now
-	s.UpdatedAt = now
 	return &s, nil
 }

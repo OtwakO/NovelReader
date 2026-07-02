@@ -168,7 +168,7 @@ func (s *Searcher) GetNextContentURL(src booksource.BookSource, currentURL strin
 	if nextRule == "" {
 		return "", nil
 	}
-	an := s.fetchAndAnalyze(currentURL, src.BookSourceURL, src.Header)
+	an := s.fetchAndAnalyze(currentURL, src.BookSourceURL, src.Header, src.JSLib)
 	if an == nil {
 		return "", nil
 	}
