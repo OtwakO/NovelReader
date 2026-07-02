@@ -1,24 +1,50 @@
 <script lang="ts">
-  import { searchBooks, addBook, type SearchResult, type BookSource } from '../api/client';
+  import { searchBooksStream, enrichBook, addBook, type SearchResult } from '../api/client';
 
   let { go }: { go: (path: string) => void } = $props();
 
   let query = $state('');
   let results = $state<SearchResult[]>([]);
   let searching = $state(false);
+  let sourcesDone = $state(0);
+  let totalResults = $state(0);
   let error = $state('');
+  let es = $state<EventSource | null>(null);
 
-  async function handleSearch(e: Event) {
+  function handleSearch(e: Event) {
     e.preventDefault();
     if (!query.trim()) return;
-    searching = true;
-    error = '';
+
+    // Cancel previous search
+    if (es) es.close();
+
     results = [];
-    try {
-      results = await searchBooks(query.trim());
-    } catch (e: unknown) {
-      error = (e as Error).message;
-    }
+    sourcesDone = 0;
+    totalResults = 0;
+    error = '';
+    searching = true;
+
+    const q = query.trim();
+    es = searchBooksStream(
+      q,
+      (source, items) => {
+        results = [...results, ...items];
+      },
+      (source, msg) => {
+        // silently track errors per source; don't spam the user
+        sourcesDone++;
+      },
+      (total, done) => {
+        totalResults = total;
+        sourcesDone = done;
+        searching = false;
+        es = null;
+      }
+    );
+  }
+
+  function cancelSearch() {
+    if (es) { es.close(); es = null; }
     searching = false;
   }
 
@@ -27,28 +53,16 @@
     adding = r.bookUrl;
     try {
       const id = crypto.randomUUID();
-      // Try enrich first (fetches full info from source), fall back to basic add
       try {
         await enrichBook({
-          id,
-          name: r.name,
-          author: r.author,
-          coverUrl: r.coverUrl,
-          intro: r.intro,
-          sourceUrl: r.sourceUrl,
-          bookUrl: r.bookUrl,
+          id, name: r.name, author: r.author || '',
+          coverUrl: r.coverUrl || '', intro: r.intro || '',
+          sourceUrl: r.sourceUrl, bookUrl: r.bookUrl,
         });
       } catch {
-        // Fallback: add with what we have from search
         await addBook({
-          id,
-          name: r.name,
-          author: r.author,
-          coverUrl: r.coverUrl,
-          intro: r.intro,
-          kind: r.kind,
-          sourceUrl: r.sourceUrl,
-          bookUrl: r.bookUrl,
+          id, name: r.name, author: r.author, coverUrl: r.coverUrl,
+          intro: r.intro, kind: r.kind, sourceUrl: r.sourceUrl, bookUrl: r.bookUrl,
         });
       }
       go(`book?id=${id}`);
@@ -65,34 +79,36 @@
       type="search"
       bind:value={query}
       placeholder="Search books..."
-      autofocus
-      // svelte-ignore a11y_autofocus
     />
-    <button type="submit" disabled={searching}>
-      {searching ? '...' : 'Search'}
-    </button>
+    {#if searching}
+      <button type="button" class="cancel-btn" onclick={cancelSearch}>✕</button>
+    {:else}
+      <button type="submit">Search</button>
+    {/if}
   </form>
 
-  {#if error}
+  {#if searching}
+    <div class="search-status">
+      <span class="spinner"></span>
+      <span>Searching... {results.length} results from {sourcesDone} sources</span>
+    </div>
+  {:else if error}
     <p class="error">{error}</p>
   {/if}
 
   {#if results.length > 0}
+    <div class="result-count">{results.length} results · {sourcesDone} sources</div>
     <div class="results">
-      {#each results as r}
+      {#each results as r (r.sourceUrl + r.bookUrl)}
         <div class="result-card">
           {#if r.coverUrl}
             <img src={r.coverUrl} alt={r.name} class="cover" loading="lazy" />
           {/if}
           <div class="info">
             <strong>{r.name}</strong>
-            <span class="author">{r.author}</span>
-            {#if r.kind}
-              <span class="kind">{r.kind}</span>
-            {/if}
-            {#if r.lastChapter}
-              <span class="last">{r.lastChapter}</span>
-            {/if}
+            {#if r.author}<span class="author">{r.author}</span>{/if}
+            {#if r.kind}<span class="kind">{r.kind}</span>{/if}
+            {#if r.lastChapter}<span class="last">{r.lastChapter}</span>{/if}
             <span class="source">{r.sourceName}</span>
           </div>
           <button class="add-btn" onclick={() => addToShelf(r)} disabled={adding === r.bookUrl}>
@@ -101,22 +117,36 @@
         </div>
       {/each}
     </div>
-  {:else if searching}
-    <p class="hint">Searching...</p>
   {/if}
 </div>
 
 <style>
   .page { padding: 1rem; }
-  .search-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+  .search-bar { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
   .search-bar input {
     flex: 1; padding: 0.6rem 0.8rem; border: 1px solid var(--border);
     border-radius: 10px; font-size: 1rem; background: var(--card-bg);
   }
-  .search-bar button {
+  .search-bar button, .cancel-btn {
     background: var(--accent); color: white; border: none;
     padding: 0.6rem 1rem; border-radius: 10px; font-size: 0.95rem; cursor: pointer;
   }
+  .cancel-btn { background: #e74c3c; }
+  .search-bar button:disabled { opacity: 0.5; }
+
+  .search-status {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.85rem; color: #888; margin-bottom: 0.75rem;
+  }
+  .spinner {
+    width: 1rem; height: 1rem; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .result-count { font-size: 0.8rem; color: #999; margin-bottom: 0.5rem; }
+
   .results { display: flex; flex-direction: column; gap: 0.5rem; }
   .result-card {
     display: flex; gap: 0.75rem; align-items: center;
@@ -136,6 +166,5 @@
     cursor: pointer; flex-shrink: 0;
   }
   .add-btn:disabled { opacity: 0.5; }
-  .hint { color: #999; font-size: 0.85rem; text-align: center; padding: 2rem; }
   .error { color: #e74c3c; margin-bottom: 0.5rem; }
 </style>

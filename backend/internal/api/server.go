@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -87,6 +88,7 @@ func (s *Server) registerRoutes() {
 
 	// Search
 	s.mux.HandleFunc("GET /api/search", s.handleSearch)
+	s.mux.HandleFunc("GET /api/search/stream", s.handleSearchStream)
 
 	// Chapters
 	s.mux.HandleFunc("GET /api/books/{id}/chapters", s.handleGetChapters)
@@ -316,6 +318,61 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		results = []book.SearchResult{}
 	}
 	writeJSON(w, http.StatusOK, results)
+}
+
+func (s *Server) handleSearchStream(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		writeError(w, http.StatusBadRequest, "missing query param q")
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	writeSSE := func(v interface{}) {
+		b, _ := json.Marshal(v)
+		fmt.Fprintf(w, "data: %s\n\n", b)
+		flusher.Flush()
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	total := 0
+	sourcesDone := 0
+	err := s.searcher.SearchStream(ctx, query, func(src booksource.BookSource, results []book.SearchResult, e error) {
+		sourcesDone++
+		if e != nil {
+			writeSSE(map[string]interface{}{
+				"type":    "error",
+				"source":  src.BookSourceName,
+				"message": e.Error(),
+			})
+			return
+		}
+		total += len(results)
+		writeSSE(map[string]interface{}{
+			"type":   "results",
+			"source": src.BookSourceName,
+			"data":   results,
+		})
+	})
+
+	writeSSE(map[string]interface{}{
+		"type":        "done",
+		"total":       total,
+		"sourcesDone": sourcesDone,
+		"error":       err != nil && err != context.Canceled,
+	})
 }
 
 // --- Chapters ---

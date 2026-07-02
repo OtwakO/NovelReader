@@ -12,12 +12,17 @@ import (
 	"github.com/otwako/novelreader/internal/fetcher"
 )
 
+const (
+	maxConcurrentSearch  = 50               // max concurrent HTTP fetches for search
+	searchOverallTimeout = 30 * time.Second // max time for the entire search
+	perSourceTimeout     = 8 * time.Second  // max time per single source
+	maxResultsPerSource  = 20               // max results returned per source
+)
+
 // Searcher orchestrates search, book info, TOC, and content fetching.
-// Concurrency design: search fans out across all sources with a shared context deadline.
-// Slow sources are abandoned rather than waited on.
 type Searcher struct {
-	fetcher       *fetcher.Client // general purpose (15s timeout)
-	searchFetcher *fetcher.Client // search-specific (8s timeout per source)
+	fetcher       *fetcher.Client
+	searchFetcher *fetcher.Client // 8s timeout for search
 	jsVM          *analyzer.JSVM
 	cache         *analyzer.CacheManager
 	sourceStore   *booksource.Store
@@ -33,7 +38,7 @@ func NewSearcher(
 ) *Searcher {
 	return &Searcher{
 		fetcher:       hc,
-		searchFetcher: fetcher.NewWithTimeout(8 * time.Second),
+		searchFetcher: fetcher.NewWithTimeout(perSourceTimeout),
 		jsVM:          jsVM,
 		cache:         cache,
 		sourceStore:   sourceStore,
@@ -41,38 +46,50 @@ func NewSearcher(
 	}
 }
 
-const (
-	maxConcurrentSearch = 50    // max concurrent HTTP fetches for search
-	searchOverallTimeout = 30 * time.Second // max time for the entire search
-	perSourceTimeout     = 8 * time.Second  // max time per single source
-)
-
-// Search searches across all sources with search capability.
-// Returns partial results after overallTimeout — slow sources are skipped.
+// Search is the old synchronous aggregator. Kept for backward compat.
 func (s *Searcher) Search(query string) ([]SearchResult, error) {
-	sources, err := s.sourceStore.ListEnabled()
-	if err != nil {
-		return nil, fmt.Errorf("search: list sources: %w", err)
-	}
-
-	// Filter to sources with search URL and rules
-	var candidates []booksource.BookSource
-	for _, src := range sources {
-		if src.SearchURL != "" && src.RuleSearch != "" {
-			candidates = append(candidates, src)
-		}
-	}
-	if len(candidates) == 0 {
-		return []SearchResult{}, nil
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), searchOverallTimeout)
 	defer cancel()
 
+	var mu sync.Mutex
+	var all []SearchResult
+	seen := make(map[string]bool)
+
+	err := s.SearchStream(ctx, query, func(src booksource.BookSource, results []SearchResult, _ error) {
+		mu.Lock()
+		for _, r := range results {
+			key := r.SourceURL + ":" + r.BookURL
+			if !seen[key] {
+				seen[key] = true
+				all = append(all, r)
+			}
+		}
+		mu.Unlock()
+	})
+	if all == nil {
+		all = []SearchResult{}
+	}
+	return all, err
+}
+
+// SearchCallback is called for each source that completes, with its results.
+type SearchCallback func(src booksource.BookSource, results []SearchResult, err error)
+
+// SearchStream fans out across all sources, calling onResult for each as it completes.
+// Context cancellation (client disconnect) aborts all in-flight requests.
+func (s *Searcher) SearchStream(ctx context.Context, query string, onResult SearchCallback) error {
+	candidates, err := s.searchCandidates()
+	if err != nil {
+		return err
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+
 	type jobResult struct {
+		src     booksource.BookSource
 		results []SearchResult
 		err     error
-		name    string
 	}
 
 	ch := make(chan jobResult, len(candidates))
@@ -81,61 +98,43 @@ func (s *Searcher) Search(query string) ([]SearchResult, error) {
 
 	for _, src := range candidates {
 		wg.Add(1)
-		sem <- struct{}{} // acquire sem — blocks if at capacity
+		sem <- struct{}{}
 		go func(src booksource.BookSource) {
 			defer wg.Done()
 			defer func() { <-sem }()
 			r, err := s.searchSource(ctx, src, query)
-			select {
-			case ch <- jobResult{results: r, err: err, name: src.BookSourceName}:
-			case <-ctx.Done():
-				// context cancelled, don't send
-			}
+			ch <- jobResult{src, r, err}
 		}(src)
 	}
 
-	// Wait for all goroutines in a separate goroutine so we can select
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
+	go func() { wg.Wait(); close(ch) }()
 
-	// Collect results until channel closes or context expires
-	var all []SearchResult
-	seen := make(map[string]bool)
-	done := false
-	for !done {
-		select {
-		case r, ok := <-ch:
-			if !ok {
-				done = true
-				break
-			}
-			if r.err != nil {
-				continue
-			}
-			for _, res := range r.results {
-				key := res.SourceURL + ":" + res.BookURL
-				if !seen[key] {
-					seen[key] = true
-					all = append(all, res)
-				}
-			}
-		case <-ctx.Done():
-			// Timeout — collect what we have so far
-			done = true
+	for r := range ch {
+		if ctx.Err() != nil {
+			break
 		}
+		onResult(r.src, r.results, r.err)
 	}
-
-	if all == nil {
-		all = []SearchResult{}
-	}
-	return all, nil
+	return ctx.Err()
 }
 
-// searchSource performs a single source search with per-source context.
+// searchCandidates returns enabled sources with search capability.
+func (s *Searcher) searchCandidates() ([]booksource.BookSource, error) {
+	sources, err := s.sourceStore.ListEnabled()
+	if err != nil {
+		return nil, fmt.Errorf("search: list sources: %w", err)
+	}
+	var candidates []booksource.BookSource
+	for _, src := range sources {
+		if src.SearchURL != "" && src.RuleSearch != "" {
+			candidates = append(candidates, src)
+		}
+	}
+	return candidates, nil
+}
+
+// searchSource performs a single source search.
 func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, query string) ([]SearchResult, error) {
-	// Per-source deadline
 	srcCtx, cancel := context.WithTimeout(ctx, perSourceTimeout)
 	defer cancel()
 
@@ -161,7 +160,6 @@ func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ru
 	if rules == nil {
 		return nil, fmt.Errorf("search: invalid rule JSON for %s", src.BookSourceName)
 	}
-
 	bookListRule := rules["bookList"]
 	if bookListRule == "" {
 		return nil, fmt.Errorf("search: no bookList rule for %s", src.BookSourceName)
@@ -175,38 +173,40 @@ func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ru
 
 	var results []SearchResult
 	for _, el := range elements {
+		if len(results) >= maxResultsPerSource {
+			break
+		}
 		elHTML := analyzer.ToString(el)
 		elAn := analyzer.New(elHTML, src.BookSourceURL, s.jsVM, s.cache)
 
-		result := SearchResult{
+		r := SearchResult{
 			SourceURL:  src.BookSourceURL,
 			SourceName: src.BookSourceName,
 		}
-
 		if v := mustString(elAn, rules["name"]); v != "" {
-			result.Name = v
+			r.Name = v
 		}
 		if v := mustString(elAn, rules["author"]); v != "" {
-			result.Author = v
-		}
-		if v := mustString(elAn, rules["coverUrl"]); v != "" {
-			result.CoverURL = v
-		}
-		if v := mustString(elAn, rules["intro"]); v != "" {
-			result.Intro = v
-		}
-		if v := mustString(elAn, rules["kind"]); v != "" {
-			result.Kind = v
-		}
-		if v := mustString(elAn, rules["lastChapter"]); v != "" {
-			result.LastChapter = v
+			r.Author = v
 		}
 		if v := mustString(elAn, rules["bookUrl"]); v != "" {
-			result.BookURL = v
+			r.BookURL = v
+		}
+		if v := mustString(elAn, rules["coverUrl"]); v != "" {
+			r.CoverURL = v
+		}
+		if v := mustString(elAn, rules["intro"]); v != "" {
+			r.Intro = v
+		}
+		if v := mustString(elAn, rules["kind"]); v != "" {
+			r.Kind = v
+		}
+		if v := mustString(elAn, rules["lastChapter"]); v != "" {
+			r.LastChapter = v
 		}
 
-		if result.Name != "" && result.BookURL != "" {
-			results = append(results, result)
+		if r.Name != "" && r.BookURL != "" {
+			results = append(results, r)
 		}
 	}
 	return results, nil
@@ -236,43 +236,15 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 		b.UpdateTime = mustString(an, rules["updateTime"])
 		b.WordCount = mustString(an, rules["wordCount"])
 
-		tocURL := mustString(an, rules["tocUrl"])
-		if tocURL != "" {
-			b.TocURL = tocURL
+		// resolve tocUrl against bookUrl, not source root
+		if tocURL := mustString(an, rules["tocUrl"]); tocURL != "" {
+			b.TocURL = resolveURL(tocURL, b.BookURL)
 		}
 	}
-
 	return b, nil
 }
 
-// resolveURL makes a relative URL absolute against a base.
-func resolveURL(urlStr, baseURL string) string {
-	if urlStr == "" {
-		return ""
-	}
-	if strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://") {
-		return urlStr
-	}
-	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
-}
-
-// resolveURLPage resolves a relative URL against a specific page URL (for chapter/toc links).
-func resolveURLPage(urlStr, pageURL string) string {
-	if urlStr == "" {
-		return ""
-	}
-	if strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://") {
-		return urlStr
-	}
-	// Resolve against the page URL's directory
-	if idx := strings.LastIndex(pageURL, "/"); idx > 8 { // past "http://"
-		return pageURL[:idx+1] + strings.TrimLeft(urlStr, "/")
-	}
-	return strings.TrimRight(pageURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
-}
-
-// GetChapterList fetches and parses the TOC using the legado-compatible chapter list parser.
-// Handles pagination (nextTocUrl), volume detection, reverse ordering, VIP/pay markers.
+// GetChapterList fetches and parses the TOC using the legado-compatible parser.
 func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL string) ([]Chapter, error) {
 	fetchURL := tocURL
 	if fetchURL == "" {
@@ -284,7 +256,6 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 		jsVM:  s.jsVM,
 		cache: s.cache,
 		fetch: func(urlStr string) (string, string, error) {
-			// Resolve relative URL
 			fullURL := urlStr
 			if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
 				fullURL = strings.TrimRight(src.BookSourceURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
@@ -301,16 +272,13 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 	if err != nil {
 		return nil, fmt.Errorf("chapter list: %w", err)
 	}
-
-	// Assign IDs for storage
 	for i := range chapters {
 		chapters[i].ID = fmt.Sprintf("%s_%d", bookURL, i)
 	}
 	return chapters, nil
 }
 
-// GetChapterContent fetches and parses the content of a single chapter.
-// Supports legado ContentRule fields: content, subContent, title, webJs, sourceRegex, replaceRegex.
+// GetChapterContent fetches and parses chapter content using ruleContent.
 func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL string) (string, string, error) {
 	fullURL := chapterURL
 	if !strings.HasPrefix(chapterURL, "http://") && !strings.HasPrefix(chapterURL, "https://") {
@@ -329,13 +297,11 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		return mustString(an, "body@text"), "", nil
 	}
 
-	// Extract title from content page if rule exists
 	chapterTitle := ""
 	if titleRule := rules["title"]; titleRule != "" {
 		chapterTitle = mustString(an, titleRule)
 	}
 
-	// Main content
 	contentRule := rules["content"]
 	content := ""
 	if contentRule != "" {
@@ -344,29 +310,19 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		content = mustString(an, "body@text")
 	}
 
-	// Sub content (appended to main content)
 	if subRule := rules["subContent"]; subRule != "" {
-		sub := mustString(an, subRule)
-		if sub != "" {
+		if sub := mustString(an, subRule); sub != "" {
 			content += "\n" + sub
 		}
 	}
-
-	// ponytail: webJs (headless JS execution), sourceRegex, replaceRegex not yet implemented.
-	// These are less common in book source rules.
-
 	return content, chapterTitle, nil
 }
 
-// fetchAndAnalyze fetches a URL (resolving relative paths) and creates an Analyzer.
 func (s *Searcher) fetchAndAnalyze(urlStr, baseURL, headerJSON string) *analyzer.Analyzer {
 	headers := parseHeaderJSON(headerJSON)
-	// Resolve relative URLs against source base URL
 	fullURL := urlStr
 	if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
-		base := strings.TrimRight(baseURL, "/")
-		path := strings.TrimLeft(urlStr, "/")
-		fullURL = base + "/" + path
+		fullURL = strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
 	}
 	resp, err := s.fetcher.Get(fullURL, headers)
 	if err != nil {
@@ -375,7 +331,6 @@ func (s *Searcher) fetchAndAnalyze(urlStr, baseURL, headerJSON string) *analyzer
 	return analyzer.New(resp.Body, fullURL, s.jsVM, s.cache)
 }
 
-// mustString runs a rule on an analyzer and returns the result or empty string.
 func mustString(a *analyzer.Analyzer, rule string) string {
 	if rule == "" {
 		return ""
@@ -385,4 +340,14 @@ func mustString(a *analyzer.Analyzer, rule string) string {
 		return ""
 	}
 	return s
+}
+
+func resolveURL(urlStr, baseURL string) string {
+	if urlStr == "" {
+		return ""
+	}
+	if strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://") {
+		return urlStr
+	}
+	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
 }

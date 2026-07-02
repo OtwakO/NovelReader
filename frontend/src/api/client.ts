@@ -63,6 +63,32 @@ export function searchBooks(query: string) {
   return req<SearchResult[]>(`/search?q=${encodeURIComponent(query)}`);
 }
 
+// SSE streaming search. Calls onResult per source, onDone when all complete.
+// Returns an EventSource that the caller can close() to cancel.
+export function searchBooksStream(
+  query: string,
+  onResult: (source: string, items: SearchResult[]) => void,
+  onError: (source: string, msg: string) => void,
+  onDone: (total: number, sourcesDone: number) => void,
+): EventSource {
+  const es = new EventSource(`/api/search/stream?q=${encodeURIComponent(query)}`);
+  es.onmessage = (e) => {
+    try {
+      const ev = JSON.parse(e.data);
+      if (ev.type === 'results') onResult(ev.source, ev.data);
+      else if (ev.type === 'error') onError(ev.source, ev.message);
+      else if (ev.type === 'done') {
+        onDone(ev.total, ev.sourcesDone);
+        es.close();
+      }
+    } catch { /* ignore malformed */ }
+  };
+  es.onerror = () => {
+    // EventSource auto-reconnects on error. Close if done already handled.
+  };
+  return es;
+}
+
 // --- Books ---
 export interface Book {
   id: string;
