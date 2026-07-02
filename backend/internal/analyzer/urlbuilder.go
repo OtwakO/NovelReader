@@ -20,18 +20,19 @@ type URLMeta struct {
 	WebView bool              // if true, source needs JS rendering (server-side can't do this)
 }
 
-// urlOption mirrors legado's UrlOption data class for JSON parsing.
+// urlOption mirrors legado's UrlOption. Uses RawMessage for fields that may be
+// either a string or structured type (headers as JSON string or map, webView as "true" or true).
 type urlOption struct {
-	Method   string `json:"method"`
-	Body     string `json:"body"`
-	Charset  string `json:"charset"`
-	WebView  *bool  `json:"webView,omitempty"`
-	Retry    *int   `json:"retry,omitempty"`
-	WebJs    string `json:"webJs,omitempty"`
-	BodyJs   string `json:"bodyJs,omitempty"`
-	Js       string `json:"js,omitempty"`
-	DnsIp    string `json:"dnsIp,omitempty"`
-	Headers  map[string]string `json:"headers,omitempty"`
+	Method  string          `json:"method"`
+	Body    string          `json:"body"`
+	Charset string          `json:"charset"`
+	WebView json.RawMessage `json:"webView,omitempty"`
+	Retry   json.RawMessage `json:"retry,omitempty"`
+	WebJs   string          `json:"webJs,omitempty"`
+	BodyJs  string          `json:"bodyJs,omitempty"`
+	Js      string          `json:"js,omitempty"`
+	DnsIp   string          `json:"dnsIp,omitempty"`
+	Headers json.RawMessage `json:"headers,omitempty"`
 }
 
 // BuildURL constructs a request URL from a book source's URL template.
@@ -67,15 +68,41 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 			}
 			meta.Body = opt.Body
 			meta.Charset = opt.Charset
-			if opt.WebView != nil && *opt.WebView {
-				meta.WebView = true
+
+			// Tolerant webView: accepts "true" (string), true (bool), "1", 1
+			if len(opt.WebView) > 0 {
+				var s string
+				if err := json.Unmarshal(opt.WebView, &s); err == nil {
+					meta.WebView = s == "true" || s == "1"
+				} else {
+					var b bool
+					if err := json.Unmarshal(opt.WebView, &b); err == nil {
+						meta.WebView = b
+					}
+				}
 			}
-			if opt.Retry != nil {
-				meta.Retry = *opt.Retry
+
+			// Tolerant headers: accepts JSON string ("{\"UA\":\"...\"}") or map
+			if len(opt.Headers) > 0 {
+				if err := json.Unmarshal(opt.Headers, &meta.Headers); err != nil {
+					var s string
+					if err2 := json.Unmarshal(opt.Headers, &s); err2 == nil && s != "" {
+						json.Unmarshal([]byte(s), &meta.Headers)
+					}
+				}
 			}
-			for k, v := range opt.Headers {
-				meta.Headers[k] = v
+
+			// Tolerant retry: accepts 2 (number) or "2" (string)
+			if len(opt.Retry) > 0 {
+				json.Unmarshal(opt.Retry, &meta.Retry)
+				if meta.Retry == 0 {
+					var s string
+					if json.Unmarshal(opt.Retry, &s) == nil {
+						fmt.Sscanf(s, "%d", &meta.Retry)
+					}
+				}
 			}
+
 			// ponytail: webJs, bodyJs, js, dnsIp parsed but not acted on yet
 			_ = opt.WebJs
 			_ = opt.BodyJs

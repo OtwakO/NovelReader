@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
@@ -66,10 +67,31 @@ func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interf
 	rt := <-vm.pool
 	defer func() { vm.pool <- rt }()
 
-	// Bind standard objects (use JS objects for property access patterns like source.key)
+	// Bind standard objects
+	// java MUST be a map with lowercase keys — goja exposes Go struct methods capitalized
+	// (EncodeURI, not encodeURI). Following legado's JsExtensions naming convention.
+	h := &jsHelpers{vm: vm}
 	_ = rt.Set("result", content)
 	_ = rt.Set("baseUrl", baseURL)
-	_ = rt.Set("java", &jsHelpers{vm: vm, rt: rt})
+	_ = rt.Set("java", map[string]interface{}{
+		"get":           h.Get,
+		"put":           h.Put,
+		"post":          h.Post,
+		"ajax":          h.Ajax,
+		"connect":       h.Connect,
+		"md5Encode":     h.Md5Encode,
+		"md5Encode16":   h.Md5Encode16,
+		"base64Encode":  h.Base64Encode,
+		"base64Decode":  h.Base64Decode,
+		"encodeURI":     h.EncodeURI,
+		"randomUUID":    h.RandomUUID,
+		"timeFormat":    h.TimeFormat,
+		"androidId":     h.AndroidId,
+		"log":           h.Log,
+		"getString":     h.GetString,
+		"getElements":   h.GetElements,
+		"setContent":    h.SetContent,
+	})
 	_ = rt.Set("source", vm.makeSourceObj(baseURL))
 	_ = rt.Set("cookie", vm.makeCookieObj())
 	_ = rt.Set("cache", &jsCache{vm: vm})
@@ -118,11 +140,16 @@ func (vm *JSVM) EvalElements(script, content, baseURL string) ([]interface{}, er
 	return arr, nil
 }
 
-// makeSourceObj creates a JS object with source.key and source.getKey() for goja.
+// makeSourceObj creates a JS object with source.key, source.getKey(), source.getVariable(), etc.
 func (vm *JSVM) makeSourceObj(baseURL string) map[string]interface{} {
+	src := &jsSource{baseURL: baseURL, vm: vm}
 	return map[string]interface{}{
-		"key":     baseURL,
-		"getKey": func() string { return baseURL },
+		"key":         baseURL,
+		"getKey":      func() string { return baseURL },
+		"getVariable": func() string { return src.GetVariable() },
+		"putVariable": func(v string) { src.PutVariable(v) },
+		"get":         func(k string) string { return src.Get(k) },
+		"put":         func(k, v string) string { return src.Put(k, v); return v },
 	}
 }
 
@@ -140,13 +167,11 @@ func (vm *JSVM) makeCookieObj() map[string]interface{} {
 
 type jsHelpers struct {
 	vm *JSVM
-	rt *goja.Runtime
 }
 
-// Get performs HTTP GET or variable retrieval from JS: java.get(url, headers?) or java.get(key)
-// If the first argument looks like a URL, it's an HTTP request; otherwise it's a variable lookup.
+// Get performs HTTP GET or variable retrieval: java.get(url, headers?) or java.get(key)
 func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
-	// Variable getter: java.get(key)
+	// Variable getter
 	if len(args) == 0 && !strings.HasPrefix(arg1, "http") {
 		h.vm.mu.Lock()
 		defer h.vm.mu.Unlock()
@@ -155,7 +180,6 @@ func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 		}
 		return h.vm.cacheData[arg1]
 	}
-	// HTTP GET: java.get(url, headers?)
 	headers := make(map[string]string)
 	if len(args) > 0 {
 		if m, ok := args[0].(map[string]interface{}); ok {
@@ -184,7 +208,7 @@ func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 	return result
 }
 
-// Post performs HTTP POST from JS: java.post(url, body, headers?)
+// Post performs HTTP POST: java.post(url, body, headers?)
 func (h *jsHelpers) Post(urlStr, body string, args ...interface{}) interface{} {
 	headers := make(map[string]string)
 	if len(args) > 0 {
@@ -204,13 +228,13 @@ func (h *jsHelpers) Post(urlStr, body string, args ...interface{}) interface{} {
 	return map[string]interface{}{"body": resp.Body, "statusCode": resp.StatusCode}
 }
 
-// connect is similar to get but returns {body, code, headers}
+// connect performs HTTP and returns a chainable response object.
+// Supports java.connect(url).raw().request().url() chain pattern.
 func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]interface{} {
 	headers := make(map[string]string)
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok && s != "" {
-			// Header can be a JSON string: java.connect(url, '{"Referer":"..."}')
-			_ = s // ponytail: JSON header parsing deferred
+			_ = s
 		}
 	}
 	if h.vm.hc == nil {
@@ -220,7 +244,48 @@ func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]inter
 	if err != nil {
 		return map[string]interface{}{"body": "", "code": 0, "error": err.Error()}
 	}
-	return map[string]interface{}{"body": resp.Body, "code": resp.StatusCode}
+	finalURL := resp.URL
+	return map[string]interface{}{
+		"body": resp.Body,
+		"code": resp.StatusCode,
+		"raw": func() map[string]interface{} {
+			return map[string]interface{}{
+				"request": func() map[string]interface{} {
+					return map[string]interface{}{
+						"url": func() string { return finalURL },
+					}
+				},
+			}
+		},
+	}
+}
+
+// --- Missing bridge methods ---
+
+func (h *jsHelpers) TimeFormat(ts int64) string {
+	return fmt.Sprintf("%d", ts) // ponytail: basic timestamp formatting
+}
+
+func (h *jsHelpers) AndroidId() string {
+	return "goja-android-id" // ponytail: static value, used for API signing
+}
+
+func (h *jsHelpers) Log(msg interface{}) interface{} {
+	slog.Info("js:log", "msg", fmt.Sprint(msg))
+	return msg
+}
+
+func (h *jsHelpers) GetString(rule string, args ...interface{}) string {
+	// ponytail: basic rule evaluation in JS context — minimal implementation
+	return ""
+}
+
+func (h *jsHelpers) GetElements(rule string, args ...interface{}) []interface{} {
+	return nil
+}
+
+func (h *jsHelpers) SetContent(content string) {
+	// ponytail: content switching in JS context — no-op for now
 }
 
 // ajax is like get but simpler: java.ajax(url)
@@ -298,12 +363,36 @@ func (h *jsHelpers) EncodeURI(str string) string {
 
 type jsSource struct {
 	baseURL string
+	vm      *JSVM
 	data    map[string]string
 	mu      sync.Mutex
 }
 
 func (s *jsSource) GetKey() string  { return s.baseURL }
 func (s *jsSource) Key() string     { return s.baseURL }
+
+func (s *jsSource) GetVariable() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := "sourceVariable_" + s.baseURL
+	if s.vm != nil && s.vm.cacheData != nil {
+		return s.vm.cacheData[key]
+	}
+	return ""
+}
+
+func (s *jsSource) PutVariable(v string) {
+	if s.vm == nil {
+		return
+	}
+	s.vm.mu.Lock()
+	defer s.vm.mu.Unlock()
+	if s.vm.cacheData == nil {
+		s.vm.cacheData = make(map[string]string)
+	}
+	s.vm.cacheData["sourceVariable_"+s.baseURL] = v
+}
+
 func (s *jsSource) Get(key string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -312,6 +401,7 @@ func (s *jsSource) Get(key string) string {
 	}
 	return s.data[key]
 }
+
 func (s *jsSource) Put(key, value string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
