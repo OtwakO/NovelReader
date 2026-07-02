@@ -274,8 +274,8 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 		headers[k] = v
 	}
 
-	// Log the resolved search URL for troubleshooting
-	slog.Info("search: fetching source",
+	// Log the resolved search URL at Debug level (enable with DEBUG=1)
+	slog.Debug("search: fetching source",
 		"source", src.BookSourceName,
 		"method", meta.Method,
 		"url", meta.URL,

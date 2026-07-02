@@ -43,6 +43,7 @@ case "$ACTION" in
     echo "Environment:"
     echo "  PORT             Server port (default: 8888)"
     echo "  DATABASE_PATH    SQLite path (default: ./data/novelreader.db)"
+    echo "  DEBUG=1          Enable debug-level logging (search URLs, etc.)"
     echo ""
     echo "Examples:"
     echo "  $0 server              # Start dev server"

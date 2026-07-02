@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -21,6 +22,16 @@ import (
 
 func main() {
 	cfg := config.Load()
+
+	// Enable debug logging via DEBUG=1 env var
+	logLevel := slog.LevelInfo
+	if os.Getenv("DEBUG") == "1" {
+		logLevel = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
+	if logLevel == slog.LevelDebug {
+		slog.Info("Debug logging enabled (to disable: unset DEBUG)")
+	}
 
 	// Open database
 	db, err := database.Open(cfg.DatabasePath)
