@@ -60,18 +60,26 @@ func (vm *JSVM) LoadLib(code string) error {
 	return nil
 }
 
-// Eval evaluates JS on a borrowed runtime with the given bindings.
-func (vm *JSVM) Eval(script, content, baseURL string) (interface{}, error) {
+// Eval evaluates JS on a borrowed runtime with standard bindings.
+// key/page are optional — set when evaluating URL templates from search context.
+func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interface{}) (interface{}, error) {
 	rt := <-vm.pool
 	defer func() { vm.pool <- rt }()
 
-	// Bind standard objects
+	// Bind standard objects (use JS objects for property access patterns like source.key)
 	_ = rt.Set("result", content)
 	_ = rt.Set("baseUrl", baseURL)
 	_ = rt.Set("java", &jsHelpers{vm: vm, rt: rt})
-	_ = rt.Set("source", &jsSource{baseURL: baseURL})
-	_ = rt.Set("cookie", &jsCookie{})
+	_ = rt.Set("source", vm.makeSourceObj(baseURL))
+	_ = rt.Set("cookie", vm.makeCookieObj())
 	_ = rt.Set("cache", &jsCache{vm: vm})
+
+	// Set extra bindings (key, page, etc.)
+	if len(extra) > 0 {
+		for k, v := range extra[0] {
+			_ = rt.Set(k, v)
+		}
+	}
 
 	val, err := rt.RunString(script)
 	if err != nil {
@@ -108,6 +116,24 @@ func (vm *JSVM) EvalElements(script, content, baseURL string) ([]interface{}, er
 		return []interface{}{v}, nil
 	}
 	return arr, nil
+}
+
+// makeSourceObj creates a JS object with source.key and source.getKey() for goja.
+func (vm *JSVM) makeSourceObj(baseURL string) map[string]interface{} {
+	return map[string]interface{}{
+		"key":     baseURL,
+		"getKey": func() string { return baseURL },
+	}
+}
+
+// makeCookieObj creates a JS object with cookie.removeCookie/getCookie/setCookie for goja.
+func (vm *JSVM) makeCookieObj() map[string]interface{} {
+	return map[string]interface{}{
+		"removeCookie": func(url string) string { return "" },
+		"getCookie":    func(url string) string { return "" },
+		"getKey":       func(url, key string) string { return "" },
+		"setCookie":    func(url, cookie string) {},
+	}
 }
 
 // --- java.* bridge implementation ---

@@ -208,7 +208,10 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	}
 
 	// Merge headers: source-level header first, then URL-option headers overlay
-	headers := parseHeaderJSON(src.Header)
+	headers := make(map[string]string)
+	for k, v := range parseHeaderJSON(src.Header) {
+		headers[k] = v
+	}
 	for k, v := range meta.Headers {
 		headers[k] = v
 	}

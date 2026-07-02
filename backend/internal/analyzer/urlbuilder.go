@@ -102,7 +102,8 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 
 	// Second pass: evaluate remaining {{...}} as JS expressions
 	if strings.Contains(urlStr, "{{") && jsVM != nil {
-		urlStr = evalTemplateExpressions(urlStr, jsVM, baseURL)
+		extra := map[string]interface{}{"key": key, "page": page, "baseUrl": baseURL}
+		urlStr = evalTemplateExpressions(urlStr, jsVM, baseURL, extra)
 	}
 
 	// Replace {{key}} in POST body too
@@ -130,16 +131,26 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 // ponytail: simple regex-based extraction, no nesting support for {{...}} inside {{...}}.
 var tmplRe = regexp.MustCompile(`\{\{([^}]+)\}\}`)
 
-func evalTemplateExpressions(s string, jsVM *JSVM, baseURL string) string {
+func evalTemplateExpressions(s string, jsVM *JSVM, baseURL string, extra ...map[string]interface{}) string {
+	var bindings map[string]interface{}
+	if len(extra) > 0 {
+		bindings = extra[0]
+	}
 	return tmplRe.ReplaceAllStringFunc(s, func(match string) string {
 		inner := strings.TrimSpace(match[2 : len(match)-2])
 		if inner == "" {
 			return match
 		}
-		v, err := jsVM.Eval(inner, "", baseURL)
+		var v interface{}
+		var err error
+		if bindings != nil {
+			v, err = jsVM.Eval(inner, "", baseURL, bindings)
+		} else {
+			v, err = jsVM.Eval(inner, "", baseURL)
+		}
 		if err != nil {
 			slog.Warn("urlbuilder: template eval failed", "expr", inner[:min(len(inner), 60)], "err", err)
-			return match // keep original on failure
+			return match
 		}
 		return ToString(v)
 	})

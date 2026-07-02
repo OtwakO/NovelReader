@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// rawBookSource mirrors BookSource but uses RawMessage for rule fields so JSON objects are accepted.
+// rawBookSource mirrors BookSource but uses RawMessage for rule fields and IntOrString for numeric fields.
 type rawBookSource struct {
 	BookSourceURL    string          `json:"bookSourceUrl"`
 	BookSourceName   string          `json:"bookSourceName"`
@@ -35,9 +35,9 @@ type rawBookSource struct {
 	ConcurrentRate   string          `json:"concurrentRate,omitempty"`
 	BookSourceComment string         `json:"bookSourceComment,omitempty"`
 	VariableComment  string          `json:"variableComment,omitempty"`
-	LastUpdateTime   int64           `json:"lastUpdateTime,omitempty"`
-	RespondTime      int64           `json:"respondTime,omitempty"`
-	Weight           int             `json:"weight,omitempty"`
+	LastUpdateTime   json.RawMessage `json:"lastUpdateTime,omitempty"`
+	RespondTime      json.RawMessage `json:"respondTime,omitempty"`
+	Weight           json.RawMessage `json:"weight,omitempty"`
 }
 
 func (s *BookSource) UnmarshalJSON(data []byte) error {
@@ -46,32 +46,27 @@ func (s *BookSource) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	*s = BookSource{
-		BookSourceURL:    raw.BookSourceURL,
-		BookSourceName:   raw.BookSourceName,
-		BookSourceGroup:  raw.BookSourceGroup,
-		BookSourceType:   raw.BookSourceType,
-		BookURLPattern:   raw.BookURLPattern,
-		CustomOrder:      raw.CustomOrder,
-		Enabled:          raw.Enabled,
-		EnabledExplore:   raw.EnabledExplore,
-		EnabledCookieJar: raw.EnabledCookieJar,
-		SearchURL:        raw.SearchURL,
-		ExploreURL:       raw.ExploreURL,
-		ExploreScreen:    raw.ExploreScreen,
-		JSLib:            raw.JSLib,
-		Header:           raw.Header,
-		LoginURL:         raw.LoginURL,
-		LoginUI:          raw.LoginUI,
-		LoginCheckJS:     raw.LoginCheckJS,
-		CoverDecodeJS:    raw.CoverDecodeJS,
-		ConcurrentRate:   raw.ConcurrentRate,
-		BookSourceComment: raw.BookSourceComment,
-		VariableComment:  raw.VariableComment,
-		LastUpdateTime:   raw.LastUpdateTime,
-		RespondTime:      raw.RespondTime,
-		Weight:           raw.Weight,
-	}
+	s.BookSourceURL = raw.BookSourceURL
+	s.BookSourceName = raw.BookSourceName
+	s.BookSourceGroup = raw.BookSourceGroup
+	s.BookSourceType = raw.BookSourceType
+	s.BookURLPattern = raw.BookURLPattern
+	s.CustomOrder = raw.CustomOrder
+	s.Enabled = raw.Enabled
+	s.EnabledExplore = raw.EnabledExplore
+	s.EnabledCookieJar = raw.EnabledCookieJar
+	s.SearchURL = raw.SearchURL
+	s.ExploreURL = raw.ExploreURL
+	s.ExploreScreen = raw.ExploreScreen
+	s.JSLib = raw.JSLib
+	s.Header = raw.Header
+	s.LoginURL = raw.LoginURL
+	s.LoginUI = raw.LoginUI
+	s.LoginCheckJS = raw.LoginCheckJS
+	s.CoverDecodeJS = raw.CoverDecodeJS
+	s.ConcurrentRate = raw.ConcurrentRate
+	s.BookSourceComment = raw.BookSourceComment
+	s.VariableComment = raw.VariableComment
 
 	// Convert raw rule messages to JSON strings
 	if raw.RuleSearch != nil {
@@ -93,10 +88,32 @@ func (s *BookSource) UnmarshalJSON(data []byte) error {
 		s.RuleReview = string(raw.RuleReview)
 	}
 
+	// Parse numeric fields that may be strings or numbers in JSON
+	s.LastUpdateTime = parseIntOrZero(raw.LastUpdateTime)
+	s.RespondTime = parseIntOrZero(raw.RespondTime)
 	if s.RespondTime == 0 {
 		s.RespondTime = 180000
 	}
+	s.Weight = int(parseIntOrZero(raw.Weight))
 	return nil
+}
+
+// parseIntOrZero parses a json.RawMessage as int64, accepting both number and string formats.
+func parseIntOrZero(raw json.RawMessage) int64 {
+	if len(raw) == 0 {
+		return 0
+	}
+	// Try direct number first
+	var n int64
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n
+	}
+	// Try string
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		fmt.Sscanf(s, "%d", &n)
+	}
+	return n
 }
 
 // ImportSources parses a JSON array (or single object) of book sources.
