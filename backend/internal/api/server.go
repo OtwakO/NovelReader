@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -70,6 +71,16 @@ func NewServer(
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Recover from panics to avoid crashing the entire server
+	defer func() {
+		if rec := recover(); rec != nil {
+			slog.Error("server: panic recovered",
+				"path", r.URL.Path,
+				"method", r.Method,
+				"panic", fmt.Sprintf("%v", rec))
+			writeError(w, http.StatusInternalServerError, "internal server error")
+		}
+	}()
 	s.mux.ServeHTTP(w, r)
 }
 
