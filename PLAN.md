@@ -299,3 +299,33 @@ Items intentionally skipped or deferred, documented so they don't get forgotten.
 - **Problem**: `src.ConcurrentRate` exists in DB but no code enforces per-source rate limiting.
 - **Fix**: Added ponytail comment on `searchCandidates` describing the ceiling and upgrade path.
 - **Affected**: `backend/internal/book/search.go`
+
+### [2026-07-03] URL option `js` parameter discarded (MAJOR)
+- **Problem**: `{"js":"java.url=java.url+'yyyy'"}` was parsed but thrown away. Sources using per-request URL rewriting or header injection via the URL option `js` hook got no effect.
+- **Fix**: After full URL construction, eval `opt.Js` with bindings `java.url` (settable), `java.headerMap` (map, mutated in place), `key`, `page`, `baseUrl`. The eval result replaces the URL.
+- **Affected**: `backend/internal/analyzer/urlbuilder.go`
+- **Watch out**: The `java.url` binding is a string, not a mutable ref — JS must return the new URL string.
+
+### [2026-07-03] Request charset encoding ignored for POST body (MAJOR)
+- **Problem**: Sources like `全本同人` with `charset: "gb2312"` in URL options had their POST body sent as raw UTF-8. The server expected gb2312-encoded form data.
+- **Fix**: Added `EncodeParamValue` + `encodeWithCharset` using `golang.org/x/text/encoding`. POST body key=value pairs are re-encoded in the source's charset before sending. Added `encodeBody()` in search.go.
+- **Affected**: `backend/internal/analyzer/urlbuilder.go`, `backend/internal/book/search.go`
+- **Watch out**: Only handles gbk/gb2312 and big5 charsets. Other charsets fall back to UTF-8 encoding.
+
+### [2026-07-03] Missing JS bindings: `src`, `book`, `chapter` (MAJOR)
+- **Problem**: Legado's JS context has `src` (source content alias), `book` (object with name, author, bookUrl, etc.), and `chapter` (object with url, title, index, etc.). None were bound, so rules using `{{book.name}}` or `{{chapter.title+chapter.index}}` produced undefined.
+- **Fix**: Added `src` as an alias for `result` in JSVM.Eval. Added `book` and `chapter` objects as optional extra bindings via `Analyzer.SetBookData()`/`SetChapterData()`. Threaded through `GetBookInfo` and `GetChapterContent`.
+- **Affected**: `backend/internal/analyzer/analyzer.go`, `backend/internal/analyzer/js.go`, `backend/internal/book/search.go`
+- **Watch out**: Chapter list parser still doesn't bind per-chapter data — most chapter-list JS doesn't reference `chapter`.
+
+### [2026-07-03] URL option `type` and `origin` fields missing
+- **Problem**: Legado's `UrlOption` has `type` and `origin` fields. These were not in our `urlOption` struct, silently dropped on import.
+- **Fix**: Added `Type` and `Origin` fields to `urlOption`. Added `Type` to `URLMeta`.
+- **Affected**: `backend/internal/analyzer/urlbuilder.go`
+- **Watch out**: `serverID` and `webViewDelayTime` are still omitted (no WebView backend).
+
+### [2026-07-03] Per-source concurrentRate now enforced
+- **Problem**: `src.ConcurrentRate` was stored but never used. Legado uses it for per-source rate limiting.
+- **Fix**: Added `rateLimitWait()` in search.go. Parses `concurrentRate` as milliseconds between requests. Uses a mutex-protected `lastAccess` map keyed by `BookSourceURL`. Sources without a rate use system default (no limit).
+- **Affected**: `backend/internal/book/search.go`
+- **Watch out**: Simple time-since-last-access throttle, not a token bucket. Fine for the 11 sources (1%) that set a rate.

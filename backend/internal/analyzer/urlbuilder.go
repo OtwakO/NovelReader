@@ -4,8 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"regexp"
 	"strings"
+
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/encoding/traditionalchinese"
+	"golang.org/x/text/transform"
 )
 
 // URLMeta holds the result of URL construction plus all parsed options
@@ -15,13 +21,14 @@ type URLMeta struct {
 	Method  string            // GET or POST (default GET)
 	Body    string            // POST body (with {{key}} already interpolated)
 	Headers map[string]string // per-URL extra headers
-	Charset string            // character encoding override
+	Charset string            // character encoding override (e.g. "gbk", "gb2312")
 	Retry   int               // retry count on non-2xx
 	WebView bool              // if true, source needs JS rendering (server-side can't do this)
+	Type    string            // file/content type for downloads
 }
 
-// urlOption mirrors legado's UrlOption. Uses RawMessage for fields that may be
-// either a string or structured type (headers as JSON string or map, webView as "true" or true).
+// urlOption mirrors legado's UrlOption data class.
+// Uses RawMessage for fields that may be either a string or structured type.
 type urlOption struct {
 	Method  string          `json:"method"`
 	Body    string          `json:"body"`
@@ -33,7 +40,12 @@ type urlOption struct {
 	Js      string          `json:"js,omitempty"`
 	DnsIp   string          `json:"dnsIp,omitempty"`
 	Headers json.RawMessage `json:"headers,omitempty"`
+	Type    string          `json:"type,omitempty"`
+	Origin  string          `json:"origin,omitempty"`
 }
+
+// ponytail: serverID and webViewDelayTime exist in legado's UrlOption but are omitted
+// since we don't implement multi-server or WebView rendering on the backend.
 
 // BuildURL constructs a request URL from a book source's URL template.
 // Returns a URLMeta with the resolved URL and all parsed options.
@@ -52,6 +64,9 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 		Method:  "GET",
 		Headers: make(map[string]string),
 	}
+
+	// Store the js option for eval after URL is fully constructed
+	var optJs string
 
 	// Extract JSON option suffix: URL,{"method":"POST","body":"...",...}
 	if idx := findJSONOption(urlStr); idx != -1 {
@@ -103,11 +118,14 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 				}
 			}
 
-			// ponytail: webJs, bodyJs, js, dnsIp parsed but not acted on yet
+			meta.Type = opt.Type
+
+			// ponytail: webJs, bodyJs, dnsIp parsed but not acted on yet
 			_ = opt.WebJs
 			_ = opt.BodyJs
-			_ = opt.Js
 			_ = opt.DnsIp
+
+			optJs = opt.Js // stored for post-resolution eval
 		}
 	}
 
@@ -149,6 +167,29 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 		urlStr = base + "/" + path
 	}
 
+	// Execute URL option's js parameter: can modify url, headerMap, etc.
+	// In legado this is eval'd after full URL construction, before the request.
+	// Supported patterns: {"js":"java.url=java.url+'yyyy'"}, {"js":"java.headerMap.put('x','y')"}
+	if optJs != "" && jsVM != nil {
+		bindings := map[string]interface{}{
+			"java": map[string]interface{}{
+				"url": urlStr, // mutable — JS can change it
+				"headerMap": meta.Headers,
+			},
+			"key":     key,
+			"page":    page,
+			"baseUrl": baseURL,
+		}
+		if v, err := jsVM.Eval(optJs, "", baseURL, bindings); err == nil {
+			if s := ToString(v); s != "" {
+				urlStr = s
+			}
+		} else {
+			slog.Warn("urlbuilder: js option eval failed",
+				"js", optJs[:min(len(optJs), 80)], "err", err)
+		}
+	}
+
 	meta.URL = urlStr
 	return meta, nil
 }
@@ -181,6 +222,68 @@ func evalTemplateExpressions(s string, jsVM *JSVM, baseURL string, extra ...map[
 		}
 		return ToString(v)
 	})
+}
+
+// EncodeParamValue URL-encodes a value in the specified charset.
+// If charset is empty or "utf-8", standard Go URL encoding is used.
+// For legacy charsets (gbk, gb2312), the value is transcoded before encoding.
+// ponytail: simple charset handling — most sources work with UTF-8.
+func EncodeParamValue(value, charset string) string {
+	if charset == "" || strings.EqualFold(charset, "utf-8") || strings.EqualFold(charset, "utf8") {
+		return url.QueryEscape(value)
+	}
+	// For non-UTF-8 charsets, we need to transcode then URL-encode.
+	// This handles gbk, gb2312 which are common in Chinese novel sites.
+	encoded, err := encodeWithCharset(value, charset)
+	if err != nil {
+		// Fall back to UTF-8 encoding
+		return url.QueryEscape(value)
+	}
+	return encoded
+}
+
+// encodeWithCharset converts a UTF-8 string to the target charset and URL-encodes it.
+func encodeWithCharset(value, charset string) (string, error) {
+	enc, err := lookupEncoding(charset)
+	if err != nil {
+		return "", err
+	}
+	// Encode to target charset bytes then URL-percent-encode each byte
+	// Use transform.String to convert from UTF-8 to target charset
+	raw, _, err := transform.String(enc.NewEncoder(), value)
+	if err != nil {
+		return "", err
+	}
+	// Percent-encode each byte (can't use url.QueryEscape — it re-encodes as UTF-8)
+	rawBytes := []byte(raw)
+	escaped := make([]byte, 0, len(rawBytes)*3)
+	for _, b := range rawBytes {
+		if isUnreserved(b) {
+			escaped = append(escaped, b)
+		} else {
+			escaped = append(escaped, '%', hexChars[b>>4], hexChars[b&0x0f])
+		}
+	}
+	return string(escaped), nil
+}
+
+var hexChars = []byte("0123456789ABCDEF")
+
+func isUnreserved(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') ||
+		b == '-' || b == '_' || b == '.' || b == '~'
+}
+
+// lookupEncoding returns the golang.org/x/text encoding for the given charset name.
+func lookupEncoding(charset string) (encoding.Encoding, error) {
+	switch strings.ToLower(charset) {
+	case "gbk", "gb2312", "gb18030", "chs":
+		return simplifiedchinese.GBK, nil
+	case "big5", "big5hkscs", "cht":
+		return traditionalchinese.Big5, nil
+	default:
+		return nil, fmt.Errorf("unsupported charset: %s", charset)
+	}
 }
 
 // findJSONOption finds the start of a ,{...} JSON option suffix in a URL.

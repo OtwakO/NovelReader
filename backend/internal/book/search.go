@@ -30,6 +30,9 @@ type Searcher struct {
 	cache         *analyzer.CacheManager
 	sourceStore   *booksource.Store
 	bookStore     *Store
+	// per-source rate limiting (concurrentRate)
+	rateMu     sync.Mutex
+	lastAccess map[string]time.Time // keyed by BookSourceURL
 }
 
 func NewSearcher(
@@ -41,11 +44,13 @@ func NewSearcher(
 ) *Searcher {
 	return &Searcher{
 		fetcher:       hc,
-		searchFetcher: fetcher.NewInsecureStateless(perSourceTimeout), // no cookie jar — search is stateless
+		searchFetcher: fetcher.NewInsecureStateless(perSourceTimeout),
 		jsVM:          jsVM,
 		cache:         cache,
 		sourceStore:   sourceStore,
 		bookStore:     bookStore,
+		rateMu:        sync.Mutex{},
+		lastAccess:    make(map[string]time.Time),
 	}
 }
 
@@ -201,6 +206,55 @@ func (s *Searcher) searchCandidates() ([]booksource.BookSource, error) {
 	return candidates, nil
 }
 
+// rateLimitWait blocks until the per-source rate limit allows the next request.
+// legado's concurrentRate is in milliseconds between requests.
+func (s *Searcher) rateLimitWait(src booksource.BookSource) {
+	if src.ConcurrentRate == "" {
+		return // no rate limit configured, use system default
+	}
+	// Parse the rate in milliseconds (e.g. "2000" = 2s between requests)
+	var rateMs int
+	if _, err := fmt.Sscanf(src.ConcurrentRate, "%d", &rateMs); err != nil || rateMs <= 0 {
+		return
+	}
+	s.rateMu.Lock()
+	last, ok := s.lastAccess[src.BookSourceURL]
+	now := time.Now()
+	s.lastAccess[src.BookSourceURL] = now
+	s.rateMu.Unlock()
+	if ok {
+		elapsed := now.Sub(last)
+		wait := time.Duration(rateMs)*time.Millisecond - elapsed
+		if wait > 0 {
+			time.Sleep(wait)
+		}
+	}
+}
+
+// encodeBody encodes POST body values in the specified charset.
+// ponytail: simple key=value splitting; doesn't handle nested args like key[]=a&key[]=b.
+func encodeBody(body, charset string) string {
+	if body == "" {
+		return body
+	}
+	if charset == "" {
+		return body
+	}
+	pairs := strings.Split(body, "&")
+	out := make([]string, 0, len(pairs))
+	for _, pair := range pairs {
+		eqIdx := strings.IndexByte(pair, '=')
+		if eqIdx == -1 {
+			out = append(out, pair)
+			continue
+		}
+		key := pair[:eqIdx]
+		value := pair[eqIdx+1:]
+		out = append(out, key+"="+analyzer.EncodeParamValue(value, charset))
+	}
+	return strings.Join(out, "&")
+}
+
 // searchSource performs a single source search.
 func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, query string) ([]SearchResult, error) {
 	srcCtx, cancel := context.WithTimeout(ctx, perSourceTimeout)
@@ -224,6 +278,14 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 		slog.Warn("search: source needs WebView (JS rendering), skipping",
 			"source", src.BookSourceName)
 		return nil, fmt.Errorf("source requires JS rendering (webView:true)")
+	}
+
+	// Respect per-source rate limit (concurrentRate in milliseconds)
+	s.rateLimitWait(src)
+
+	// Encode POST body in the specified charset if non-UTF-8
+	if meta.Method == "POST" && meta.Body != "" && meta.Charset != "" {
+		meta.Body = encodeBody(meta.Body, meta.Charset)
 	}
 
 	var resp *fetcher.Response
@@ -346,6 +408,13 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 		return nil, fmt.Errorf("book info: fetch failed for %s", bookURL)
 	}
 
+	// Set book context for JS rules that reference book.name, book.author, etc.
+	an.SetBookData(map[string]string{
+		"bookUrl": bookURL,
+		"origin": src.BookSourceURL,
+		"originName": src.BookSourceName,
+	})
+
 	rules := parseRuleJSON(src.RuleBookInfo)
 	b := &Book{
 		SourceURL: src.BookSourceURL,
@@ -420,6 +489,11 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 
 	an := analyzer.New(resp.Body, fullURL, s.jsVM, s.cache)
 	an.SetJSLib(src.JSLib)
+	// Bind chapter context for JS rules that reference chapter.url, chapter.baseUrl
+	an.SetChapterData(map[string]string{
+		"url":     fullURL,
+		"baseUrl": fullURL,
+	})
 	rules := parseRuleJSON(src.RuleContent)
 	if rules == nil {
 		return mustString(an, "body@text"), "", nil

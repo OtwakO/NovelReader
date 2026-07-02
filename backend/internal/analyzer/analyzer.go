@@ -48,7 +48,9 @@ type Analyzer struct {
 	isJSON  bool
 	jsVM    *JSVM
 	cache   *CacheManager
-	jsLib   string // prepended to every JS eval (from source's jsLib field)
+	jsLib   string              // prepended to every JS eval (from source's jsLib field)
+	book    map[string]string   // legado's `book` object: name, author, bookUrl, etc.
+	chapter map[string]string   // legado's `chapter` object: url, title, index, etc.
 }
 
 // New creates an Analyzer for the given content.
@@ -66,6 +68,12 @@ func New(content, baseURL string, jsVM *JSVM, cache *CacheManager) *Analyzer {
 // SetJSLib sets the JS library code to prepend to every JS evaluation.
 // legado evaluates jsLib once before source-specific JS; we prepend it per-eval.
 func (a *Analyzer) SetJSLib(jsLib string) { a.jsLib = jsLib }
+
+// SetBookData sets the `book` JS context object (name, author, bookUrl, etc.)
+func (a *Analyzer) SetBookData(b map[string]string) { a.book = b }
+
+// SetChapterData sets the `chapter` JS context object (url, title, index, etc.)
+func (a *Analyzer) SetChapterData(c map[string]string) { a.chapter = c }
 
 // GetString evaluates a rule string and returns the first text result.
 func (a *Analyzer) GetString(ruleStr string) (string, error) {
@@ -276,25 +284,37 @@ func (a *Analyzer) prependJSLib(script string) string {
 	return a.jsLib + "\n" + script
 }
 
+// jsBindings returns extra bindings for JS eval (book, chapter, etc.)
+func (a *Analyzer) jsBindings() map[string]interface{} {
+	b := make(map[string]interface{})
+	if a.book != nil {
+		b["book"] = a.book
+	}
+	if a.chapter != nil {
+		b["chapter"] = a.chapter
+	}
+	return b
+}
+
 func (a *Analyzer) jsEval(expr, content string) (interface{}, error) {
 	if a.jsVM == nil {
 		return "", fmt.Errorf("analyzer: JS engine not available")
 	}
-	return a.jsVM.Eval(a.prependJSLib(expr), content, a.baseURL)
+	return a.jsVM.Eval(a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
 }
 
 func (a *Analyzer) jsEvalList(expr, content string) ([]string, error) {
 	if a.jsVM == nil {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
-	return a.jsVM.EvalList(a.prependJSLib(expr), content, a.baseURL)
+	return a.jsVM.EvalList(a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
 }
 
 func (a *Analyzer) jsEvalElements(expr, content string) ([]interface{}, error) {
 	if a.jsVM == nil {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
-	return a.jsVM.EvalElements(a.prependJSLib(expr), content, a.baseURL)
+	return a.jsVM.EvalElements(a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
 }
 
 // ToString converts a value to string.

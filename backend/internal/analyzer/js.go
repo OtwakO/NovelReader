@@ -62,7 +62,7 @@ func (vm *JSVM) LoadLib(code string) error {
 }
 
 // Eval evaluates JS on a borrowed runtime with standard bindings.
-// key/page are optional — set when evaluating URL templates from search context.
+// extra can contain: key, page, book (map), chapter (map), src (alias for content).
 func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interface{}) (interface{}, error) {
 	rt := <-vm.pool
 	defer func() { vm.pool <- rt }()
@@ -72,6 +72,7 @@ func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interf
 	// (EncodeURI, not encodeURI). Following legado's JsExtensions naming convention.
 	h := &jsHelpers{vm: vm}
 	_ = rt.Set("result", content)
+	_ = rt.Set("src", content)       // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
 	_ = rt.Set("java", map[string]interface{}{
 		"get":           h.Get,
@@ -96,7 +97,7 @@ func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interf
 	_ = rt.Set("cookie", vm.makeCookieObj())
 	_ = rt.Set("cache", &jsCache{vm: vm})
 
-	// Set extra bindings (key, page, etc.)
+	// Set extra bindings (key, page, book, chapter, etc.)
 	if len(extra) > 0 {
 		for k, v := range extra[0] {
 			_ = rt.Set(k, v)
@@ -111,8 +112,8 @@ func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interf
 }
 
 // EvalList evaluates JS and returns a string array.
-func (vm *JSVM) EvalList(script, content, baseURL string) ([]string, error) {
-	v, err := vm.Eval(script, content, baseURL)
+func (vm *JSVM) EvalList(script, content, baseURL string, extra ...map[string]interface{}) ([]string, error) {
+	v, err := vm.Eval(script, content, baseURL, extra...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,8 +129,8 @@ func (vm *JSVM) EvalList(script, content, baseURL string) ([]string, error) {
 }
 
 // EvalElements evaluates JS and returns elements as interface{}.
-func (vm *JSVM) EvalElements(script, content, baseURL string) ([]interface{}, error) {
-	v, err := vm.Eval(script, content, baseURL)
+func (vm *JSVM) EvalElements(script, content, baseURL string, extra ...map[string]interface{}) ([]interface{}, error) {
+	v, err := vm.Eval(script, content, baseURL, extra...)
 	if err != nil {
 		return nil, err
 	}
