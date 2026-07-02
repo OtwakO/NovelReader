@@ -116,14 +116,45 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 
 	successCount := 0
 	errorCount := 0
+	// Error type categorization for debugging
+	type errCat struct {
+		count int
+		example string
+	}
+	errCats := make(map[string]*errCat)
 	for r := range ch {
 		if ctx.Err() != nil {
 			break
 		}
 		if r.err != nil {
 			errorCount++
-			slog.Debug("search: source failed",
-				"source", r.src.BookSourceName, "err", r.err)
+			errStr := r.err.Error()
+			// Categorize by error prefix
+			cat := "other"
+			switch {
+			case strings.Contains(errStr, "status 503"), strings.Contains(errStr, "status 403"):
+				cat = "blocked (503/403)"
+			case strings.Contains(errStr, "status "):
+				cat = "non-200 status"
+			case strings.Contains(errStr, "timeout"), strings.Contains(errStr, "Timeout"):
+				cat = "timeout"
+			case strings.Contains(errStr, "no such host"), strings.Contains(errStr, "DNS"):
+				cat = "dns"
+			case strings.Contains(errStr, "TLS"), strings.Contains(errStr, "certificate"):
+				cat = "tls"
+			case strings.Contains(errStr, "connection refused"), strings.Contains(errStr, "no route to host"):
+				cat = "connection refused"
+			case strings.Contains(errStr, "WebView"), strings.Contains(errStr, "webView"):
+				cat = "needs JS (webView)"
+			case strings.Contains(errStr, "no elements matched"):
+				cat = "empty results (0 books)"
+			}
+			if _, ok := errCats[cat]; !ok {
+				errCats[cat] = &errCat{example: errStr}
+			}
+			errCats[cat].count++
+			slog.Info("search: source failed",
+				"source", r.src.BookSourceName, "cat", cat, "err", errStr[:min(len(errStr), 120)])
 		} else {
 			successCount++
 			slog.Debug("search: source completed",
@@ -132,10 +163,20 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 		onResult(r.src, r.results, r.err)
 	}
 
+	// Build error summary
+	errSummary := ""
+	for cat, info := range errCats {
+		if errSummary != "" {
+			errSummary += ", "
+		}
+		errSummary += fmt.Sprintf("%s=%d", cat, info.count)
+	}
+
 	slog.Info("search: finished",
 		"query", query,
 		"success", successCount,
 		"errors", errorCount,
+		"breakdown", errSummary,
 		"total_sources", len(candidates),
 		"cancelled", ctx.Err() != nil)
 	return ctx.Err()

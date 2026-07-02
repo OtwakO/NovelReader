@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 )
 
@@ -83,7 +84,7 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 		}
 	}
 
-	// @js: URL construction (fuse with the now-stripped urlStr)
+	// @js: URL construction
 	if strings.HasPrefix(urlStr, "@js:") {
 		jsCode := urlStr[4:]
 		if jsVM != nil {
@@ -94,14 +95,23 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 		}
 	}
 
-	// Replace {{key}} and {{page}} in the URL
+	// Evaluate {{...}} JS expressions in the URL (handles {{cookie.removeCookie(source.key)}}, etc.)
+	// First pass: simple variable replacement for {{key}} and {{page}} (no JS overhead)
 	urlStr = strings.ReplaceAll(urlStr, "{{key}}", key)
 	urlStr = strings.ReplaceAll(urlStr, "{{page}}", fmt.Sprintf("%d", page))
+
+	// Second pass: evaluate remaining {{...}} as JS expressions
+	if strings.Contains(urlStr, "{{") && jsVM != nil {
+		urlStr = evalTemplateExpressions(urlStr, jsVM, baseURL)
+	}
 
 	// Replace {{key}} in POST body too
 	if meta.Body != "" {
 		meta.Body = strings.ReplaceAll(meta.Body, "{{key}}", key)
 		meta.Body = strings.ReplaceAll(meta.Body, "{{page}}", fmt.Sprintf("%d", page))
+		if strings.Contains(meta.Body, "{{") && jsVM != nil {
+			meta.Body = evalTemplateExpressions(meta.Body, jsVM, baseURL)
+		}
 	}
 
 	// Resolve relative URLs
@@ -113,6 +123,26 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 
 	meta.URL = urlStr
 	return meta, nil
+}
+
+// evalTemplateExpressions finds all {{...}} patterns and evaluates the content as JS.
+// Handles cases like {{cookie.removeCookie(source.key)}}, {{source.key}}, etc.
+// ponytail: simple regex-based extraction, no nesting support for {{...}} inside {{...}}.
+var tmplRe = regexp.MustCompile(`\{\{([^}]+)\}\}`)
+
+func evalTemplateExpressions(s string, jsVM *JSVM, baseURL string) string {
+	return tmplRe.ReplaceAllStringFunc(s, func(match string) string {
+		inner := strings.TrimSpace(match[2 : len(match)-2])
+		if inner == "" {
+			return match
+		}
+		v, err := jsVM.Eval(inner, "", baseURL)
+		if err != nil {
+			slog.Warn("urlbuilder: template eval failed", "expr", inner[:min(len(inner), 60)], "err", err)
+			return match // keep original on failure
+		}
+		return ToString(v)
+	})
 }
 
 // findJSONOption finds the start of a ,{...} JSON option suffix in a URL.

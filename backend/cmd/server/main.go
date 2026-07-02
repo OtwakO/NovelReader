@@ -48,6 +48,7 @@ func main() {
 	// Engine components
 	httpClient := fetcher.New()
 	jsVM := analyzer.NewJSVM()
+	jsVM.SetFetcher(httpClient)
 	cache := analyzer.NewCacheManager()
 
 	searcher := book.NewSearcher(httpClient, jsVM, cache, sourceStore, bookStore)

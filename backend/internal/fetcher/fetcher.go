@@ -80,6 +80,11 @@ func (c *Client) Get(rawURL string, extraHeaders map[string]string) (*Response, 
 	return c.GetContext(context.Background(), rawURL, extraHeaders)
 }
 
+// Post performs a POST with a background context.
+func (c *Client) Post(rawURL, contentType, body string, extraHeaders map[string]string) (*Response, error) {
+	return c.doRequest(context.Background(), "POST", rawURL, body, extraHeaders, 0)
+}
+
 // GetContext performs a GET with context support.
 func (c *Client) GetContext(ctx context.Context, rawURL string, extraHeaders map[string]string, retry ...int) (*Response, error) {
 	r := 0
