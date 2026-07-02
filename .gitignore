@@ -48,3 +48,4 @@ test_booksource.json
 test_booksource2.json
 reference/legado
 .playwright-cli
+*.json
