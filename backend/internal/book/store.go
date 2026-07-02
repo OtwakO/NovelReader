@@ -122,8 +122,8 @@ func (s *Store) Init() error {
 			return fmt.Errorf("book: init: %w", err)
 		}
 	}
-	// Migrate: add column if missing on existing DBs
-	s.db.Exec(`ALTER TABLE books ADD COLUMN alternate_sources TEXT DEFAULT '[]'`)
+	// ponytail: alternate_sources is already in the CREATE TABLE above.
+	// The (now-removed) ALTER TABLE was creating a duplicate column on every restart.
 	return nil
 }
 
@@ -321,6 +321,8 @@ type scanner interface {
 func scanBookFromScanner(s scanner) (*Book, error) {
 	var b Book
 	var altSourcesStr string
+	// IMPORTANT: Scan order MUST match column order from CREATE TABLE books.
+	// alternate_sources is at position 17 (before created_at/updated_at).
 	if err := s.Scan(
 		&b.ID, &b.Name, &b.Author, &b.CoverURL, &b.Intro, &b.Kind,
 		&b.SourceURL, &b.BookURL, &b.TocURL, &b.Origin, &b.VariableMap,
