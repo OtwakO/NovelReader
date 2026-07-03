@@ -619,7 +619,7 @@ func (s *Server) handleGetFontFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "font/woff2")
+	// ponytail: ServeFile sets Content-Type from extension; don't force woff2.
 	http.ServeFile(w, r, path)
 }
 

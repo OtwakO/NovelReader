@@ -21,9 +21,18 @@ func (s *Store) Init() error {
 	return err
 }
 
+// ponytail: sourceColumns must stay field-synced with scanSource's scan order.
+var sourceColumns = `id, name, group_name, source_type, book_url_pattern,
+	custom_order, enabled, enabled_explore, enabled_cookie_jar,
+	search_url, explore_url, explore_screen,
+	rule_search, rule_book_info, rule_toc, rule_content, rule_explore, rule_review,
+	js_lib, header, login_url, login_ui, login_check_js, cover_decode_js, concurrent_rate,
+	comment, variable_comment, last_update_time, respond_time, weight,
+	created_at, updated_at`
+
 // List returns all book sources, ordered by custom_order then name.
 func (s *Store) List() ([]BookSource, error) {
-	rows, err := s.db.Query(`SELECT * FROM book_sources ORDER BY custom_order ASC, name ASC`)
+	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources ORDER BY custom_order ASC, name ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("booksource: list: %w", err)
 	}
@@ -33,7 +42,7 @@ func (s *Store) List() ([]BookSource, error) {
 
 // ListEnabled returns enabled sources, used for search.
 func (s *Store) ListEnabled() ([]BookSource, error) {
-	rows, err := s.db.Query(`SELECT * FROM book_sources WHERE enabled = 1 ORDER BY custom_order ASC, name ASC`)
+	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources WHERE enabled = 1 ORDER BY custom_order ASC, name ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("booksource: list enabled: %w", err)
 	}
@@ -43,7 +52,7 @@ func (s *Store) ListEnabled() ([]BookSource, error) {
 
 // GetByID returns a single source by its URL (primary key).
 func (s *Store) GetByID(id string) (*BookSource, error) {
-	row := s.db.QueryRow(`SELECT * FROM book_sources WHERE id = ?`, id)
+	row := s.db.QueryRow(`SELECT `+sourceColumns+` FROM book_sources WHERE id = ?`, id)
 	src, err := scanSource(row)
 	if err != nil {
 		if err == sql.ErrNoRows {

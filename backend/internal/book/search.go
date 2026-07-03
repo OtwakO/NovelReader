@@ -54,6 +54,9 @@ func NewSearcher(
 	}
 }
 
+// SetSearchFetcher replaces the default search fetcher with a custom one.
+func (s *Searcher) SetSearchFetcher(f *fetcher.Client) { s.searchFetcher = f }
+
 // Search is the old synchronous aggregator. Kept for backward compat.
 func (s *Searcher) Search(query string) ([]SearchResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), searchOverallTimeout)

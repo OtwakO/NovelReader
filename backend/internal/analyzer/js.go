@@ -4,11 +4,13 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/dop251/goja"
 	"github.com/otwako/novelreader/internal/fetcher"
@@ -235,9 +237,10 @@ func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]inter
 	headers := make(map[string]string)
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok && s != "" {
-			// ponytail: header JSON string parsed but not forwarded to fetch —
-			// Connect is mostly used for redirect discovery, not full requests.
-			_ = s
+			// Parse header JSON string and forward to the fetch
+			if err := json.Unmarshal([]byte(s), &headers); err != nil {
+				slog.Debug("js: connect header parse failed", "err", err)
+			}
 		}
 	}
 
@@ -462,15 +465,12 @@ func (c *jsCache) GetFromMemory(key string) interface{} {
 	return c.vm.memoryCache[key]
 }
 
-// ponytail: simple rand for UUID, not crypto-safe
-var randSeed = uint64(0)
+// ponytail: simple rand for UUID, seeded from time to avoid deterministic sequences
+var randSeed = uint64(time.Now().UnixNano())
 var randMu sync.Mutex
 
 func randUint64() uint64 {
 	randMu.Lock()
-	if randSeed == 0 {
-		randSeed = 123456789
-	}
 	randSeed = randSeed*6364136223846793005 + 1442695040888963407
 	randMu.Unlock()
 	return randSeed

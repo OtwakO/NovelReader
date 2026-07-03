@@ -136,6 +136,9 @@ var bookColumns = `id, name, author, cover_url, intro, kind,
 	dur_chapter_index, dur_chapter_pos, total_chapter_num,
 	alternate_sources, created_at, updated_at`
 
+// chapterColumns for SELECT queries on the chapters table.
+var chapterColumns = `id, book_id, idx, title, url, is_vip, is_volume, cached`
+
 // AddBook inserts a book into the shelf.
 func (s *Store) AddBook(b *Book) error {
 	now := time.Now().UnixMilli()
@@ -226,7 +229,7 @@ func (s *Store) SaveChapters(bookID string, chapters []Chapter) error {
 
 // GetChapters returns all chapters for a book.
 func (s *Store) GetChapters(bookID string) ([]Chapter, error) {
-	rows, err := s.db.Query(`SELECT * FROM chapters WHERE book_id = ? ORDER BY idx ASC`, bookID)
+	rows, err := s.db.Query(`SELECT `+chapterColumns+` FROM chapters WHERE book_id = ? ORDER BY idx ASC`, bookID)
 	if err != nil {
 		return nil, err
 	}

@@ -65,7 +65,9 @@
   async function addToShelf(r: SearchResult) {
     adding = r.bookUrl;
     try {
-      const id = crypto.randomUUID();
+      // crypto.randomUUID() requires secure context (HTTPS/localhost).
+      // For LAN deployments, fall back to timestamp+random.
+      const id = crypto.randomUUID?.() ?? (Date.now().toString(36) + Math.random().toString(36).slice(2));
       try {
         await enrichBook({
           id, name: r.name, author: r.author || '',

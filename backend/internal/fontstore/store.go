@@ -70,9 +70,13 @@ func (s *Store) Add(name, id string, data []byte) (*Font, error) {
 	return f, nil
 }
 
+// fontColumns for SELECT on the fonts table.
+// ponytail: two-column scan, unlikely to migrate, but explicit is safer.
+var fontColumns = `id, name, file_name, file_size, created_at`
+
 // List returns all fonts.
 func (s *Store) List() ([]Font, error) {
-	rows, err := s.db.Query(`SELECT * FROM fonts ORDER BY created_at DESC`)
+	rows, err := s.db.Query(`SELECT ` + fontColumns + ` FROM fonts ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +95,7 @@ func (s *Store) List() ([]Font, error) {
 // GetPath returns the filesystem path for a font by its ID.
 func (s *Store) GetPath(id string) (string, error) {
 	var f Font
-	err := s.db.QueryRow(`SELECT * FROM fonts WHERE id = ?`, id).Scan(&f.ID, &f.Name, &f.FileName, &f.FileSize, &f.CreatedAt)
+	err := s.db.QueryRow(`SELECT `+fontColumns+` FROM fonts WHERE id = ?`, id).Scan(&f.ID, &f.Name, &f.FileName, &f.FileSize, &f.CreatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", nil

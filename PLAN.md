@@ -43,7 +43,7 @@ novelreader/
 
 | Module | Responsibility |
 |--------|---------------|
-| `analyzer` | Rule parsing engine. Dispatches CSS (goquery), XPath (antchfx), JSONPath, Regex, JS (goja pool×4). Handles `##` replacement, `||` OR/chain, `@js:` blocks. |
+| `analyzer` | Rule parsing engine. Dispatches Default (legado JSOUP syntax), CSS (goquery), XPath (antchfx), JSONPath, Regex, JS (goja pool×16). Handles `##` replacement, `||` OR/chain, `&&` concat, `<js>` mid-chain, `@js:` blocks. |
 | `booksource` | BookSource entity with custom `UnmarshalJSON` (accepts nested rule objects). SQLite CRUD. |
 | `fetcher` | `Client` with context support. Two variants: `New()` with cookie jar (content fetching), `NewStateless()` without (search — no cross-user leak). |
 | `book` | `Searcher` with `SearchStream()` (per-source callback), `ChapterListParser` (legado ToC with pagination/volumes), chapter/content fetching. |
@@ -154,11 +154,11 @@ Items intentionally skipped or deferred, documented so they don't get forgotten.
 
 **Phase**: Phase 1 — core engine operational, search streaming, bookshelf, reader all functional.
 
-**Last completed**: BookSource field audit + fixes. Missing headers on TOC path (BLOCKER), JSLib never loaded (MAJOR), stateless search fetcher, bookSourceType filter, bookUrlPattern validation, enabledCookieJar defaults.
+**Last completed**: Holistic BookSource field audit, legado Default-rule parser, comprehensive URL parser fixes (findJSONOption whitespace/brace-counting, `&&` connector, mid-chain `<js>` splitting, Connect chain, `<,{{page}}>` syntax, nested brace `{{...}}`).
 
-**Working**: Import 939 sources → SSE search (results stream in, text-only sources only) → enrich book (fetch cover/intro) → bookshelf → chapter list (pagination, volumes) → reader
+**Working**: Import 939 sources → SSE search (results stream in, cross-source merged, relevance-sorted) → enrich book (fetch cover/intro from source) → bookshelf → chapter list (pagination, volumes) → reader
 
-**Known limitations**: Many sources behind Cloudflare (server-side HTTP client can't bypass). Book source rules go stale over time — users find fresh sources. `customButton` (30%) and `eventListener` (30%) are legado-reader UI fields intentionally not mapped. `concurrentRate` stored but not enforced yet.
+**Known limitations**: Many sources behind Cloudflare (server-side HTTP client can't bypass). Book source rules go stale over time — users find fresh sources. `%%` zip connector, `@put`/`@get` variable storage, and `bookInfoInit` pre-processing not yet implemented. `customButton` (30%) and `eventListener` (30%) are legado-reader UI fields intentionally not mapped. Explore/discovery system deferred to Phase 2.
 
 ## Decisions
 
@@ -329,3 +329,58 @@ Items intentionally skipped or deferred, documented so they don't get forgotten.
 - **Fix**: Added `rateLimitWait()` in search.go. Parses `concurrentRate` as milliseconds between requests. Uses a mutex-protected `lastAccess` map keyed by `BookSourceURL`. Sources without a rate use system default (no limit).
 - **Affected**: `backend/internal/book/search.go`
 - **Watch out**: Simple time-since-last-access throttle, not a token bucket. Fine for the 11 sources (1%) that set a rate.
+
+### [2026-07-03] Default-rule parser missing — all unprefixed rules silently failed (BLOCKER)
+- **Problem**: Legado's primary rule format (`class.odd.0@tag.a.0@text`) was routed to goquery as CSS, producing no matches. Every bare Default-rule source returned empty results silently.
+- **Fix**: Implemented `ModeDefault` parser in `modes_default.go`. Detects Default format by prefix heuristics (`class.`, `id.`, `tag.`, numeric indices, multiple `@`). Supports position indices (positive, negative, exclusion), `@text`/`@href`/`@src`/`@html` getters, CSS fallback for combinators.
+- **Affected**: `backend/internal/analyzer/modes_default.go`, `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/analyzer.go`
+- **Watch out**: Array index syntax `[0:10:2]`, `[0,2,4]` not yet supported. Most sources use simple `.N` indices which work.
+
+### [2026-07-03] Duplicate `alternate_sources` column crashed server on every query (BLOCKER)
+- **Problem**: `Init()` created `alternate_sources` in `CREATE TABLE`, then immediately ran `ALTER TABLE books ADD COLUMN alternate_sources` — duplicating the column at position 19. `SELECT *` returned two `alternate_sources` columns, shifting `created_at` (int64) onto the TEXT duplicate → type conversion panic → server crash.
+- **Fix**: Removed redundant ALTER TABLE. Changed all book queries to use explicit column list (`bookColumns`) instead of `SELECT *` for deterministic scan order.
+- **Affected**: `backend/internal/book/store.go`
+- **Watch out**: Old databases with the duplicate column must be deleted (`rm backend/data/novelreader.db`).
+
+### [2026-07-03] `findJSONOption` missed `,\n{` patterns (7 sources) (BLOCKER)
+- **Problem**: Scanned for adjacent `,{` only. Newlines between comma and brace (from multi-line URL formatting) made `findJSONOption` miss the option entirely. Also used `json.Valid` which rejected trailing junk (e.g. `@js:` after the option).
+- **Fix**: Skip whitespace between comma and brace; brace-count to extract just the JSON object; `json.Valid` on the extracted portion only.
+- **Affected**: `backend/internal/analyzer/urlbuilder.go`
+
+### [2026-07-03] `&&` rule connector unhandled (376 sources) (MAJOR)
+- **Problem**: Only `||` was treated as a rule chain separator. `&&` (merge/concatenate results) was passed verbatim as part of the CSS/Default selector, failing to match anything.
+- **Fix**: Added `splitTopLevel()` helper that handles `&&`, `||`, `%%` at top level while respecting `<js>`/`{{}}` depth. `GetString` and `GetElements` now split on `&&` and concatenate results.
+- **Affected**: `backend/internal/analyzer/analyzer.go`
+- **Watch out**: `%%` zip connector not yet implemented (2 sources only).
+
+### [2026-07-03] Mid-chain `<js>` tags never executed (150 segments) (MAJOR)
+- **Problem**: Rules like `$.bid<js>java.put('bid',result);'http://...'</js>` were parsed as a single segment with mode detection at start. The `<js>` block inside was passed to the CSS/Default parser and silently ignored.
+- **Fix**: `nextSegment` now treats `<js>` at depth 0 as a segment boundary, splitting the rule chain into separate CSS/Default and JS rule segments.
+- **Affected**: `backend/internal/analyzer/ruleparser.go`
+
+### [2026-07-03] `java.connect()` response chain incomplete (MAJOR)
+- **Problem**: Only `raw.request.url()` chain was implemented. Legado also uses `.body()`, `.code()`, `.headers()` on the Connect response. Failed requests returned a map without `raw` at all → `Object has no member 'raw'`.
+- **Fix**: Always return `body`, `code`, `headers`, and `raw` (with nested `request.url`, `request.headers`). Even on error, the chain returns available data instead of erroring.
+- **Affected**: `backend/internal/analyzer/js.go`
+
+### [2026-07-03] `<,{{page}}>` page-selection syntax unsupported (11 search sources) (MINOR)
+- **Problem**: `<,/page/{{page}}>` on page 1 should produce empty string. Was passed literally as part of the URL.
+- **Fix**: Regex-based detection and replacement: for page=1, `<...>` segments produce empty string; for page>1, the page-indexed element is selected.
+- **Affected**: `backend/internal/analyzer/urlbuilder.go`
+
+### [2026-07-03] `@js:` eval failure leaked raw JS to HTTP client (MINOR)
+- **Problem**: When `@js:` JS evaluation failed, `urlStr` stayed as the raw `@js:...` string. The fetcher then tried to parse `@js:
+var su=...` as a URL → `net/url: invalid control character`.
+- **Fix**: Return error from `BuildURL` when `@js:` eval fails. The source is properly skipped instead of sending garbage to the fetcher.
+- **Affected**: `backend/internal/analyzer/urlbuilder.go`
+
+### [2026-07-03] Newlines in URL templates broke parsing (MINOR)
+- **Problem**: Many sources have literal `\n` in `searchUrl` for multi-line formatting. `url.Parse` rejects URLs with control characters.
+- **Fix**: Strip `\n`/`\r` from non-`@js:` URL templates before parsing (remove, not space-replace).
+- **Affected**: `backend/internal/analyzer/urlbuilder.go`
+- **Watch out**: `@js:` URLs are NOT stripped (they need newlines for JS code).
+
+### [2026-07-03] `{{...}}` regex failed on nested braces (2 sources) (MINOR)
+- **Problem**: Template regex `{{([^}]+)}}` couldn't match `}` inside expressions like `{{var x={a:1}; x}}`.
+- **Fix**: Replaced regex with brace-counting scanner that correctly handles nested braces.
+- **Affected**: `backend/internal/analyzer/urlbuilder.go`

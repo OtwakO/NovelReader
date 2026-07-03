@@ -57,12 +57,19 @@ func main() {
 	}
 
 	// Engine components
-	httpClient := fetcher.New()
+	// ponytail: use insecure TLS for content fetcher too — same reason as search:
+	// many Chinese novel sites have self-signed or expired TLS certs. Search already
+	// uses InsecureSkipVerify; content/TOC/chapter fetches must match.
+	httpContent := fetcher.NewInsecure(15 * time.Second)  // with cookie jar for content
+	httpSearch := fetcher.NewInsecureStateless(10 * time.Second) // no jar for search
 	jsVM := analyzer.NewJSVM()
-	jsVM.SetFetcher(httpClient)
+	jsVM.SetFetcher(httpContent)
 	cache := analyzer.NewCacheManager()
 
-	searcher := book.NewSearcher(httpClient, jsVM, cache, sourceStore, bookStore)
+	searcher := book.NewSearcher(httpContent, jsVM, cache, sourceStore, bookStore)
+	// Override the default search fetcher (constructed inside NewSearcher) with the
+	// one we already created, so we don't create a second client.
+	searcher.SetSearchFetcher(httpSearch)
 
 	// Content processor config
 	procCfg := processor.DefaultConfig()
@@ -71,7 +78,7 @@ func main() {
 	api.TimeNowMillis = func() int64 { return time.Now().UnixMilli() }
 
 	// Create API server
-	apiSrv := api.NewServer(sourceStore, bookStore, searcher, fStore, httpClient, jsVM, cache, procCfg, cfg.DataDir)
+	apiSrv := api.NewServer(sourceStore, bookStore, searcher, fStore, httpContent, jsVM, cache, procCfg, cfg.DataDir)
 
 	// Serve frontend static files from the project frontend dist
 	staticDir := "../frontend/dist"
