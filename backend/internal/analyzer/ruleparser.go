@@ -200,6 +200,18 @@ func detectMode(expr string, isJSON bool) Mode {
 
 // looksLikeDefault heuristically checks if expr is a legado Default rule.
 func looksLikeDefault(expr string) bool {
+	// A bare Default getter keyword (text, ownText, textNodes, href, src, html, all, children)
+	// applied to the current element — legado treats these as Default mode.
+	if isDefaultGetter(expr) {
+		return true
+	}
+
+	// @getter or @attr on current element: @href, @text, @src, @data-id etc.
+	// The @ prefix with no selector before it means "current element's attribute".
+	if strings.HasPrefix(expr, "@") && !strings.ContainsAny(expr, " \t\n>+~:#,") {
+		return true
+	}
+
 	// Multiple @ separators — definitely Default
 	if strings.Count(expr, "@") > 1 {
 		return true

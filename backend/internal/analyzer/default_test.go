@@ -154,3 +154,195 @@ func TestDefaultIDRule(t *testing.T) {
 		t.Errorf("expected 'Row 1', got %q", name)
 	}
 }
+
+// TestTOCDirectLink verifies that a chapterList rule selecting <a> elements
+// directly (without a container) preserves the element tag and attributes
+// so field rules like @href and text can extract them.
+func TestTOCDirectLink(t *testing.T) {
+	html := `<html><body>
+		<div class="chapter-list">
+			<a href="/ch/1">第一章 起点</a>
+			<a href="/ch/2">第二章 修炼</a>
+			<a href="/ch/3">第三章 突破</a>
+		</div>
+	</body></html>`
+
+	jsVM := NewJSVM()
+	cache := NewCacheManager()
+	an := New(html, "http://example.com", jsVM, cache)
+
+	// This simulates the TOC path: class.chapter-list@tag.a selects <a> elements directly
+	elements, err := an.GetElements("class.chapter-list@tag.a")
+	if err != nil {
+		t.Fatalf("GetElements error: %v", err)
+	}
+	if len(elements) != 3 {
+		t.Fatalf("expected 3 elements, got %d", len(elements))
+	}
+
+	// Each element must be outer HTML so field rules can match the <a> tag and its attributes
+	for i, el := range elements {
+		elHTML := ToString(el)
+		elAn := New(elHTML, "http://example.com", jsVM, cache)
+
+		// chapterName: "text" — standalone getter on current element
+		title, err := elAn.GetString("text")
+		if err != nil {
+			t.Errorf("element %d GetString(text): %v", i, err)
+		}
+		if title == "" {
+			t.Errorf("element %d: title is empty — outer HTML may not preserve <a> tag", i)
+		}
+
+		// chapterUrl: "@href" — attribute getter on current element
+		chURL, err := elAn.GetString("@href")
+		if err != nil {
+			t.Errorf("element %d GetString(@href): %v", i, err)
+		}
+		if chURL == "" {
+			t.Errorf("element %d: URL is empty — @href on <a> should return href attr", i)
+		}
+		if i == 0 && chURL != "/ch/1" {
+			t.Errorf("element 0: expected href='/ch/1', got %q", chURL)
+		}
+
+		t.Logf("element %d: title=%q url=%q (elHTML=%s)", i, title, chURL, elHTML[:min(len(elHTML), 80)])
+	}
+}
+
+// TestTOCContainerWithStandaloneGetter verifies the container + shorthand getter pattern:
+// chapterList selects a container (e.g. <li>), then chapterName="text" extracts text
+// and chapterUrl="tag.a@href" finds the href from a child <a>.
+func TestTOCContainerWithStandaloneGetter(t *testing.T) {
+	html := `<html><body>
+		<ul class="chapter-list">
+			<li><a href="/ch/1">第一章 起点</a></li>
+			<li><a href="/ch/2">第二章 修炼</a></li>
+		</ul>
+	</body></html>`
+
+	jsVM := NewJSVM()
+	cache := NewCacheManager()
+	an := New(html, "http://example.com", jsVM, cache)
+
+	elements, err := an.GetElements("class.chapter-list@tag.li")
+	if err != nil {
+		t.Fatalf("GetElements error: %v", err)
+	}
+	if len(elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(elements))
+	}
+
+	for i, el := range elements {
+		elHTML := ToString(el)
+		elAn := New(elHTML, "http://example.com", jsVM, cache)
+
+		// "text" is standalone getter — should return the element's text content
+		title, err := elAn.GetString("text")
+		if err != nil {
+			t.Errorf("element %d GetString(text): %v", i, err)
+		}
+		if title == "" {
+			t.Errorf("element %d: title is empty", i)
+		}
+
+		// "a@href" is CSS: find <a>, get href attr
+		chURL, err := elAn.GetString("a@href")
+		if err != nil {
+			t.Errorf("element %d GetString(a@href): %v", i, err)
+		}
+		if chURL == "" {
+			t.Errorf("element %d: URL is empty", i)
+		}
+
+		t.Logf("element %d: title=%q url=%q", i, title, chURL)
+	}
+}
+
+// TestDefaultStandaloneGetter tests bare getter keywords directly on document root.
+func TestDefaultStandaloneGetter(t *testing.T) {
+	html := `<html><body><a href="/test">Hello</a></body></html>`
+
+	jsVM := NewJSVM()
+	cache := NewCacheManager()
+	an := New(html, "http://example.com", jsVM, cache)
+
+	tests := []struct {
+		rule string
+		want string
+		desc string
+	}{
+		{"text", "Hello", "standalone text getter"},
+		{"@href", "/test", "standalone @href getter"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			result, err := an.GetString(tt.rule)
+			if err != nil {
+				t.Fatalf("GetString(%q): %v", tt.rule, err)
+			}
+			if !strings.Contains(result, tt.want) {
+				t.Errorf("GetString(%q) = %q, want containing %q", tt.rule, result, tt.want)
+			}
+		})
+	}
+}
+
+// TestTOCFieldRulesOnDirectLink runs the FULL chapter extraction pipeline on
+// the most common legado TOC patterns: direct <a> selection with standalone
+// getters. This is what BLOCKERs 1+2 were breaking.
+func TestTOCFieldRulesOnDirectLink(t *testing.T) {
+	html := `<html><body>
+		<div class="chapter-list">
+			<a href="/ch/1">第一章 起点</a>
+			<a href="/ch/2">第二章 修炼</a>
+		</div>
+	</body></html>`
+
+	jsVM := NewJSVM()
+	cache := NewCacheManager()
+	an := New(html, "http://example.com", jsVM, cache)
+
+	// Step 1: Select all <a> elements (the chapterList selector)
+	elements, err := an.GetElements("class.chapter-list@tag.a")
+	if err != nil {
+		t.Fatalf("GetElements error: %v", err)
+	}
+
+	// Step 2: For each element, extract chapterName and chapterUrl
+	type entry struct{ title, url string }
+	var chapters []entry
+	for _, el := range elements {
+		elHTML := ToString(el)
+		elAn := New(elHTML, "http://example.com", jsVM, cache)
+		title, _ := elAn.GetString("text")
+		url, _ := elAn.GetString("@href")
+		if title != "" {
+			chapters = append(chapters, entry{title, url})
+		}
+	}
+
+	if len(chapters) != 2 {
+		t.Fatalf("expected 2 chapters, got %d — chapterName/text or chapterUrl/@href likely returning empty", len(chapters))
+	}
+	if chapters[0].title != "第一章 起点" {
+		t.Errorf("chapter 0 title: got %q, want %q", chapters[0].title, "第一章 起点")
+	}
+	if chapters[0].url != "/ch/1" {
+		t.Errorf("chapter 0 url: got %q, want %q", chapters[0].url, "/ch/1")
+	}
+	if chapters[1].title != "第二章 修炼" {
+		t.Errorf("chapter 1 title: got %q, want %q", chapters[1].title, "第二章 修炼")
+	}
+	if chapters[1].url != "/ch/2" {
+		t.Errorf("chapter 1 url: got %q, want %q", chapters[1].url, "/ch/2")
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

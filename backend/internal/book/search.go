@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -456,6 +457,14 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 			b.TocURL = resolveURL(tocURL, b.BookURL)
 		}
 	}
+
+	if b.TocURL == "" {
+		slog.Debug("book info: tocUrl not extracted from ruleBookInfo"+
+			" — chapter fetch will fallback to book detail page",
+			"source", src.BookSourceName,
+			"book", b.Name,
+		)
+	}
 	return b, nil
 }
 
@@ -471,10 +480,7 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 		jsVM:  s.jsVM,
 		cache: s.cache,
 		fetch: func(urlStr string) (string, string, error) {
-			fullURL := urlStr
-			if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
-				fullURL = strings.TrimRight(src.BookSourceURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
-			}
+			fullURL := resolveURL(urlStr, src.BookSourceURL)
 			resp, err := s.fetcher.Get(fullURL, parseHeaderJSON(src.Header))
 			if err != nil {
 				return "", "", err
@@ -495,10 +501,7 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 
 // GetChapterContent fetches and parses chapter content using ruleContent.
 func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL string) (string, string, error) {
-	fullURL := chapterURL
-	if !strings.HasPrefix(chapterURL, "http://") && !strings.HasPrefix(chapterURL, "https://") {
-		fullURL = strings.TrimRight(src.BookSourceURL, "/") + "/" + strings.TrimLeft(chapterURL, "/")
-	}
+	fullURL := resolveURL(chapterURL, src.BookSourceURL)
 
 	headers := parseHeaderJSON(src.Header)
 	resp, err := s.fetcher.Get(fullURL, headers)
@@ -541,10 +544,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 
 func (s *Searcher) fetchAndAnalyze(urlStr, baseURL, headerJSON, jsLib string) *analyzer.Analyzer {
 	headers := parseHeaderJSON(headerJSON)
-	fullURL := urlStr
-	if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
-		fullURL = strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
-	}
+	fullURL := resolveURL(urlStr, baseURL)
 	resp, err := s.fetcher.Get(fullURL, headers)
 	if err != nil {
 		return nil
@@ -572,5 +572,16 @@ func resolveURL(urlStr, baseURL string) string {
 	if strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://") {
 		return urlStr
 	}
-	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
+	// Use stdlib URL resolution: handles ../, //, and absolute-path (/foo) correctly.
+	// e.g., base="https://site.com/novel/123" + url="/catalog/456" → "https://site.com/catalog/456"
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		// Fallback to naive join on parse error
+		return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
+	}
+	ref, err := url.Parse(urlStr)
+	if err != nil {
+		return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
+	}
+	return base.ResolveReference(ref).String()
 }

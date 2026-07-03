@@ -18,6 +18,8 @@ import (
 //	td.2@text                           — 3rd td, get text
 //	td.-1@text                          — last td, get text
 //	tbody>tr@ a.0@href                  — CSS-like tbody>tr, then 1st a href
+//	text                                — standalone getter on current element
+//	@href                               — attribute getter on current element
 //
 // ponytail: this implements the most common Default patterns. Position ranges
 // like [start:end:step] and multi-index [0,2,4] are deferred — most sources
@@ -38,6 +40,16 @@ func defaultQuery(html, expr string) (string, error) {
 		sel = applyDefaultSegment(sel, part)
 		if sel.Length() == 0 {
 			return "", nil
+		}
+	}
+
+	// When no selector segments, apply getter to first real element (body's first child),
+	// not the document root — so @href on <a href="/ch">text</a> returns "/ch".
+	if len(parts) == 0 && getter != "" {
+		sel = doc.Find("body").Children().First()
+		if sel.Length() == 0 {
+			// Fallback: use the first non-html element
+			sel = doc.Selection.Children().First()
 		}
 	}
 
@@ -75,6 +87,8 @@ func defaultQueryList(html, expr string) ([]string, error) {
 }
 
 // defaultQueryElements returns elements for further chaining.
+// Returns outer HTML so field rules (chapterName, chapterUrl) can match the
+// selected element itself (e.g., <a href="...">text</a>), not just children.
 func defaultQueryElements(html, expr string) ([]interface{}, error) {
 	parts, _, err := parseDefault(expr)
 	if err != nil {
@@ -94,14 +108,11 @@ func defaultQueryElements(html, expr string) ([]interface{}, error) {
 		}
 	}
 
-	// ponytail: cap at 50 to avoid wasting parse work
-	limit := sel.Length()
-	if limit > 50 {
-		limit = 50
-	}
 	var results []interface{}
-	for i := 0; i < limit; i++ {
-		h, _ := sel.Eq(i).Html()
+	for i := 0; i < sel.Length(); i++ {
+		// ponytail: OuterHtml preserves the element tag and attributes,
+		// so field rules like @href and text work against the selected node.
+		h, _ := goquery.OuterHtml(sel.Eq(i))
 		results = append(results, h)
 	}
 	return results, nil
@@ -120,9 +131,18 @@ type defaultSegment struct {
 // Format: part@part@...@getter
 // The last @-separated part is the getter only if it's a known getter keyword.
 // Otherwise, all parts are selector segments and text is the implicit getter.
+//
+// Special cases:
+//   - "text" (bare getter): no segments, getter="text" — apply to current element
+//   - "@href" (getter on current element): no segments, getter="href"
 func parseDefault(expr string) ([]defaultSegment, string, error) {
 	parts := strings.Split(expr, "@")
 	if len(parts) < 2 {
+		// Single part: could be a standalone getter keyword
+		// (text, ownText, href, src, html, all, children, textNodes)
+		if isDefaultGetter(parts[0]) {
+			return nil, parts[0], nil // no selector segments, apply getter to root
+		}
 		return []defaultSegment{{selType: "css", selVal: expr}}, "", nil
 	}
 
@@ -139,7 +159,7 @@ func parseDefault(expr string) ([]defaultSegment, string, error) {
 	for _, part := range segParts {
 		part = strings.TrimSpace(part)
 		if part == "" {
-			continue
+			continue // empty segment like @href (before-@ is empty) — apply getter to root
 		}
 		seg, err := parseDefaultSegment(part)
 		if err != nil {

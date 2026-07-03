@@ -2,6 +2,7 @@ package book
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -77,10 +78,8 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 		}
 		visitedNext[nextURL] = true
 
-		// Resolve relative URL
-		if !strings.HasPrefix(nextURL, "http://") && !strings.HasPrefix(nextURL, "https://") {
-			nextURL = strings.TrimRight(resolvedURL, "/") + "/" + strings.TrimLeft(nextURL, "/")
-		}
+		// Resolve relative URL — use resolveURL for proper ../ and / handling
+		nextURL = resolveURL(nextURL, resolvedURL)
 
 		body, resolvedURL, err = p.fetch(nextURL)
 		if err != nil {
@@ -130,9 +129,7 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 		}
 
 		// Resolve chapter URL against the page it was found on
-		if chURL != "" && !strings.HasPrefix(chURL, "http://") && !strings.HasPrefix(chURL, "https://") {
-			chURL = strings.TrimRight(pageURL, "/") + "/" + strings.TrimLeft(chURL, "/")
-		}
+		chURL = resolveURL(chURL, pageURL)
 
 		// Volume detection: empty URL or explicit isVolume rule
 		isVolume := mustString(elAn, volumeRule)
@@ -152,6 +149,21 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 		}
 
 		chapters = append(chapters, ch)
+	}
+
+	// Log warning when elements matched but no chapters had extractable titles.
+	// This distinguishes "legitimately empty TOC" from "extraction failed"
+	// — the silent 200-OK path that currently produces "Chapters (0)".
+	if len(elements) > 0 && len(chapters) == 0 {
+		slog.Warn("toc: elements matched but no chapter names extracted — check chapterName rule",
+			"source", p.src.BookSourceName,
+			"elements", len(elements),
+			"nameRule", nameRule,
+			"urlRule", urlRule,
+		)
+		return nil, "", fmt.Errorf(
+			"toc: %d elements matched but all chapter names empty — chapterName=%q chapterUrl=%q",
+			len(elements), nameRule, urlRule)
 	}
 
 	return chapters, "", nil
