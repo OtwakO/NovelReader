@@ -2,6 +2,7 @@ package book
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -469,6 +470,8 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 }
 
 // GetChapterList fetches and parses the TOC using the legado-compatible parser.
+// If tocURL is empty, it attempts to auto-detect a TOC page link from the book detail page
+// by scanning for common TOC URL patterns when the extracted chapters look invalid.
 func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL string) ([]Chapter, error) {
 	fetchURL := tocURL
 	if fetchURL == "" {
@@ -493,13 +496,136 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 	if err != nil {
 		return nil, fmt.Errorf("chapter list: %w", err)
 	}
-	for i := range chapters {
-		chapters[i].ID = fmt.Sprintf("%s_%d", bookURL, i)
+
+	// Auto-detect TOC page if chapters look invalid (e.g., URLs are book URLs instead of chapter URLs)
+	if len(chapters) > 0 && tocURL == "" && !looksLikeChapters(chapters, bookURL) {
+		slog.Debug("chapter list: extracted chapters look invalid, attempting TOC auto-detection",
+			"source", src.BookSourceName,
+			"bookURL", bookURL,
+			"extractedCount", len(chapters),
+		)
+
+		// Try to find a TOC link on the book detail page
+		if detectedTOC := detectTOCPage(fetchURL, src.BookSourceURL, s.fetcher, parseHeaderJSON(src.Header)); detectedTOC != "" {
+			slog.Info("chapter list: auto-detected TOC page",
+				"source", src.BookSourceName,
+				"tocURL", detectedTOC,
+			)
+
+			// Re-parse with the detected TOC page
+			chapters, err = parser.ParseChapterList(detectedTOC, src.BookSourceURL)
+			if err != nil {
+				slog.Warn("chapter list: TOC auto-detection failed, falling back to book page",
+					"source", src.BookSourceName,
+					"error", err.Error(),
+				)
+				// Fall back to original chapters
+				chapters, _ = parser.ParseChapterList(fetchURL, src.BookSourceURL)
+			}
+		}
 	}
 	return chapters, nil
 }
 
+// looksLikeChapters validates whether extracted chapters look like actual chapter data.
+// Returns false if most URLs look like book detail pages instead of chapter pages.
+func looksLikeChapters(chapters []Chapter, bookURL string) bool {
+	if len(chapters) == 0 {
+		return false
+	}
+
+	// Count chapters with suspicious URLs (look like book detail pages)
+	suspiciousCount := 0
+	validChapterCount := 0
+	
+	for _, ch := range chapters {
+		if ch.URL == "" {
+			continue // volume headers are OK
+		}
+		
+		// Check if URL contains book URL patterns (suggesting it's a book page, not a chapter)
+		if strings.Contains(ch.URL, "/book/") || strings.Contains(ch.URL, "/shu/") || strings.Contains(ch.URL, "/info/") {
+			suspiciousCount++
+		}
+		
+		// Check if URL looks like a valid chapter URL
+		if strings.Contains(ch.URL, "/chapter/") || 
+		   strings.Contains(ch.URL, "/read/") || 
+		   strings.Contains(ch.URL, "/content/") ||
+		   strings.Contains(ch.URL, "/c/") ||
+		   strings.Contains(ch.URL, "/ch/") {
+			validChapterCount++
+		}
+	}
+
+	// Count non-volume chapters
+	nonVolumeCount := 0
+	for _, ch := range chapters {
+		if ch.URL != "" && !ch.IsVolume {
+			nonVolumeCount++
+		}
+	}
+
+	if nonVolumeCount == 0 {
+		return false // all volumes, no actual chapters
+	}
+
+	// If more than 50% have book-like URLs, it's likely wrong
+	if float64(suspiciousCount)/float64(nonVolumeCount) >= 0.5 {
+		return false
+	}
+
+	// If we have at least some valid chapter URLs, it's probably correct
+	if validChapterCount > 0 && float64(validChapterCount)/float64(nonVolumeCount) >= 0.5 {
+		return true
+	}
+
+	// Default: assume correct if not obviously wrong
+	return true
+}
+
+// detectTOCPage scans the book detail page for links to a separate TOC page.
+// Returns the detected TOC URL or empty string if not found.
+func detectTOCPage(bookPageURL, sourceURL string, fetcher *fetcher.Client, headers map[string]string) string {
+	// Resolve book page URL to absolute URL
+	fullURL := resolveURL(bookPageURL, sourceURL)
+	
+	resp, err := fetcher.Get(fullURL, headers)
+	if err != nil {
+		return ""
+	}
+
+	// Common TOC URL patterns (case-insensitive)
+	tocPatterns := []string{
+		`href="([^"]*(?:chapterlist|mulu|catalog|directory|chapter-list|目录)[^"]*)"`,
+		`href="([^"]*(?:/chapter/|/mulu/|/catalog/)[^"]*)"`,
+		`href="([^"]*(?:作品目录|章节目录|全部章节|目录)[^"]*)"`,
+		`>([^<]*(?:作品目录|章节目录|全部章节|目录)[^<]*)<`,
+	}
+
+	baseURL := resp.Body
+	for _, pattern := range tocPatterns {
+		re := regexp.MustCompile(`(?i)` + pattern)
+		matches := re.FindAllStringSubmatch(baseURL, -1)
+		for _, match := range matches {
+			if len(match) >= 2 {
+				candidate := match[1]
+				// Resolve relative URL
+				resolved := resolveURL(candidate, fullURL)
+				// Skip if it's the same as the book page
+				if resolved != fullURL && strings.HasPrefix(resolved, "http") {
+					return resolved
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
 // GetChapterContent fetches and parses chapter content using ruleContent.
+// If the standard rule extraction returns empty content, it attempts to
+// find content embedded as JSON in <script> tags (common for Vue.js/React SPAs).
 func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL string) (string, string, error) {
 	fullURL := resolveURL(chapterURL, src.BookSourceURL)
 
@@ -534,12 +660,109 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		content = mustString(an, "body@text")
 	}
 
+	// If content is empty from CSS rules, try to extract from JSON in <script> tags
+	// Many SPAs embed chapter content as JSON in script tags for hydration
+	if content == "" && strings.Contains(resp.Body, "<script") {
+		extracted := extractContentFromScriptJSON(resp.Body)
+		if extracted != "" {
+			content = extracted
+			slog.Debug("content: extracted from script tag JSON fallback",
+				"source", src.BookSourceName,
+				"url", fullURL,
+			)
+		} else {
+			slog.Warn("content: JSON script fallback found scripts but no content",
+				"source", src.BookSourceName,
+				"htmlLen", len(resp.Body),
+			)
+		}
+	}
+
 	if subRule := rules["subContent"]; subRule != "" {
 		if sub := mustString(an, subRule); sub != "" {
 			content += "\n" + sub
 		}
 	}
 	return content, chapterTitle, nil
+}
+
+// extractContentFromScriptJSON attempts to extract chapter content from JSON
+// embedded in <script> tags (common in Vue.js, React, and other SPA frameworks).
+// It looks for common patterns like chapterContent, content, text, articleBody, etc.
+func extractContentFromScriptJSON(html string) string {
+	// Common JSON keys that typically contain chapter/article content
+	contentKeys := []string{
+		"chapterContent",
+		"articleBody",
+		"text",
+		"content",
+		"body",
+	}
+
+	// Find all <script> tags with (?s) for DOTALL mode (multi-line match)
+	scriptRe := regexp.MustCompile(`(?s)<script[^>]*>(.*?)</script>`)
+	matches := scriptRe.FindAllStringSubmatch(html, -1)
+	slog.Debug("content: script tag fallback found", "scripts", len(matches))
+
+	for i, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		scriptContent := strings.TrimSpace(match[1])
+		if len(scriptContent) < 100 {
+			continue // skip small scripts (not JSON data)
+		}
+
+		// Try to parse as JSON
+		var data interface{}
+		if err := json.Unmarshal([]byte(scriptContent), &data); err != nil {
+			slog.Debug("content: script tag not JSON", "idx", i, "len", len(scriptContent))
+			continue
+		}
+
+		slog.Debug("content: valid JSON in script tag", "idx", i, "len", len(scriptContent))
+
+		// Search recursively for content
+		if result := findStringInJSON(data, contentKeys, 0); result != "" {
+			slog.Debug("content: found in JSON", "idx", i, "len", len(result))
+			return result
+		}
+	}
+
+	return ""
+}
+
+// findStringInJSON recursively searches a JSON structure for a string value
+// whose key matches one of the target keys, limiting search depth to avoid
+// excessive recursion on large JSON blobs.
+func findStringInJSON(data interface{}, targetKeys []string, depth int) string {
+	if depth > 10 {
+		return "" // limit recursion depth
+	}
+
+	switch v := data.(type) {
+	case map[string]interface{}:
+		for key, val := range v {
+			for _, target := range targetKeys {
+				if strings.EqualFold(key, target) {
+					if str, ok := val.(string); ok && len(str) > 50 {
+						return str // found a substantial content string
+					}
+				}
+			}
+			if result := findStringInJSON(val, targetKeys, depth+1); result != "" {
+				return result
+			}
+		}
+	case []interface{}:
+		for _, item := range v {
+			if result := findStringInJSON(item, targetKeys, depth+1); result != "" {
+				return result
+			}
+		}
+	}
+
+	return ""
 }
 
 func (s *Searcher) fetchAndAnalyze(urlStr, baseURL, headerJSON, jsLib string) *analyzer.Analyzer {

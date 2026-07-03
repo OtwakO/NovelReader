@@ -258,45 +258,80 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create book with available info
-	b := &book.Book{
-		ID:       req.ID,
-		Name:     req.Name,
-		Author:   req.Author,
-		CoverURL: req.CoverURL,
-		Intro:    req.Intro,
-		SourceURL: req.SourceURL,
-		BookURL:  req.BookURL,
-		Origin:   req.SourceURL,
+	// Check if book already exists
+	existing, err := s.bookStore.GetBook(req.ID)
+	if err == nil && existing != nil {
+		writeJSON(w, http.StatusOK, existing)
+		return
 	}
 
-	// Try to enrich from source (non-fatal if fails)
+	// Create book with available info from request
+	b := &book.Book{
+		ID:        req.ID,
+		Name:      req.Name,
+		Author:    req.Author,
+		CoverURL:  req.CoverURL,
+		Intro:     req.Intro,
+		SourceURL: req.SourceURL,
+		BookURL:   req.BookURL,
+		Origin:    req.SourceURL,
+	}
+
+	// Try to enrich from source
 	src, err := s.sourceStore.GetByID(req.SourceURL)
-	if err == nil && src != nil {
-		enriched, err := s.searcher.GetBookInfo(*src, req.BookURL)
-		if err == nil && enriched != nil {
-			if enriched.Name != "" {
-				b.Name = enriched.Name
-			}
-			if enriched.Author != "" {
-				b.Author = enriched.Author
-			}
-			if enriched.CoverURL != "" {
-				b.CoverURL = enriched.CoverURL
-			}
-			if enriched.Intro != "" {
-				b.Intro = enriched.Intro
-			}
-			if enriched.LastChapter != "" {
-				b.LastChapter = enriched.LastChapter
-			}
-			if enriched.TocURL != "" {
-				b.TocURL = enriched.TocURL
-			}
-			if enriched.Kind != "" {
-				b.Kind = enriched.Kind
-			}
+	if err != nil || src == nil {
+		// Source not found, save with minimal info
+		if err := s.bookStore.AddBook(b); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
 		}
+		writeJSON(w, http.StatusOK, b)
+		return
+	}
+
+	// Fetch and enrich book info from source
+	enriched, err := s.searcher.GetBookInfo(*src, req.BookURL)
+	if err != nil {
+		// Enrichment failed, save with minimal info
+		slog.Warn("book enrichment failed, saving with minimal info",
+			"source", req.SourceURL,
+			"book", req.BookURL,
+			"error", err.Error())
+		if err := s.bookStore.AddBook(b); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, b)
+		return
+	}
+
+	// Merge ALL enriched fields into book (overwrite with enriched data)
+	if enriched.Name != "" {
+		b.Name = enriched.Name
+	}
+	if enriched.Author != "" {
+		b.Author = enriched.Author
+	}
+	if enriched.CoverURL != "" {
+		b.CoverURL = enriched.CoverURL
+	}
+	if enriched.Intro != "" {
+		b.Intro = enriched.Intro
+	}
+	if enriched.LastChapter != "" {
+		b.LastChapter = enriched.LastChapter
+	}
+	if enriched.TocURL != "" {
+		b.TocURL = enriched.TocURL
+	}
+	if enriched.Kind != "" {
+		b.Kind = enriched.Kind
+	}
+	if enriched.WordCount != "" {
+		b.WordCount = enriched.WordCount
+	}
+	if enriched.UpdateTime != "" {
+		b.UpdateTime = enriched.UpdateTime
 	}
 
 	if err := s.bookStore.AddBook(b); err != nil {
@@ -431,6 +466,12 @@ func (s *Server) handleGetChapters(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	// Generate unique chapter IDs using bookID (the unique book identifier)
+	// instead of bookURL (which can be the same across different book entries)
+	for i := range chapters {
+		chapters[i].ID = fmt.Sprintf("%s_%d", bookID, i)
 	}
 
 	if err := s.bookStore.SaveChapters(bookID, chapters); err != nil {
