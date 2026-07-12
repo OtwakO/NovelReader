@@ -517,18 +517,48 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 	if fetchURL == "" {
 		fetchURL = bookURL
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), perSourceTimeout)
+	defer cancel()
 
+	session := sourceexec.NewSourceSession()
+	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
+	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	parser := &ChapterListParser{
 		src:   src,
 		jsVM:  s.jsVM,
 		cache: s.cache,
+		state: session,
 		fetch: func(urlStr string) (string, string, error) {
-			fullURL := resolveURL(urlStr, src.BookSourceURL)
-			resp, err := s.fetcher.Get(fullURL, parseHeaderJSON(src.Header))
+			spec, err := executor.Build(urlStr, "", 1, src.BookSourceURL)
 			if err != nil {
 				return "", "", err
 			}
-			return resp.Body, fullURL, nil
+			if spec.Headers == nil {
+				spec.Headers = make(map[string]string)
+			}
+			for key, value := range parseHeaderJSON(src.Header) {
+				if _, exists := spec.Headers[key]; !exists {
+					spec.Headers[key] = value
+				}
+			}
+			if spec.WebView {
+				return "", "", fmt.Errorf("source requires JS rendering (webView:true)")
+			}
+			if spec.Method == "POST" && spec.Body != "" && spec.Charset != "" {
+				spec.Body = encodeBody(spec.Body, spec.Charset)
+			}
+			response, err := transport.Do(ctx, spec)
+			if err != nil {
+				return "", "", err
+			}
+			if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+				return "", "", fmt.Errorf("status %d from %s", response.StatusCode, src.BookSourceName)
+			}
+			finalURL := response.FinalURL
+			if finalURL == "" {
+				finalURL = spec.URL
+			}
+			return response.Body, finalURL, nil
 		},
 	}
 

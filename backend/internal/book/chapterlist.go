@@ -12,10 +12,11 @@ import (
 // ChapterListParser handles the full legado-compatible TOC parsing pipeline.
 // Mirrors legado's BookChapterList.analyzeChapterList.
 type ChapterListParser struct {
-	src    booksource.BookSource
-	jsVM   *analyzer.JSVM
-	cache  *analyzer.CacheManager
-	fetch  func(urlStr string) (string, string, error) // returns (body, resolvedURL, error)
+	src   booksource.BookSource
+	jsVM  *analyzer.JSVM
+	cache *analyzer.CacheManager
+	state analyzer.SourceState
+	fetch func(urlStr string) (string, string, error) // returns (body, resolvedURL, error)
 }
 
 // ParseChapterList fetches and parses the complete chapter list, handling pagination.
@@ -67,19 +68,20 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 
 		// Extract next page URL(s) from current page
 		an := analyzer.New(body, resolvedURL, p.jsVM, p.cache)
+		an.SetSourceState(p.state)
 		nextURLs, err := an.GetStringList(nextRule)
 		if err != nil || len(nextURLs) == 0 {
 			break
 		}
 
 		nextURL = nextURLs[0]
+		// Resolve before cycle detection so relative and absolute spellings cannot
+		// bypass the visited set.
+		nextURL = resolveURL(nextURL, resolvedURL)
 		if nextURL == "" || visitedNext[nextURL] {
 			break
 		}
 		visitedNext[nextURL] = true
-
-		// Resolve relative URL — use resolveURL for proper ../ and / handling
-		nextURL = resolveURL(nextURL, resolvedURL)
 
 		body, resolvedURL, err = p.fetch(nextURL)
 		if err != nil {
@@ -89,8 +91,8 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 
 	// Reverse if needed (legado: if not reverse, reverse; if reverse, keep order)
 	// legado logic: if !reverse { reverse() }; later: if !book.getReverseToc() { reverse() }
-	// Default book behavior: reverse the list so chapter 0 is the first chapter
-	if !reverse {
+	// The documented source rule contract reverses only when the rule starts with '-'.
+	if reverse {
 		for i, j := 0, len(allChapters)-1; i < j; i, j = i+1, j-1 {
 			allChapters[i], allChapters[j] = allChapters[j], allChapters[i]
 		}
@@ -106,6 +108,7 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 
 func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[string]string) ([]Chapter, string, error) {
 	an := analyzer.New(body, pageURL, p.jsVM, p.cache)
+	an.SetSourceState(p.state)
 	elements, err := an.GetElements(listRule)
 	if err != nil {
 		return nil, "", fmt.Errorf("toc: get elements: %w", err)
@@ -121,6 +124,7 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 	for _, el := range elements {
 		elHTML := analyzer.ToString(el)
 		elAn := analyzer.New(elHTML, pageURL, p.jsVM, p.cache)
+		elAn.SetSourceState(p.state)
 
 		title := mustString(elAn, nameRule)
 		chURL := mustString(elAn, urlRule)

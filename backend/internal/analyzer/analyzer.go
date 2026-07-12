@@ -329,6 +329,7 @@ func (a *Analyzer) applyRuleElements(content interface{}, rule Rule) ([]interfac
 
 // dispatch routes to the correct parser mode and returns a single result.
 func (a *Analyzer) dispatch(mode Mode, content, expr string) (interface{}, error) {
+	expr = stripModePrefix(mode, expr)
 	switch mode {
 	case ModeCSS:
 		return cssQuery(content, expr)
@@ -349,6 +350,7 @@ func (a *Analyzer) dispatch(mode Mode, content, expr string) (interface{}, error
 
 // dispatchList routes and returns a list of strings.
 func (a *Analyzer) dispatchList(mode Mode, content, expr string) ([]string, error) {
+	expr = stripModePrefix(mode, expr)
 	switch mode {
 	case ModeCSS:
 		return cssQueryList(content, expr)
@@ -369,6 +371,7 @@ func (a *Analyzer) dispatchList(mode Mode, content, expr string) ([]string, erro
 
 // dispatchElements routes and returns a list of elements.
 func (a *Analyzer) dispatchElements(mode Mode, content, expr string) ([]interface{}, error) {
+	expr = stripModePrefix(mode, expr)
 	switch mode {
 	case ModeCSS:
 		return cssQueryElements(content, expr)
@@ -430,6 +433,25 @@ func (a *Analyzer) jsEvalElements(expr, content string) ([]interface{}, error) {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
 	return a.jsVM.EvalElements(a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
+}
+
+func stripModePrefix(mode Mode, expr string) string {
+	upper := strings.ToUpper(expr)
+	prefix := ""
+	switch mode {
+	case ModeCSS:
+		prefix = "@CSS:"
+	case ModeXPath:
+		prefix = "@XPATH:"
+	case ModeJSON:
+		prefix = "@JSON:"
+	case ModeJS:
+		prefix = "@JS:"
+	}
+	if strings.HasPrefix(upper, prefix) {
+		return strings.TrimSpace(expr[len(prefix):])
+	}
+	return expr
 }
 
 // ToString converts a value to string.
