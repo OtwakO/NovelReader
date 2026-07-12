@@ -297,6 +297,8 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 - Update `Current State` in the same change as implementation.
 - Add an append-only `Issues & Fixes` entry for every resolved compatibility bug.
 - Do not mark a phase complete from a live-site sample alone; the phase gate and deterministic tests must pass.
+- After each major redesign, run a Playwright CLI E2E verification when the server and source environment are available: search a real book, add it to the shelf, open the detail page, load the TOC, and read content. Record the exact source/query, observed request/result, and any environment limitation in PLAN.md.
+- If live E2E is unavailable, run the deterministic conformance suite and explicitly record why Playwright could not run; do not describe the redesign as live-verified.
 - Any architecture deviation requires updating the Architecture and Decisions sections before code changes.
 - Every commit that changes behavior includes the relevant PLAN update.
 - Review raw source identity and exact request before changing a source-specific rule.
@@ -612,3 +614,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Bound the active Analyzer into JS evaluation, implemented helper delegation and mutable content, and added an end-to-end JS helper conformance test.
 - **Affected**: `backend/internal/analyzer/js.go`, `backend/internal/analyzer/analyzer.go`, `backend/internal/analyzer/js_helpers_conformance_test.go`.
 - **Watch out**: Java helper return shapes and HTTP methods still need broader Legado fixture coverage.
+
+### [2026-07-13] Live E2E verification was not a documented redesign gate
+- **Problem**: Major backend redesigns were validated by Go tests but the required real-user browser path was not consistently rerun after each redesign.
+- **Fix**: Added a synchronization rule requiring Playwright CLI verification after each major redesign when the server/source environment is available, with explicit recording of limitations when it is not.
+- **Affected**: `PLAN.md`.
+- **Watch out**: A live browser pass cannot replace deterministic conformance tests or prove all sources compatible.
