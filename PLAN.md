@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, and `sourceexec.Executor` for URL expansion plus injected transport execution. Full Go tests pass.
+**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, `sourceexec.Executor`, and isolated `SourceSession` cookie/variable/memory state with tests. Full Go tests pass.
 
 **In progress:** Extracting unified request execution without changing search/detail/TOC/content callers until the contract is covered by tests.
 
-**Next action:** Add tests for chapter URL option suffixes, explicit charset/body encoding, retry/status policy, and source-session cookie/variable scope; then route one workflow at a time through the executor.
+**Next action:** Connect session cookies to a per-session HTTP transport, then add tests for chapter URL option suffixes, explicit charset/body encoding, and retry/status policy before routing one workflow through the executor.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -528,3 +528,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added `sourceexec.Executor` with explicit JSVM and Transport dependencies, `Build`, and `Execute`; added a fixture proving method/body/header propagation.
 - **Affected**: `backend/internal/sourceexec/executor.go`, `backend/internal/sourceexec/executor_test.go`.
 - **Watch out**: Existing search/detail/TOC/content paths still bypass the executor until session and URL-option conformance tests are complete.
+
+### [2026-07-12] Source session state was missing
+- **Problem**: Legado cookie, source-variable, and memory state had no isolated backend owner; the JS bridge used no-op cookies and ephemeral source data.
+- **Fix**: Added `SourceSession` with isolated cookie jar, cookie header/value helpers, persistent variables, and request-flow memory, plus isolation tests.
+- **Affected**: `backend/internal/sourceexec/session.go`, `backend/internal/sourceexec/session_test.go`.
+- **Watch out**: The session is not yet wired into JSVM or HTTPTransport; transport/client ownership must remain per session to prevent cookie leakage.
