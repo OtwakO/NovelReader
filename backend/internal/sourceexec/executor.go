@@ -10,8 +10,9 @@ import (
 
 // Executor expands source URL rules and delegates the resulting request to a transport.
 type Executor struct {
-	jsVM      *analyzer.JSVM
-	transport Transport
+	jsVM        *analyzer.JSVM
+	transport   Transport
+	sourceState analyzer.SourceState
 }
 
 // NewExecutor creates an executor with explicit JavaScript and transport dependencies.
@@ -19,12 +20,17 @@ func NewExecutor(jsVM *analyzer.JSVM, transport Transport) *Executor {
 	return &Executor{jsVM: jsVM, transport: transport}
 }
 
+// NewExecutorWithSession binds one source session to URL and JS evaluation.
+func NewExecutorWithSession(jsVM *analyzer.JSVM, transport Transport, session *SourceSession) *Executor {
+	return &Executor{jsVM: jsVM, transport: transport, sourceState: session}
+}
+
 // Build expands a Legado URL template into a transport-neutral request.
 func (e *Executor) Build(template, key string, page int, baseURL string) (RequestSpec, error) {
 	if e == nil {
 		return RequestSpec{}, fmt.Errorf("sourceexec: nil executor")
 	}
-	meta, err := analyzer.BuildURL(template, key, page, baseURL, e.jsVM)
+	meta, err := analyzer.BuildURLWithState(template, key, page, baseURL, e.jsVM, e.sourceState)
 	if err != nil {
 		return RequestSpec{}, err
 	}

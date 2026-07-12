@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, `sourceexec.Executor`, isolated `SourceSession` state, session↔HTTP cookie synchronization, and session-backed JS `source`/`cookie`/`cache` bindings with tests. Full Go tests pass.
+**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, `sourceexec.Executor`, isolated `SourceSession` state, session↔HTTP cookie synchronization, and session-backed JS `source`/`cookie`/`cache` bindings through both Analyzer and URL-template evaluation. Full Go tests pass.
 
 **In progress:** Extracting unified request execution without changing search/detail/TOC/content callers until the contract is covered by tests.
 
-**Next action:** Thread `SourceState` through Analyzer/URL-template evaluation, then add tests for chapter URL option suffixes, explicit charset/body encoding, and retry/status policy before routing one workflow through the executor.
+**Next action:** Add tests for chapter URL option suffixes, explicit charset/body encoding, and retry/status policy before routing one workflow through the executor.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -546,3 +546,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added analyzer-level `SourceState`, session-backed `source`, `cookie`, and `cache` objects, and a conformance test for cookie lookup and state writes.
 - **Affected**: `backend/internal/analyzer/js.go`, `backend/internal/analyzer/js_session_test.go`, `backend/internal/sourceexec/session.go`.
 - **Watch out**: Analyzer and URL-template callers still need to pass `SourceState`; until then only direct JS evaluations using the binding are session-aware.
+
+### [2026-07-12] URL-template JavaScript bypassed source session state
+- **Problem**: `{{cookie...}}`, `{{source...}}`, and URL-option JavaScript were evaluated without the active source session, so request construction could not use cookies or persistent variables.
+- **Fix**: Added `BuildURLWithState` and `NewExecutorWithSession`; passed `SourceState` through URL templates and option-JS bindings with a regression test.
+- **Affected**: `backend/internal/analyzer/urlbuilder.go`, `backend/internal/sourceexec/executor.go`, `backend/internal/sourceexec/executor_session_test.go`.
+- **Watch out**: Existing book workflows still construct URLs outside the executor; wiring them is required before real sources benefit.

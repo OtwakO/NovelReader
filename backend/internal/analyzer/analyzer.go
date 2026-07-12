@@ -53,12 +53,12 @@ func splitTopLevel(s, sep string) []string {
 type Mode int
 
 const (
-	ModeCSS    Mode = iota // @CSS: prefix
-	ModeXPath             // / or @XPath:
-	ModeJSON              // $. or $[ or @Json:
-	ModeRegex             // ## patterns
-	ModeJS                // <js> or @js:
-	ModeDefault           // legado Default: class.odd.0@tag.a.0@text
+	ModeCSS     Mode = iota // @CSS: prefix
+	ModeXPath               // / or @XPath:
+	ModeJSON                // $. or $[ or @Json:
+	ModeRegex               // ## patterns
+	ModeJS                  // <js> or @js:
+	ModeDefault             // legado Default: class.odd.0@tag.a.0@text
 )
 
 // Result holds the output of a rule evaluation.
@@ -81,14 +81,15 @@ type Rule struct {
 
 // Analyzer evaluates rules against content (HTML or JSON string).
 type Analyzer struct {
-	content string
-	baseURL string
-	isJSON  bool
-	jsVM    *JSVM
-	cache   *CacheManager
-	jsLib   string              // prepended to every JS eval (from source's jsLib field)
-	book    map[string]string   // legado's `book` object: name, author, bookUrl, etc.
-	chapter map[string]string   // legado's `chapter` object: url, title, index, etc.
+	content     string
+	baseURL     string
+	isJSON      bool
+	jsVM        *JSVM
+	cache       *CacheManager
+	jsLib       string            // prepended to every JS eval (from source's jsLib field)
+	book        map[string]string // legado's `book` object: name, author, bookUrl, etc.
+	chapter     map[string]string // legado's `chapter` object: url, title, index, etc.
+	sourceState SourceState
 }
 
 // New creates an Analyzer for the given content.
@@ -112,6 +113,9 @@ func (a *Analyzer) SetBookData(b map[string]string) { a.book = b }
 
 // SetChapterData sets the `chapter` JS context object (url, title, index, etc.)
 func (a *Analyzer) SetChapterData(c map[string]string) { a.chapter = c }
+
+// SetSourceState binds the source session used by cookie, source, and cache JS objects.
+func (a *Analyzer) SetSourceState(state SourceState) { a.sourceState = state }
 
 // GetString evaluates a rule string and returns the first text result.
 // Supports && (concatenate) and || (OR-first) between entire rule expressions.
@@ -400,6 +404,9 @@ func (a *Analyzer) jsBindings() map[string]interface{} {
 	}
 	if a.chapter != nil {
 		b["chapter"] = a.chapter
+	}
+	if a.sourceState != nil {
+		b["sourceState"] = a.sourceState
 	}
 	return b
 }

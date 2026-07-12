@@ -59,6 +59,11 @@ type urlOption struct {
 //   - ,{...} JSON option suffix (method, body, charset, headers, webView, retry)
 //   - Relative URL resolution against baseURL
 func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLMeta, error) {
+	return BuildURLWithState(template, key, page, baseURL, jsVM, nil)
+}
+
+// BuildURLWithState expands a URL with an optional Legado source session.
+func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSVM, sourceState SourceState) (*URLMeta, error) {
 	if template == "" {
 		return nil, fmt.Errorf("analyzer: empty URL template")
 	}
@@ -144,7 +149,7 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 	if strings.HasPrefix(urlStr, "@js:") {
 		jsCode := urlStr[4:]
 		if jsVM != nil {
-			v, err := jsVM.Eval(jsCode, "", baseURL, map[string]interface{}{"key": key, "page": page})
+			v, err := jsVM.Eval(jsCode, "", baseURL, map[string]interface{}{"key": key, "page": page, "sourceState": sourceState})
 			if err == nil {
 				urlStr = ToString(v)
 			} else {
@@ -178,7 +183,7 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 
 	// Second pass: evaluate remaining {{...}} as JS expressions
 	if strings.Contains(urlStr, "{{") && jsVM != nil {
-		extra := map[string]interface{}{"key": key, "page": page, "baseUrl": baseURL}
+		extra := map[string]interface{}{"key": key, "page": page, "baseUrl": baseURL, "sourceState": sourceState}
 		urlStr = evalTemplateExpressions(urlStr, jsVM, baseURL, extra)
 	}
 
@@ -214,9 +219,10 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 				"url":       urlStr, // mutable — JS can change it
 				"headerMap": meta.Headers,
 			},
-			"key":     key,
-			"page":    page,
-			"baseUrl": baseURL,
+			"key":         key,
+			"page":        page,
+			"baseUrl":     baseURL,
+			"sourceState": sourceState,
 		}
 		if v, err := jsVM.Eval(optJs, "", baseURL, bindings); err == nil {
 			if s := ToString(v); s != "" {
