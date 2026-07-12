@@ -13,6 +13,12 @@
   let error = $state('');
   let es = $state<EventSource | null>(null);
 
+  function saveState() {
+    if (results.length > 0) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ query, results, sourcesDone, totalResults }));
+    }
+  }
+
   // Restore search state from sessionStorage on mount (survives navigation)
   $effect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -24,13 +30,6 @@
         sourcesDone = state.sourcesDone || 0;
         totalResults = state.totalResults || 0;
       } catch { /* ignore */ }
-    }
-  });
-
-  // Save search state to sessionStorage whenever it changes (and not searching)
-  $effect(() => {
-    if (!searching && results.length > 0) {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ query, results, sourcesDone, totalResults }));
     }
   });
 
@@ -57,15 +56,18 @@
     sessionStorage.removeItem(STORAGE_KEY);
 
     const q = query.trim();
+    // Track if we've saved state for the completion; prevents race where
+    // both onDone and onMerged fire separately due to async timing.
+    let completed = false;
+
     es = searchBooksStream(
       q,
       (source, items) => {
         results = [...results, ...items];
-        // Sort by relevance: higher score first, stable so arrival order is tiebreaker
         results.sort((a, b) => (b.score || 0) - (a.score || 0));
         sourcesDone++;
       },
-      (source, msg) => {
+      (_source, _msg) => {
         sourcesDone++;
       },
       (total, done) => {
@@ -73,10 +75,19 @@
         sourcesDone = done;
         searching = false;
         es = null;
+        if (!completed) {
+          completed = true;
+          saveState();
+        }
       },
       // Called after all search completes — replace with cross-source merged results
       (merged) => {
         if (merged) results = merged;
+        if (!completed) {
+          completed = true;
+        }
+        // Always save after merge, even if onDone already called
+        saveState();
       }
     );
   }
@@ -90,8 +101,6 @@
   async function addToShelf(r: SearchResult) {
     adding = r.bookUrl;
     try {
-      // crypto.randomUUID() requires secure context (HTTPS/localhost).
-      // For LAN deployments, fall back to timestamp+random.
       const id = crypto.randomUUID?.() ?? (Date.now().toString(36) + Math.random().toString(36).slice(2));
       try {
         await enrichBook({
@@ -113,7 +122,6 @@
     adding = null;
   }
 
-  // Count of unique books after merge (merged entries have alternateSources)
   function uniqueBooks() {
     let count = 0;
     let multi = 0;
@@ -156,7 +164,7 @@
       {/if}
     </div>
     <div class="results">
-      {#each results as r (r.sourceUrl + r.bookUrl)}
+      {#each results as r, i (r.sourceUrl + r.bookUrl + i)}
         <div class="result-card">
           {#if r.coverUrl}
             <img src={r.coverUrl} alt={r.name} class="cover" loading="lazy" />

@@ -27,8 +27,21 @@ func scoreResult(query, name string) int {
 // normName normalizes a book name for comparison.
 func normName(name string) string { return strings.TrimSpace(name) }
 
+// authorPrefixes stripped from author before comparison. Different sources format
+// author as "忘语", "作者：忘语", or "作者:忘语" — same book, different prefix.
+var authorPrefixes = []string{"作者：", "作者:", "作\u0020者\u0020："}
+
 // normAuthor normalizes author string for comparison.
-func normAuthor(author string) string { return strings.TrimSpace(author) }
+func normAuthor(author string) string {
+	a := strings.TrimSpace(author)
+	for _, p := range authorPrefixes {
+		if strings.HasPrefix(a, p) {
+			a = strings.TrimSpace(strings.TrimPrefix(a, p))
+			break
+		}
+	}
+	return a
+}
 
 // sameBook checks if two search results refer to the same book.
 // Single source of truth for merge — used both for grouping and guard.
