@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Added the first failing-then-passing URL conformance tests, introduced transport-neutral contracts, and added an HTTP adapter that preserves request metadata and non-2xx response bodies. Full Go tests pass.
+**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, and `sourceexec.Executor` for URL expansion plus injected transport execution. Full Go tests pass.
 
 **In progress:** Extracting unified request execution without changing search/detail/TOC/content callers until the contract is covered by tests.
 
-**Next action:** Add tests for chapter URL option suffixes, explicit charset/body encoding, retry/status policy, and source-session cookie/variable scope; then route one workflow at a time through the adapter.
+**Next action:** Add tests for chapter URL option suffixes, explicit charset/body encoding, retry/status policy, and source-session cookie/variable scope; then route one workflow at a time through the executor.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -522,3 +522,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added `HTTPTransport` with GET/POST execution, header/origin forwarding, context cancellation, retry forwarding, final URL capture, and non-2xx body retention; added an `httptest` conformance fixture.
 - **Affected**: `backend/internal/sourceexec/http_transport.go`, `backend/internal/sourceexec/http_transport_test.go`.
 - **Watch out**: Charset encoding, status retry policy, cookies/session state, and production workflow wiring remain intentionally incomplete.
+
+### [2026-07-12] Unified executor boundary added
+- **Problem**: URL expansion and transport invocation still had no single orchestration point, so future HTTP/WebView selection could be duplicated across workflows.
+- **Fix**: Added `sourceexec.Executor` with explicit JSVM and Transport dependencies, `Build`, and `Execute`; added a fixture proving method/body/header propagation.
+- **Affected**: `backend/internal/sourceexec/executor.go`, `backend/internal/sourceexec/executor_test.go`.
+- **Watch out**: Existing search/detail/TOC/content paths still bypass the executor until session and URL-option conformance tests are complete.
