@@ -427,10 +427,47 @@ func (s *Searcher) parseSearchResultWithRuleState(src booksource.BookSource, htm
 
 // GetBookInfo fetches and parses book info using ruleBookInfo.
 func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book, error) {
-	an := s.fetchAndAnalyze(bookURL, src.BookSourceURL, src.Header, src.JSLib)
-	if an == nil {
-		return nil, fmt.Errorf("book info: fetch failed for %s", bookURL)
+	ctx, cancel := context.WithTimeout(context.Background(), perSourceTimeout)
+	defer cancel()
+
+	session := sourceexec.NewSourceSession()
+	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
+	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
+	spec, err := executor.Build(bookURL, "", 1, src.BookSourceURL)
+	if err != nil || spec.URL == "" {
+		if err == nil {
+			err = fmt.Errorf("empty URL")
+		}
+		return nil, fmt.Errorf("book info: build URL: %w", err)
 	}
+	if spec.Headers == nil {
+		spec.Headers = make(map[string]string)
+	}
+	for key, value := range parseHeaderJSON(src.Header) {
+		if _, exists := spec.Headers[key]; !exists {
+			spec.Headers[key] = value
+		}
+	}
+	if spec.WebView {
+		return nil, fmt.Errorf("book info: source requires JS rendering (webView:true)")
+	}
+	if spec.Method == "POST" && spec.Body != "" && spec.Charset != "" {
+		spec.Body = encodeBody(spec.Body, spec.Charset)
+	}
+	response, err := transport.Do(ctx, spec)
+	if err != nil {
+		return nil, fmt.Errorf("book info: fetch: %w", err)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("book info: status %d from %s", response.StatusCode, src.BookSourceName)
+	}
+	baseURL := response.FinalURL
+	if baseURL == "" {
+		baseURL = spec.URL
+	}
+	an := analyzer.New(response.Body, baseURL, s.jsVM, s.cache)
+	an.SetJSLib(src.JSLib)
+	an.SetSourceState(session)
 
 	// Set book context for JS rules that reference book.name, book.author, etc.
 	an.SetBookData(map[string]string{
