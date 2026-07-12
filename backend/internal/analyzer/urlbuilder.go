@@ -78,14 +78,13 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 	var optJs string
 
 	// Extract JSON option suffix: URL,{"method":"POST","body":"...",...}
-	if idx := findJSONOption(urlStr); idx != -1 {
-		optionRaw := urlStr[idx+1:]
-		urlStr = urlStr[:idx]
+	if before, option, ok := extractJSONOption(urlStr); ok {
+		urlStr = before
 
 		var opt urlOption
-		if err := json.Unmarshal([]byte(optionRaw), &opt); err != nil {
+		if err := json.Unmarshal([]byte(option), &opt); err != nil {
 			slog.Warn("urlbuilder: failed to parse URL JSON option",
-				"option", optionRaw[:min(len(optionRaw), 100)], "err", err)
+				"option", option[:min(len(option), 100)], "err", err)
 		} else {
 			if opt.Method != "" {
 				meta.Method = strings.ToUpper(opt.Method)
@@ -142,7 +141,7 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 	if strings.HasPrefix(urlStr, "@js:") {
 		jsCode := urlStr[4:]
 		if jsVM != nil {
-			v, err := jsVM.Eval(jsCode, "", baseURL)
+			v, err := jsVM.Eval(jsCode, "", baseURL, map[string]interface{}{"key": key, "page": page})
 			if err == nil {
 				urlStr = ToString(v)
 			} else {
@@ -367,12 +366,12 @@ func lookupEncoding(charset string) (encoding.Encoding, error) {
 	}
 }
 
-// findJSONOption finds the start of a ,{...} JSON option suffix in a URL.
-// It scans from the end, skipping whitespace between comma and brace.
-// Uses brace-counting (not json.Valid) to handle trailing junk after the option
-// (e.g. ,{...}\n@js:... which is valid legado but invalid json.Valid).
-// Returns -1 if no valid JSON option is found.
-func findJSONOption(url string) int {
+// extractJSONOption finds a trailing ,{...} JSON option suffix and returns
+// the URL before it, the option string, and whether found.
+// Unlike findJSONOption (which only returned the comma index), this returns
+// the brace-counted bounds so trailing JS remnants after the JSON object
+// (e.g. ,{"method":"POST"}';extra stuff) don't corrupt json.Unmarshal.
+func extractJSONOption(url string) (before string, option string, found bool) {
 	for i := len(url) - 2; i >= 0; i-- {
 		if url[i] == ',' {
 			// Skip whitespace between comma and expected brace
@@ -395,11 +394,21 @@ func findJSONOption(url string) int {
 				if depth == 0 {
 					optionStr := url[j:k]
 					if json.Valid([]byte(optionStr)) {
-						return i
+						// Return URL up to comma (not including it) and option without comma
+						return url[:i], optionStr, true
 					}
 				}
 			}
 		}
+	}
+	return url, "", false
+}
+
+// findJSONOption is deprecated. Use extractJSONOption instead.
+func findJSONOption(url string) int {
+	before, _, found := extractJSONOption(url)
+	if found {
+		return len(before)
 	}
 	return -1
 }

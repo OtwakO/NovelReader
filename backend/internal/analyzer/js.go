@@ -1,17 +1,22 @@
 package analyzer
 
 import (
+	"crypto/hmac"
 	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/dop251/goja"
 	"github.com/otwako/novelreader/internal/fetcher"
 )
@@ -69,6 +74,23 @@ func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interf
 	rt := <-vm.pool
 	defer func() { vm.pool <- rt }()
 
+	// Bootstrap polyfills that legado's Rhino supports but goja doesn't.
+	// Map() — In Legado's Android Rhino, Map() is called as a function (not constructor)
+	// for value mapping / parsing. Sources use: Map("search").split(",")[0]||1
+	// In goja, Map is the ES6 Map constructor which requires `new`. We shadow it.
+	_, _ = rt.RunString(`
+Map = function(a) {
+  if (a === undefined || a === null) return "";
+  if (typeof a === 'string') return a;
+  return String(a || "");
+};
+`)
+
+	// Set up org.jsoup bridge — legado sources use org.jsoup.Jsoup.parse(html).select(css)
+	// to parse HTML strings in JS. We delegate to goquery.
+	org := newJSoupBridge(rt, baseURL)
+	_ = rt.Set("org", org)
+
 	// Bind standard objects
 	// java MUST be a map with lowercase keys — goja exposes Go struct methods capitalized
 	// (EncodeURI, not encodeURI). Following legado's JsExtensions naming convention.
@@ -94,6 +116,9 @@ func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interf
 		"getString":     h.GetString,
 		"getElements":   h.GetElements,
 		"setContent":    h.SetContent,
+		"HMacHex":       h.HMacHex,
+		"decode":        h.Decode,
+		"login":         h.Login,
 	})
 	_ = rt.Set("source", vm.makeSourceObj(baseURL))
 	_ = rt.Set("cookie", vm.makeCookieObj())
@@ -106,7 +131,21 @@ func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interf
 		}
 	}
 
-	val, err := rt.RunString(script)
+	// Bind standalone helper functions that legado provides globally.
+	// decode — used by some sources for base64-encoded content.
+	_ = rt.Set("decode", h.Decode)
+
+	// Run the script. For scripts that use `var` at the top level (which can
+	// collide across evals on the same pooled runtime), wrap in a block scope.
+	// We detect top-level `var` by checking for `var ` at the start of a line.
+	// Simple scripts without `var` are evaluated directly so the return value
+	// from the last expression is preserved (critical for @js: URL builders).
+	wrapped := script
+	if strings.Contains(script, "\nvar ") || strings.HasPrefix(strings.TrimSpace(script), "var ") {
+		wrapped = "{ " + script + " }"
+	}
+
+	val, err := rt.RunString(wrapped)
 	if err != nil {
 		return "", fmt.Errorf("js eval: %w", err)
 	}
@@ -300,6 +339,42 @@ func (h *jsHelpers) Log(msg interface{}) interface{} {
 	return msg
 }
 
+// HMacHex computes HMAC hex digest: java.HMacHex(data, algorithm, key)
+// Legado supports "HmacMD5", "HmacSHA1", "HmacSHA256"
+func (h *jsHelpers) HMacHex(data, algorithm, key string) string {
+	var mac hash.Hash
+	switch strings.ToLower(algorithm) {
+	case "hmacmd5", "hmac-md5", "md5":
+		mac = hmac.New(md5.New, []byte(key))
+	case "hmacsha1", "hmac-sha1", "sha1":
+		mac = hmac.New(sha1.New, []byte(key))
+	case "hmacsha256", "hmac-sha256", "sha256":
+		mac = hmac.New(sha256.New, []byte(key))
+	default:
+		mac = hmac.New(md5.New, []byte(key))
+	}
+	mac.Write([]byte(data))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// Decode decodes a base64 string: java.decode(str)
+// Legado uses this to decode base64-encoded content in URL templates.
+func (h *jsHelpers) Decode(str string) string {
+	b, err := base64.StdEncoding.DecodeString(str)
+	if err != nil {
+		b, err = base64.URLEncoding.DecodeString(str)
+		if err != nil {
+			return str
+		}
+	}
+	return string(b)
+}
+
+// Login is a stub for sources that require login.
+func (h *jsHelpers) Login(args ...interface{}) string {
+	return ""
+}
+
 func (h *jsHelpers) GetString(rule string, args ...interface{}) string {
 	// ponytail: basic rule evaluation in JS context — minimal implementation
 	return ""
@@ -474,4 +549,64 @@ func randUint64() uint64 {
 	randSeed = randSeed*6364136223846793005 + 1442695040888963407
 	randMu.Unlock()
 	return randSeed
+}
+
+// newJSoupBridge creates the org.jsoup.Jsoup bridge for JS eval.
+// Legado sources use:
+//   var doc = org.jsoup.Jsoup.parse(html);
+//   var el = doc.select(css).first();
+//   var text = el.text();
+//   var attr = el.attr('href');
+// We delegate to goquery for CSS selection and provide the common element methods.
+func newJSoupBridge(rt *goja.Runtime, baseURL string) map[string]interface{} {
+	return map[string]interface{}{
+		"jsoup": map[string]interface{}{
+			"Jsoup": map[string]interface{}{
+				"parse": func(html string) map[string]interface{} {
+					doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+					if err != nil {
+						return map[string]interface{}{
+							"select": func(string) []interface{} { return nil },
+						}
+					}
+					return map[string]interface{}{
+						"select": func(css string) []interface{} {
+							var results []interface{}
+							doc.Find(css).Each(func(_ int, s *goquery.Selection) {
+								el := make(map[string]interface{})
+								el["text"] = func() string { return s.Text() }
+								el["ownText"] = s.Contents().Not("script").Not("style").Text()
+								el["html"] = func() string {
+									h, _ := s.Html()
+									return h
+								}
+								el["outerHtml"] = func() string {
+									h, _ := goquery.OuterHtml(s)
+									return h
+								}
+								el["attr"] = func(name string) string {
+									v, _ := s.Attr(name)
+									return v
+								}
+								el["val"] = func() string {
+									v, _ := s.Attr("value")
+									return v
+								}
+								el["data"] = func(name string) string {
+									v, _ := s.Attr("data-" + name)
+									return v
+								}
+								// first/last/size are used for iteration
+								el["first"] = func() interface{} { return nil } // ponytail: single element
+								el["last"] = func() interface{} { return nil }
+								el["size"] = 1
+								results = append(results, el)
+							})
+							return results
+						},
+					}
+				},
+			},
+		},
+	}
 }
