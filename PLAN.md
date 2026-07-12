@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, and Analyzer-backed `java.getString/getElements/setContent` now have conformance tests. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, and Analyzer-backed Java helpers have conformance tests. Playwright verification confirmed search/add/detail/TOC, but reader content failed on a live source timeout. Full Go tests pass.
 
 **In progress:** Designing session continuity across detail → TOC → content and hardening retries/status/charset behavior.
 
-**Next action:** Add explicit retry/status/charset conformance tests and a workflow session lifecycle; then implement Default indices/ranges and element connector semantics.
+**Next action:** Re-run Playwright with a confirmed multi-chapter source after the next major change; add explicit retry/status/charset conformance tests and a workflow session lifecycle; then implement Default indices/ranges and element connector semantics.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -620,3 +620,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added a synchronization rule requiring Playwright CLI verification after each major redesign when the server/source environment is available, with explicit recording of limitations when it is not.
 - **Affected**: `PLAN.md`.
 - **Watch out**: A live browser pass cannot replace deterministic conformance tests or prove all sources compatible.
+
+### [2026-07-13] Playwright gate found a live-source content timeout
+- **Problem**: Fresh-server E2E reached search, shelf, detail, and TOC, but opening the selected chapter returned HTTP 500 because `www.shenhuazhihou.com` timed out during content fetching; image hosts also produced unrelated browser resource errors.
+- **Fix**: Recorded the run as incomplete rather than claiming full-pipeline success; stopped the temporary 8890 server/browser and retained the deterministic test pass.
+- **Affected**: Live verification environment; `/tmp/novelreader_e2e.log`; no source-specific code changed.
+- **Watch out**: Repeat the gate with a confirmed multi-chapter, reachable source before marking the redesign live-verified; investigate timeout/retry policy separately from parser correctness.
