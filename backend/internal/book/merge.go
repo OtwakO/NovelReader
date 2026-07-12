@@ -27,6 +27,9 @@ func scoreResult(query, name string) int {
 // normName normalizes a book name for comparison.
 func normName(name string) string { return strings.TrimSpace(name) }
 
+// normAuthor normalizes author string for comparison.
+func normAuthor(author string) string { return strings.TrimSpace(author) }
+
 // sameBook checks if two search results refer to the same book.
 // Single source of truth for merge — used both for grouping and guard.
 // If both have non-empty authors and they differ, it's not the same book.
@@ -34,7 +37,8 @@ func sameBook(a, b SearchResult) bool {
 	if normName(a.Name) != normName(b.Name) {
 		return false
 	}
-	if a.Author != "" && b.Author != "" && a.Author != b.Author {
+	aa, ba := normAuthor(a.Author), normAuthor(b.Author)
+	if aa != "" && ba != "" && aa != ba {
 		return false
 	}
 	return true

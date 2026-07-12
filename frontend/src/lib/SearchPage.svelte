@@ -3,6 +3,8 @@
 
   let { go }: { go: (path: string) => void } = $props();
 
+  const STORAGE_KEY = 'nr_search_state';
+
   let query = $state('');
   let results = $state<SearchResult[]>([]);
   let searching = $state(false);
@@ -10,6 +12,27 @@
   let totalResults = $state(0);
   let error = $state('');
   let es = $state<EventSource | null>(null);
+
+  // Restore search state from sessionStorage on mount (survives navigation)
+  $effect(() => {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const state = JSON.parse(saved);
+        query = state.query || '';
+        results = state.results || [];
+        sourcesDone = state.sourcesDone || 0;
+        totalResults = state.totalResults || 0;
+      } catch { /* ignore */ }
+    }
+  });
+
+  // Save search state to sessionStorage whenever it changes (and not searching)
+  $effect(() => {
+    if (!searching && results.length > 0) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ query, results, sourcesDone, totalResults }));
+    }
+  });
 
   // Clean up EventSource on unmount (route change, back nav)
   $effect(() => {
@@ -30,6 +53,8 @@
     totalResults = 0;
     error = '';
     searching = true;
+
+    sessionStorage.removeItem(STORAGE_KEY);
 
     const q = query.trim();
     es = searchBooksStream(
@@ -87,6 +112,17 @@
     }
     adding = null;
   }
+
+  // Count of unique books after merge (merged entries have alternateSources)
+  function uniqueBooks() {
+    let count = 0;
+    let multi = 0;
+    for (const r of results) {
+      count++;
+      if (r.alternateSources && r.alternateSources.length > 0) multi++;
+    }
+    return { count, multi };
+  }
 </script>
 
 <div class="page">
@@ -106,14 +142,19 @@
   {#if searching}
     <div class="search-status">
       <span class="spinner"></span>
-      <span>Searching... {results.length} results from {sourcesDone} sources</span>
+      <span>Searching... {totalResults || results.length} results from {sourcesDone} sources</span>
     </div>
   {:else if error}
     <p class="error">{error}</p>
   {/if}
 
   {#if results.length > 0}
-    <div class="result-count">{results.length} results · {sourcesDone} sources</div>
+    <div class="result-count">
+      {results.length} book{#if results.length !== 1}s{/if} · {sourcesDone} sources
+      {#if uniqueBooks().multi > 0}
+        · {uniqueBooks().multi} with multiple sources
+      {/if}
+    </div>
     <div class="results">
       {#each results as r (r.sourceUrl + r.bookUrl)}
         <div class="result-card">
@@ -125,10 +166,12 @@
             {#if r.author}<span class="author">{r.author}</span>{/if}
             {#if r.kind}<span class="kind">{r.kind}</span>{/if}
             {#if r.lastChapter}<span class="last">{r.lastChapter}</span>{/if}
-            <span class="source">{r.sourceName}</span>
-            {#if r.alternateSources && r.alternateSources.length > 0}
-              <span class="alt-count">+{r.alternateSources.length} more</span>
-            {/if}
+            <div class="source-row">
+              <span class="source">{r.sourceName}</span>
+              {#if r.alternateSources && r.alternateSources.length > 0}
+                <span class="alt-count">+{r.alternateSources.length} sources</span>
+              {/if}
+            </div>
           </div>
           <button class="add-btn" onclick={() => addToShelf(r)} disabled={adding === r.bookUrl}>
             +
@@ -178,8 +221,9 @@
   .author { font-size: 0.8rem; color: #888; }
   .kind { font-size: 0.75rem; color: var(--accent); }
   .last { font-size: 0.75rem; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .source-row { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
   .source { font-size: 0.7rem; color: #aaa; }
-  .alt-count { font-size: 0.7rem; color: var(--accent); }
+  .alt-count { font-size: 0.7rem; color: var(--accent); font-weight: 600; }
   .add-btn {
     background: var(--accent); color: white; border: none;
     width: 2rem; height: 2rem; border-radius: 50%; font-size: 1.2rem;

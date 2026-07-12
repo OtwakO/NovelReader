@@ -183,9 +183,12 @@ export function getChapters(bookId: string) {
 }
 
 export function getChapterContent(bookId: string, chapterIdx: number) {
-  return req<ChapterContent>(
+  return req<any>(
     `/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content`
-  );
+  ).then(data => ({
+    title: data.title || data.Title || '',
+    paragraphs: data.paragraphs || data.Paragraphs || []
+  }));
 }
 
 // --- Progress ---

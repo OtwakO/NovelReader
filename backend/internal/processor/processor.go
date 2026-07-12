@@ -46,8 +46,8 @@ type ReplaceRule struct {
 
 // ProcessResult holds the processed content and metadata.
 type ProcessResult struct {
-	Title      string
-	Paragraphs []string
+	Title      string   `json:"title"`
+	Paragraphs []string `json:"paragraphs"`
 	// ponytail: ReplaceRulesEffective is omitted — only add when the UI needs to show it.
 }
 
