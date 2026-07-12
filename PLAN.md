@@ -261,7 +261,7 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, `sourceexec.Executor`, isolated `SourceSession` state, session↔HTTP cookie synchronization, and session-backed JS `source`/`cookie`/`cache` bindings through both Analyzer and URL-template evaluation. Full Go tests pass.
+**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, `sourceexec.Executor`, isolated `SourceSession` state, session↔HTTP cookie synchronization, and session-backed JS `source`/`cookie`/`cache` bindings through Analyzer and URL-template evaluation. Full Go tests pass.
 
 **In progress:** Extracting unified request execution without changing search/detail/TOC/content callers until the contract is covered by tests.
 
@@ -552,3 +552,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added `BuildURLWithState` and `NewExecutorWithSession`; passed `SourceState` through URL templates and option-JS bindings with a regression test.
 - **Affected**: `backend/internal/analyzer/urlbuilder.go`, `backend/internal/sourceexec/executor.go`, `backend/internal/sourceexec/executor_session_test.go`.
 - **Watch out**: Existing book workflows still construct URLs outside the executor; wiring them is required before real sources benefit.
+
+### [2026-07-12] Analyzer session propagation was incomplete
+- **Problem**: Direct JS bindings supported sessions, but ordinary Analyzer rule evaluation did not pass the source session into the JSVM.
+- **Fix**: Added `Analyzer.SetSourceState`, included the state in all JS binding maps, and added a rule-evaluation regression test.
+- **Affected**: `backend/internal/analyzer/analyzer.go`, `backend/internal/analyzer/analyzer_session_test.go`.
+- **Watch out**: The book workflows still need to create and pass one session through request, analyzer, and pagination lifecycles.
