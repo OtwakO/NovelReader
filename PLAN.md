@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, `sourceexec.Executor`, isolated `SourceSession` state, session↔HTTP cookie synchronization, and session-backed JS `source`/`cookie`/`cache` bindings through Analyzer and URL-template evaluation. Full Go tests pass.
+**Last completed:** Routed the search workflow through `sourceexec.Executor`: each source now gets an isolated session/client, URL templates and search rule JS share that state, source/URL headers are merged, and an end-to-end cookie-derived URL fixture passes. Full Go tests pass.
 
-**In progress:** Extracting unified request execution without changing search/detail/TOC/content callers until the contract is covered by tests.
+**In progress:** Extracting unified request execution for the remaining detail/TOC/content workflows without changing them until their request and session behavior is covered.
 
-**Next action:** Add tests for chapter URL option suffixes, explicit charset/body encoding, and retry/status policy before routing one workflow through the executor.
+**Next action:** Add tests for chapter URL option suffixes, explicit charset/body encoding, and retry/status policy; then route book-info and TOC through the executor.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -558,3 +558,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added `Analyzer.SetSourceState`, included the state in all JS binding maps, and added a rule-evaluation regression test.
 - **Affected**: `backend/internal/analyzer/analyzer.go`, `backend/internal/analyzer/analyzer_session_test.go`.
 - **Watch out**: The book workflows still need to create and pass one session through request, analyzer, and pagination lifecycles.
+
+### [2026-07-13] Search bypassed the unified executor
+- **Problem**: Search expanded URLs and fetched them through a separate shared stateless client, so URL/session JavaScript behavior could not match Legado and source cookies could not persist across search stages.
+- **Fix**: Search now builds and executes requests through `sourceexec`, uses one isolated session/client per source, merges source and URL headers, and passes the session into result-rule analysis; added a real `httptest` search fixture.
+- **Affected**: `backend/internal/book/search.go`, `backend/internal/book/search_executor_test.go`.
+- **Watch out**: `SetSearchFetcher` remains a legacy injection seam and is not yet integrated with the per-source transport factory; resolve this before relying on custom search clients in tests or deployments.

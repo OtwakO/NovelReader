@@ -15,6 +15,7 @@ import (
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
 const (
@@ -138,7 +139,7 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 	errorCount := 0
 	// Error type categorization for debugging
 	type errCat struct {
-		count int
+		count   int
 		example string
 	}
 	errCats := make(map[string]*errCat)
@@ -274,47 +275,44 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	srcCtx, cancel := context.WithTimeout(ctx, perSourceTimeout)
 	defer cancel()
 
-	meta, err := analyzer.BuildURL(src.SearchURL, query, 1, src.BookSourceURL, s.jsVM)
-	if err != nil || meta == nil || meta.URL == "" {
+	// Search owns one session/client pair so cookies and source variables cannot leak
+	// between concurrent sources while remaining available to multi-stage rules.
+	session := sourceexec.NewSourceSession()
+	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
+	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
+	spec, err := executor.Build(src.SearchURL, query, 1, src.BookSourceURL)
+	if err != nil || spec.URL == "" {
+		if err == nil {
+			err = fmt.Errorf("empty URL")
+		}
 		return nil, fmt.Errorf("build url: %w", err)
 	}
 
-	// Merge headers: source-level header first, then URL-option headers overlay
-	headers := make(map[string]string)
-	for k, v := range parseHeaderJSON(src.Header) {
+	// Merge source-level headers first, then URL-option headers overlay.
+	headers := parseHeaderJSON(src.Header)
+	for k, v := range spec.Headers {
 		headers[k] = v
 	}
-	for k, v := range meta.Headers {
-		headers[k] = v
-	}
+	spec.Headers = headers
 
-	// Log the resolved search URL at Debug level (enable with DEBUG=1)
 	slog.Debug("search: fetching source",
 		"source", src.BookSourceName,
-		"method", meta.Method,
-		"url", meta.URL,
-		"charset", meta.Charset)
+		"method", spec.Method,
+		"url", spec.URL,
+		"charset", spec.Charset)
 
-	if meta.WebView {
+	if spec.WebView {
 		slog.Warn("search: source needs WebView (JS rendering), skipping",
 			"source", src.BookSourceName)
 		return nil, fmt.Errorf("source requires JS rendering (webView:true)")
 	}
 
-	// Respect per-source rate limit (concurrentRate in milliseconds)
 	s.rateLimitWait(src)
-
-	// Encode POST body in the specified charset if non-UTF-8
-	if meta.Method == "POST" && meta.Body != "" && meta.Charset != "" {
-		meta.Body = encodeBody(meta.Body, meta.Charset)
+	if spec.Method == "POST" && spec.Body != "" && spec.Charset != "" {
+		spec.Body = encodeBody(spec.Body, spec.Charset)
 	}
 
-	var resp *fetcher.Response
-	if meta.Method == "POST" {
-		resp, err = s.searchFetcher.PostContext(srcCtx, meta.URL, meta.Body, headers, meta.Retry)
-	} else {
-		resp, err = s.searchFetcher.GetContext(srcCtx, meta.URL, headers, meta.Retry)
-	}
+	resp, err := transport.Do(srcCtx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("fetch: %w", err)
 	}
@@ -325,7 +323,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	if src.RuleSearch == "" {
 		return nil, fmt.Errorf("source %q has no search rules", src.BookSourceName)
 	}
-	results, err := s.parseSearchResultWithRule(src, resp.Body, src.RuleSearch)
+	results, err := s.parseSearchResultWithRuleState(src, resp.Body, src.RuleSearch, session)
 	if err != nil {
 		return nil, err
 	}
@@ -337,6 +335,10 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 
 // parseSearchResultWithRule parses search results using structured SearchRule JSON.
 func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ruleJSON string) ([]SearchResult, error) {
+	return s.parseSearchResultWithRuleState(src, html, ruleJSON, nil)
+}
+
+func (s *Searcher) parseSearchResultWithRuleState(src booksource.BookSource, html, ruleJSON string, state analyzer.SourceState) ([]SearchResult, error) {
 	rules := parseRuleJSON(ruleJSON)
 	if rules == nil {
 		return nil, fmt.Errorf("search: invalid rule JSON for %s", src.BookSourceName)
@@ -348,6 +350,7 @@ func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ru
 
 	an := analyzer.New(html, src.BookSourceURL, s.jsVM, s.cache)
 	an.SetJSLib(src.JSLib)
+	an.SetSourceState(state)
 	elements, err := an.GetElements(bookListRule)
 	if err != nil {
 		return nil, fmt.Errorf("search: bookList: %w", err)
@@ -431,8 +434,8 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 
 	// Set book context for JS rules that reference book.name, book.author, etc.
 	an.SetBookData(map[string]string{
-		"bookUrl": bookURL,
-		"origin": src.BookSourceURL,
+		"bookUrl":    bookURL,
+		"origin":     src.BookSourceURL,
 		"originName": src.BookSourceName,
 	})
 
@@ -537,23 +540,23 @@ func looksLikeChapters(chapters []Chapter, bookURL string) bool {
 	// Count chapters with suspicious URLs (look like book detail pages)
 	suspiciousCount := 0
 	validChapterCount := 0
-	
+
 	for _, ch := range chapters {
 		if ch.URL == "" {
 			continue // volume headers are OK
 		}
-		
+
 		// Check if URL contains book URL patterns (suggesting it's a book page, not a chapter)
 		if strings.Contains(ch.URL, "/book/") || strings.Contains(ch.URL, "/shu/") || strings.Contains(ch.URL, "/info/") {
 			suspiciousCount++
 		}
-		
+
 		// Check if URL looks like a valid chapter URL
-		if strings.Contains(ch.URL, "/chapter/") || 
-		   strings.Contains(ch.URL, "/read/") || 
-		   strings.Contains(ch.URL, "/content/") ||
-		   strings.Contains(ch.URL, "/c/") ||
-		   strings.Contains(ch.URL, "/ch/") {
+		if strings.Contains(ch.URL, "/chapter/") ||
+			strings.Contains(ch.URL, "/read/") ||
+			strings.Contains(ch.URL, "/content/") ||
+			strings.Contains(ch.URL, "/c/") ||
+			strings.Contains(ch.URL, "/ch/") {
 			validChapterCount++
 		}
 	}
@@ -589,7 +592,7 @@ func looksLikeChapters(chapters []Chapter, bookURL string) bool {
 func detectTOCPage(bookPageURL, sourceURL string, fetcher *fetcher.Client, headers map[string]string) string {
 	// Resolve book page URL to absolute URL
 	fullURL := resolveURL(bookPageURL, sourceURL)
-	
+
 	resp, err := fetcher.Get(fullURL, headers)
 	if err != nil {
 		return ""
