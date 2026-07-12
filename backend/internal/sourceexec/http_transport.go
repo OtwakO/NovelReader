@@ -12,12 +12,19 @@ import (
 
 // HTTPTransport executes RequestSpec values through the existing HTTP client.
 type HTTPTransport struct {
-	client *fetcher.Client
+	client  *fetcher.Client
+	session *SourceSession
 }
 
-// NewHTTPTransport wraps a configured fetcher client.
+// NewHTTPTransport wraps a configured fetcher client without source session sync.
 func NewHTTPTransport(client *fetcher.Client) *HTTPTransport {
 	return &HTTPTransport{client: client}
+}
+
+// NewHTTPTransportForSession binds one HTTP client and cookie session together.
+// The client must not be shared by unrelated sessions.
+func NewHTTPTransportForSession(client *fetcher.Client, session *SourceSession) *HTTPTransport {
+	return &HTTPTransport{client: client, session: session}
 }
 
 // Do executes GET and POST requests and retains bodies for all HTTP statuses.
@@ -29,6 +36,12 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 	method := strings.ToUpper(strings.TrimSpace(spec.Method))
 	if method == "" {
 		method = http.MethodGet
+	}
+
+	if t.session != nil {
+		if err := t.client.SetCookies(spec.URL, t.session.Cookies(spec.URL)); err != nil {
+			return Response{}, fmt.Errorf("sourceexec: sync session cookies before request: %w", err)
+		}
 	}
 
 	headers := cloneHeaders(spec.Headers)
@@ -55,6 +68,11 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 	}
 	if err != nil {
 		return Response{}, err
+	}
+	if t.session != nil {
+		if err := t.session.SetCookies(resp.URL, t.client.Cookies(resp.URL)); err != nil {
+			return Response{}, fmt.Errorf("sourceexec: sync session cookies after response: %w", err)
+		}
 	}
 
 	return Response{

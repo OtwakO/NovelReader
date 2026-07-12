@@ -74,6 +74,16 @@ func (s *SourceSession) Cookies(rawURL string) []*http.Cookie {
 	return append([]*http.Cookie(nil), s.jar.Cookies(u)...)
 }
 
+// SetCookies imports cookies received from a transport into this session.
+func (s *SourceSession) SetCookies(rawURL string, cookies []*http.Cookie) error {
+	u, err := parseSessionURL(rawURL)
+	if err != nil {
+		return err
+	}
+	s.jar.SetCookies(u, cookies)
+	return nil
+}
+
 // CookieJar returns the session jar for an HTTP transport created for this session.
 func (s *SourceSession) CookieJar() http.CookieJar { return s.jar }
 

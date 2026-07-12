@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, `sourceexec.Executor`, and isolated `SourceSession` cookie/variable/memory state with tests. Full Go tests pass.
+**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, `sourceexec.Executor`, isolated `SourceSession` state, and session↔HTTP cookie synchronization with an `httptest` flow. Full Go tests pass.
 
 **In progress:** Extracting unified request execution without changing search/detail/TOC/content callers until the contract is covered by tests.
 
-**Next action:** Connect session cookies to a per-session HTTP transport, then add tests for chapter URL option suffixes, explicit charset/body encoding, and retry/status policy before routing one workflow through the executor.
+**Next action:** Add tests for chapter URL option suffixes, explicit charset/body encoding, and retry/status policy before routing one workflow through the executor.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -533,4 +533,10 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Problem**: Legado cookie, source-variable, and memory state had no isolated backend owner; the JS bridge used no-op cookies and ephemeral source data.
 - **Fix**: Added `SourceSession` with isolated cookie jar, cookie header/value helpers, persistent variables, and request-flow memory, plus isolation tests.
 - **Affected**: `backend/internal/sourceexec/session.go`, `backend/internal/sourceexec/session_test.go`.
-- **Watch out**: The session is not yet wired into JSVM or HTTPTransport; transport/client ownership must remain per session to prevent cookie leakage.
+- **Watch out**: The session is not yet wired into JSVM; transport/client ownership must remain per session to prevent cookie leakage.
+
+### [2026-07-12] HTTP transport did not share source session cookies
+- **Problem**: A session could hold cookies, but the HTTP transport had no synchronization boundary, so server-set cookies could not reliably reach JS/source state or subsequent workflow requests.
+- **Fix**: Added a session-aware HTTP transport constructor and synchronized cookies before and after each request; added a two-request `httptest` conformance flow.
+- **Affected**: `backend/internal/sourceexec/http_transport.go`, `backend/internal/sourceexec/session.go`, `backend/internal/sourceexec/session_transport_test.go`.
+- **Watch out**: A session-aware transport owns a dedicated fetcher client; sharing that client across sessions would reintroduce cookie leakage.
