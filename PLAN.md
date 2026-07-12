@@ -261,7 +261,7 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, and Analyzer-backed Java helpers have conformance tests. Added a scoped session registry and verified detail-cookie → TOC → content continuity deterministically. Playwright previously confirmed search/add/detail/TOC but hit a live source content timeout. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, and scoped detail→TOC→content sessions have conformance tests. Playwright rerun confirmed search/add/detail/TOC but the selected live source still timed out at content. Full Go tests pass.
 
 **In progress:** Hardening retries/status/charset behavior and preparing the next Playwright gate with a confirmed multi-chapter source.
 
@@ -632,3 +632,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added `SessionRegistry` with source/book scope and chapter association; wired all three workflows to reuse the session; added a cookie-required end-to-end fixture.
 - **Affected**: `backend/internal/sourceexec/session_registry.go`, `backend/internal/book/search.go`, `backend/internal/book/session_continuity_test.go`.
 - **Watch out**: Registry scope is currently one Searcher/server; introduce authenticated user scoping and eviction before multi-user deployment.
+
+### [2026-07-13] Playwright rerun still hit an unreachable selected chapter source
+- **Problem**: After session continuity changes, fresh E2E again reached search, shelf, detail, and TOC, but the selected `shenhuazhihou.com` chapter returned HTTP 500 after a backend timeout; no frontend rendering result could be claimed.
+- **Fix**: Recorded the gate as incomplete, stopped the temporary server/browser, and kept the deterministic continuity test as the valid verification for this slice.
+- **Affected**: Live verification environment; `/tmp/novelreader_e2e2.log`; no source-specific code changed.
+- **Watch out**: Next live gate must deliberately select a confirmed reachable multi-chapter source rather than the first search result.
