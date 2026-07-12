@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 )
 
 // SourceSession isolates mutable source state from other sources and users.
@@ -72,6 +73,21 @@ func (s *SourceSession) Cookies(rawURL string) []*http.Cookie {
 		return nil
 	}
 	return append([]*http.Cookie(nil), s.jar.Cookies(u)...)
+}
+
+// RemoveCookies clears cookies applicable to a source URL.
+func (s *SourceSession) RemoveCookies(rawURL string) error {
+	u, err := parseSessionURL(rawURL)
+	if err != nil {
+		return err
+	}
+	cookies := s.jar.Cookies(u)
+	for _, cookie := range cookies {
+		cookie.MaxAge = -1
+		cookie.Expires = time.Unix(1, 0)
+	}
+	s.jar.SetCookies(u, cookies)
+	return nil
 }
 
 // SetCookies imports cookies received from a transport into this session.

@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, `sourceexec.Executor`, isolated `SourceSession` state, and session↔HTTP cookie synchronization with an `httptest` flow. Full Go tests pass.
+**Last completed:** Added the first failing-then-passing URL conformance tests, transport-neutral contracts, an HTTP adapter, `sourceexec.Executor`, isolated `SourceSession` state, session↔HTTP cookie synchronization, and session-backed JS `source`/`cookie`/`cache` bindings with tests. Full Go tests pass.
 
 **In progress:** Extracting unified request execution without changing search/detail/TOC/content callers until the contract is covered by tests.
 
-**Next action:** Add tests for chapter URL option suffixes, explicit charset/body encoding, and retry/status policy before routing one workflow through the executor.
+**Next action:** Thread `SourceState` through Analyzer/URL-template evaluation, then add tests for chapter URL option suffixes, explicit charset/body encoding, and retry/status policy before routing one workflow through the executor.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -540,3 +540,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added a session-aware HTTP transport constructor and synchronized cookies before and after each request; added a two-request `httptest` conformance flow.
 - **Affected**: `backend/internal/sourceexec/http_transport.go`, `backend/internal/sourceexec/session.go`, `backend/internal/sourceexec/session_transport_test.go`.
 - **Watch out**: A session-aware transport owns a dedicated fetcher client; sharing that client across sessions would reintroduce cookie leakage.
+
+### [2026-07-12] JavaScript bindings ignored source session state
+- **Problem**: The JSVM always exposed no-op cookie functions and VM-global source/cache state, so Legado JS could not share cookies, variables, or memory with HTTP requests.
+- **Fix**: Added analyzer-level `SourceState`, session-backed `source`, `cookie`, and `cache` objects, and a conformance test for cookie lookup and state writes.
+- **Affected**: `backend/internal/analyzer/js.go`, `backend/internal/analyzer/js_session_test.go`, `backend/internal/sourceexec/session.go`.
+- **Watch out**: Analyzer and URL-template callers still need to pass `SourceState`; until then only direct JS evaluations using the binding are session-aware.

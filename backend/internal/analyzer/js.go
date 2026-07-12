@@ -27,8 +27,8 @@ type JSVM struct {
 	pool        chan *goja.Runtime
 	initCode    string
 	mu          sync.Mutex
-	hc          *fetcher.Client      // for java.get/java.post from JS
-	cacheData   map[string]string    // java.put/java.get storage
+	hc          *fetcher.Client        // for java.get/java.post from JS
+	cacheData   map[string]string      // java.put/java.get storage
 	memoryCache map[string]interface{} // cache.putMemory/cache.getFromMemory
 }
 
@@ -40,6 +40,19 @@ func NewJSVM() *JSVM {
 		pool <- goja.New()
 	}
 	return &JSVM{pool: pool}
+}
+
+// SourceState is the session surface exposed to Legado JavaScript bindings.
+// It is intentionally defined here so analyzer does not depend on sourceexec.
+type SourceState interface {
+	GetCookie(rawURL, key string) string
+	CookieHeader(rawURL string) string
+	SetCookie(rawURL, key, value string) error
+	RemoveCookies(rawURL string) error
+	GetVariable(key string) string
+	PutVariable(key, value string)
+	GetMemory(key string) interface{}
+	PutMemory(key string, value interface{})
 }
 
 // SetFetcher provides an HTTP client for java.get/java.post calls from JS.
@@ -91,38 +104,45 @@ Map = function(a) {
 	org := newJSoupBridge(rt, baseURL)
 	_ = rt.Set("org", org)
 
+	var sourceState SourceState
+	if len(extra) > 0 {
+		if state, ok := extra[0]["sourceState"].(SourceState); ok {
+			sourceState = state
+		}
+	}
+
 	// Bind standard objects
 	// java MUST be a map with lowercase keys — goja exposes Go struct methods capitalized
 	// (EncodeURI, not encodeURI). Following legado's JsExtensions naming convention.
 	h := &jsHelpers{vm: vm}
 	_ = rt.Set("result", content)
-	_ = rt.Set("src", content)       // alias matching legado's `src` variable
+	_ = rt.Set("src", content) // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
 	_ = rt.Set("java", map[string]interface{}{
-		"get":           h.Get,
-		"put":           h.Put,
-		"post":          h.Post,
-		"ajax":          h.Ajax,
-		"connect":       h.Connect,
-		"md5Encode":     h.Md5Encode,
-		"md5Encode16":   h.Md5Encode16,
-		"base64Encode":  h.Base64Encode,
-		"base64Decode":  h.Base64Decode,
-		"encodeURI":     h.EncodeURI,
-		"randomUUID":    h.RandomUUID,
-		"timeFormat":    h.TimeFormat,
-		"androidId":     h.AndroidId,
-		"log":           h.Log,
-		"getString":     h.GetString,
-		"getElements":   h.GetElements,
-		"setContent":    h.SetContent,
-		"HMacHex":       h.HMacHex,
-		"decode":        h.Decode,
-		"login":         h.Login,
+		"get":          h.Get,
+		"put":          h.Put,
+		"post":         h.Post,
+		"ajax":         h.Ajax,
+		"connect":      h.Connect,
+		"md5Encode":    h.Md5Encode,
+		"md5Encode16":  h.Md5Encode16,
+		"base64Encode": h.Base64Encode,
+		"base64Decode": h.Base64Decode,
+		"encodeURI":    h.EncodeURI,
+		"randomUUID":   h.RandomUUID,
+		"timeFormat":   h.TimeFormat,
+		"androidId":    h.AndroidId,
+		"log":          h.Log,
+		"getString":    h.GetString,
+		"getElements":  h.GetElements,
+		"setContent":   h.SetContent,
+		"HMacHex":      h.HMacHex,
+		"decode":       h.Decode,
+		"login":        h.Login,
 	})
-	_ = rt.Set("source", vm.makeSourceObj(baseURL))
-	_ = rt.Set("cookie", vm.makeCookieObj())
-	_ = rt.Set("cache", &jsCache{vm: vm})
+	_ = rt.Set("source", vm.makeSourceObj(baseURL, sourceState))
+	_ = rt.Set("cookie", vm.makeCookieObj(sourceState))
+	_ = rt.Set("cache", vm.makeCacheObj(sourceState))
 
 	// Set extra bindings (key, page, book, chapter, etc.)
 	if len(extra) > 0 {
@@ -183,8 +203,8 @@ func (vm *JSVM) EvalElements(script, content, baseURL string, extra ...map[strin
 }
 
 // makeSourceObj creates a JS object with source.key, source.getKey(), source.getVariable(), etc.
-func (vm *JSVM) makeSourceObj(baseURL string) map[string]interface{} {
-	src := &jsSource{baseURL: baseURL, vm: vm}
+func (vm *JSVM) makeSourceObj(baseURL string, state SourceState) map[string]interface{} {
+	src := &jsSource{baseURL: baseURL, vm: vm, state: state}
 	return map[string]interface{}{
 		"key":         baseURL,
 		"getKey":      func() string { return baseURL },
@@ -195,13 +215,54 @@ func (vm *JSVM) makeSourceObj(baseURL string) map[string]interface{} {
 	}
 }
 
-// makeCookieObj creates a JS object with cookie.removeCookie/getCookie/setCookie for goja.
-func (vm *JSVM) makeCookieObj() map[string]interface{} {
+// makeCookieObj creates a JS object backed by the current source session.
+func (vm *JSVM) makeCookieObj(state SourceState) map[string]interface{} {
 	return map[string]interface{}{
-		"removeCookie": func(url string) string { return "" },
-		"getCookie":    func(url string) string { return "" },
-		"getKey":       func(url, key string) string { return "" },
-		"setCookie":    func(url, cookie string) {},
+		"removeCookie": func(url string) string {
+			if state != nil {
+				_ = state.RemoveCookies(url)
+			}
+			return ""
+		},
+		"getCookie": func(url string) string {
+			if state == nil {
+				return ""
+			}
+			return state.CookieHeader(url)
+		},
+		"getKey": func(url, key string) string {
+			if state == nil {
+				return ""
+			}
+			return state.GetCookie(url, key)
+		},
+		"setCookie": func(url, cookie string) {
+			if state == nil {
+				return
+			}
+			for _, pair := range strings.Split(cookie, ";") {
+				parts := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+				if len(parts) == 2 {
+					_ = state.SetCookie(url, strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+				}
+			}
+		},
+	}
+}
+
+func (vm *JSVM) makeCacheObj(state SourceState) map[string]interface{} {
+	return map[string]interface{}{
+		"putMemory": func(key string, value interface{}) {
+			if state != nil {
+				state.PutMemory(key, value)
+			}
+		},
+		"getFromMemory": func(key string) interface{} {
+			if state == nil {
+				return nil
+			}
+			return state.GetMemory(key)
+		},
 	}
 }
 
@@ -464,14 +525,18 @@ func (h *jsHelpers) EncodeURI(str string) string {
 type jsSource struct {
 	baseURL string
 	vm      *JSVM
+	state   SourceState
 	data    map[string]string
 	mu      sync.Mutex
 }
 
-func (s *jsSource) GetKey() string  { return s.baseURL }
-func (s *jsSource) Key() string     { return s.baseURL }
+func (s *jsSource) GetKey() string { return s.baseURL }
+func (s *jsSource) Key() string    { return s.baseURL }
 
 func (s *jsSource) GetVariable() string {
+	if s.state != nil {
+		return s.state.GetVariable(s.baseURL)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := "sourceVariable_" + s.baseURL
@@ -482,6 +547,10 @@ func (s *jsSource) GetVariable() string {
 }
 
 func (s *jsSource) PutVariable(v string) {
+	if s.state != nil {
+		s.state.PutVariable(s.baseURL, v)
+		return
+	}
 	if s.vm == nil {
 		return
 	}
@@ -494,6 +563,12 @@ func (s *jsSource) PutVariable(v string) {
 }
 
 func (s *jsSource) Get(key string) string {
+	if s.state != nil {
+		if value, ok := s.state.GetMemory(key).(string); ok {
+			return value
+		}
+		return ""
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.data == nil {
@@ -503,6 +578,10 @@ func (s *jsSource) Get(key string) string {
 }
 
 func (s *jsSource) Put(key, value string) string {
+	if s.state != nil {
+		s.state.PutMemory(key, value)
+		return value
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.data == nil {
@@ -553,10 +632,12 @@ func randUint64() uint64 {
 
 // newJSoupBridge creates the org.jsoup.Jsoup bridge for JS eval.
 // Legado sources use:
-//   var doc = org.jsoup.Jsoup.parse(html);
-//   var el = doc.select(css).first();
-//   var text = el.text();
-//   var attr = el.attr('href');
+//
+//	var doc = org.jsoup.Jsoup.parse(html);
+//	var el = doc.select(css).first();
+//	var text = el.text();
+//	var attr = el.attr('href');
+//
 // We delegate to goquery for CSS selection and provide the common element methods.
 func newJSoupBridge(rt *goja.Runtime, baseURL string) map[string]interface{} {
 	return map[string]interface{}{
