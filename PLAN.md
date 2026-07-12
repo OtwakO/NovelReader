@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Added the first failing-then-passing URL conformance tests. `BuildURL` now preserves `webJs`, `bodyJs`, `dnsIp`, `origin`, and `type`; evaluates body templates with `key/page` bindings; and resolves root-relative URLs with RFC semantics. Full Go tests pass.
+**Last completed:** Added the first failing-then-passing URL conformance tests and introduced `backend/internal/sourceexec` with transport-neutral `RequestSpec`, `Response`, and `Transport` contracts. Full Go tests pass.
 
 **In progress:** Extracting unified request execution without changing search/detail/TOC/content callers until the contract is covered by tests.
 
-**Next action:** Add failing tests for chapter URL option suffixes, non-200 body preservation, and a transport-neutral `RequestSpec`/`Response` adapter; then route one workflow at a time through it.
+**Next action:** Add the HTTP transport adapter and failing tests for chapter URL option suffixes, non-200 body preservation through the real fetcher, and source-session cookie/variable scope; then route one workflow at a time through it.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -510,3 +510,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added metadata to `URLMeta`, passed template bindings into body evaluation, and switched relative resolution to `net/url.ResolveReference`; added conformance tests.
 - **Affected**: `backend/internal/analyzer/urlbuilder.go`, `backend/internal/analyzer/urlbuilder_conformance_test.go`.
 - **Watch out**: These metadata fields are preserved but not yet executed by the unified SourceExecutor; do not mark URL execution complete until all workflows use them.
+
+### [2026-07-12] Transport contract was absent
+- **Problem**: Search, detail, TOC, and content had no shared request/response interface, making it impossible to add WebView or consistent diagnostics without changing each workflow independently.
+- **Fix**: Added transport-neutral `RequestSpec`, `Response`, and `Transport` contracts plus a metadata-preserving adapter from `analyzer.URLMeta`.
+- **Affected**: `backend/internal/sourceexec/request.go`, `backend/internal/sourceexec/request_test.go`.
+- **Watch out**: Production workflows still use the old fetcher directly; the next step is an HTTP adapter with conformance tests before wiring callers.
