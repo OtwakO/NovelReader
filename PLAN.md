@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, and Analyzer-backed Java helpers have conformance tests. Playwright verification confirmed search/add/detail/TOC, but reader content failed on a live source timeout. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, and Analyzer-backed Java helpers have conformance tests. Added a scoped session registry and verified detail-cookie → TOC → content continuity deterministically. Playwright previously confirmed search/add/detail/TOC but hit a live source content timeout. Full Go tests pass.
 
-**In progress:** Designing session continuity across detail → TOC → content and hardening retries/status/charset behavior.
+**In progress:** Hardening retries/status/charset behavior and preparing the next Playwright gate with a confirmed multi-chapter source.
 
-**Next action:** Re-run Playwright with a confirmed multi-chapter source after the next major change; add explicit retry/status/charset conformance tests and a workflow session lifecycle; then implement Default indices/ranges and element connector semantics.
+**Next action:** Add explicit retry/status/charset conformance tests, then implement Default indices/ranges and element connector semantics before rerunning live E2E.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -626,3 +626,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Recorded the run as incomplete rather than claiming full-pipeline success; stopped the temporary 8890 server/browser and retained the deterministic test pass.
 - **Affected**: Live verification environment; `/tmp/novelreader_e2e.log`; no source-specific code changed.
 - **Watch out**: Repeat the gate with a confirmed multi-chapter, reachable source before marking the redesign live-verified; investigate timeout/retry policy separately from parser correctness.
+
+### [2026-07-13] Detail, TOC, and content sessions were disconnected
+- **Problem**: Each workflow created a new source session, so cookies set during book detail could not reach TOC or chapter requests.
+- **Fix**: Added `SessionRegistry` with source/book scope and chapter association; wired all three workflows to reuse the session; added a cookie-required end-to-end fixture.
+- **Affected**: `backend/internal/sourceexec/session_registry.go`, `backend/internal/book/search.go`, `backend/internal/book/session_continuity_test.go`.
+- **Watch out**: Registry scope is currently one Searcher/server; introduce authenticated user scoping and eviction before multi-user deployment.

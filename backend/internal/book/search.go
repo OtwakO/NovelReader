@@ -33,6 +33,7 @@ type Searcher struct {
 	cache         *analyzer.CacheManager
 	sourceStore   *booksource.Store
 	bookStore     *Store
+	sessions      *sourceexec.SessionRegistry
 	// per-source rate limiting (concurrentRate)
 	rateMu     sync.Mutex
 	lastAccess map[string]time.Time // keyed by BookSourceURL
@@ -52,6 +53,7 @@ func NewSearcher(
 		cache:         cache,
 		sourceStore:   sourceStore,
 		bookStore:     bookStore,
+		sessions:      sourceexec.NewSessionRegistry(),
 		rateMu:        sync.Mutex{},
 		lastAccess:    make(map[string]time.Time),
 	}
@@ -430,7 +432,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	ctx, cancel := context.WithTimeout(context.Background(), perSourceTimeout)
 	defer cancel()
 
-	session := sourceexec.NewSourceSession()
+	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
 	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.Build(bookURL, "", 1, src.BookSourceURL)
@@ -520,7 +522,7 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 	ctx, cancel := context.WithTimeout(context.Background(), perSourceTimeout)
 	defer cancel()
 
-	session := sourceexec.NewSourceSession()
+	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
 	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	parser := &ChapterListParser{
@@ -565,6 +567,11 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 	chapters, err := parser.ParseChapterList(fetchURL, src.BookSourceURL)
 	if err != nil {
 		return nil, fmt.Errorf("chapter list: %w", err)
+	}
+	for _, chapter := range chapters {
+		if chapter.URL != "" {
+			s.sessions.AssociateChapter(src.BookSourceURL, bookURL, chapter.URL)
+		}
 	}
 
 	// Auto-detect TOC page if chapters look invalid (e.g., URLs are book URLs instead of chapter URLs)
@@ -700,7 +707,10 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	ctx, cancel := context.WithTimeout(context.Background(), perSourceTimeout)
 	defer cancel()
 
-	session := sourceexec.NewSourceSession()
+	session := s.sessions.GetChapter(src.BookSourceURL, chapterURL)
+	if session == nil {
+		session = sourceexec.NewSourceSession()
+	}
 	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.Build(chapterURL, "", 1, src.BookSourceURL)
