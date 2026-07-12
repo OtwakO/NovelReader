@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, and scoped detail→TOC→content sessions have conformance tests. Playwright rerun confirmed search/add/detail/TOC but the selected live source still timed out at content. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, and scoped detail→TOC→content sessions have conformance tests. Multi-source Playwright verification succeeded for two distinct raw sources, including a 167-chapter source with rendered content. Full Go tests pass.
 
-**In progress:** Hardening retries/status/charset behavior and preparing the next Playwright gate with a confirmed multi-chapter source.
+**In progress:** Hardening retries/status/charset behavior and preparing the next Playwright gate.
 
-**Next action:** Add explicit retry/status/charset conformance tests, then implement Default indices/ranges and element connector semantics before rerunning live E2E.
+**Next action:** Add explicit retry/status/charset conformance tests, then implement Default indices/ranges and element connector semantics before the next major live E2E.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -638,3 +638,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Recorded the gate as incomplete, stopped the temporary server/browser, and kept the deterministic continuity test as the valid verification for this slice.
 - **Affected**: Live verification environment; `/tmp/novelreader_e2e2.log`; no source-specific code changed.
 - **Watch out**: Next live gate must deliberately select a confirmed reachable multi-chapter source rather than the first search result.
+
+### [2026-07-13] Multi-source Playwright verification passed on reachable sources
+- **Problem**: The first selected source repeatedly timed out, leaving the redesign’s live content result ambiguous.
+- **Fix**: Imported `test_booksource4.json`, selected different UI result cards, and verified raw source identities: `https://www.bsxiaoshuo.com` returned 167 chapters and rendered 38 paragraphs; `http://wap.wangshugu.info` returned one chapter and rendered 46 paragraphs. Direct API inspection confirmed the expected source URLs and raw rules.
+- **Affected**: Live verification only; `/tmp/novelreader_multi_source.log`; no source-specific code changed.
+- **Watch out**: `望书阁网` did not extract a separate `tocUrl`, but its detail-page chapter list and content still worked; this is a source-rule coverage gap to investigate separately.
