@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, and TOC through `sourceexec.Executor`: TOC now uses session-aware URL options, source headers, pagination state, and documented reversal semantics. Fixed explicit mode-prefix dispatch and added a POST TOC integration fixture. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content now supports chapter URL options, session-backed Analyzer context, final URL binding, and explicit status handling. Added a POST content integration fixture. Full Go tests pass.
 
-**In progress:** Completing TOC pagination/error semantics and designing session continuity into content workflows.
+**In progress:** Completing pagination/error semantics and designing session continuity across detail → TOC → content workflows.
 
-**Next action:** Add TOC pagination and retry/status tests, then route content requests—including chapter URL options and `nextContentUrl`—through the executor.
+**Next action:** Add tests for TOC pagination/retry/partial failures and content `nextContentUrl`; then implement content-page aggregation.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -582,3 +582,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added shared mode-prefix normalization before CSS/XPath/JSON/JS dispatch; the TOC integration fixture now exercises explicit CSS.
 - **Affected**: `backend/internal/analyzer/analyzer.go`.
 - **Watch out**: Mode detection and Default/Regex/connector semantics still need dedicated conformance coverage.
+
+### [2026-07-13] Content bypassed chapter URL execution
+- **Problem**: Chapter URLs containing Legado POST/body/options were fetched as literal GET URLs, so valid sources returned empty content despite correct rules.
+- **Fix**: `GetChapterContent` now builds and executes chapter requests through an isolated session-aware executor, applies source headers/charset, binds the final URL to Analyzer, and retains SPA JSON fallback; added a POST content integration fixture.
+- **Affected**: `backend/internal/book/search.go`, `backend/internal/book/content_executor_test.go`.
+- **Watch out**: `nextContentUrl` aggregation and detail→TOC→content session continuity remain incomplete.

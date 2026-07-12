@@ -697,16 +697,48 @@ func detectTOCPage(bookPageURL, sourceURL string, fetcher *fetcher.Client, heade
 // If the standard rule extraction returns empty content, it attempts to
 // find content embedded as JSON in <script> tags (common for Vue.js/React SPAs).
 func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL string) (string, string, error) {
-	fullURL := resolveURL(chapterURL, src.BookSourceURL)
+	ctx, cancel := context.WithTimeout(context.Background(), perSourceTimeout)
+	defer cancel()
 
-	headers := parseHeaderJSON(src.Header)
-	resp, err := s.fetcher.Get(fullURL, headers)
+	session := sourceexec.NewSourceSession()
+	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
+	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
+	spec, err := executor.Build(chapterURL, "", 1, src.BookSourceURL)
+	if err != nil || spec.URL == "" {
+		if err == nil {
+			err = fmt.Errorf("empty URL")
+		}
+		return "", "", fmt.Errorf("content: build URL: %w", err)
+	}
+	if spec.Headers == nil {
+		spec.Headers = make(map[string]string)
+	}
+	for key, value := range parseHeaderJSON(src.Header) {
+		if _, exists := spec.Headers[key]; !exists {
+			spec.Headers[key] = value
+		}
+	}
+	if spec.WebView {
+		return "", "", fmt.Errorf("content: source requires JS rendering (webView:true)")
+	}
+	if spec.Method == "POST" && spec.Body != "" && spec.Charset != "" {
+		spec.Body = encodeBody(spec.Body, spec.Charset)
+	}
+	response, err := transport.Do(ctx, spec)
 	if err != nil {
 		return "", "", fmt.Errorf("content: fetch: %w", err)
 	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return "", "", fmt.Errorf("content: status %d from %s", response.StatusCode, src.BookSourceName)
+	}
+	fullURL := response.FinalURL
+	if fullURL == "" {
+		fullURL = spec.URL
+	}
 
-	an := analyzer.New(resp.Body, fullURL, s.jsVM, s.cache)
+	an := analyzer.New(response.Body, fullURL, s.jsVM, s.cache)
 	an.SetJSLib(src.JSLib)
+	an.SetSourceState(session)
 	// Bind chapter context for JS rules that reference chapter.url, chapter.baseUrl
 	an.SetChapterData(map[string]string{
 		"url":     fullURL,
@@ -732,8 +764,8 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 
 	// If content is empty from CSS rules, try to extract from JSON in <script> tags
 	// Many SPAs embed chapter content as JSON in script tags for hydration
-	if content == "" && strings.Contains(resp.Body, "<script") {
-		extracted := extractContentFromScriptJSON(resp.Body)
+	if content == "" && strings.Contains(response.Body, "<script") {
+		extracted := extractContentFromScriptJSON(response.Body)
 		if extracted != "" {
 			content = extracted
 			slog.Debug("content: extracted from script tag JSON fallback",
@@ -743,7 +775,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		} else {
 			slog.Warn("content: JSON script fallback found scripts but no content",
 				"source", src.BookSourceName,
-				"htmlLen", len(resp.Body),
+				"htmlLen", len(response.Body),
 			)
 		}
 	}
