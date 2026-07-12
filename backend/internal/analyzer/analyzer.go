@@ -117,6 +117,12 @@ func (a *Analyzer) SetChapterData(c map[string]string) { a.chapter = c }
 // SetSourceState binds the source session used by cookie, source, and cache JS objects.
 func (a *Analyzer) SetSourceState(state SourceState) { a.sourceState = state }
 
+// SetContent replaces the active content for JavaScript re-analysis.
+func (a *Analyzer) SetContent(content string) {
+	a.content = content
+	a.isJSON = looksLikeJSON(content)
+}
+
 // GetString evaluates a rule string and returns the first text result.
 // Supports && (concatenate) and || (OR-first) between entire rule expressions.
 func (a *Analyzer) GetString(ruleStr string) (string, error) {
@@ -461,6 +467,7 @@ func (a *Analyzer) jsBindings() map[string]interface{} {
 	if a.sourceState != nil {
 		b["sourceState"] = a.sourceState
 	}
+	b["analyzer"] = a
 	return b
 }
 

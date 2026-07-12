@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, and `%%` list semantics now have conformance tests. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, and Analyzer-backed `java.getString/getElements/setContent` now have conformance tests. Full Go tests pass.
 
 **In progress:** Designing session continuity across detail → TOC → content and hardening retries/status/charset behavior.
 
-**Next action:** Add explicit retry/status/charset conformance tests and a workflow session lifecycle; then implement Default indices/ranges and `java.getString/getElements` compatibility.
+**Next action:** Add explicit retry/status/charset conformance tests and a workflow session lifecycle; then implement Default indices/ranges and element connector semantics.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -606,3 +606,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added Regex mode detection, `###` first-match marker handling, and deterministic `&&` concatenation/`%%` interleaving with conformance tests.
 - **Affected**: `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/modes_regex.go`, `backend/internal/analyzer/analyzer.go`, analyzer conformance tests.
 - **Watch out**: Default indices/ranges, Regex edge cases, element connector semantics, and JS helper parity remain incomplete.
+
+### [2026-07-13] Java rule helpers were stubs
+- **Problem**: `java.getString`, `java.getElements`, and `java.setContent` returned empty/no-op values, preventing JavaScript sources from re-entering the rule engine or switching content.
+- **Fix**: Bound the active Analyzer into JS evaluation, implemented helper delegation and mutable content, and added an end-to-end JS helper conformance test.
+- **Affected**: `backend/internal/analyzer/js.go`, `backend/internal/analyzer/analyzer.go`, `backend/internal/analyzer/js_helpers_conformance_test.go`.
+- **Watch out**: Java helper return shapes and HTTP methods still need broader Legado fixture coverage.

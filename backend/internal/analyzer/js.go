@@ -105,16 +105,20 @@ Map = function(a) {
 	_ = rt.Set("org", org)
 
 	var sourceState SourceState
+	var activeAnalyzer *Analyzer
 	if len(extra) > 0 {
 		if state, ok := extra[0]["sourceState"].(SourceState); ok {
 			sourceState = state
+		}
+		if current, ok := extra[0]["analyzer"].(*Analyzer); ok {
+			activeAnalyzer = current
 		}
 	}
 
 	// Bind standard objects
 	// java MUST be a map with lowercase keys — goja exposes Go struct methods capitalized
 	// (EncodeURI, not encodeURI). Following legado's JsExtensions naming convention.
-	h := &jsHelpers{vm: vm}
+	h := &jsHelpers{vm: vm, analyzer: activeAnalyzer}
 	_ = rt.Set("result", content)
 	_ = rt.Set("src", content) // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
@@ -147,6 +151,9 @@ Map = function(a) {
 	// Set extra bindings (key, page, book, chapter, etc.)
 	if len(extra) > 0 {
 		for k, v := range extra[0] {
+			if k == "analyzer" {
+				continue
+			}
 			_ = rt.Set(k, v)
 		}
 	}
@@ -269,7 +276,8 @@ func (vm *JSVM) makeCacheObj(state SourceState) map[string]interface{} {
 // --- java.* bridge implementation ---
 
 type jsHelpers struct {
-	vm *JSVM
+	vm       *JSVM
+	analyzer *Analyzer
 }
 
 // Get performs HTTP GET or variable retrieval: java.get(url, headers?) or java.get(key)
@@ -437,16 +445,31 @@ func (h *jsHelpers) Login(args ...interface{}) string {
 }
 
 func (h *jsHelpers) GetString(rule string, args ...interface{}) string {
-	// ponytail: basic rule evaluation in JS context — minimal implementation
-	return ""
+	if h.analyzer == nil {
+		return ""
+	}
+	value, err := h.analyzer.GetString(rule)
+	if err != nil {
+		return ""
+	}
+	return value
 }
 
 func (h *jsHelpers) GetElements(rule string, args ...interface{}) []interface{} {
-	return nil
+	if h.analyzer == nil {
+		return nil
+	}
+	values, err := h.analyzer.GetElements(rule)
+	if err != nil {
+		return nil
+	}
+	return values
 }
 
 func (h *jsHelpers) SetContent(content string) {
-	// ponytail: content switching in JS context — no-op for now
+	if h.analyzer != nil {
+		h.analyzer.SetContent(content)
+	}
 }
 
 // ajax is like get but simpler: java.ajax(url)
