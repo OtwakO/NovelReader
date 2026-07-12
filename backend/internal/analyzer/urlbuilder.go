@@ -23,7 +23,11 @@ type URLMeta struct {
 	Headers map[string]string // per-URL extra headers
 	Charset string            // character encoding override (e.g. "gbk", "gb2312")
 	Retry   int               // retry count on non-2xx
-	WebView bool              // if true, source needs JS rendering (server-side can't do this)
+	WebView bool              // if true, source needs JS rendering
+	WebJS   string            // JavaScript executed by a WebView before extraction
+	BodyJS  string            // JavaScript transformation for the response body
+	DNSIP   string            // optional source DNS/IP override
+	Origin  string            // request origin override
 	Type    string            // file/content type for downloads
 }
 
@@ -126,12 +130,11 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 				}
 			}
 
+			meta.WebJS = opt.WebJs
+			meta.BodyJS = opt.BodyJs
+			meta.DNSIP = opt.DnsIp
+			meta.Origin = opt.Origin
 			meta.Type = opt.Type
-
-			// ponytail: webJs, bodyJs, dnsIp parsed but not acted on yet
-			_ = opt.WebJs
-			_ = opt.BodyJs
-			_ = opt.DnsIp
 
 			optJs = opt.Js // stored for post-resolution eval
 		}
@@ -184,15 +187,22 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 		meta.Body = strings.ReplaceAll(meta.Body, "{{key}}", key)
 		meta.Body = strings.ReplaceAll(meta.Body, "{{page}}", fmt.Sprintf("%d", page))
 		if strings.Contains(meta.Body, "{{") && jsVM != nil {
-			meta.Body = evalTemplateExpressions(meta.Body, jsVM, baseURL)
+			meta.Body = evalTemplateExpressions(meta.Body, jsVM, baseURL,
+				map[string]interface{}{"key": key, "page": page, "baseUrl": baseURL})
 		}
 	}
 
-	// Resolve relative URLs
+	// Resolve relative URLs using RFC 3986 semantics, matching Legado's URL resolver.
 	if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") && !strings.HasPrefix(urlStr, "@js:") {
-		base := strings.TrimRight(baseURL, "/")
-		path := strings.TrimLeft(urlStr, "/")
-		urlStr = base + "/" + path
+		base, err := url.Parse(baseURL)
+		if err != nil {
+			return nil, fmt.Errorf("urlbuilder: invalid base URL %q: %w", baseURL, err)
+		}
+		ref, err := url.Parse(urlStr)
+		if err != nil {
+			return nil, fmt.Errorf("urlbuilder: invalid relative URL %q: %w", urlStr, err)
+		}
+		urlStr = base.ResolveReference(ref).String()
 	}
 
 	// Execute URL option's js parameter: can modify url, headerMap, etc.
@@ -201,7 +211,7 @@ func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLM
 	if optJs != "" && jsVM != nil {
 		bindings := map[string]interface{}{
 			"java": map[string]interface{}{
-				"url": urlStr, // mutable — JS can change it
+				"url":       urlStr, // mutable — JS can change it
 				"headerMap": meta.Headers,
 			},
 			"key":     key,
@@ -275,7 +285,7 @@ func evalTemplateExpressions(s string, jsVM *JSVM, baseURL string, extra ...map[
 
 		if end == -1 {
 			// No matching }}, keep as literal
-			result.WriteString(s[start : i])
+			result.WriteString(s[start:i])
 			continue
 		}
 

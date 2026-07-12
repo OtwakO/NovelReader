@@ -1,192 +1,305 @@
-# NovelReader — Plan
+# NovelReader — Engineering Plan
 
 ## Objective
 
-A web-first, mobile-friendly novel reading application with a Go backend and Svelte 5 frontend. At its core is a legado-compatible **booksource system** that can import, manage, search, and crawl books from arbitrary websites using the legado BookSource JSON format. Designed for Docker deployment, single-user first but architecturally multi-user ready.
+Build a web-first novel reader whose core booksource engine is behaviorally compatible with Legado BookSource JSON. Compatibility means preserving source data, constructing every request according to Legado URL rules, evaluating Default/CSS/XPath/JSONPath/Regex/JavaScript rules with Legado semantics, maintaining cookies and source variables, crawling detail/TOC/content consistently, and exposing a transport seam for HTTP and WebView execution. The frontend consumes stable domain APIs and must not contain source-specific crawling logic.
+
+“Near-perfect compatibility” is the target for the documented Legado contract. Sites can still fail because of DNS loss, WAF policy, authentication, captchas, or changed HTML; those must be reported as transport/site failures rather than misclassified as parser failures.
 
 ## Architecture
 
-### Directory Layout
+### Directory layout
 
-```
-novelreader/
-├── backend/
-│   ├── cmd/server/            # Entry point (port 8888)
-│   ├── internal/
-│   │   ├── api/               # HTTP handlers, SSE, routes
-│   │   ├── booksource/        # BookSource entity, CRUD, import/export
-│   │   ├── fetcher/           # HTTP client (stateless + cookie jar variants)
-│   │   ├── analyzer/          # Rule engine: CSS, XPath, JSONPath, Regex, JS
-│   │   ├── book/              # Search stream, TOC parser, content, store
-│   │   ├── processor/         # Content sanitization, paragraph formatting
-│   │   ├── config/            # ENV-based config
-│   │   └── database/          # SQLite (WAL, read pool)
-│   ├── go.mod
-│   └── go.sum
-├── frontend/
-│   ├── src/
-│   │   ├── lib/               # Bookshelf, SearchPage, Reader, Settings, SourceList, BookDetail
-│   │   └── api/               # Typed API client with SSE streaming
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.ts
-├── dev.sh                     # Build/run script
-├── docker-compose.yml
-├── test_booksource.json       # Test sources (26 search sources)
-├── test_booksource2.json      # Test sources (230 full sources)
-├── reference/legado/          # Legado source repo reference
-├── PLAN.md
-└── README.md
+The existing feature-oriented layout remains canonical:
+
+```text
+backend/internal/
+  api/          HTTP/SSE transport only
+  booksource/   canonical source model, import/export, persistence
+  sourceexec/   unified URL/request/session/transport execution (new)
+  analyzer/     Legado rule engine and JS bridge
+  fetcher/      HTTP transport implementation
+  webview/      optional browser transport implementation (new seam)
+  book/         search, enrichment, TOC, content domain workflows
+  processor/    content safety and paragraph formatting
+  database/     SQLite setup/migrations
+frontend/src/
+  api/          typed backend client
+  lib/          user-facing features and reusable reader components
+reference/legado/                upstream behavioral reference
+backend/internal/**/*_test.go    conformance tests beside modules
+testdata/booksource/              small fixtures extracted from real sources
 ```
 
-### Key Modules
+New directories require a PLAN update before creation. `sourceexec` and `webview` are planned boundaries, not permission to duplicate logic.
 
-| Module | Responsibility |
-|--------|---------------|
-| `analyzer` | Rule parsing engine. Dispatches Default (legado JSOUP syntax), CSS (goquery), XPath (antchfx), JSONPath, Regex, JS (goja pool×16). Handles `##` replacement, `||` OR/chain, `&&` concat, `<js>` mid-chain, `@js:` blocks. |
-| `booksource` | BookSource entity with custom `UnmarshalJSON` (accepts nested rule objects). SQLite CRUD. |
-| `fetcher` | `Client` with context support. Two variants: `New()` with cookie jar (content fetching), `NewStateless()` without (search — no cross-user leak). |
-| `book` | `Searcher` with `SearchStream()` (per-source callback), `ChapterListParser` (legado ToC with pagination/volumes), chapter/content fetching. |
-| `processor` | `ContentProcessor`: strips HTML tags (XSS prevention), converts `<br>`/`</p>` to newlines, dedup title, paragraph formatting. No Chinese conversion yet. |
-| `api` | REST handlers: sources, books, search, chapters, content, fonts, progress. SSE endpoint at `GET /api/search/stream`. |
+### Core contracts
 
-### Data Flow — Search (SSE streaming)
+#### Canonical BookSource
 
-```
-User types "凡人修仙传" + Enter
-  → Frontend opens EventSource: GET /api/search/stream?q=凡人修仙传
-  → Backend fans out across 256 sources (50 concurrent, 8s each, 30s total)
-  → Per-source callback fires when each source completes:
-      SSE event: {type:"results", source:"365小说网", data:[...]}
-  → Frontend appends results reactively (Svelte $state)
-  → On error: {type:"error", source:"五二书库", message:"timeout"}
-  → On all done: {type:"done", total:42, sourcesDone:18}
-  → User can cancel mid-search (es.close() → r.Context() cancels all in-flight)
-  → Per-source cap: max 20 results per source, enforced in parser
-```
+- Preserve every imported JSON field, including unknown/future Legado fields.
+- Keep typed fields for fields NovelReader executes.
+- Retain original JSON for lossless export and debugging.
+- Use `bookSourceUrl` as the stable source identity; names are display labels and may duplicate.
+- Do not silently coerce malformed rules into empty strings. Import must report field-level warnings/errors.
 
-### Data Flow — Chapter Content
+#### Request execution
 
-```
-User taps chapter in reader
-  → GET /api/books/:id/chapters/:idx/content
-  → Backend fetches chapter URL from source via ruleContent
-  → Processor strips HTML tags, converts <br> to newlines, formats paragraphs
-  → Returns { title, paragraphs: [...] }
-  → Frontend renders as plain text paragraphs (no {@html} — XSS safe)
+All search, detail, TOC, content, JS `java.ajax/get/post/connect`, pagination, image, and future explore requests use one request contract:
+
+```text
+RequestSpec
+  URL, method, body, headers, charset, retry
+  webView, webJs, bodyJs, type, origin, dnsIp
+  source identity and session context
+
+Response
+  requested URL, final URL, status, headers, decoded body/bytes
+  transport kind, redirect chain, timing, error classification
 ```
 
-### Concurrency Design
+`HTTPTransport` and `WebViewTransport` implement the same interface. The selector is a policy decision in the executor, not a branch duplicated inside each book workflow.
 
-```
-Request-scoped (per user, per search):
-  ├── 50 goroutines (semaphore), each with 8s per-source deadline
-  ├── ctx derived from r.Context() → cancelled on client disconnect
-  ├── buffered channel (len=candidates) — no goroutine leak on early exit
-  └── JSVM pool (4 runtimes) — Eval borrows one, resets bindings, returns
+#### SourceSession
 
-Shared across users (safe):
-  ├── searchFetcher: *http.Client with Jar: nil (stateless, no-cookie)
-  ├── fetcher: *http.Client with shared cookie jar (correct: per-host cookies)
-  ├── CacheManager: LRU with 4096 max entries (container/list)
-  ├── SQLite: WAL mode, SetMaxOpenConns(4) for concurrent reads
-  └── sourceStore/bookStore: database access (reads concurrent, writes serialized)
+A source session owns:
+
+- cookie jar and cookie helper operations;
+- source variables and memory cache;
+- source headers and rate limit state;
+- JS library/context;
+- request-scoped book/chapter context.
+
+Sessions are isolated by user/source identity. Search must not share cookies across sources or users. Detail → TOC → content for one source may share that source’s session.
+
+#### RuleEngine values
+
+The analyzer must preserve typed intermediate values where possible: HTML element selections, JSON objects/lists, strings, and JS values. Re-serializing every element to inner/outer HTML is a compatibility fallback, not the primary model.
+
+Supported documented modes and semantics:
+
+- Legado Default/JSoup syntax;
+- explicit CSS, XPath, JSONPath, Regex;
+- JavaScript and `<js>` blocks anywhere allowed by Legado;
+- `&&`, `||`, and `%%`;
+- indices, ranges, negative indices, exclusions, and reverse ranges;
+- `##regex##replacement` and replace-first `###`;
+- URL-context resolution and `isUrl`;
+- `@put`/`@get` rule variables;
+- JS `java.getString`, `getStringList`, `getElements`, `setContent`.
+
+### Data flow
+
+```text
+Frontend search/detail/reader
+  → API domain handler
+  → book workflow
+  → SourceExecutor.Execute(RequestSpec)
+  → HTTPTransport or WebViewTransport
+  → Analyzer with SourceSession/context
+  → typed domain result
+  → API DTO
 ```
+
+No frontend feature may construct source URLs or interpret source rules. Explore, bookmarks, offline reading, and source debugging will reuse domain/API contracts.
+
+### Error model
+
+Every stage returns structured errors with:
+
+- source URL and stable source identity;
+- workflow stage (`search`, `bookInfo`, `toc`, `content`, `js`, `transport`, `rule`);
+- request/final URL and status when available;
+- rule field and mode when parsing fails;
+- retry count and transport type.
+
+A non-empty HTTP body with a non-200 status is not automatically “dead”; it is retained for classification and optional parsing policy. Empty extraction is not automatically “outdated.”
+
+## Compatibility reference
+
+The implementation is audited against:
+
+- `reference/legado/app/src/main/java/io/legado/app/model/analyzeRule/AnalyzeUrl.kt`;
+- `AnalyzeRule.kt`, `AnalyzeByJSoup.kt`, `AnalyzeByXPath.kt`, `AnalyzeByJSonPath.kt`, `AnalyzeByRegex.kt`;
+- `JsExtensions.kt`;
+- [Legado source-rule documentation](https://mgz0227.github.io/The-tutorial-of-Legado/Rule/source.html).
+
+When behavior is ambiguous, add a fixture and cite the upstream function/documentation section in the test comment.
 
 ## Phases
 
-### Phase 1 — Booksource Engine Core (current)
-- [x] Project scaffolding: Go module, Svelte 5, Go 1.22 ServeMux, dev.sh
-- [x] Database: book_sources, books, chapters, fonts — SQLite WAL, pure Go
-- [x] BookSource CRUD: JSON import (nested rules as RawMessage), list, delete, enable/disable
-- [x] HTTP fetcher: context-aware, stateless search variant, cookie jar variant, 10MB cap
-- [x] Analyzer: CSS, XPath, JSONPath, Regex, JSVM pool×4, `##` replacement, `||` OR/chaining
-- [x] Search: SSE streaming, 50 concurrent, 30s timeout, 8s per-source, 20-result cap
-- [x] TOC parser: legado-compatible, pagination (nextTocUrl), volume detection, reverse ordering
-- [x] Content: fetch via ruleContent, strip HTML, sanitize, paragraph format
-- [x] Content processor: HTML→text (XSS safe), title dedup, paragraph reflow
-- [x] Reader: font size/weight/line-height/family, bg/text color, preset themes
-- [x] Font upload and selection
-- [x] Bookshelf: cover, author, last chapter, progress bar, broken-cover fallback
-- [x] Book enrichment: fetch full info (cover, intro, author) from source on add
-- [ ] Docker build setup (dev.sh exists, multi-stage Dockerfile pending)
-- [ ] E2E test with a known-working book source
+### Phase 0 — Compatibility baseline and harness
 
-### Phase 2 — Reading Experience
-- Reading progress sync
-- Bookmarks
-- Page turn animations
-- Dark mode themes
-- Offline caching
-- Explore/discover page
+**Goal:** make failures reproducible before changing behavior.
 
-### Phase 3 — Polish & Extras
-- Replace rules editor
-- Book source debug tool
-- Multi-user auth
-- Chinese conversion (opencc)
-- PWA support
+Tasks:
 
-## Out of Scope (Phase 1)
-- Multi-user auth (design supports it, implementation deferred)
-- Chinese conversion (partial map removed — garbled output)
-- Audio books, TTS, RSS, EPUB export
-- WebSocket (SSE is sufficient — unidirectional search)
-- Virtual scrolling (YAGNI at 20-200 results)
+- [ ] Create fixture corpus for raw search, detail, TOC, content, JSON, XPath, Regex, JS, POST/GBK, cookie, pagination, and WebView-option sources.
+- [ ] Build a source identity tool keyed by raw `bookSourceUrl` plus JSON index/hash, never name alone.
+- [ ] Add a conformance runner that records raw source JSON, expanded request, method/body/headers, response status/final URL/body sample, rule field, extracted values, and classification.
+- [ ] Add golden tests for each known regression from `test_booksource4.json`.
+- [ ] Define expected categories: transport failure, HTTP/WAF, legitimate zero results, rule mismatch, JS failure, unsupported WebView, and successful extraction.
+- [ ] Verify the server remains alive during the test; abort a run on process crash instead of continuing with contaminated results.
 
-## Deferred Work
+Completion gate: deterministic tests can distinguish a broken request from a broken selector and reproduce a raw Legado request independently.
 
-Items intentionally skipped or deferred, documented so they don't get forgotten.
+### Phase 1 — Lossless source model and unified request executor
 
-| Deferred Item | Affected Sources | Why Deferred | Revisit When |
-|---------------|-----------------|-------------|--------------|
-| `loginUrl`/`loginUI`/`loginCheckJS` — source auth portal | ~179 sources (19% have loginUrl) | Login flows need UI interaction (credential input, captcha). Not feasible server-side-only. | If user demand for locked sources. Likely need WebView bridge. |
-| `coverDecodeJs` — cover image decoding | ~1 source (0.1%, likely Pixiv) | Pixiv covers need JS-based URL transform. Single source. | If Pixiv source becomes critical. Add `evalCoverDecode` in enrichment path. |
-| `customButton`/`eventListener` — legado reader UI actions | ~285 sources (30%) | These are legado-app UI extensions (custom buttons, event hooks). Not fetch/crawl logic. Permanently out of scope for backend-only. | Never — belongs in a mobile/desktop client, not this API. |
-| `concurrentRate` — per-source request throttle | ~11 sources (1%) | Per-source rate limiting adds complexity (per-source semaphore). 50-way fan-out already limited by semaphore. | If a specific source consistently 503s under concurrent load. |
-| `enabledCookieJar` per-source control on content path | All 939 sources (100% set false) | Content fetcher uses shared cookie jar. Stateless content fetcher per source needs more refactoring. | If sources start relying on per-source cookie isolation for login sessions. |
-| `enabledReview` — review/book-rating rules | ~9 sources (1%) | Needs a review-parsing engine and UI for displaying reviews. Separate feature. | Phase 3 — polish features. |
-| Explore/Discovery (`exploreUrl` + `ruleExplore`) | ~723 sources (76%) | Needs new endpoint, crawl logic, and UI screens. Phase 2 feature. | Phase 2. Design already extensible: exploreUrl → BuildURL → parseRuleExplore. |
-| `phonehttp` — mobile UA toggle | ~1 source (0.1%) | Flips User-Agent to mobile. Trivial to add header override. | If the one source is critical. |
-| WebView rendering (headless browser) | ~19 sources (2%) | Sources with `webView:true` need a JS-capable browser. Requires chromedp/playwright integration. | When WebView-exclusive sources become critical. Plug-and-go: add a headless-browser fetcher, swap in search path. |
+**Goal:** every workflow uses Legado-equivalent URL execution.
+
+Tasks:
+
+- [ ] Preserve unknown BookSource fields and losslessly export imported JSON.
+- [ ] Implement `RequestSpec`, structured `Response`, and `SourceSession`.
+- [ ] Move URL template expansion, JSON options, `<,>` page syntax, relative URL resolution, URL-level JS, body JS, charset, headers, retry, redirect metadata, and method/body construction into `sourceexec`.
+- [ ] Apply URL options to search, book info, TOC, content, `nextTocUrl`, `nextContentUrl`, and JS bridge requests.
+- [ ] Use RFC-compatible URL resolution against the actual response/found page URL.
+- [ ] Preserve response bodies for non-2xx responses and classify rather than discard them.
+- [ ] Implement per-source/per-user cookie policy and source-variable persistence.
+- [ ] Ensure `Referer`, `Origin`, content type, custom headers, and cookies are forwarded exactly as the source requests them.
+- [ ] Implement `bodyJs`, `webJs` dispatch metadata, and response-body transformation hooks.
+
+Completion gate: one fixture request produces the same method, URL, body, headers, charset, cookies, redirects, and final body behavior as Legado. Search/detail/TOC/content all call the same executor.
+
+### Phase 2 — Legado rule-engine conformance
+
+**Goal:** eliminate heuristic behavior differences in rule evaluation.
+
+Tasks:
+
+- [ ] Implement explicit Regex mode for `##...##...` rules.
+- [ ] Implement exact Default/JSoup grammar: selectors, getters, direct children, `@attr`, indexes, negative indexes, exclusions, arrays, ranges, steps, and reverse ranges.
+- [ ] Implement exact `&&`, `||`, and `%%` semantics for strings, elements, and lists.
+- [ ] Implement `<js>` chain semantics and result propagation at every documented position.
+- [ ] Preserve typed HTML/JSON intermediates and correct `outerHtml`, `html`, `text`, `textNodes`, `ownText`, `all`, `href`, and `src` behavior.
+- [ ] Handle plain JSON property access and JSONPath according to Legado’s object/list model.
+- [ ] Implement `@put`/`@get` and Java variable operations with source/chapter scope.
+- [ ] Ensure replacement rules distinguish replace-all from replace-first.
+- [ ] Replace `mustString` silent recovery with typed errors and field-level diagnostics.
+
+Completion gate: conformance fixtures pass against expected Legado outputs for every supported mode and connector; no parser error is reported as an empty value.
+
+### Phase 3 — JavaScript bridge and session semantics
+
+**Goal:** execute real JavaScript sources instead of only simple URL expressions.
+
+Tasks:
+
+- [ ] Implement `java.get`, `post`, `ajax`, `ajaxAll`, `connect`, `getCookie`, `base64`, MD5, HMAC, URI encoding, time formatting, and response accessors with Legado-compatible return shapes.
+- [ ] Implement `java.setContent`, `getString`, `getStringList`, and `getElements` against the current analyzer/session.
+- [ ] Implement `source.get/put`, `getVariable/putVariable`, `cache`, `book`, `chapter`, `title`, `baseUrl`, `src`, and `result` scopes.
+- [ ] Make JS runtime state safe under pooling: no cross-source leakage, deterministic bindings, persistent state only in SourceSession.
+- [ ] Implement cookie operations through the actual session jar.
+- [ ] Add JS timeout, cancellation, and bounded network recursion.
+- [ ] Add tests for token extraction, multi-stage `java.ajax().match()`, source variables, cookies, and JS-defined helper libraries.
+
+Completion gate: all previously observed `Object has no member`, `ReferenceError`, empty-cookie, and empty-`java.getString` categories have regression tests and pass.
+
+### Phase 4 — Complete crawl pipeline
+
+**Goal:** search → book info → TOC → content behaves consistently.
+
+Tasks:
+
+- [ ] Enrich book info with `bookInfoInit` JavaScript/regex behavior.
+- [ ] Parse TOC with correct documented reversal semantics, volumes, VIP flags, timestamps, relative URLs, and duplicate handling.
+- [ ] Implement TOC pagination with cycle detection, request options, retries, and explicit partial-failure reporting.
+- [ ] Implement `nextContentUrl` pagination and content concatenation.
+- [ ] Bind complete book/chapter context for every rule evaluation.
+- [ ] Preserve source/final URLs for subsequent relative content requests.
+- [ ] Make content extraction use the declared rule first; keep SPA/script fallback as an explicit diagnostic fallback, never as a replacement for rule correctness.
+- [ ] Add full E2E tests using raw source entries: search actual book, add to shelf, enrich, load TOC, open first/middle/last chapter, and verify non-empty content.
+
+Completion gate: at least one normal HTML source, one JSON source, one XPath/Regex source, one POST/charset source, and one multi-page TOC/content source pass end-to-end.
+
+### Phase 5 — WebView transport with minimal refactor
+
+**Goal:** support WebView sources through the existing request contract.
+
+Tasks:
+
+- [ ] Define `WebViewTransport` behind the same `RequestSpec`/`Response` interface.
+- [ ] Add a browser-backed implementation only after HTTP and rule conformance are stable.
+- [ ] Support page JavaScript, `webJs`, delayed execution, cookies, redirects, headers, and final DOM/response capture.
+- [ ] Add a configurable browser lifecycle, timeout, concurrency limit, and cancellation policy.
+- [ ] Make WebView optional at build/deploy time; HTTP-only deployments report a precise unsupported capability.
+- [ ] Add a fake WebView transport for deterministic tests.
+
+Completion gate: a source marked `webView:true` can run through the same search/detail/TOC/content workflow without book-domain changes.
+
+### Phase 6 — Diagnostics, frontend extensibility, and operational hardening
+
+Tasks:
+
+- [ ] Add source debug API: preview request, headers/body (redacted), response metadata, rule-by-rule extraction, and JS logs.
+- [ ] Add source health history without labeling failures as permanently outdated.
+- [ ] Add explore/discovery using the same executor and rule engine.
+- [ ] Add source editor/import validation and raw JSON round-trip preview.
+- [ ] Add frontend source-debug, source health, and crawl-progress components using typed API contracts.
+- [ ] Add reading progress, bookmarks, offline cache, and alternate-source switching without coupling them to source parsing.
+- [ ] Add Docker multi-stage build and clean-checkout E2E verification.
+
+Completion gate: frontend features consume stable domain APIs; no frontend code knows CSS/Default/JS source syntax.
+
+## Testing strategy
+
+- Unit tests live beside analyzer, sourceexec, fetcher, and book modules.
+- Conformance tests are deterministic and use recorded responses; no live site is required for CI.
+- Live verification is a separate report and always records raw source identity, exact request, response metadata, and timestamp.
+- Every non-trivial parser/request change follows failing test → implementation → passing test.
+- Test the same raw source through: direct HTTP reproduction, NovelReader executor, and browser/WebView when applicable.
+- Never infer source death from an empty selector result or browser timeout alone.
+
+## Out of scope for the compatibility milestone
+
+- Captcha solving, bypassing WAF policy, and authenticated account automation.
+- Audio/TTS/RSS/EPUB features.
+- Legado mobile-only UI extensions such as custom buttons and event listeners; preserve them losslessly but do not execute them in the backend.
+- Perfect parity with undocumented private Java/Android APIs; unsupported calls must be explicit and observable.
 
 ## Current State
 
-**Phase**: Phase 1 — core engine operational, search streaming, bookshelf, reader all functional.
+**Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed**: Holistic BookSource field audit, legado Default-rule parser, comprehensive URL parser fixes (findJSONOption whitespace/brace-counting, `&&` connector, mid-chain `<js>` splitting, Connect chain, `<,{{page}}>` syntax, nested brace `{{...}}`).
+**Last completed:** Added the first failing-then-passing URL conformance tests. `BuildURL` now preserves `webJs`, `bodyJs`, `dnsIp`, `origin`, and `type`; evaluates body templates with `key/page` bindings; and resolves root-relative URLs with RFC semantics. Full Go tests pass.
 
-**Working**: Import 939 sources → SSE search (results stream in, cross-source merged, relevance-sorted) → enrich book (fetch cover/intro from source) → bookshelf → chapter list (pagination, volumes) → reader
+**In progress:** Extracting unified request execution without changing search/detail/TOC/content callers until the contract is covered by tests.
 
-**Known limitations**: Many sources behind Cloudflare (server-side HTTP client can't bypass). Book source rules go stale over time — users find fresh sources. `%%` zip connector, `@put`/`@get` variable storage, and `bookInfoInit` pre-processing not yet implemented. `customButton` (30%) and `eventListener` (30%) are legado-reader UI fields intentionally not mapped. Explore/discovery system deferred to Phase 2.
+**Next action:** Add failing tests for chapter URL option suffixes, non-200 body preservation, and a transport-neutral `RequestSpec`/`Response` adapter; then route one workflow at a time through it.
+
+**Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
 ## Decisions
 
 | Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Router | Go 1.22 `http.ServeMux` | No external dep, path params built in |
-| SQLite | `modernc.org/sqlite` | Pure Go, no CGO, simpler Docker |
-| Database pool | `SetMaxOpenConns(4)` | WAL mode permits concurrent readers |
-| Search transport | SSE (text/event-stream) | stdlib only, native EventSource, r.Context()→cancel free |
-| Search fetcher | Stateless (no cookie jar) | Prevents cross-user cookie contamination |
-| Cache | LRU with 4096 max (container/list) | Bounded memory, stdlib only |
-| JSVM | Pool of 4, no per-eval re-init | init loaded once at startup; bindings reset per-eval |
-| Per-source cap | 20 results, enforced in parser | Prevents source flooding, before dedup |
-| Cross-source dedup | None | Showing same book from 2 sources is useful (user picks) |
-| Virtual scroll | YAGNI | 20-200 results, `{#each}` is fine |
-| Chinese conversion | Deferred | Partial map was garbled; needs opencc |
-| Port | 8888 | 8080 commonly taken |
+|---|---|---|
+| Compatibility boundary | Documented Legado behavior first | Prevents source-specific patches and accidental semantic drift. |
+| Request architecture | One SourceExecutor for every workflow | Search-only URL support caused confirmed failures. |
+| Transport | HTTP and WebView behind one interface | Enables plug-in WebView without rewriting book workflows. |
+| Source identity | `bookSourceUrl`, not name | Names are duplicated in compilations. |
+| State | SourceSession with explicit scope | Cookies and variables must persist within a source flow but never leak across users/sources. |
+| Rule values | Typed intermediates | Re-parsing HTML strings loses Legado element/JSON behavior. |
+| Error handling | Structured, no silent empty fallback | Empty output currently hides transport and parser defects. |
+| Unknown fields | Lossless preservation | Import/export must not destroy future Legado data. |
+| Frontend boundary | Domain/API contracts only | Future reader/explore/debug features remain independent of scraping syntax. |
 
-## Scaling Notes (Multi-User)
+## Deferred Work
 
-| Concern | Current | Future |
-|---------|---------|--------|
-| Cookie isolation | Search: stateless client. Content: shared jar (correct — per-host cookies) | Per-user clients if source logins added |
-| JSVM | Pool of 4, no per-eval re-init | Increase pool or use per-user pools if bottleneck measured |
-| SQLite writes | Serialized (single writer) | Fine for 3-10 users. Migrate to Postgres for >50 concurrent users |
-| Cache | LRU 4096 entries | Increase or use Redis if distributed |
-| Goroutine count | 50 per search, fine at 3-10 users | Add global cap if >20 concurrent users |
-| SSE per connection | One stream per active search | HTTP/2 multiplexing handles this |
+| Item | Reason | Revisit |
+|---|---|---|
+| Captcha/WAF bypass | Security, legal, and site-policy boundary | Never as automatic bypass; support WebView where permitted. |
+| Login UI automation | Requires credential/captcha UX | After WebView and explicit user sessions. |
+| Audio/image source workflows | Separate domain models | After text compatibility milestone. |
+| Advanced Android-only Java APIs | Not part of the portable backend contract | Add only when a real source and safe equivalent require it. |
+
+## Synchronization rules
+
+- Update `Current State` in the same change as implementation.
+- Add an append-only `Issues & Fixes` entry for every resolved compatibility bug.
+- Do not mark a phase complete from a live-site sample alone; the phase gate and deterministic tests must pass.
+- Any architecture deviation requires updating the Architecture and Decisions sections before code changes.
+- Every commit that changes behavior includes the relevant PLAN update.
+- Review raw source identity and exact request before changing a source-specific rule.
 
 ## Issues & Fixes
 
@@ -384,3 +497,16 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Problem**: Template regex `{{([^}]+)}}` couldn't match `}` inside expressions like `{{var x={a:1}; x}}`.
 - **Fix**: Replaced regex with brace-counting scanner that correctly handles nested braces.
 - **Affected**: `backend/internal/analyzer/urlbuilder.go`
+
+
+### [2026-07-12] Legado compatibility audit exposed incomplete core pipeline
+- **Problem**: URL options were handled only for search; detail, TOC, content, JS bridge, cookies, state, and several rule semantics diverged from Legado.
+- **Fix**: Planned a unified SourceExecutor/SourceSession/transport architecture and conformance-first implementation sequence.
+- **Affected**: `backend/internal/analyzer`, `backend/internal/book`, `backend/internal/fetcher`, `backend/internal/booksource`, future `sourceexec` and `webview` modules.
+- **Watch out**: Do not patch individual sources before unified request execution and deterministic conformance tests exist.
+
+### [2026-07-12] URL option metadata and relative resolution were incomplete
+- **Problem**: URL options for `webJs`, `bodyJs`, `dnsIp`, and `origin` were discarded; POST body JavaScript lacked `key/page` bindings; root-relative URLs were joined against the base path instead of the host.
+- **Fix**: Added metadata to `URLMeta`, passed template bindings into body evaluation, and switched relative resolution to `net/url.ResolveReference`; added conformance tests.
+- **Affected**: `backend/internal/analyzer/urlbuilder.go`, `backend/internal/analyzer/urlbuilder_conformance_test.go`.
+- **Watch out**: These metadata fields are preserved but not yet executed by the unified SourceExecutor; do not mark URL execution complete until all workflows use them.
