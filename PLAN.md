@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content now supports chapter URL options, session-backed Analyzer context, final URL binding, and explicit status handling. Added a POST content integration fixture. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content now supports chapter URL options, session-backed Analyzer context, final URL binding, and `nextContentUrl` aggregation with cycle detection. TOC pagination now reports failed next pages. Full Go tests pass.
 
-**In progress:** Completing pagination/error semantics and designing session continuity across detail → TOC → content workflows.
+**In progress:** Designing session continuity across detail → TOC → content workflows and hardening retries/status/charset behavior.
 
-**Next action:** Add tests for TOC pagination/retry/partial failures and content `nextContentUrl`; then implement content-page aggregation.
+**Next action:** Add explicit retry/status/charset conformance tests and a workflow session lifecycle; then address Regex, `%%`, Default indices, and `java.getString/getElements` compatibility.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -588,3 +588,15 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: `GetChapterContent` now builds and executes chapter requests through an isolated session-aware executor, applies source headers/charset, binds the final URL to Analyzer, and retains SPA JSON fallback; added a POST content integration fixture.
 - **Affected**: `backend/internal/book/search.go`, `backend/internal/book/content_executor_test.go`.
 - **Watch out**: `nextContentUrl` aggregation and detail→TOC→content session continuity remain incomplete.
+
+### [2026-07-13] Content pagination was silently omitted
+- **Problem**: `nextContentUrl` was only exposed by a getter and never followed, so multi-page chapters returned only the first page.
+- **Fix**: `GetChapterContent` now evaluates and follows next-content URLs through the same executor/session, concatenates page content, binds each final URL, and stops on empty/repeated URLs; added a two-page integration fixture.
+- **Affected**: `backend/internal/book/search.go`, `backend/internal/book/content_pagination_test.go`.
+- **Watch out**: Multi-page partial failures currently return an error; retry/status policy and URL-array semantics need explicit conformance tests.
+
+### [2026-07-13] TOC pagination silently returned partial success
+- **Problem**: A failed `nextTocUrl` request broke the loop and returned collected chapters as if the TOC were complete.
+- **Fix**: Pagination now returns a contextual `toc: next page` error; added success and failure two-page fixtures.
+- **Affected**: `backend/internal/book/chapterlist.go`, `backend/internal/book/toc_pagination_test.go`.
+- **Watch out**: Decide and document whether future source policy permits partial TOCs; default behavior remains fail-loudly.

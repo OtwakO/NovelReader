@@ -755,35 +755,87 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	}
 
 	contentRule := rules["content"]
-	content := ""
-	if contentRule != "" {
-		content = mustString(an, contentRule)
-	} else {
-		content = mustString(an, "body@text")
-	}
-
-	// If content is empty from CSS rules, try to extract from JSON in <script> tags
-	// Many SPAs embed chapter content as JSON in script tags for hydration
-	if content == "" && strings.Contains(response.Body, "<script") {
-		extracted := extractContentFromScriptJSON(response.Body)
-		if extracted != "" {
-			content = extracted
-			slog.Debug("content: extracted from script tag JSON fallback",
-				"source", src.BookSourceName,
-				"url", fullURL,
-			)
+	subRule := rules["subContent"]
+	extractPage := func(pageAnalyzer *analyzer.Analyzer, body, pageURL string) string {
+		pageContent := ""
+		if contentRule != "" {
+			pageContent = mustString(pageAnalyzer, contentRule)
 		} else {
-			slog.Warn("content: JSON script fallback found scripts but no content",
-				"source", src.BookSourceName,
-				"htmlLen", len(response.Body),
-			)
+			pageContent = mustString(pageAnalyzer, "body@text")
 		}
+		if pageContent == "" && strings.Contains(body, "<script") {
+			if extracted := extractContentFromScriptJSON(body); extracted != "" {
+				pageContent = extracted
+				slog.Debug("content: extracted from script tag JSON fallback",
+					"source", src.BookSourceName, "url", pageURL)
+			}
+		}
+		if subRule != "" {
+			if sub := mustString(pageAnalyzer, subRule); sub != "" {
+				pageContent += "\n" + sub
+			}
+		}
+		return pageContent
 	}
 
-	if subRule := rules["subContent"]; subRule != "" {
-		if sub := mustString(an, subRule); sub != "" {
-			content += "\n" + sub
+	content := extractPage(an, response.Body, fullURL)
+	visited := map[string]bool{fullURL: true}
+	for nextRule := rules["nextContentUrl"]; nextRule != ""; {
+		nextURLs, err := an.GetStringList(nextRule)
+		if err != nil || len(nextURLs) == 0 {
+			break
 		}
+		var nextURL string
+		for _, candidate := range nextURLs {
+			candidate = resolveURL(candidate, fullURL)
+			if candidate != "" && !visited[candidate] {
+				nextURL = candidate
+				break
+			}
+		}
+		if nextURL == "" {
+			break
+		}
+		visited[nextURL] = true
+
+		nextSpec, err := executor.Build(nextURL, "", 1, src.BookSourceURL)
+		if err != nil {
+			return "", "", fmt.Errorf("content: next page build: %w", err)
+		}
+		if nextSpec.Headers == nil {
+			nextSpec.Headers = make(map[string]string)
+		}
+		for key, value := range parseHeaderJSON(src.Header) {
+			if _, exists := nextSpec.Headers[key]; !exists {
+				nextSpec.Headers[key] = value
+			}
+		}
+		if nextSpec.WebView {
+			return "", "", fmt.Errorf("content: next page requires JS rendering (webView:true)")
+		}
+		if nextSpec.Method == "POST" && nextSpec.Body != "" && nextSpec.Charset != "" {
+			nextSpec.Body = encodeBody(nextSpec.Body, nextSpec.Charset)
+		}
+		nextResponse, err := transport.Do(ctx, nextSpec)
+		if err != nil {
+			return "", "", fmt.Errorf("content: next page fetch: %w", err)
+		}
+		if nextResponse.StatusCode < http.StatusOK || nextResponse.StatusCode >= http.StatusMultipleChoices {
+			return "", "", fmt.Errorf("content: next page status %d from %s", nextResponse.StatusCode, src.BookSourceName)
+		}
+		nextFullURL := nextResponse.FinalURL
+		if nextFullURL == "" {
+			nextFullURL = nextSpec.URL
+		}
+		nextAnalyzer := analyzer.New(nextResponse.Body, nextFullURL, s.jsVM, s.cache)
+		nextAnalyzer.SetJSLib(src.JSLib)
+		nextAnalyzer.SetSourceState(session)
+		nextAnalyzer.SetChapterData(map[string]string{"url": nextFullURL, "baseUrl": nextFullURL})
+		if pageContent := extractPage(nextAnalyzer, nextResponse.Body, nextFullURL); pageContent != "" {
+			content += "\n" + pageContent
+		}
+		an = nextAnalyzer
+		fullURL = nextFullURL
 	}
 	return content, chapterTitle, nil
 }

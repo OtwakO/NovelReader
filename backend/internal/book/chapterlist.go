@@ -85,7 +85,7 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 
 		body, resolvedURL, err = p.fetch(nextURL)
 		if err != nil {
-			break
+			return nil, fmt.Errorf("toc: next page %s: %w", nextURL, err)
 		}
 	}
 
