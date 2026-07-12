@@ -47,9 +47,10 @@ func ParseRules(ruleStr string, isJSON bool) ([]Rule, error) {
 }
 
 // nextSegment extracts the next rule segment, splitting on:
-//   || — OR connector (top level only)
-//   <js> — start of JS block in mid-chain (e.g. tag.li<js>result+='x'</js>)
-//   </js> — end of JS block
+//
+//	|| — OR connector (top level only)
+//	<js> — start of JS block in mid-chain (e.g. tag.li<js>result+='x'</js>)
+//	</js> — end of JS block
 func nextSegment(s string) (string, string, error) {
 	depth := 0
 	inJS := false
@@ -155,6 +156,10 @@ func detectMode(expr string, isJSON bool) Mode {
 	// JS blocks
 	if strings.HasPrefix(expr, "<js>") || strings.HasPrefix(expr, "@js:") {
 		return ModeJS
+	}
+	// Standalone Legado regex/replacement rules use a leading ##.
+	if strings.HasPrefix(expr, "##") {
+		return ModeRegex
 	}
 
 	// Explicit prefixes

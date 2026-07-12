@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content now supports chapter URL options, session-backed Analyzer context, final URL binding, and `nextContentUrl` aggregation with cycle detection. TOC pagination now reports failed next pages. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, and `%%` list semantics now have conformance tests. Full Go tests pass.
 
-**In progress:** Designing session continuity across detail → TOC → content workflows and hardening retries/status/charset behavior.
+**In progress:** Designing session continuity across detail → TOC → content and hardening retries/status/charset behavior.
 
-**Next action:** Add explicit retry/status/charset conformance tests and a workflow session lifecycle; then address Regex, `%%`, Default indices, and `java.getString/getElements` compatibility.
+**Next action:** Add explicit retry/status/charset conformance tests and a workflow session lifecycle; then implement Default indices/ranges and `java.getString/getElements` compatibility.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -600,3 +600,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Pagination now returns a contextual `toc: next page` error; added success and failure two-page fixtures.
 - **Affected**: `backend/internal/book/chapterlist.go`, `backend/internal/book/toc_pagination_test.go`.
 - **Watch out**: Decide and document whether future source policy permits partial TOCs; default behavior remains fail-loudly.
+
+### [2026-07-13] Rule engine omitted standalone Regex and list connectors
+- **Problem**: Leading `##` rules were classified as CSS and `GetStringList` ignored documented `&&`/`%%` semantics, causing valid multi-rule extraction to return empty or incorrectly ordered results.
+- **Fix**: Added Regex mode detection, `###` first-match marker handling, and deterministic `&&` concatenation/`%%` interleaving with conformance tests.
+- **Affected**: `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/modes_regex.go`, `backend/internal/analyzer/analyzer.go`, analyzer conformance tests.
+- **Watch out**: Default indices/ranges, Regex edge cases, element connector semantics, and JS helper parity remain incomplete.

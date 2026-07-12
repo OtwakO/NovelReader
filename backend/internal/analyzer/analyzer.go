@@ -169,11 +169,61 @@ func (a *Analyzer) getFirstOr(ruleStr string) (string, error) {
 
 // GetStringList evaluates a rule string and returns a list of text results.
 func (a *Analyzer) GetStringList(ruleStr string) ([]string, error) {
-	rules, err := ParseRules(ruleStr, a.isJSON)
-	if err != nil {
-		return nil, err
+	if parts := splitTopLevel(ruleStr, "&&"); len(parts) > 1 {
+		var combined []string
+		for _, part := range parts {
+			values, err := a.getStringListOR(part)
+			if err != nil {
+				continue
+			}
+			combined = append(combined, values...)
+		}
+		if len(combined) == 0 {
+			return nil, fmt.Errorf("analyzer: no list values matched")
+		}
+		return combined, nil
 	}
-	return a.evalStringList(rules)
+	if parts := splitTopLevel(ruleStr, "%%"); len(parts) > 1 {
+		lists := make([][]string, 0, len(parts))
+		maxLen := 0
+		for _, part := range parts {
+			values, err := a.getStringListOR(part)
+			if err != nil {
+				continue
+			}
+			lists = append(lists, values)
+			if len(values) > maxLen {
+				maxLen = len(values)
+			}
+		}
+		var interleaved []string
+		for index := 0; index < maxLen; index++ {
+			for _, values := range lists {
+				if index < len(values) {
+					interleaved = append(interleaved, values[index])
+				}
+			}
+		}
+		if len(interleaved) == 0 {
+			return nil, fmt.Errorf("analyzer: no list values matched")
+		}
+		return interleaved, nil
+	}
+	return a.getStringListOR(ruleStr)
+}
+
+func (a *Analyzer) getStringListOR(ruleStr string) ([]string, error) {
+	for _, segment := range splitTopLevel(ruleStr, "||") {
+		rules, err := ParseRules(strings.TrimSpace(segment), a.isJSON)
+		if err != nil {
+			continue
+		}
+		values, err := a.evalStringList(rules)
+		if err == nil && len(values) > 0 {
+			return values, nil
+		}
+	}
+	return nil, fmt.Errorf("analyzer: no list values matched")
 }
 
 // GetElement evaluates a rule and returns a single element.

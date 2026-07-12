@@ -118,7 +118,11 @@ func applyReplaceFromExpr(content, expr string) (string, error) {
 	}
 	pattern := parts[0]
 	replacement := parts[1]
-	return applyReplace(content, pattern, replacement, false)
+	first := strings.HasSuffix(replacement, "###")
+	if first {
+		replacement = strings.TrimSuffix(replacement, "###")
+	}
+	return applyReplace(content, pattern, replacement, first)
 }
 
 // applyReplace applies a regex replacement.
