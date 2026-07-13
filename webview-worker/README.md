@@ -10,10 +10,11 @@ patchright install chromium
 WEBVIEW_WORKER_PORT=8787 python worker.py
 ```
 
-The worker binds to `127.0.0.1` by default and exposes `POST /execute`. Configure the Go
+The worker binds to `127.0.0.1` by default and exposes `POST /execute` and `GET /healthz`. Configure the Go
 backend with `WEBVIEW_ENDPOINT=http://127.0.0.1:8787`. `WEBVIEW_MAX_PAGES` limits concurrent
-browser contexts; each request gets an isolated context and cookies are returned to the Go
-source session.
+browser contexts, `WEBVIEW_MAX_PENDING` bounds queued requests, and
+`WEBVIEW_MAX_CONTEXTS_PER_BROWSER` recycles the browser process after clean usage. Each request
+gets an isolated context and cookies are returned to the Go source session.
 
 The worker is intended to run beside the Go server in Docker or as a localhost sidecar. Do
 not expose it publicly: it accepts arbitrary navigation URLs by design.

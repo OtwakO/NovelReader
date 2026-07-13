@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && chmod -R a+rX /ms-playwright
 
 RUN useradd --create-home --uid 10001 appuser
-COPY worker.py .
+COPY browser.py worker.py .
 USER appuser
 
 EXPOSE 8787
