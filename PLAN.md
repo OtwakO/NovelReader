@@ -284,7 +284,7 @@ Every significant booksource-engine change must follow this loop:
 
 **In progress:** Continuing cross-source compatibility checks and auditing the remaining Phase 1 request-contract gaps.
 
-**Next action:** Audit and close remaining Phase 1 request-contract gaps, starting with exact response/charset/cookie parity, then re-run the fixture and three-source gates.
+**Next action:** Close the remaining URL-option/JS-bridge parity gaps and request diagnostics, then re-run the fixture and three-source gates.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
