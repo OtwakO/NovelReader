@@ -2,6 +2,7 @@
 package fingerprint
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -11,6 +12,26 @@ import (
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/sourceexec"
 )
+
+type captureTransport struct{}
+
+func (captureTransport) Do(context.Context, sourceexec.RequestSpec) (sourceexec.Response, error) {
+	return sourceexec.Response{StatusCode: http.StatusOK, Body: "normal", Transport: "http"}, nil
+}
+
+func TestTransportDelegatesDNSIPToNormalFallback(t *testing.T) {
+	transport, err := NewTransport(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true}, captureTransport{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := transport.Do(t.Context(), sourceexec.RequestSpec{URL: "http://example.test/", DNSIP: "127.0.0.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Body != "normal" || response.Transport != "http" {
+		t.Fatalf("response=%+v", response)
+	}
+}
 
 func TestTransportHonorsRetryAfterFingerprintNonSuccess(t *testing.T) {
 	var calls atomic.Int32

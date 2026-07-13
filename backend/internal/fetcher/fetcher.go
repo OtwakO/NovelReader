@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -131,6 +132,11 @@ func (c *Client) GetContextWithCharset(ctx context.Context, rawURL string, extra
 	return c.doRequest(ctx, "GET", rawURL, "", extraHeaders, retry, responseCharset, true)
 }
 
+// GetContextWithCharsetAndDNSIP connects to dnsIP while retaining the request hostname.
+func (c *Client) GetContextWithCharsetAndDNSIP(ctx context.Context, rawURL string, extraHeaders map[string]string, retry int, responseCharset, dnsIP string) (*Response, error) {
+	return c.doRequestWithDNSIP(ctx, "GET", rawURL, "", extraHeaders, retry, responseCharset, true, dnsIP)
+}
+
 // PostContext performs a POST with context support and optional retry.
 func (c *Client) PostContext(ctx context.Context, rawURL, body string, extraHeaders map[string]string, retry int) (*Response, error) {
 	return c.doRequest(ctx, "POST", rawURL, body, extraHeaders, retry, "", true)
@@ -141,6 +147,11 @@ func (c *Client) PostContextWithCharset(ctx context.Context, rawURL, body string
 	return c.doRequest(ctx, "POST", rawURL, body, extraHeaders, retry, responseCharset, true)
 }
 
+// PostContextWithCharsetAndDNSIP connects to dnsIP while retaining the request hostname.
+func (c *Client) PostContextWithCharsetAndDNSIP(ctx context.Context, rawURL, body string, extraHeaders map[string]string, retry int, responseCharset, dnsIP string) (*Response, error) {
+	return c.doRequestWithDNSIP(ctx, "POST", rawURL, body, extraHeaders, retry, responseCharset, true, dnsIP)
+}
+
 // doRequest is the internal request executor with retry support.
 // GetContextNoRedirect preserves the first HTTP response for redirect-aware JS rules.
 func (c *Client) GetContextNoRedirect(ctx context.Context, rawURL string, extraHeaders map[string]string) (*Response, error) {
@@ -148,6 +159,10 @@ func (c *Client) GetContextNoRedirect(ctx context.Context, rawURL string, extraH
 }
 
 func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, extraHeaders map[string]string, retry int, responseCharset string, followRedirect bool) (*Response, error) {
+	return c.doRequestWithDNSIP(ctx, method, rawURL, reqBody, extraHeaders, retry, responseCharset, followRedirect, "")
+}
+
+func (c *Client) doRequestWithDNSIP(ctx context.Context, method, rawURL, reqBody string, extraHeaders map[string]string, retry int, responseCharset string, followRedirect bool, dnsIP string) (*Response, error) {
 	var lastErr error
 	for attempt := 0; attempt <= retry; attempt++ {
 		if attempt > 0 {
@@ -198,6 +213,26 @@ func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, 
 
 		redirectChain := make([]string, 0, 2)
 		client := *c.httpClient
+		if strings.TrimSpace(dnsIP) != "" {
+			ip := net.ParseIP(strings.TrimSpace(strings.Split(dnsIP, ",")[0]))
+			if ip == nil {
+				return nil, fmt.Errorf("fetcher: invalid dns IP %q", dnsIP)
+			}
+			transport, ok := c.httpClient.Transport.(*http.Transport)
+			if !ok {
+				return nil, fmt.Errorf("fetcher: DNS IP requires net/http transport")
+			}
+			transport = transport.Clone()
+			dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+			transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+				_, port, err := net.SplitHostPort(address)
+				if err != nil {
+					return nil, err
+				}
+				return dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+			}
+			client.Transport = transport
+		}
 		checkRedirect := client.CheckRedirect
 		client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
 			if next.URL != nil {

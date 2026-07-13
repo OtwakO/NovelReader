@@ -55,12 +55,21 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 	)
 	switch method {
 	case http.MethodGet:
-		resp, err = t.client.GetContextWithCharset(ctx, spec.URL, headers, spec.Retry, spec.Charset)
+		if spec.DNSIP != "" {
+			resp, err = t.client.GetContextWithCharsetAndDNSIP(ctx, spec.URL, headers, spec.Retry, spec.Charset, spec.DNSIP)
+		} else {
+			resp, err = t.client.GetContextWithCharset(ctx, spec.URL, headers, spec.Retry, spec.Charset)
+		}
 	case http.MethodPost:
 		if !hasHeader(headers, "Content-Type") {
 			headers["Content-Type"] = "application/x-www-form-urlencoded"
 		}
-		resp, err = t.client.PostContextWithCharset(ctx, spec.URL, EncodeRequestBody(spec.Body, spec.Charset), headers, spec.Retry, spec.Charset)
+		body := EncodeRequestBody(spec.Body, spec.Charset)
+		if spec.DNSIP != "" {
+			resp, err = t.client.PostContextWithCharsetAndDNSIP(ctx, spec.URL, body, headers, spec.Retry, spec.Charset, spec.DNSIP)
+		} else {
+			resp, err = t.client.PostContextWithCharset(ctx, spec.URL, body, headers, spec.Retry, spec.Charset)
+		}
 	default:
 		return Response{}, fmt.Errorf("sourceexec: unsupported HTTP method %q", method)
 	}

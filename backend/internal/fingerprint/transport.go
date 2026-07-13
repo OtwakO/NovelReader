@@ -37,6 +37,12 @@ func (t *Transport) Do(ctx context.Context, spec sourceexec.RequestSpec) (source
 	if t == nil || t.client == nil {
 		return sourceexec.Response{}, fmt.Errorf("fingerprint: transport has no client")
 	}
+	if strings.TrimSpace(spec.DNSIP) != "" {
+		if t.fallback == nil {
+			return sourceexec.Response{}, fmt.Errorf("fingerprint: dnsIp requires normal HTTP fallback")
+		}
+		return t.fallback.Do(ctx, spec)
+	}
 	method := strings.ToUpper(strings.TrimSpace(spec.Method))
 	if method == "" {
 		method = http.MethodGet
@@ -102,12 +108,12 @@ func (t *Transport) finish(ctx context.Context, spec sourceexec.RequestSpec, res
 		}
 	}
 	return sourceexec.Response{
-		StatusCode: response.StatusCode,
-		Headers:    cloneResponseHeaders(response.Headers),
-		Body:       response.Body,
-		FinalURL:       response.URL,
-		Transport:      "fingerprint",
-		RedirectChain:  append([]string(nil), response.RedirectChain...),
+		StatusCode:    response.StatusCode,
+		Headers:       cloneResponseHeaders(response.Headers),
+		Body:          response.Body,
+		FinalURL:      response.URL,
+		Transport:     "fingerprint",
+		RedirectChain: append([]string(nil), response.RedirectChain...),
 	}, nil
 }
 
