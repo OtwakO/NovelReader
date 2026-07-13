@@ -826,10 +826,12 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		if nextSpec.Method == "POST" && nextSpec.Body != "" && nextSpec.Charset != "" {
 			nextSpec.Body = encodeBody(nextSpec.Body, nextSpec.Charset)
 		}
+		slog.Debug("content: fetching next page", "source", src.BookSourceName, "url", nextSpec.URL, "method", nextSpec.Method)
 		nextResponse, err := transport.Do(ctx, nextSpec)
 		if err != nil {
 			return "", "", fmt.Errorf("content: next page fetch: %w", err)
 		}
+		slog.Debug("content: next page response", "source", src.BookSourceName, "url", nextSpec.URL, "status", nextResponse.StatusCode, "finalURL", nextResponse.FinalURL)
 		if nextResponse.StatusCode < http.StatusOK || nextResponse.StatusCode >= http.StatusMultipleChoices {
 			return "", "", fmt.Errorf("content: next page status %d from %s", nextResponse.StatusCode, src.BookSourceName)
 		}
