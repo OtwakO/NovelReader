@@ -127,11 +127,13 @@ Map = function(a) {
 	// java MUST be a map with lowercase keys — goja exposes Go struct methods capitalized
 	// (EncodeURI, not encodeURI). Following legado's JsExtensions naming convention.
 	hc := vm.hc
-	if factory, ok := vm.hc.(interface {
-		ForSource(fetcher.CookieSession) fetcher.HTTPClient
-	}); ok {
-		if session, ok := sourceState.(fetcher.CookieSession); ok {
+	if session, ok := sourceState.(fetcher.CookieSession); ok && hc != nil {
+		if factory, ok := vm.hc.(interface {
+			ForSource(fetcher.CookieSession) fetcher.HTTPClient
+		}); ok {
 			hc = factory.ForSource(session)
+		} else {
+			hc = fetcher.NewSessionHTTPClient(hc, session)
 		}
 	}
 	h := &jsHelpers{vm: vm, rt: rt, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState}

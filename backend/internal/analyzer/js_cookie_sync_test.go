@@ -68,7 +68,7 @@ func TestJavaAjaxStoresResponseCookiesInSourceSession(t *testing.T) {
 	defer server.Close()
 
 	vm := analyzer.NewJSVM()
-	vm.SetFetcher(fetcher.NewWithTimeout(3 * time.Second))
+	vm.SetFetcher(fetcher.NewInsecureStateless(3 * time.Second))
 	value, err := vm.Eval(`java.ajax("`+server.URL+`/set"); java.ajax("`+server.URL+`/check")`, "", server.URL,
 		map[string]interface{}{"sourceState": newCookieState()})
 	if err != nil {
