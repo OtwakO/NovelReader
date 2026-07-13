@@ -86,62 +86,65 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 	// Store the js option for eval after URL is fully constructed
 	var optJs string
 
-	// Extract JSON option suffix: URL,{"method":"POST","body":"...",...}
-	if before, option, ok := extractJSONOption(urlStr); ok {
-		urlStr = before
+	// Extract JSON option suffix only from ordinary URL templates. JavaScript
+	// templates can contain unrelated object literals and must be evaluated first.
+	if !strings.HasPrefix(urlStr, "@js:") {
+		if before, option, ok := extractJSONOption(urlStr); ok {
+			urlStr = before
 
-		var opt urlOption
-		if err := json.Unmarshal([]byte(option), &opt); err != nil {
-			slog.Warn("urlbuilder: failed to parse URL JSON option",
-				"option", option[:min(len(option), 100)], "err", err)
-		} else {
-			if opt.Method != "" {
-				meta.Method = strings.ToUpper(opt.Method)
-			}
-			meta.Body = opt.Body
-			meta.Charset = opt.Charset
-
-			// Tolerant webView: accepts "true" (string), true (bool), "1", 1
-			if len(opt.WebView) > 0 {
-				var s string
-				if err := json.Unmarshal(opt.WebView, &s); err == nil {
-					meta.WebView = s == "true" || s == "1"
-				} else {
-					var b bool
-					if err := json.Unmarshal(opt.WebView, &b); err == nil {
-						meta.WebView = b
-					}
+			var opt urlOption
+			if err := json.Unmarshal([]byte(option), &opt); err != nil {
+				slog.Warn("urlbuilder: failed to parse URL JSON option",
+					"option", option[:min(len(option), 100)], "err", err)
+			} else {
+				if opt.Method != "" {
+					meta.Method = strings.ToUpper(opt.Method)
 				}
-			}
+				meta.Body = opt.Body
+				meta.Charset = opt.Charset
 
-			// Tolerant headers: accepts JSON string ("{\"UA\":\"...\"}") or map
-			if len(opt.Headers) > 0 {
-				if err := json.Unmarshal(opt.Headers, &meta.Headers); err != nil {
+				// Tolerant webView: accepts "true" (string), true (bool), "1", 1
+				if len(opt.WebView) > 0 {
 					var s string
-					if err2 := json.Unmarshal(opt.Headers, &s); err2 == nil && s != "" {
-						json.Unmarshal([]byte(s), &meta.Headers)
+					if err := json.Unmarshal(opt.WebView, &s); err == nil {
+						meta.WebView = s == "true" || s == "1"
+					} else {
+						var b bool
+						if err := json.Unmarshal(opt.WebView, &b); err == nil {
+							meta.WebView = b
+						}
 					}
 				}
-			}
 
-			// Tolerant retry: accepts 2 (number) or "2" (string)
-			if len(opt.Retry) > 0 {
-				json.Unmarshal(opt.Retry, &meta.Retry)
-				if meta.Retry == 0 {
-					var s string
-					if json.Unmarshal(opt.Retry, &s) == nil {
-						fmt.Sscanf(s, "%d", &meta.Retry)
+				// Tolerant headers: accepts JSON string ("{\"UA\":\"...\"}") or map
+				if len(opt.Headers) > 0 {
+					if err := json.Unmarshal(opt.Headers, &meta.Headers); err != nil {
+						var s string
+						if err2 := json.Unmarshal(opt.Headers, &s); err2 == nil && s != "" {
+							json.Unmarshal([]byte(s), &meta.Headers)
+						}
 					}
 				}
+
+				// Tolerant retry: accepts 2 (number) or "2" (string)
+				if len(opt.Retry) > 0 {
+					json.Unmarshal(opt.Retry, &meta.Retry)
+					if meta.Retry == 0 {
+						var s string
+						if json.Unmarshal(opt.Retry, &s) == nil {
+							fmt.Sscanf(s, "%d", &meta.Retry)
+						}
+					}
+				}
+
+				meta.WebJS = opt.WebJs
+				meta.BodyJS = opt.BodyJs
+				meta.DNSIP = opt.DnsIp
+				meta.Origin = opt.Origin
+				meta.Type = opt.Type
+
+				optJs = opt.Js // stored for post-resolution eval
 			}
-
-			meta.WebJS = opt.WebJs
-			meta.BodyJS = opt.BodyJs
-			meta.DNSIP = opt.DnsIp
-			meta.Origin = opt.Origin
-			meta.Type = opt.Type
-
-			optJs = opt.Js // stored for post-resolution eval
 		}
 	}
 
