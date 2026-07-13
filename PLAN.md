@@ -168,7 +168,7 @@ Completion gate: one fixture request produces the same method, URL, body, header
 Tasks:
 
 - [ ] Implement explicit Regex mode for `##...##...` rules.
-- [ ] Implement exact Default/JSoup grammar: selectors, getters, direct children, `@attr`, indexes, negative indexes, exclusions, arrays, ranges, steps, and reverse ranges.
+- [ ] Implement exact Default/JSoup grammar: selectors, getters, direct children, `@attr`, numeric selectors such as `.directoryArea.1`, CSS-compatible `:eq(n)` selectors such as `.directoryArea:eq(1)`, indexes, negative indexes, exclusions, arrays, ranges, steps, and reverse ranges.
 - [ ] Implement exact `&&`, `||`, and `%%` semantics for strings, elements, and lists.
 - [ ] Implement `<js>` chain semantics and result propagation at every documented position.
 - [ ] Preserve typed HTML/JSON intermediates and correct `outerHtml`, `html`, `text`, `textNodes`, `ownText`, `all`, `href`, and `src` behavior.
@@ -265,7 +265,7 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **In progress:** Hardening retries/status/charset behavior and separating transport failures from rule/DOM compatibility.
 
-**Next action:** Implement Default selector indices such as `.directoryArea:eq(1)`/`.directoryArea.1`, then add retry/status/charset conformance tests before the next major live E2E.
+**Next action:** Implement and test Default selector indices such as `.directoryArea:eq(1)`/`.directoryArea.1`, then add retry/status/charset conformance tests before the next major live E2E.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
