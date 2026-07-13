@@ -20,8 +20,9 @@ backend/internal/
   analyzer/     Legado rule engine and JS bridge
   fetcher/      HTTP transport implementation and transport-neutral HTTP client contract
   fingerprint/  optional TLS/HTTP fingerprint transport adapter
-  webview/      optional browser transport implementation (new seam)
+  webview/      Go client and session-scoped WebView transport
   book/         search, enrichment, TOC, content domain workflows
+webview-worker/  Python Patchright headless browser worker
   processor/    content safety and paragraph formatting
   database/     SQLite setup/migrations
 frontend/src/
@@ -70,6 +71,8 @@ A source session owns:
 - source headers and rate limit state;
 - JS library/context;
 - request-scoped book/chapter context.
+
+WebView sessions remain scoped to the same SourceSession. The Go `webview` client sends a small JSON request to the Patchright worker; the worker owns Chromium lifecycle and returns a transport-neutral response plus cookies. Book workflows do not import or know about Patchright.
 
 Sessions are isolated by user/source identity. Search must not share cookies across sources or users. Detail → TOC → content for one source may share that source’s session.
 
@@ -219,12 +222,14 @@ Completion gate: at least one normal HTML source, one JSON source, one XPath/Reg
 
 ### Phase 5 — WebView transport with minimal refactor
 
-**Goal:** support WebView sources through the existing request contract.
+**Goal:** support browser-backed sources in headless Docker without coupling book workflows to a browser library.
 
 Tasks:
 
 - [ ] Define `WebViewTransport` behind the same `RequestSpec`/`Response` interface.
-- [ ] Add a browser-backed implementation only after HTTP and rule conformance are stable.
+- [ ] Add the Python Patchright worker over a localhost HTTP boundary; pin the package and browser install.
+- [ ] Add a Go `webview` client that owns the protocol, timeout, cancellation, and SourceSession cookie synchronization.
+- [ ] Route `webView:true` requests through WebView while normal requests retain fingerprint/HTTP policy.
 - [ ] Support page JavaScript, `webJs`, delayed execution, cookies, redirects, headers, and final DOM/response capture.
 - [ ] Add a configurable browser lifecycle, timeout, concurrency limit, and cancellation policy.
 - [ ] Make WebView optional at build/deploy time; HTTP-only deployments report a precise unsupported capability.
@@ -280,13 +285,13 @@ Every significant booksource-engine change must follow this loop:
 
 ## Current State
 
-**Phase:** Phase 1 — lossless source model and unified request executor; Phase 0 compatibility baseline is complete.
+**Phase:** Phase 5 — WebView transport implementation; Phase 0 compatibility baseline is complete.
 
 **Last completed:** Preserved structured URL-option JSON bodies and prepared raw-vs-form POST payloads consistently across normal and fingerprint transports. Added URL-option `HEAD` execution through normal and fingerprint transports. Added URL-option `dnsIp` execution for normal HTTP requests while preserving the original host for HTTP Host/TLS behavior. Applied case-insensitive URL/source header overlays across search, book info, TOC, content, pagination, and conformance execution. Source-level headers now also reach JavaScript bridge requests through SourceSession and both normal/fingerprint clients. Preserved JS bridge POST content types through the cookie-session adapter. Added a cookie-session adapter for JS HTTP clients without native `ForSource` support, so stateless `java.get/post/ajax` calls now inject and persist source cookies. Made HTTP transport header merging case-insensitive so explicit lowercase `Origin` and `Content-Type` values are not overridden or duplicated. Completed conformance request diagnostics across normal and fingerprint transports: exact request metadata, redacted response headers, redirect chains, status, and bounded body samples. Updated the conformance parser to resolve search links against each response's final URL, verified live sources 1 and 84 still return 13 and 2 results with absolute book URLs, and classified source 89 as a transport timeout. Threaded source-session state into per-result search analyzers so field-level JS rules can read cookies and variables. Resolved search, cover, and TOC links against the actual final response page URL instead of the source root/book input. Preserved redirect-origin cookies across normal and fingerprint transports by syncing both requested and final URL scopes. Added shared `bodyJs` response transformation after transport success and threaded it through search, book info, TOC, and content pagination. Moved request-body charset encoding into the shared source transports so normal and fingerprint requests use the same `RequestSpec` contract. Preserved imported BookSource JSON (including unknown fields and rule value shapes) through JSON round-trip and SQLite persistence. Completed the deterministic Phase 0 fixture corpus with executable rule expectations, fixed JSONPath object decoding and long-list truncation, and added the production-mode raw conformance runner, golden classification tests, and optional health checks that abort after a server failure. Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`;  content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, source-scoped fingerprint jars, staged-response final-URL tracking, segmented URL `@js`, POST-body page selectors, `<js>...</js>` wrapper execution, typed JavaScript TOC objects, and context cancellation. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库` after regular transport integration: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs. Fresh raw `趣书网吧` verification passes search → add → 438-page TOC → first-page content with 135 rendered paragraphs. A second fresh post-review E2E pass reproduced the same 438-page TOC and 135 rendered paragraphs. Direct book deep links now load the same 438-chapter detail page without frontend effect-loop errors. Raw `中文看书（优）` independently returned 15 exact POST results; the fixed engine also produced a live result before that upstream began timing out again. Raw `神话之后（优+）` produced 2 results and a 2271-chapter TOC through the UI. The production-mode conformance runner now records raw indices 1, 84, and 89 with request/response/classification output.
 
-**In progress:** Continuing cross-source compatibility checks and auditing the remaining Phase 1 request-contract gaps.
+**In progress:** Designing the WebView boundary before implementation. The selected deployment is a Python Patchright worker reached by the Go backend over localhost HTTP; no browser dependency will enter book or analyzer packages.
 
-**Next action:** Close the remaining URL-option/JS-bridge parity gaps and request diagnostics, then re-run the fixture and three-source gates.
+**Next action:** Commit the WebView boundary plan, then implement the Go client, fake transport tests, worker protocol, and workflow routing in separate verified steps.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -297,6 +302,8 @@ Every significant booksource-engine change must follow this loop:
 | Compatibility boundary | Documented Legado behavior first | Prevents source-specific patches and accidental semantic drift. |
 | Request architecture | One SourceExecutor for every workflow | Search-only URL support caused confirmed failures. |
 | Transport | HTTP and WebView behind one interface | Enables plug-in WebView without rewriting book workflows. |
+| Browser runtime | Python Patchright worker over localhost HTTP | Keeps Chromium/Patchright lifecycle out of the Go process while remaining headless-Docker compatible. |
+| Browser protocol | Versioned JSON `/execute` and `/healthz` endpoints | Small explicit contract; easy fake transport and independent worker upgrades. |
 | Source identity | `bookSourceUrl`, not name | Names are duplicated in compilations. |
 | State | SourceSession with explicit scope | Cookies and variables must persist within a source flow but never leak across users/sources. |
 | Rule values | Typed intermediates | Re-parsing HTML strings loses Legado element/JSON behavior. |
