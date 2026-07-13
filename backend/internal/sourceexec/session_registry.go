@@ -67,4 +67,15 @@ func (r *SessionRegistry) GetChapter(sourceURL, chapterURL string) *SourceSessio
 	return r.chapters[sessionKey(sourceURL, chapterURL)]
 }
 
+// IsChapter reports whether a URL belongs to a collected chapter list.
+func (r *SessionRegistry) IsChapter(sourceURL, chapterURL string) bool {
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, ok := r.chapters[sessionKey(sourceURL, chapterURL)]
+	return ok
+}
+
 func sessionKey(sourceURL, resourceURL string) string { return sourceURL + "\x00" + resourceURL }

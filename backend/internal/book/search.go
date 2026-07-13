@@ -798,10 +798,17 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		var nextURL string
 		for _, candidate := range nextURLs {
 			candidate = resolveURL(candidate, fullURL)
-			if candidate != "" && !visited[candidate] {
-				nextURL = candidate
+			if candidate == "" || visited[candidate] {
+				continue
+			}
+			// Legado stops when a content-page link reaches the next TOC
+			// chapter; otherwise a normal next-chapter link is mistaken for
+			// another page of the current chapter.
+			if s.sessions.IsChapter(src.BookSourceURL, candidate) {
 				break
 			}
+			nextURL = candidate
+			break
 		}
 		if nextURL == "" {
 			break

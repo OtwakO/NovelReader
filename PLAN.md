@@ -263,11 +263,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default `.eq()`/dot-index selectors have conformance tests. Direct Playwright confirmed `m.22biqu.net` exposes the expected 50 indexed chapter links; the UI verification was blocked by a separate book-info 404. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Direct Playwright confirmed `m.22biqu.net` reaches 50 chapters; its content path exposed and then received a targeted next-chapter fix. Full Go tests pass.
 
-**In progress:** Hardening retries/status/charset behavior and separating live transport/enrichment failures from rule compatibility.
+**In progress:** Verifying the next-chapter fix live and hardening retry/status/charset behavior.
 
-**Next action:** Add request-parity diagnostics and retry/status/charset conformance tests; resolve the `m.22biqu.net` enrichment discrepancy; then rerun UI E2E with an indexed TOC source that reaches the selector.
+**Next action:** Run Playwright on `m.22biqu.net` and another source, then add retry/status/charset conformance tests.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -676,3 +676,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added request-parity diagnostics and the `m.22biqu.net` 404-vs-200 discrepancy as a Phase 1 task and current gate.
 - **Affected**: `PLAN.md`.
 - **Watch out**: Do not mark indexed-selector compatibility complete until the UI reaches TOC parsing successfully.
+
+### [2026-07-13] Content pagination followed the next chapter as another page
+- **Problem**: `nextContentUrl` for `m.22biqu.net` correctly returned internal page URLs, but after the last internal page it returned the next TOC chapter. NovelReader fetched subsequent chapters and eventually returned HTTP 500 instead of stopping.
+- **Fix**: Added a session-registry chapter URL guard matching Legado’s `nextChapterUrl` stop condition; added a regression fixture proving the next chapter is not fetched as content pagination.
+- **Affected**: `backend/internal/book/search.go`, `backend/internal/sourceexec/session_registry.go`, `backend/internal/book/content_next_chapter_test.go`.
+- **Watch out**: Live Playwright must verify the first chapter now renders without traversing into later chapters.
