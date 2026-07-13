@@ -46,6 +46,10 @@ type capacityCounters struct {
 	failedSources       atomic.Int64
 }
 
+type sourceLister interface {
+	ListEnabled() ([]booksource.BookSource, error)
+}
+
 // Searcher orchestrates search, book info, TOC, and content fetching.
 type TransportFactory func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport
 type WebViewTransportFactory func(session *sourceexec.SourceSession) sourceexec.Transport
@@ -56,7 +60,7 @@ type Searcher struct {
 	webViewTransportFactory WebViewTransportFactory
 	jsVM                    *analyzer.JSVM
 	cache                   *analyzer.CacheManager
-	sourceStore             *booksource.Store
+	sourceStore             sourceLister
 	bookStore               *Store
 	sessions                *sourceexec.SessionRegistry
 	searchSlots             chan struct{}
@@ -70,7 +74,7 @@ func NewSearcher(
 	hc *fetcher.Client,
 	jsVM *analyzer.JSVM,
 	cache *analyzer.CacheManager,
-	sourceStore *booksource.Store,
+	sourceStore sourceLister,
 	bookStore *Store,
 ) *Searcher {
 	sharedFetcher := hc
