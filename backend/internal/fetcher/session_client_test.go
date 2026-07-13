@@ -31,6 +31,22 @@ func (s *testCookieSession) SetCookies(rawURL string, cookies []*http.Cookie) er
 	return nil
 }
 
+func TestSessionHTTPClientPreservesPostContentType(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Content-Type"); got != "application/json" {
+			t.Errorf("Content-Type=%q", got)
+		}
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	jar, _ := cookiejar.New(nil)
+	client := NewSessionHTTPClient(NewInsecureStateless(3*time.Second), &testCookieSession{jar: jar})
+	if _, err := client.Post(server.URL, "application/json", "{}", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSessionHTTPClientCarriesCookiesAcrossRequests(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

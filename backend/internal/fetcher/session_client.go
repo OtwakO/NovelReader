@@ -57,6 +57,14 @@ func (c *SessionHTTPClient) GetContextNoRedirect(ctx context.Context, rawURL str
 }
 
 func (c *SessionHTTPClient) Post(rawURL, contentType, body string, headers map[string]string) (*Response, error) {
+	if contentType != "" && !hasSessionHeader(headers, "Content-Type") {
+		copy := make(map[string]string, len(headers)+1)
+		for key, value := range headers {
+			copy[key] = value
+		}
+		copy["Content-Type"] = contentType
+		headers = copy
+	}
 	return c.PostContext(context.Background(), rawURL, body, headers, 0)
 }
 
