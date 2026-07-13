@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, and scoped detail→TOC→content sessions have conformance tests. Multi-source Playwright verification succeeded for two distinct raw sources, including a 167-chapter source with rendered content. The previously timed-out source was independently rechecked. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, and scoped detail→TOC→content sessions have conformance tests. Multi-source Playwright verification succeeded for two sources with rendered content; an additional live source exposed a TOC rule/parser incompatibility. Full Go tests pass.
 
 **In progress:** Hardening retries/status/charset behavior and separating transport failures from rule/DOM compatibility.
 
-**Next action:** Add explicit retry/status/charset conformance tests, then implement Default indices/ranges and element connector semantics before the next major live E2E.
+**Next action:** Implement Default selector indices such as `.directoryArea:eq(1)`/`.directoryArea.1`, then add retry/status/charset conformance tests before the next major live E2E.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -650,3 +650,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Classified the prior failure as two separate investigations—HTTP transport timeout and rule/DOM mismatch—rather than calling it a frontend or parser regression; no source-specific rule was changed.
 - **Affected**: Live source verification; raw source `神话之后（优+）`; no production code changed.
 - **Watch out**: Improve transport retry/timeout diagnostics first, then test whether Legado’s Default selector semantics or a compatibility fallback should handle this DOM shape.
+
+### [2026-07-13] Live 22笔趣阁 TOC exposed unsupported Default index syntax
+- **Problem**: UI search selected `https://m.22biqu.net`, but NovelReader showed `Chapters (0)`. Playwright loaded the raw book page successfully and found two `.directoryArea` sections with 55 chapter links; the raw TOC rule uses `.directoryArea:eq(1)@p@a`.
+- **Fix**: Recorded this as an engine/parser compatibility failure, not a dead source; no source-specific rule was changed.
+- **Affected**: Live verification; raw source `22笔趣阁`; no production code changed.
+- **Watch out**: Implement and test Legado Default selector indices/`:eq()` semantics before judging similar sources outdated.
