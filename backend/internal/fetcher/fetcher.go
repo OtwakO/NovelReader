@@ -137,6 +137,16 @@ func (c *Client) GetContextWithCharsetAndDNSIP(ctx context.Context, rawURL strin
 	return c.doRequestWithDNSIP(ctx, "GET", rawURL, "", extraHeaders, retry, responseCharset, true, dnsIP)
 }
 
+// HeadContextWithCharset executes a HEAD request with an explicit response charset.
+func (c *Client) HeadContextWithCharset(ctx context.Context, rawURL string, extraHeaders map[string]string, retry int) (*Response, error) {
+	return c.doRequest(ctx, http.MethodHead, rawURL, "", extraHeaders, retry, "", true)
+}
+
+// HeadContextWithCharsetAndDNSIP executes HEAD while connecting to dnsIP.
+func (c *Client) HeadContextWithCharsetAndDNSIP(ctx context.Context, rawURL string, extraHeaders map[string]string, retry int, dnsIP string) (*Response, error) {
+	return c.doRequestWithDNSIP(ctx, http.MethodHead, rawURL, "", extraHeaders, retry, "", true, dnsIP)
+}
+
 // PostContext performs a POST with context support and optional retry.
 func (c *Client) PostContext(ctx context.Context, rawURL, body string, extraHeaders map[string]string, retry int) (*Response, error) {
 	return c.doRequest(ctx, "POST", rawURL, body, extraHeaders, retry, "", true)

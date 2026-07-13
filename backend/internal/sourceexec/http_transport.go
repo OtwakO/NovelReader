@@ -60,6 +60,12 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 		} else {
 			resp, err = t.client.GetContextWithCharset(ctx, spec.URL, headers, spec.Retry, spec.Charset)
 		}
+	case http.MethodHead:
+		if spec.DNSIP != "" {
+			resp, err = t.client.HeadContextWithCharsetAndDNSIP(ctx, spec.URL, headers, spec.Retry, spec.DNSIP)
+		} else {
+			resp, err = t.client.HeadContextWithCharset(ctx, spec.URL, headers, spec.Retry)
+		}
 	case http.MethodPost:
 		if !hasHeader(headers, "Content-Type") {
 			headers["Content-Type"] = "application/x-www-form-urlencoded"

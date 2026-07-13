@@ -66,7 +66,7 @@ func (t *Transport) Do(ctx context.Context, spec sourceexec.RequestSpec) (source
 	var body string
 	var err error
 	switch method {
-	case http.MethodGet:
+	case http.MethodGet, http.MethodHead:
 		var response *fetcher.Response
 		response, err = t.client.doWithCharset(ctx, method, spec.URL, "", headers, true, spec.Charset)
 		slog.Debug("fingerprint: primary response", "url", spec.URL, "status", responseStatus(response), "err", err)
