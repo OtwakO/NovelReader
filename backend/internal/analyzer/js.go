@@ -134,7 +134,7 @@ Map = function(a) {
 			hc = factory.ForSource(session)
 		}
 	}
-	h := &jsHelpers{vm: vm, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState}
+	h := &jsHelpers{vm: vm, rt: rt, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState}
 	_ = rt.Set("result", content)
 	_ = rt.Set("src", content) // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
@@ -301,6 +301,7 @@ func (vm *JSVM) makeCacheObj(state SourceState) map[string]interface{} {
 
 type jsHelpers struct {
 	vm       *JSVM
+	rt       *goja.Runtime
 	hc       fetcher.HTTPClient
 	ctx      context.Context
 	analyzer *Analyzer
@@ -382,6 +383,46 @@ func responseURL(response *fetcher.Response, fallback string) string {
 	return fallback
 }
 
+func (h *jsHelpers) responseObject(body string, status int, headers http.Header, finalURL, errorMessage string) interface{} {
+	if h.rt == nil {
+		return map[string]interface{}{"body": body, "bodyText": body, "statusCode": status, "error": errorMessage}
+	}
+	headerObject := h.rt.NewObject()
+	getHeader := func(name string) string {
+		if headers == nil {
+			return ""
+		}
+		return headers.Get(name)
+	}
+	headerObject.Set("get", func(call goja.FunctionCall) goja.Value {
+		return h.rt.ToValue(getHeader(call.Argument(0).String()))
+	})
+	responseObject := h.rt.NewObject()
+	responseObject.Set("body", func() string { return body })
+	responseObject.Set("bodyText", body)
+	responseObject.Set("statusCode", status)
+	responseObject.Set("code", func() int { return status })
+	responseObject.Set("headers", func() *goja.Object { return headerObject })
+	responseObject.Set("header", func(call goja.FunctionCall) goja.Value {
+		return h.rt.ToValue(getHeader(call.Argument(0).String()))
+	})
+	if errorMessage != "" {
+		responseObject.Set("error", errorMessage)
+	}
+	rawObject := h.rt.NewObject()
+	rawObject.Set("body", func() string { return body })
+	rawObject.Set("code", func() int { return status })
+	rawObject.Set("headers", func() *goja.Object { return headerObject })
+	rawObject.Set("request", func() *goja.Object {
+		requestObject := h.rt.NewObject()
+		requestObject.Set("url", finalURL)
+		requestObject.Set("headers", headerObject)
+		return requestObject
+	})
+	responseObject.Set("raw", func() *goja.Object { return rawObject })
+	return responseObject
+}
+
 // Get performs HTTP GET or variable retrieval: java.get(url, headers?) or java.get(key)
 func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 	// Variable getter
@@ -402,36 +443,15 @@ func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 		}
 	}
 	if h.hc == nil {
-		return map[string]interface{}{"body": "", "statusCode": 0}
+		return h.responseObject("", 0, nil, arg1, "")
 	}
 	resp, err := h.getNoRedirect(arg1, headers)
 	if err != nil {
-		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
+		return h.responseObject("", 0, nil, arg1, err.Error())
 	}
-	h.syncResponseCookies(responseURL(resp, arg1), resp.Headers)
-	result := make(map[string]interface{})
-	result["body"] = func() string { return resp.Body }
-	result["bodyText"] = resp.Body
-	result["statusCode"] = resp.StatusCode
-	hdr := make(map[string]string)
-	for k, v := range resp.Headers {
-		if len(v) > 0 {
-			hdr[k] = v[0]
-		}
-	}
-	result["headers"] = hdr
-	result["header"] = func(name string) string {
-		if value, ok := hdr[name]; ok {
-			return value
-		}
-		for key, value := range hdr {
-			if strings.EqualFold(key, name) {
-				return value
-			}
-		}
-		return ""
-	}
-	return result
+	finalURL := responseURL(resp, arg1)
+	h.syncResponseCookies(finalURL, resp.Headers)
+	return h.responseObject(resp.Body, resp.StatusCode, resp.Headers, finalURL, "")
 }
 
 // Post performs HTTP POST: java.post(url, body, headers?)
@@ -445,19 +465,20 @@ func (h *jsHelpers) Post(urlStr, body string, args ...interface{}) interface{} {
 		}
 	}
 	if h.hc == nil {
-		return map[string]interface{}{"body": "", "statusCode": 0}
+		return h.responseObject("", 0, nil, urlStr, "")
 	}
 	resp, err := h.post(urlStr, body, headers)
 	if err != nil {
-		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
+		return h.responseObject("", 0, nil, urlStr, err.Error())
 	}
-	h.syncResponseCookies(responseURL(resp, urlStr), resp.Headers)
-	return map[string]interface{}{"body": func() string { return resp.Body }, "bodyText": resp.Body, "statusCode": resp.StatusCode}
+	finalURL := responseURL(resp, urlStr)
+	h.syncResponseCookies(finalURL, resp.Headers)
+	return h.responseObject(resp.Body, resp.StatusCode, resp.Headers, finalURL, "")
 }
 
 // connect performs HTTP and returns a chainable response object.
 // Supports java.connect(url).raw().request().url() chain pattern.
-func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]interface{} {
+func (h *jsHelpers) Connect(urlStr string, args ...interface{}) interface{} {
 	headers := make(map[string]string)
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok && s != "" {
@@ -468,46 +489,16 @@ func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]inter
 		}
 	}
 
-	finalURL := urlStr
-	body := ""
-	code := 0
-	respHeaders := make(map[string]interface{})
-
-	if h.hc != nil {
-		resp, err := h.get(urlStr, headers)
-		if err == nil {
-			body = resp.Body
-			code = resp.StatusCode
-			finalURL = responseURL(resp, urlStr)
-			h.syncResponseCookies(finalURL, resp.Headers)
-			for k, vals := range resp.Headers {
-				if len(vals) > 0 {
-					respHeaders[k] = vals[0]
-				}
-			}
-		}
+	if h.hc == nil {
+		return h.responseObject("", 0, nil, urlStr, "")
 	}
-
-	return map[string]interface{}{
-		"body":    body,
-		"code":    code,
-		"headers": respHeaders,
-		// ponytail: raw.request.url chain matches legado's StrResponse shape.
-		// .body(), .code(), .headers() also work as direct properties.
-		"raw": func() map[string]interface{} {
-			return map[string]interface{}{
-				"body":    body,
-				"code":    code,
-				"headers": respHeaders,
-				"request": func() map[string]interface{} {
-					return map[string]interface{}{
-						"url":     func() string { return finalURL },
-						"headers": respHeaders,
-					}
-				},
-			}
-		},
+	resp, err := h.get(urlStr, headers)
+	if err != nil {
+		return h.responseObject("", 0, nil, urlStr, err.Error())
 	}
+	finalURL := responseURL(resp, urlStr)
+	h.syncResponseCookies(finalURL, resp.Headers)
+	return h.responseObject(resp.Body, resp.StatusCode, resp.Headers, finalURL, "")
 }
 
 // --- Missing bridge methods ---

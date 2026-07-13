@@ -441,6 +441,16 @@ func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, sr
 	return results, nil
 }
 
+// ParseSearchResult parses one raw search response using a source's ruleSearch.
+func (s *Searcher) ParseSearchResult(src booksource.BookSource, html string) ([]SearchResult, error) {
+	return s.parseSearchResultWithRuleStateContext(context.Background(), src, html, src.RuleSearch, nil)
+}
+
+// ParseSearchResultWithState parses one raw search response with source session state.
+func (s *Searcher) ParseSearchResultWithState(src booksource.BookSource, html string, state analyzer.SourceState) ([]SearchResult, error) {
+	return s.parseSearchResultWithRuleStateContext(context.Background(), src, html, src.RuleSearch, state)
+}
+
 // GetBookInfo fetches and parses book info using ruleBookInfo.
 func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), perSourceTimeout)
