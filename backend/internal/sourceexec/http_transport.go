@@ -62,7 +62,7 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 		if _, exists := headers["Content-Type"]; !exists {
 			headers["Content-Type"] = "application/x-www-form-urlencoded"
 		}
-		resp, err = t.client.PostContextWithCharset(ctx, spec.URL, spec.Body, headers, spec.Retry, spec.Charset)
+		resp, err = t.client.PostContextWithCharset(ctx, spec.URL, EncodeRequestBody(spec.Body, spec.Charset), headers, spec.Retry, spec.Charset)
 	default:
 		return Response{}, fmt.Errorf("sourceexec: unsupported HTTP method %q", method)
 	}

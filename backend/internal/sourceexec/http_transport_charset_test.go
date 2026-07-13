@@ -2,8 +2,10 @@
 package sourceexec
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -11,6 +13,32 @@ import (
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
+
+func TestHTTPTransportEncodesPostBodyUsingRequestCharset(t *testing.T) {
+	encodedValue, _, err := transform.String(simplifiedchinese.GBK.NewEncoder(), "凡人修仙传")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "q=" + url.QueryEscape(encodedValue)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if string(body) != want {
+			t.Errorf("request body=%q want=%q", body, want)
+		}
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	response, err := NewHTTPTransport(fetcher.NewWithTimeout(3*time.Second)).Do(t.Context(), RequestSpec{
+		URL: server.URL, Method: http.MethodPost, Body: "q=凡人修仙传", Charset: "gbk",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Body != "ok" {
+		t.Fatalf("body=%q", response.Body)
+	}
+}
 
 func TestHTTPTransportDecodesResponseUsingRequestCharset(t *testing.T) {
 	gbkBody, _, err := transform.String(simplifiedchinese.GBK.NewEncoder(), "章节内容")

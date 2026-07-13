@@ -70,7 +70,7 @@ func (t *Transport) Do(ctx context.Context, spec sourceexec.RequestSpec) (source
 		}
 	case http.MethodPost:
 		var response *fetcher.Response
-		response, err = t.client.doWithCharset(ctx, method, spec.URL, spec.Body, headers, true, spec.Charset)
+		response, err = t.client.doWithCharset(ctx, method, spec.URL, sourceexec.EncodeRequestBody(spec.Body, spec.Charset), headers, true, spec.Charset)
 		slog.Debug("fingerprint: primary response", "url", spec.URL, "status", responseStatus(response), "err", err)
 		body = responseBody(response)
 		if err == nil {

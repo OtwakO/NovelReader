@@ -256,30 +256,6 @@ func (s *Searcher) rateLimitWait(src booksource.BookSource) {
 	}
 }
 
-// encodeBody encodes POST body values in the specified charset.
-// ponytail: simple key=value splitting; doesn't handle nested args like key[]=a&key[]=b.
-func encodeBody(body, charset string) string {
-	if body == "" {
-		return body
-	}
-	if charset == "" {
-		return body
-	}
-	pairs := strings.Split(body, "&")
-	out := make([]string, 0, len(pairs))
-	for _, pair := range pairs {
-		eqIdx := strings.IndexByte(pair, '=')
-		if eqIdx == -1 {
-			out = append(out, pair)
-			continue
-		}
-		key := pair[:eqIdx]
-		value := pair[eqIdx+1:]
-		out = append(out, key+"="+analyzer.EncodeParamValue(value, charset))
-	}
-	return strings.Join(out, "&")
-}
-
 // searchSource performs a single source search.
 func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, query string) ([]SearchResult, error) {
 	srcCtx, cancel := context.WithTimeout(ctx, perSourceTimeout)
@@ -318,10 +294,6 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	}
 
 	s.rateLimitWait(src)
-	if spec.Method == "POST" && spec.Body != "" && spec.Charset != "" {
-		spec.Body = encodeBody(spec.Body, spec.Charset)
-	}
-
 	resp, err := transport.Do(srcCtx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("fetch: %w", err)
@@ -477,9 +449,6 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	if spec.WebView {
 		return nil, fmt.Errorf("book info: source requires JS rendering (webView:true)")
 	}
-	if spec.Method == "POST" && spec.Body != "" && spec.Charset != "" {
-		spec.Body = encodeBody(spec.Body, spec.Charset)
-	}
 	response, err := transport.Do(ctx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("book info: fetch: %w", err)
@@ -571,9 +540,6 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 			}
 			if spec.WebView {
 				return "", "", fmt.Errorf("source requires JS rendering (webView:true)")
-			}
-			if spec.Method == "POST" && spec.Body != "" && spec.Charset != "" {
-				spec.Body = encodeBody(spec.Body, spec.Charset)
 			}
 			response, err := transport.Do(ctx, spec)
 			if err != nil {
@@ -757,9 +723,6 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	if spec.WebView {
 		return "", "", fmt.Errorf("content: source requires JS rendering (webView:true)")
 	}
-	if spec.Method == "POST" && spec.Body != "" && spec.Charset != "" {
-		spec.Body = encodeBody(spec.Body, spec.Charset)
-	}
 	response, err := transport.Do(ctx, spec)
 	if err != nil {
 		return "", "", fmt.Errorf("content: fetch: %w", err)
@@ -856,9 +819,6 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		}
 		if nextSpec.WebView {
 			return "", "", fmt.Errorf("content: next page requires JS rendering (webView:true)")
-		}
-		if nextSpec.Method == "POST" && nextSpec.Body != "" && nextSpec.Charset != "" {
-			nextSpec.Body = encodeBody(nextSpec.Body, nextSpec.Charset)
 		}
 		slog.Debug("content: fetching next page", "source", src.BookSourceName, "url", nextSpec.URL, "method", nextSpec.Method)
 		nextResponse, err := transport.Do(ctx, nextSpec)

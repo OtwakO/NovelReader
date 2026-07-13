@@ -3,6 +3,7 @@ package sourceexec
 
 import (
 	"context"
+	"strings"
 
 	"github.com/otwako/novelreader/internal/analyzer"
 )
@@ -56,6 +57,22 @@ func RequestSpecFromURLMeta(meta *analyzer.URLMeta) RequestSpec {
 		Origin:  meta.Origin,
 		Type:    meta.Type,
 	}
+}
+
+// EncodeRequestBody encodes form values using the source's request charset.
+func EncodeRequestBody(body, charset string) string {
+	if body == "" || charset == "" {
+		return body
+	}
+	pairs := strings.Split(body, "&")
+	for i, pair := range pairs {
+		eq := strings.IndexByte(pair, '=')
+		if eq < 0 {
+			continue
+		}
+		pairs[i] = pair[:eq] + "=" + analyzer.EncodeParamValue(pair[eq+1:], charset)
+	}
+	return strings.Join(pairs, "&")
 }
 
 func cloneHeaders(headers map[string]string) map[string]string {
