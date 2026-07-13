@@ -261,9 +261,9 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, and scoped detail→TOC→content sessions have conformance tests. Multi-source Playwright verification succeeded for two distinct raw sources, including a 167-chapter source with rendered content. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, and scoped detail→TOC→content sessions have conformance tests. Multi-source Playwright verification succeeded for two distinct raw sources, including a 167-chapter source with rendered content. The previously timed-out source was independently rechecked. Full Go tests pass.
 
-**In progress:** Hardening retries/status/charset behavior and preparing the next Playwright gate.
+**In progress:** Hardening retries/status/charset behavior and separating transport failures from rule/DOM compatibility.
 
 **Next action:** Add explicit retry/status/charset conformance tests, then implement Default indices/ranges and element connector semantics before the next major live E2E.
 
@@ -644,3 +644,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Imported `test_booksource4.json`, selected different UI result cards, and verified raw source identities: `https://www.bsxiaoshuo.com` returned 167 chapters and rendered 38 paragraphs; `http://wap.wangshugu.info` returned one chapter and rendered 46 paragraphs. Direct API inspection confirmed the expected source URLs and raw rules.
 - **Affected**: Live verification only; `/tmp/novelreader_multi_source.log`; no source-specific code changed.
 - **Watch out**: `望书阁网` did not extract a separate `tocUrl`, but its detail-page chapter list and content still worked; this is a source-rule coverage gap to investigate separately.
+
+### [2026-07-13] Timed-out source was reachable but its raw content selector matched no paragraphs
+- **Problem**: Direct curl and Playwright loaded `https://www.shenhuazhihou.com/book/20438/729342.html` with HTTP 200 and visible chapter text, while the backend request timed out. Independent DOM inspection found `#chaptercontent` contained text but `#chaptercontent p` matched zero nodes, whereas the raw rule is `id.chaptercontent@p@html`.
+- **Fix**: Classified the prior failure as two separate investigations—HTTP transport timeout and rule/DOM mismatch—rather than calling it a frontend or parser regression; no source-specific rule was changed.
+- **Affected**: Live source verification; raw source `神话之后（优+）`; no production code changed.
+- **Watch out**: Improve transport retry/timeout diagnostics first, then test whether Legado’s Default selector semantics or a compatibility fallback should handle this DOM shape.
