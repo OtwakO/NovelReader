@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default `.eq()`/dot-index selectors have conformance tests. Multi-source Playwright verification previously succeeded for two sources; `m.22biqu.net` exposed the selector gap now fixed. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default `.eq()`/dot-index selectors have conformance tests. Direct Playwright confirmed `m.22biqu.net` exposes the expected 50 indexed chapter links; the UI verification was blocked by a separate book-info 404. Full Go tests pass.
 
-**In progress:** Hardening retries/status/charset behavior and preparing the required live Playwright verification of the Default-selector fix.
+**In progress:** Hardening retries/status/charset behavior and separating live transport/enrichment failures from rule compatibility.
 
-**Next action:** Run Playwright against `m.22biqu.net` and another source using indexed Default selectors; then add retry/status/charset conformance tests.
+**Next action:** Add retry/status/charset conformance tests, then rerun UI E2E with a source whose indexed TOC request reaches enrichment successfully.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -662,3 +662,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added `:eq(n)`/negative-eq handling, `.class.N` shorthand, correct CSS-segment no-index behavior, and captured HTML conformance tests.
 - **Affected**: `backend/internal/analyzer/modes_default.go`, `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/default_index_conformance_test.go`.
 - **Watch out**: The fix is not live-verified yet; Playwright must retest `m.22biqu.net` and another indexed source before marking this compatibility slice complete.
+
+### [2026-07-13] Indexed TOC live gate was blocked by enrichment failure
+- **Problem**: After the selector fix, the UI test selected the `m.22biqu.net` result but book enrichment returned HTTP 404, so the app showed `Chapters (0)`. Direct Playwright inspection of the raw book page showed two `.directoryArea` sections and 50 links in the indexed section; curl returned HTTP 200.
+- **Fix**: Classified the UI result as a separate enrichment/transport discrepancy, not evidence that the selector fix failed; stopped the temporary server/browser and retained the passing captured-HTML test.
+- **Affected**: Live verification; `/tmp/novelreader_index_e2e.log`; no source-specific rule changed.
+- **Watch out**: Re-test indexed TOC through a source whose detail enrichment succeeds; investigate why the backend saw 404 while curl saw 200 before declaring live compatibility.
