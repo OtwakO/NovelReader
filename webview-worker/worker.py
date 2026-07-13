@@ -52,7 +52,7 @@ async def serve_connection(
     try:
         method, request_meta, body = await read_request(reader)
         if method == "GET" and request_meta["path"] == "/healthz":
-            await write_response(writer, 200, {"version": PROTOCOL_VERSION, "ok": True})
+            await write_response(writer, 200, await worker.health())
             return
         if method != "POST" or request_meta["path"] != "/execute":
             await write_response(writer, 404, {"error": "not found"})

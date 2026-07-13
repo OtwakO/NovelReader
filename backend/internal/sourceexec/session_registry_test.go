@@ -2,6 +2,8 @@
 package sourceexec
 
 import (
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -43,6 +45,27 @@ func TestSessionRegistryEvictsIdleBookAndChapterAliases(t *testing.T) {
 	registry.GetOrCreateBook("source", "new-book")
 	if registry.GetBook("source", "book") != nil || registry.GetChapter("source", "chapter") != nil {
 		t.Fatal("idle session aliases were not evicted")
+	}
+}
+
+func TestSessionRegistryBoundsConcurrentSessionCreation(t *testing.T) {
+	registry := NewSessionRegistryWithLimits(64, time.Hour)
+	var wg sync.WaitGroup
+	for i := 0; i < 256; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			bookURL := "book-" + strconv.Itoa(index)
+			registry.GetOrCreateBook("source", bookURL)
+			registry.AssociateChapter("source", bookURL, "chapter-"+strconv.Itoa(index))
+			_ = registry.GetChapter("source", "chapter-"+strconv.Itoa(index))
+		}(i)
+	}
+	wg.Wait()
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	if len(registry.lastUsed) > 64 {
+		t.Fatalf("sessions=%d, want <= 64", len(registry.lastUsed))
 	}
 }
 

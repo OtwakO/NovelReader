@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -26,6 +27,25 @@ const (
 	maxResultsPerSource       = 20               // max results returned per source
 )
 
+// CapacityStats reports process-local Searcher work without exposing internal limiters.
+type CapacityStats struct {
+	ActiveSearches      int64
+	ActiveSourceFetches int64
+	TotalSearches       int64
+	TotalSourceFetches  int64
+	CompletedSources    int64
+	FailedSources       int64
+}
+
+type capacityCounters struct {
+	activeSearches      atomic.Int64
+	activeSourceFetches atomic.Int64
+	totalSearches       atomic.Int64
+	totalSourceFetches  atomic.Int64
+	completedSources    atomic.Int64
+	failedSources       atomic.Int64
+}
+
 // Searcher orchestrates search, book info, TOC, and content fetching.
 type TransportFactory func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport
 type WebViewTransportFactory func(session *sourceexec.SourceSession) sourceexec.Transport
@@ -40,6 +60,7 @@ type Searcher struct {
 	bookStore               *Store
 	sessions                *sourceexec.SessionRegistry
 	searchSlots             chan struct{}
+	capacity                capacityCounters
 	// per-source rate limiting (concurrentRate)
 	rateMu     sync.Mutex
 	lastAccess map[string]time.Time // keyed by BookSourceURL
@@ -96,6 +117,15 @@ func (s *Searcher) newTransport(client *fetcher.Client, session *sourceexec.Sour
 	return sourceexec.NewRoutingTransport(normal, browser)
 }
 
+// CapacityStats returns a point-in-time view of search pressure.
+func (s *Searcher) CapacityStats() CapacityStats {
+	return CapacityStats{
+		ActiveSearches: s.capacity.activeSearches.Load(), ActiveSourceFetches: s.capacity.activeSourceFetches.Load(),
+		TotalSearches: s.capacity.totalSearches.Load(), TotalSourceFetches: s.capacity.totalSourceFetches.Load(),
+		CompletedSources: s.capacity.completedSources.Load(), FailedSources: s.capacity.failedSources.Load(),
+	}
+}
+
 // Search is the old synchronous aggregator. Kept for backward compat.
 func (s *Searcher) Search(query string) ([]SearchResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), searchOverallTimeout)
@@ -128,6 +158,10 @@ type SearchCallback func(src booksource.BookSource, results []SearchResult, err 
 // SearchStream fans out across all sources, calling onResult for each as it completes.
 // Context cancellation (client disconnect) aborts all in-flight requests.
 func (s *Searcher) SearchStream(ctx context.Context, query string, onResult SearchCallback) error {
+	s.capacity.activeSearches.Add(1)
+	s.capacity.totalSearches.Add(1)
+	defer s.capacity.activeSearches.Add(-1)
+
 	candidates, err := s.searchCandidates()
 	if err != nil {
 		return err
@@ -167,13 +201,17 @@ launchLoop:
 			break launchLoop
 		}
 		wg.Add(1)
+		s.capacity.activeSourceFetches.Add(1)
+		s.capacity.totalSourceFetches.Add(1)
 		go func(src booksource.BookSource) {
 			defer wg.Done()
+			defer s.capacity.activeSourceFetches.Add(-1)
 			defer func() { <-globalSlots }()
 			defer func() { <-sem }()
 			// Recover from panics in individual source search to avoid killing the process
 			defer func() {
 				if rec := recover(); rec != nil {
+					s.capacity.failedSources.Add(1)
 					slog.Error("search: panic in source goroutine",
 						"source", src.BookSourceName,
 						"panic", fmt.Sprintf("%v", rec))
@@ -181,6 +219,11 @@ launchLoop:
 				}
 			}()
 			r, err := s.searchSource(ctx, src, query)
+			if err != nil {
+				s.capacity.failedSources.Add(1)
+			} else {
+				s.capacity.completedSources.Add(1)
+			}
 			ch <- jobResult{src, r, err}
 		}(src)
 	}
@@ -251,7 +294,9 @@ launchLoop:
 		"errors", errorCount,
 		"breakdown", errSummary,
 		"total_sources", len(candidates),
-		"cancelled", ctx.Err() != nil)
+		"cancelled", ctx.Err() != nil,
+		"active_searches", s.capacity.activeSearches.Load(),
+		"active_source_fetches", s.capacity.activeSourceFetches.Load())
 	return ctx.Err()
 }
 

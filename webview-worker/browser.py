@@ -30,6 +30,11 @@ class BrowserWorker:
         self.state_lock = asyncio.Lock()
         self.active = 0
         self.completed = 0
+        self.total_requests = 0
+        self.total_completed = 0
+        self.failed_requests = 0
+        self.busy_rejections = 0
+        self.recycled = 0
         self.closing = False
         self.consumers: list[asyncio.Task] = []
         self.max_pages = max_pages
@@ -45,6 +50,7 @@ class BrowserWorker:
         try:
             self.queue.put_nowait((request, future))
         except asyncio.QueueFull:
+            self.busy_rejections += 1
             return self._error("browser worker is busy")
         try:
             return await future
@@ -83,6 +89,7 @@ class BrowserWorker:
                 self.queue.task_done()
 
     async def _run(self, request: dict) -> dict:
+        self.total_requests += 1
         timeout_ms = max(1, int(request.get("timeoutMs") or DEFAULT_TIMEOUT_MS))
         browser = await self._browser_for_request()
         async with self.state_lock:
@@ -92,8 +99,10 @@ class BrowserWorker:
             async with asyncio.timeout(timeout_ms / 1000):
                 return await self._execute(browser, request, timeout_ms)
         except TimeoutError:
+            self.failed_requests += 1
             return self._error(f"browser request timed out after {timeout_ms}ms")
         except Exception as error:
+            self.failed_requests += 1
             browser_failed = not browser.is_connected()
             return self._error(f"browser execution failed: {error}")
         finally:
@@ -111,12 +120,14 @@ class BrowserWorker:
         async with self.state_lock:
             self.active -= 1
             self.completed += 1
+            self.total_completed += 1
             should_recycle = (
                 self.active == 0
                 and (browser_failed or self.completed >= self.max_contexts)
             )
             if should_recycle and self.browser is browser:
                 self.completed = 0
+                self.recycled += 1
                 await self._close_browser()
 
     async def _launch_browser(self) -> None:
@@ -206,6 +217,20 @@ class BrowserWorker:
                 except BaseException:
                     # Cancellation must not strand a live browser context.
                     pass
+
+    async def health(self) -> dict:
+        async with self.state_lock:
+            return {
+                "version": PROTOCOL_VERSION,
+                "ok": not self.closing and self.browser is not None and self.browser.is_connected(),
+                "queueDepth": self.queue.qsize(),
+                "active": self.active,
+                "totalRequests": self.total_requests,
+                "completedRequests": self.total_completed,
+                "failedRequests": self.failed_requests,
+                "busyRejections": self.busy_rejections,
+                "browserRecycles": self.recycled,
+            }
 
     @staticmethod
     def _error(message: str) -> dict:
