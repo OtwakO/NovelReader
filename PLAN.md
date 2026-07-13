@@ -155,6 +155,8 @@ Tasks:
 - [ ] Apply URL options to search, book info, TOC, content, `nextTocUrl`, `nextContentUrl`, and JS bridge requests.
 - [ ] Use RFC-compatible URL resolution against the actual response/found page URL.
 - [ ] Preserve response bodies for non-2xx responses and classify rather than discard them.
+- [ ] Add request-parity diagnostics for enrichment: record exact expanded URL, method, headers, redirect chain, status, and body when NovelReader differs from curl/browser.
+- [ ] Reproduce and resolve the `m.22biqu.net` enrichment discrepancy where curl returned 200 but NovelReader observed 404.
 - [ ] Implement per-source/per-user cookie policy and source-variable persistence.
 - [ ] Ensure `Referer`, `Origin`, content type, custom headers, and cookies are forwarded exactly as the source requests them.
 - [ ] Implement `bodyJs`, `webJs` dispatch metadata, and response-body transformation hooks.
@@ -265,7 +267,7 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **In progress:** Hardening retries/status/charset behavior and separating live transport/enrichment failures from rule compatibility.
 
-**Next action:** Add retry/status/charset conformance tests, then rerun UI E2E with a source whose indexed TOC request reaches enrichment successfully.
+**Next action:** Add request-parity diagnostics and retry/status/charset conformance tests; resolve the `m.22biqu.net` enrichment discrepancy; then rerun UI E2E with an indexed TOC source that reaches the selector.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -668,3 +670,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Classified the UI result as a separate enrichment/transport discrepancy, not evidence that the selector fix failed; stopped the temporary server/browser and retained the passing captured-HTML test.
 - **Affected**: Live verification; `/tmp/novelreader_index_e2e.log`; no source-specific rule changed.
 - **Watch out**: Re-test indexed TOC through a source whose detail enrichment succeeds; investigate why the backend saw 404 while curl saw 200 before declaring live compatibility.
+
+### [2026-07-13] Enrichment request parity investigation was not explicit in the plan
+- **Problem**: The plan covered generic status/retry work but did not explicitly require comparing NovelReader’s exact enrichment request against curl/browser when statuses differ.
+- **Fix**: Added request-parity diagnostics and the `m.22biqu.net` 404-vs-200 discrepancy as a Phase 1 task and current gate.
+- **Affected**: `PLAN.md`.
+- **Watch out**: Do not mark indexed-selector compatibility complete until the UI reaches TOC parsing successfully.
