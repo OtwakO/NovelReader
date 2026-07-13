@@ -298,6 +298,10 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	if err != nil {
 		return nil, fmt.Errorf("fetch: %w", err)
 	}
+	resp, err = executor.TransformResponse(srcCtx, spec, resp)
+	if err != nil {
+		return nil, fmt.Errorf("fetch bodyJs: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetch: status %d from %s", resp.StatusCode, src.BookSourceName)
 	}
@@ -453,6 +457,10 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	if err != nil {
 		return nil, fmt.Errorf("book info: fetch: %w", err)
 	}
+	response, err = executor.TransformResponse(ctx, spec, response)
+	if err != nil {
+		return nil, fmt.Errorf("book info: bodyJs: %w", err)
+	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("book info: status %d from %s", response.StatusCode, src.BookSourceName)
 	}
@@ -544,6 +552,10 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 			response, err := transport.Do(ctx, spec)
 			if err != nil {
 				return "", "", err
+			}
+			response, err = executor.TransformResponse(ctx, spec, response)
+			if err != nil {
+				return "", "", fmt.Errorf("bodyJs: %w", err)
 			}
 			if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 				return "", "", fmt.Errorf("status %d from %s", response.StatusCode, src.BookSourceName)
@@ -727,6 +739,10 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	if err != nil {
 		return "", "", fmt.Errorf("content: fetch: %w", err)
 	}
+	response, err = executor.TransformResponse(ctx, spec, response)
+	if err != nil {
+		return "", "", fmt.Errorf("content: bodyJs: %w", err)
+	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return "", "", fmt.Errorf("content: status %d from %s", response.StatusCode, src.BookSourceName)
 	}
@@ -824,6 +840,10 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		nextResponse, err := transport.Do(ctx, nextSpec)
 		if err != nil {
 			return "", "", fmt.Errorf("content: next page fetch: %w", err)
+		}
+		nextResponse, err = executor.TransformResponse(ctx, nextSpec, nextResponse)
+		if err != nil {
+			return "", "", fmt.Errorf("content: next page bodyJs: %w", err)
 		}
 		slog.Debug("content: next page response", "source", src.BookSourceName, "url", nextSpec.URL, "status", nextResponse.StatusCode, "finalURL", nextResponse.FinalURL)
 		if nextResponse.StatusCode < http.StatusOK || nextResponse.StatusCode >= http.StatusMultipleChoices {

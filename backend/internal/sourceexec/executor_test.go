@@ -17,6 +17,19 @@ func (t *captureTransport) Do(_ context.Context, spec RequestSpec) (Response, er
 	return Response{StatusCode: 200, Body: "fixture", FinalURL: spec.URL, Transport: "fixture"}, nil
 }
 
+func TestExecutorAppliesBodyJSAfterTransport(t *testing.T) {
+	transport := &captureTransport{}
+	executor := NewExecutor(analyzer.NewJSVM(), transport)
+
+	response, err := executor.Execute(context.Background(), `https://example.test/content,{"bodyJs":"result.toUpperCase()"}`, "", 1, "https://example.test/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Body != "FIXTURE" {
+		t.Fatalf("bodyJs body=%q", response.Body)
+	}
+}
+
 func TestExecutorBuildsAndExecutesOneLegadoRequest(t *testing.T) {
 	transport := &captureTransport{}
 	executor := NewExecutor(analyzer.NewJSVM(), transport)

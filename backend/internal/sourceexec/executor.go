@@ -51,5 +51,31 @@ func (e *Executor) Execute(ctx context.Context, template, key string, page int, 
 	if err != nil {
 		return Response{}, err
 	}
-	return e.transport.Do(ctx, spec)
+	response, err := e.transport.Do(ctx, spec)
+	if err != nil {
+		return Response{}, err
+	}
+	return e.TransformResponse(ctx, spec, response)
+}
+
+// TransformResponse applies URL-option bodyJs after a successful transport response.
+func (e *Executor) TransformResponse(ctx context.Context, spec RequestSpec, response Response) (Response, error) {
+	if spec.BodyJS == "" {
+		return response, nil
+	}
+	if e == nil || e.jsVM == nil {
+		return Response{}, fmt.Errorf("sourceexec: bodyJs requires a JS engine")
+	}
+	baseURL := response.FinalURL
+	if baseURL == "" {
+		baseURL = spec.URL
+	}
+	value, err := e.jsVM.EvalContext(ctx, spec.BodyJS, response.Body, baseURL, map[string]interface{}{
+		"sourceState": e.sourceState,
+	})
+	if err != nil {
+		return Response{}, fmt.Errorf("sourceexec: bodyJs: %w", err)
+	}
+	response.Body = analyzer.ToString(value)
+	return response, nil
 }
