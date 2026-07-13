@@ -313,7 +313,13 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	if err != nil {
 		return nil, err
 	}
+	resultBaseURL := resp.FinalURL
+	if resultBaseURL == "" {
+		resultBaseURL = spec.URL
+	}
 	for i := range results {
+		results[i].BookURL = resolveURL(results[i].BookURL, resultBaseURL)
+		results[i].CoverURL = resolveURL(results[i].CoverURL, resultBaseURL)
 		results[i].Score = scoreResult(query, results[i].Name)
 	}
 	return results, nil
@@ -490,7 +496,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	if rules != nil {
 		b.Name = mustString(an, rules["name"])
 		b.Author = mustString(an, rules["author"])
-		b.CoverURL = resolveURL(mustString(an, rules["coverUrl"]), src.BookSourceURL)
+		b.CoverURL = resolveURL(mustString(an, rules["coverUrl"]), baseURL)
 		b.Intro = mustString(an, rules["intro"])
 		b.Kind = mustString(an, rules["kind"])
 		b.LastChapter = mustString(an, rules["lastChapter"])
@@ -499,7 +505,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 
 		// resolve tocUrl against bookUrl, not source root
 		if tocURL := mustString(an, rules["tocUrl"]); tocURL != "" {
-			b.TocURL = resolveURL(tocURL, b.BookURL)
+			b.TocURL = resolveURL(tocURL, baseURL)
 		}
 	}
 
