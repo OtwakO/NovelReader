@@ -95,6 +95,7 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 		fingerprintClient, fingerprintErr := fingerprint.New(fingerprint.Config{
 			Timeout:            minDuration(timeout, 5*time.Second),
 			InsecureSkipVerify: true,
+			CaptureRedirects:   true,
 		}, jsHTTP)
 		if fingerprintErr == nil {
 			jsHTTP = fingerprintClient

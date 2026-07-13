@@ -32,14 +32,18 @@ func TestFingerprintTransportPreservesRedirectOriginCookie(t *testing.T) {
 	defer origin.Close()
 
 	session := sourceexec.NewSourceSession()
-	first, err := NewTransport(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true}, nil, session)
+	first, err := NewTransport(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true, CaptureRedirects: true}, nil, session)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := first.Do(t.Context(), sourceexec.RequestSpec{URL: origin.URL + "/redirect"}); err != nil {
+	response, err := first.Do(t.Context(), sourceexec.RequestSpec{URL: origin.URL + "/redirect"})
+	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := NewTransport(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true}, nil, session)
+	if len(response.RedirectChain) != 1 || response.RedirectChain[0] != finalURL {
+		t.Fatalf("redirect chain=%+v final=%q transport=%q", response.RedirectChain, response.FinalURL, response.Transport)
+	}
+	second, err := NewTransport(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true, CaptureRedirects: true}, nil, session)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,6 +22,7 @@ type Config struct {
 	Timeout            time.Duration
 	Profile            string
 	InsecureSkipVerify bool
+	CaptureRedirects   bool
 }
 
 // Client tries a browser profile first and delegates to normal HTTP on rejection/errors.
@@ -39,20 +40,31 @@ func New(config Config, fallback fetcher.HTTPClient) (*Client, error) {
 	return newClient(config, fallback, nil)
 }
 
-func newClient(config Config, fallback fetcher.HTTPClient, session fetcher.CookieSession) (*Client, error) {
-	if config.Timeout <= 0 {
-		config.Timeout = 15 * time.Second
-	}
+func clientOptions(config Config, jar tlsclient.CookieJar, redirectFunc func(*fhttp.Request, []*fhttp.Request) error) []tlsclient.HttpClientOption {
 	profile, ok := profiles.MappedTLSClients[strings.ToLower(strings.TrimSpace(config.Profile))]
 	if !ok {
 		profile = profiles.DefaultClientProfile
 	}
-	jar := tlsclient.NewCookieJar()
 	options := []tlsclient.HttpClientOption{
 		tlsclient.WithTimeoutSeconds(int(config.Timeout / time.Second)),
 		tlsclient.WithClientProfile(profile),
 		tlsclient.WithCookieJar(jar),
 	}
+	if redirectFunc != nil {
+		options = append(options, tlsclient.WithCustomRedirectFunc(redirectFunc))
+	}
+	if config.InsecureSkipVerify {
+		options = append(options, tlsclient.WithInsecureSkipVerify())
+	}
+	return options
+}
+
+func newClient(config Config, fallback fetcher.HTTPClient, session fetcher.CookieSession) (*Client, error) {
+	if config.Timeout <= 0 {
+		config.Timeout = 15 * time.Second
+	}
+	jar := tlsclient.NewCookieJar()
+	options := clientOptions(config, jar, nil)
 	if config.InsecureSkipVerify {
 		options = append(options, tlsclient.WithInsecureSkipVerify())
 	}
@@ -135,10 +147,6 @@ func (c *Client) do(ctx context.Context, method, rawURL, body string, headers ma
 }
 
 func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string, headers map[string]string, followRedirect bool, responseCharset string) (*fetcher.Response, error) {
-	client := c.fingerprint
-	if !followRedirect {
-		client = c.noRedirect
-	}
 	reqBody := io.Reader(nil)
 	if body != "" {
 		reqBody = bytes.NewBufferString(body)
@@ -149,6 +157,27 @@ func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string,
 		if cookie := c.session.CookieHeader(rawURL); cookie != "" {
 			effectiveHeaders["Cookie"] = cookie
 		}
+	}
+	client := c.fingerprint
+	var redirectChain []string
+	if !followRedirect {
+		client = c.noRedirect
+	} else if c.config.CaptureRedirects {
+		redirectChain = make([]string, 0, 2)
+		tracedOptions := clientOptions(c.config, c.jar, func(next *fhttp.Request, via []*fhttp.Request) error {
+			if next.URL != nil {
+				redirectChain = append(redirectChain, next.URL.String())
+			}
+			if len(via) >= 5 {
+				return fmt.Errorf("fingerprint: too many redirects")
+			}
+			return nil
+		})
+		tracedClient, traceErr := tlsclient.NewHttpClient(tlsclient.NewNoopLogger(), tracedOptions...)
+		if traceErr != nil {
+			return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, fmt.Errorf("fingerprint: create traced client: %w", traceErr))
+		}
+		client = tracedClient
 	}
 	req, err := fhttp.NewRequestWithContext(ctx, method, normalizedURL, reqBody)
 	if err != nil {
@@ -163,6 +192,7 @@ func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string,
 	if err != nil {
 		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, err)
 	}
+	result.RedirectChain = append([]string(nil), redirectChain...)
 	c.syncSession(result, rawURL)
 	if shouldFallback(result.StatusCode) && c.fallback != nil {
 		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, fmt.Errorf("fingerprint status %d", result.StatusCode))
