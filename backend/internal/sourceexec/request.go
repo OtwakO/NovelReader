@@ -3,6 +3,7 @@ package sourceexec
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -72,6 +73,37 @@ func MergeHeaders(base, overlay map[string]string) map[string]string {
 		merged[key] = value
 	}
 	return merged
+}
+
+// PreparePOST applies Legado's form-vs-raw body rules and returns body/content type.
+func PreparePOST(body, charset string, headers map[string]string) (string, string) {
+	contentType := ""
+	for key, value := range headers {
+		if strings.EqualFold(key, "Content-Type") {
+			contentType = value
+			break
+		}
+	}
+	if contentType == "" {
+		if isJSONBody(body) {
+			contentType = "application/json"
+		} else {
+			contentType = "application/x-www-form-urlencoded"
+		}
+	}
+	if isFormContentType(contentType) {
+		body = EncodeRequestBody(body, charset)
+	}
+	return body, contentType
+}
+
+func isJSONBody(body string) bool {
+	trimmed := strings.TrimSpace(body)
+	return trimmed != "" && (trimmed[0] == '{' || trimmed[0] == '[') && json.Valid([]byte(trimmed))
+}
+
+func isFormContentType(contentType string) bool {
+	return strings.EqualFold(strings.TrimSpace(strings.SplitN(contentType, ";", 2)[0]), "application/x-www-form-urlencoded")
 }
 
 // EncodeRequestBody encodes form values using the source's request charset.

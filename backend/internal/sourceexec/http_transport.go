@@ -67,10 +67,10 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 			resp, err = t.client.HeadContextWithCharset(ctx, spec.URL, headers, spec.Retry)
 		}
 	case http.MethodPost:
+		body, contentType := PreparePOST(spec.Body, spec.Charset, headers)
 		if !hasHeader(headers, "Content-Type") {
-			headers["Content-Type"] = "application/x-www-form-urlencoded"
+			headers["Content-Type"] = contentType
 		}
-		body := EncodeRequestBody(spec.Body, spec.Charset)
 		if spec.DNSIP != "" {
 			resp, err = t.client.PostContextWithCharsetAndDNSIP(ctx, spec.URL, body, headers, spec.Retry, spec.Charset, spec.DNSIP)
 		} else {

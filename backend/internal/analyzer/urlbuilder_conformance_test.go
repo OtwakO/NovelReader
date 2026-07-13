@@ -19,6 +19,16 @@ func TestBuildURLPreservesAllLegadoRequestOptions(t *testing.T) {
 	}
 }
 
+func TestBuildURLPreservesStructuredJSONBody(t *testing.T) {
+	meta, err := BuildURL(`https://example.test/search,{"method":"POST","body":{"q":"{{key}}"}}`, "搜索", 1, "https://example.test/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Body != `{"q":"搜索"}` {
+		t.Fatalf("structured body=%q", meta.Body)
+	}
+}
+
 func TestBuildURLResolvesRootRelativePathAgainstHost(t *testing.T) {
 	meta, err := BuildURL(`/search?q={{key}}`, "x", 1, "https://example.test/novels/book-1", nil)
 	if err != nil {

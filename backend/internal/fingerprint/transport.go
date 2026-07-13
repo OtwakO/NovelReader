@@ -59,8 +59,9 @@ func (t *Transport) Do(ctx context.Context, spec sourceexec.RequestSpec) (source
 	if spec.Origin != "" && headers["Origin"] == "" && headers["origin"] == "" {
 		headers["Origin"] = spec.Origin
 	}
-	if method == http.MethodPost && headers["Content-Type"] == "" && headers["content-type"] == "" {
-		headers["Content-Type"] = "application/x-www-form-urlencoded"
+	preparedBody, contentType := sourceexec.PreparePOST(spec.Body, spec.Charset, headers)
+	if method == http.MethodPost && !hasHeader(headers, "Content-Type") {
+		headers["Content-Type"] = contentType
 	}
 
 	var body string
@@ -76,7 +77,7 @@ func (t *Transport) Do(ctx context.Context, spec sourceexec.RequestSpec) (source
 		}
 	case http.MethodPost:
 		var response *fetcher.Response
-		response, err = t.client.doWithCharset(ctx, method, spec.URL, sourceexec.EncodeRequestBody(spec.Body, spec.Charset), headers, true, spec.Charset)
+		response, err = t.client.doWithCharset(ctx, method, spec.URL, preparedBody, headers, true, spec.Charset)
 		slog.Debug("fingerprint: primary response", "url", spec.URL, "status", responseStatus(response), "err", err)
 		body = responseBody(response)
 		if err == nil {

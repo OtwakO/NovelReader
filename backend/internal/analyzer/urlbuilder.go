@@ -36,7 +36,7 @@ type URLMeta struct {
 // Uses RawMessage for fields that may be either a string or structured type.
 type urlOption struct {
 	Method  string          `json:"method"`
-	Body    string          `json:"body"`
+	Body    json.RawMessage `json:"body"`
 	Charset string          `json:"charset"`
 	WebView json.RawMessage `json:"webView,omitempty"`
 	Retry   json.RawMessage `json:"retry,omitempty"`
@@ -133,7 +133,7 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 				if opt.Method != "" {
 					meta.Method = strings.ToUpper(opt.Method)
 				}
-				meta.Body = opt.Body
+				meta.Body = optionBodyString(opt.Body)
 				meta.Charset = opt.Charset
 
 				// Tolerant webView: accepts "true" (string), true (bool), "1", 1
@@ -278,6 +278,25 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 // ponytail: simple regex-based extraction, no nesting support for {{...}} inside {{...}}.
 // evalTemplateExpressions finds all {{...}} patterns and evaluates the inner content as JS.
 // Uses brace-counting instead of regex to handle nested braces like {{var x={a:1}; x}}.
+func optionBodyString(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return text
+	}
+	var value interface{}
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
+}
+
 func findURLJSSegment(input string) int {
 	for offset := 0; ; {
 		rel := strings.Index(input[offset:], "@js:")
