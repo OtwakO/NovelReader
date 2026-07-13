@@ -3,6 +3,7 @@ package booksource
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -17,8 +18,14 @@ func NewStore(db *sql.DB) *Store {
 
 // Init creates the table if it doesn't exist.
 func (s *Store) Init() error {
-	_, err := s.db.Exec(ColumnDefs())
-	return err
+	if _, err := s.db.Exec(ColumnDefs()); err != nil {
+		return err
+	}
+	// Add the lossless import column to databases created before source_json existed.
+	if _, err := s.db.Exec(`ALTER TABLE book_sources ADD COLUMN source_json TEXT NOT NULL DEFAULT ''`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+		return fmt.Errorf("booksource: migrate source_json: %w", err)
+	}
+	return nil
 }
 
 // ponytail: sourceColumns must stay field-synced with scanSource's scan order.
@@ -28,7 +35,7 @@ var sourceColumns = `id, name, group_name, source_type, book_url_pattern,
 	rule_search, rule_book_info, rule_toc, rule_content, rule_explore, rule_review,
 	js_lib, header, login_url, login_ui, login_check_js, cover_decode_js, concurrent_rate,
 	comment, variable_comment, last_update_time, respond_time, weight,
-	created_at, updated_at`
+	created_at, updated_at, source_json`
 
 // List returns all book sources, ordered by custom_order then name.
 func (s *Store) List() ([]BookSource, error) {
@@ -78,8 +85,8 @@ func (s *Store) Upsert(src *BookSource) error {
 		rule_search, rule_book_info, rule_toc, rule_content, rule_explore, rule_review,
 		js_lib, header, login_url, login_ui, login_check_js, cover_decode_js, concurrent_rate,
 		comment, variable_comment, last_update_time, respond_time, weight,
-		created_at, updated_at
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, 
+		created_at, updated_at, source_json
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		src.BookSourceURL, src.BookSourceName, src.BookSourceGroup, src.BookSourceType,
 		src.BookURLPattern, src.CustomOrder,
 		boolToInt(src.Enabled), boolToInt(src.EnabledExplore), boolToIntPtr(src.EnabledCookieJar),
@@ -87,7 +94,7 @@ func (s *Store) Upsert(src *BookSource) error {
 		src.RuleSearch, src.RuleBookInfo, src.RuleToc, src.RuleContent, src.RuleExplore, src.RuleReview,
 		src.JSLib, src.Header, src.LoginURL, src.LoginUI, src.LoginCheckJS, src.CoverDecodeJS, src.ConcurrentRate,
 		src.BookSourceComment, src.VariableComment, src.LastUpdateTime, src.RespondTime, src.Weight,
-		src.CreatedAt, src.UpdatedAt,
+		src.CreatedAt, src.UpdatedAt, src.sourceJSON,
 	)
 	return err
 }
@@ -113,7 +120,7 @@ func (s *Store) ImportBatch(sources []*BookSource) (int, error) {
 			src.CreatedAt = now
 		}
 		_, err := tx.Exec(`INSERT OR REPLACE INTO book_sources VALUES (
-			?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+			?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
 		)`,
 			src.BookSourceURL, src.BookSourceName, src.BookSourceGroup, src.BookSourceType,
 			src.BookURLPattern, src.CustomOrder,
@@ -122,7 +129,7 @@ func (s *Store) ImportBatch(sources []*BookSource) (int, error) {
 			src.RuleSearch, src.RuleBookInfo, src.RuleToc, src.RuleContent, src.RuleExplore, src.RuleReview,
 			src.JSLib, src.Header, src.LoginURL, src.LoginUI, src.LoginCheckJS, src.CoverDecodeJS, src.ConcurrentRate,
 			src.BookSourceComment, src.VariableComment, src.LastUpdateTime, src.RespondTime, src.Weight,
-			src.CreatedAt, src.UpdatedAt,
+			src.CreatedAt, src.UpdatedAt, src.sourceJSON,
 		)
 		if err != nil {
 			return 0, fmt.Errorf("booksource: import batch insert: %w", err)
@@ -170,7 +177,7 @@ func scanRow(scanner interface {
 		&s.RuleSearch, &s.RuleBookInfo, &s.RuleToc, &s.RuleContent, &s.RuleExplore, &s.RuleReview,
 		&s.JSLib, &s.Header, &s.LoginURL, &s.LoginUI, &s.LoginCheckJS, &s.CoverDecodeJS, &s.ConcurrentRate,
 		&s.BookSourceComment, &s.VariableComment, &s.LastUpdateTime, &s.RespondTime, &s.Weight,
-		&s.CreatedAt, &s.UpdatedAt,
+		&s.CreatedAt, &s.UpdatedAt, &s.sourceJSON,
 	)
 }
 
