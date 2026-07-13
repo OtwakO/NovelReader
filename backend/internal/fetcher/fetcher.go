@@ -93,7 +93,7 @@ func (c *Client) Get(rawURL string, extraHeaders map[string]string) (*Response, 
 
 // Post performs a POST with a background context.
 func (c *Client) Post(rawURL, contentType, body string, extraHeaders map[string]string) (*Response, error) {
-	return c.doRequest(context.Background(), "POST", rawURL, body, extraHeaders, 0, "")
+	return c.doRequest(context.Background(), "POST", rawURL, body, extraHeaders, 0, "", true)
 }
 
 // GetContext performs a GET with context support.
@@ -102,26 +102,31 @@ func (c *Client) GetContext(ctx context.Context, rawURL string, extraHeaders map
 	if len(retry) > 0 {
 		r = retry[0]
 	}
-	return c.doRequest(ctx, "GET", rawURL, "", extraHeaders, r, "")
+	return c.doRequest(ctx, "GET", rawURL, "", extraHeaders, r, "", true)
 }
 
 // GetContextWithCharset performs a GET with an explicit response charset.
 func (c *Client) GetContextWithCharset(ctx context.Context, rawURL string, extraHeaders map[string]string, retry int, responseCharset string) (*Response, error) {
-	return c.doRequest(ctx, "GET", rawURL, "", extraHeaders, retry, responseCharset)
+	return c.doRequest(ctx, "GET", rawURL, "", extraHeaders, retry, responseCharset, true)
 }
 
 // PostContext performs a POST with context support and optional retry.
 func (c *Client) PostContext(ctx context.Context, rawURL, body string, extraHeaders map[string]string, retry int) (*Response, error) {
-	return c.doRequest(ctx, "POST", rawURL, body, extraHeaders, retry, "")
+	return c.doRequest(ctx, "POST", rawURL, body, extraHeaders, retry, "", true)
 }
 
 // PostContextWithCharset performs a POST with an explicit response charset.
 func (c *Client) PostContextWithCharset(ctx context.Context, rawURL, body string, extraHeaders map[string]string, retry int, responseCharset string) (*Response, error) {
-	return c.doRequest(ctx, "POST", rawURL, body, extraHeaders, retry, responseCharset)
+	return c.doRequest(ctx, "POST", rawURL, body, extraHeaders, retry, responseCharset, true)
 }
 
 // doRequest is the internal request executor with retry support.
-func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, extraHeaders map[string]string, retry int, responseCharset string) (*Response, error) {
+// GetContextNoRedirect preserves the first HTTP response for redirect-aware JS rules.
+func (c *Client) GetContextNoRedirect(ctx context.Context, rawURL string, extraHeaders map[string]string) (*Response, error) {
+	return c.doRequest(ctx, "GET", rawURL, "", extraHeaders, 0, "", false)
+}
+
+func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, extraHeaders map[string]string, retry int, responseCharset string, followRedirect bool) (*Response, error) {
 	var lastErr error
 	for attempt := 0; attempt <= retry; attempt++ {
 		if attempt > 0 {
@@ -170,7 +175,13 @@ func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, 
 			req.Header.Set(k, v)
 		}
 
-		resp, err := c.httpClient.Do(req)
+		httpClient := c.httpClient
+		if !followRedirect {
+			clone := *c.httpClient
+			clone.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
+			httpClient = &clone
+		}
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("fetch: %w", err)
 			slog.Debug("fetcher: request failed, retrying",

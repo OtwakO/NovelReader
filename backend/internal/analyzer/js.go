@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
@@ -303,7 +304,7 @@ func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 	if h.vm.hc == nil {
 		return map[string]interface{}{"body": "", "statusCode": 0}
 	}
-	resp, err := h.vm.hc.Get(arg1, headers)
+	resp, err := h.vm.hc.GetContextNoRedirect(context.Background(), arg1, headers)
 	if err != nil {
 		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
 	}
@@ -317,6 +318,17 @@ func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 		}
 	}
 	result["headers"] = hdr
+	result["header"] = func(name string) string {
+		if value, ok := hdr[name]; ok {
+			return value
+		}
+		for key, value := range hdr {
+			if strings.EqualFold(key, name) {
+				return value
+			}
+		}
+		return ""
+	}
 	return result
 }
 
