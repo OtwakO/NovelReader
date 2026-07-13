@@ -29,15 +29,15 @@ func TestSearchSourceUsesSessionBackedURLTemplate(t *testing.T) {
 		BookSourceURL:  server.URL,
 		BookSourceName: "fixture",
 		SearchURL:      "{{cookie.setCookie(baseUrl, 'token=fixture')}}/search?token={{cookie.getKey(baseUrl, 'token')}}",
-		RuleSearch:     `{"bookList":".book","name":".name@text","author":".author@text","bookUrl":".name@href"}`,
+		RuleSearch:     `{"bookList":".book","name":"@js:cookie.getKey(baseUrl, 'token')","author":".author@text","bookUrl":".name@href"}`,
 	}
 
 	results, err := s.searchSource(t.Context(), src, "凡人修仙传")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0].Name != "凡人修仙传" {
-		t.Fatalf("results = %+v, want one fixture result", results)
+	if len(results) != 1 || results[0].Name != "fixture" {
+		t.Fatalf("results = %+v, want session-backed field rule", results)
 	}
 	if results[0].BookURL != server.URL+"/search/book/1" {
 		t.Fatalf("book URL = %q, want final-page-relative URL", results[0].BookURL)

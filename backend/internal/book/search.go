@@ -385,6 +385,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, sr
 		elHTML := analyzer.ToString(el)
 		elAn := analyzer.New(elHTML, src.BookSourceURL, s.jsVM, s.cache)
 		elAn.SetJSLib(src.JSLib)
+		elAn.SetSourceState(state)
 		elAn.SetContext(ctx)
 
 		r := SearchResult{
