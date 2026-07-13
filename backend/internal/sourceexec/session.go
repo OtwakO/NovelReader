@@ -13,10 +13,11 @@ import (
 
 // SourceSession isolates mutable source state from other sources and users.
 type SourceSession struct {
-	jar    http.CookieJar
-	mu     sync.RWMutex
-	vars   map[string]string
-	memory map[string]interface{}
+	jar     http.CookieJar
+	mu      sync.RWMutex
+	vars    map[string]string
+	memory  map[string]interface{}
+	lastURL string
 }
 
 // NewSourceSession creates an isolated cookie and variable scope.
@@ -102,6 +103,20 @@ func (s *SourceSession) SetCookies(rawURL string, cookies []*http.Cookie) error 
 
 // CookieJar returns the session jar for an HTTP transport created for this session.
 func (s *SourceSession) CookieJar() http.CookieJar { return s.jar }
+
+// SetLastURL records the final URL of the latest staged source response.
+func (s *SourceSession) SetLastURL(rawURL string) {
+	s.mu.Lock()
+	s.lastURL = rawURL
+	s.mu.Unlock()
+}
+
+// LastURL returns the final URL of the latest staged source response.
+func (s *SourceSession) LastURL() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lastURL
+}
 
 // PutVariable stores a persistent source variable.
 func (s *SourceSession) PutVariable(key, value string) {

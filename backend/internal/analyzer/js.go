@@ -311,6 +311,10 @@ type responseCookieState interface {
 	SetCookies(rawURL string, cookies []*http.Cookie) error
 }
 
+type responseURLState interface {
+	SetLastURL(rawURL string)
+}
+
 func (h *jsHelpers) get(rawURL string, headers map[string]string) (*fetcher.Response, error) {
 	if client, ok := h.hc.(fetcher.ContextHTTPClient); ok {
 		return client.GetContext(h.ctx, rawURL, headers)
@@ -358,6 +362,9 @@ func jsDuration(value interface{}) time.Duration {
 }
 
 func (h *jsHelpers) syncResponseCookies(rawURL string, headers http.Header) {
+	if state, ok := h.state.(responseURLState); ok && state != nil && rawURL != "" {
+		state.SetLastURL(rawURL)
+	}
 	state, ok := h.state.(responseCookieState)
 	if !ok || state == nil {
 		return
@@ -366,6 +373,13 @@ func (h *jsHelpers) syncResponseCookies(rawURL string, headers http.Header) {
 	if err := state.SetCookies(rawURL, response.Cookies()); err != nil {
 		slog.Debug("js: response cookie sync failed", "url", rawURL, "err", err)
 	}
+}
+
+func responseURL(response *fetcher.Response, fallback string) string {
+	if response != nil && response.URL != "" {
+		return response.URL
+	}
+	return fallback
 }
 
 // Get performs HTTP GET or variable retrieval: java.get(url, headers?) or java.get(key)
@@ -394,7 +408,7 @@ func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 	if err != nil {
 		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
 	}
-	h.syncResponseCookies(arg1, resp.Headers)
+	h.syncResponseCookies(responseURL(resp, arg1), resp.Headers)
 	result := make(map[string]interface{})
 	result["body"] = func() string { return resp.Body }
 	result["bodyText"] = resp.Body
@@ -437,7 +451,7 @@ func (h *jsHelpers) Post(urlStr, body string, args ...interface{}) interface{} {
 	if err != nil {
 		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
 	}
-	h.syncResponseCookies(urlStr, resp.Headers)
+	h.syncResponseCookies(responseURL(resp, urlStr), resp.Headers)
 	return map[string]interface{}{"body": func() string { return resp.Body }, "bodyText": resp.Body, "statusCode": resp.StatusCode}
 }
 
@@ -464,7 +478,8 @@ func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]inter
 		if err == nil {
 			body = resp.Body
 			code = resp.StatusCode
-			finalURL = resp.URL
+			finalURL = responseURL(resp, urlStr)
+			h.syncResponseCookies(finalURL, resp.Headers)
 			for k, vals := range resp.Headers {
 				if len(vals) > 0 {
 					respHeaders[k] = vals[0]
@@ -593,7 +608,7 @@ func (h *jsHelpers) Ajax(urlStr interface{}, args ...interface{}) string {
 	if err != nil {
 		return ""
 	}
-	h.syncResponseCookies(s, resp.Headers)
+	h.syncResponseCookies(responseURL(resp, s), resp.Headers)
 	return resp.Body
 }
 

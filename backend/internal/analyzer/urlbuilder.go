@@ -93,7 +93,14 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 		if err != nil {
 			return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
 		}
-		return BuildURLWithContext(ctx, ToString(value), key, page, baseURL, jsVM, sourceState)
+		resultURL := ToString(value)
+		resultBase := baseURL
+		if state, ok := sourceState.(interface{ LastURL() string }); ok && !strings.HasPrefix(resultURL, "http://") && !strings.HasPrefix(resultURL, "https://") {
+			if lastURL := state.LastURL(); lastURL != "" {
+				resultBase = lastURL
+			}
+		}
+		return BuildURLWithContext(ctx, resultURL, key, page, resultBase, jsVM, sourceState)
 	}
 
 	meta := &URLMeta{
@@ -183,7 +190,14 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 				// Legado allows @js to return `url,{...options}`. Re-run
 				// the normal URL parser so the returned POST/body/charset
 				// metadata is not treated as part of the URL path.
-				return BuildURLWithContext(ctx, ToString(v), key, page, baseURL, jsVM, sourceState)
+				resultURL := ToString(v)
+				resultBase := baseURL
+				if state, ok := sourceState.(interface{ LastURL() string }); ok && !strings.HasPrefix(resultURL, "http://") && !strings.HasPrefix(resultURL, "https://") {
+					if lastURL := state.LastURL(); lastURL != "" {
+						resultBase = lastURL
+					}
+				}
+				return BuildURLWithContext(ctx, resultURL, key, page, resultBase, jsVM, sourceState)
 			}
 			return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
 		}
