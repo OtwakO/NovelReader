@@ -10,6 +10,25 @@ import (
 	"github.com/otwako/novelreader/internal/fetcher"
 )
 
+func TestHTTPTransportRecordsRedirectChain(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/start" {
+			http.Redirect(w, r, "/final", http.StatusFound)
+			return
+		}
+		_, _ = w.Write([]byte("final"))
+	}))
+	defer server.Close()
+
+	response, err := NewHTTPTransport(fetcher.NewWithTimeout(3*time.Second)).Do(t.Context(), RequestSpec{URL: server.URL + "/start"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.FinalURL != server.URL+"/final" || len(response.RedirectChain) != 1 || response.RedirectChain[0] != server.URL+"/final" {
+		t.Fatalf("redirect chain=%+v final=%q", response.RedirectChain, response.FinalURL)
+	}
+}
+
 func TestHTTPTransportPreservesRequestAndNonSuccessResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

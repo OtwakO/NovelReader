@@ -41,10 +41,12 @@ type RequestRecord struct {
 
 // ResponseRecord stores transport output without retaining an unbounded body.
 type ResponseRecord struct {
-	StatusCode int    `json:"statusCode"`
-	FinalURL   string `json:"finalUrl,omitempty"`
-	Transport  string `json:"transport,omitempty"`
-	BodySample string `json:"bodySample,omitempty"`
+	StatusCode    int                 `json:"statusCode"`
+	FinalURL      string              `json:"finalUrl,omitempty"`
+	Transport     string              `json:"transport,omitempty"`
+	Headers       map[string][]string `json:"headers,omitempty"`
+	RedirectChain []string            `json:"redirectChain,omitempty"`
+	BodySample    string              `json:"bodySample,omitempty"`
 }
 
 // Record is one independently reproducible raw-source search observation.
@@ -172,10 +174,12 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 			continue
 		}
 		record.Response = &ResponseRecord{
-			StatusCode: response.StatusCode,
-			FinalURL:   response.FinalURL,
-			Transport:  response.Transport,
-			BodySample: sample(response.Body),
+			StatusCode:    response.StatusCode,
+			FinalURL:      response.FinalURL,
+			Transport:     response.Transport,
+			Headers:       redactResponseHeaders(response.Headers),
+			RedirectChain: append([]string(nil), response.RedirectChain...),
+			BodySample:    sample(response.Body),
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
 			record.Classification = "http_or_waf_failure"
@@ -290,13 +294,31 @@ func mergeHeaders(target, source map[string]string) {
 func redactHeaders(headers map[string]string) map[string]string {
 	redacted := make(map[string]string, len(headers))
 	for key, value := range headers {
-		if strings.EqualFold(key, "cookie") || strings.EqualFold(key, "authorization") {
+		if sensitiveHeader(key) {
 			redacted[key] = "[redacted]"
 		} else {
 			redacted[key] = value
 		}
 	}
 	return redacted
+}
+
+func redactResponseHeaders(headers map[string][]string) map[string][]string {
+	redacted := make(map[string][]string, len(headers))
+	for key, values := range headers {
+		if sensitiveHeader(key) {
+			redacted[key] = []string{"[redacted]"}
+		} else {
+			redacted[key] = append([]string(nil), values...)
+		}
+	}
+	return redacted
+}
+
+func sensitiveHeader(key string) bool {
+	key = strings.ToLower(key)
+	return key == "cookie" || key == "set-cookie" || key == "authorization" ||
+		strings.Contains(key, "api-key") || strings.Contains(key, "token")
 }
 
 func sample(body string) string {

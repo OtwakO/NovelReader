@@ -82,11 +82,12 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 	}
 
 	return Response{
-		StatusCode: resp.StatusCode,
-		Headers:    cloneResponseHeaders(resp.Headers),
-		Body:       resp.Body,
-		FinalURL:   resp.URL,
-		Transport:  "http",
+		StatusCode:    resp.StatusCode,
+		Headers:       cloneResponseHeaders(resp.Headers),
+		Body:          resp.Body,
+		FinalURL:      resp.URL,
+		Transport:     "http",
+		RedirectChain: append([]string(nil), resp.RedirectChain...),
 	}, nil
 }
 

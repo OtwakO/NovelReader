@@ -196,13 +196,22 @@ func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, 
 			req.Header.Set(k, v)
 		}
 
-		httpClient := c.httpClient
-		if !followRedirect {
-			clone := *c.httpClient
-			clone.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
-			httpClient = &clone
+		redirectChain := make([]string, 0, 2)
+		client := *c.httpClient
+		checkRedirect := client.CheckRedirect
+		client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
+			if next.URL != nil {
+				redirectChain = append(redirectChain, next.URL.String())
+			}
+			if !followRedirect {
+				return http.ErrUseLastResponse
+			}
+			if checkRedirect != nil {
+				return checkRedirect(next, via)
+			}
+			return nil
 		}
-		resp, err := httpClient.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("fetch: %w", err)
 			slog.Debug("fetcher: request failed, retrying",
@@ -236,11 +245,16 @@ func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, 
 				"attempt", attempt)
 		}
 
+		finalURL := ""
+		if resp.Request != nil && resp.Request.URL != nil {
+			finalURL = resp.Request.URL.String()
+		}
 		return &Response{
-			StatusCode: resp.StatusCode,
-			Body:       body,
-			Headers:    resp.Header,
-			URL:        resp.Request.URL.String(),
+			StatusCode:    resp.StatusCode,
+			Body:          body,
+			Headers:       resp.Header,
+			URL:           finalURL,
+			RedirectChain: append([]string(nil), redirectChain...),
 		}, nil
 	}
 
@@ -249,10 +263,11 @@ func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, 
 
 // Response wraps an HTTP response.
 type Response struct {
-	StatusCode int
-	Body       string
-	Headers    http.Header
-	URL        string
+	StatusCode    int
+	Body          string
+	Headers       http.Header
+	URL           string
+	RedirectChain []string
 }
 
 func (c *Client) CookieJar() http.CookieJar { return c.jar }

@@ -17,6 +17,8 @@ func TestRunSearchRecordsExpandedRequestAndExtraction(t *testing.T) {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
+		w.Header().Set("X-Diagnostic", "visible")
+		w.Header().Set("Set-Cookie", "session=secret")
 		_, _ = w.Write([]byte(`<div class="bookbox"><a class="book" href="/book/1">凡人修仙传</a></div>`))
 	}))
 	defer server.Close()
@@ -54,6 +56,9 @@ func TestRunSearchRecordsExpandedRequestAndExtraction(t *testing.T) {
 	}
 	if record.Request.Method != "POST" || record.Request.Body != "q=凡人修仙传" {
 		t.Fatalf("request=%+v", record.Request)
+	}
+	if record.Response.Headers["X-Diagnostic"][0] != "visible" || record.Response.Headers["Set-Cookie"][0] != "[redacted]" {
+		t.Fatalf("response diagnostics=%+v", record.Response)
 	}
 	if record.Extracted[0].Name != "凡人修仙传" || !strings.HasSuffix(record.Extracted[0].BookURL, "/book/1") {
 		t.Fatalf("extracted=%+v", record.Extracted)

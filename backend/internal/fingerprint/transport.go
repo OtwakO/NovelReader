@@ -105,8 +105,9 @@ func (t *Transport) finish(ctx context.Context, spec sourceexec.RequestSpec, res
 		StatusCode: response.StatusCode,
 		Headers:    cloneResponseHeaders(response.Headers),
 		Body:       response.Body,
-		FinalURL:   response.URL,
-		Transport:  "fingerprint",
+		FinalURL:       response.URL,
+		Transport:      "fingerprint",
+		RedirectChain:  append([]string(nil), response.RedirectChain...),
 	}, nil
 }
 

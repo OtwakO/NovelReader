@@ -26,11 +26,12 @@ type RequestSpec struct {
 
 // Response retains transport data needed for parsing and failure classification.
 type Response struct {
-	StatusCode int
-	Headers    map[string][]string
-	Body       string
-	FinalURL   string
-	Transport  string
+	StatusCode    int
+	Headers       map[string][]string
+	Body          string
+	FinalURL      string
+	Transport     string
+	RedirectChain []string
 }
 
 // Transport executes a fully expanded source request.
