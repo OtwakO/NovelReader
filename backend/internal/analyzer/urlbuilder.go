@@ -18,39 +18,41 @@ import (
 // URLMeta holds the result of URL construction plus all parsed options
 // from the legado URL JSON option suffix: URL,{"method":"POST","body":"...","charset":"gbk",...}
 type URLMeta struct {
-	URL     string
-	Method  string            // GET or POST (default GET)
-	Body    string            // POST body (with {{key}} already interpolated)
-	Headers map[string]string // per-URL extra headers
-	Charset string            // character encoding override (e.g. "gbk", "gb2312")
-	Retry   int               // retry count on non-2xx
-	WebView bool              // if true, source needs JS rendering
-	WebJS   string            // JavaScript executed by a WebView before extraction
-	BodyJS  string            // JavaScript transformation for the response body
-	DNSIP   string            // optional source DNS/IP override
-	Origin  string            // request origin override
-	Type    string            // file/content type for downloads
+	URL            string
+	Method         string            // GET or POST (default GET)
+	Body           string            // POST body (with {{key}} already interpolated)
+	Headers        map[string]string // per-URL extra headers
+	Charset        string            // character encoding override (e.g. "gbk", "gb2312")
+	Retry          int               // retry count on non-2xx
+	WebView        bool              // if true, source needs JS rendering
+	WebViewDelayMS int               // optional post-load delay for WebView scripts
+	WebJS          string            // JavaScript executed by a WebView before extraction
+	BodyJS         string            // JavaScript transformation for the response body
+	DNSIP          string            // optional source DNS/IP override
+	Origin         string            // request origin override
+	Type           string            // file/content type for downloads
 }
 
 // urlOption mirrors legado's UrlOption data class.
 // Uses RawMessage for fields that may be either a string or structured type.
 type urlOption struct {
-	Method  string          `json:"method"`
-	Body    json.RawMessage `json:"body"`
-	Charset string          `json:"charset"`
-	WebView json.RawMessage `json:"webView,omitempty"`
-	Retry   json.RawMessage `json:"retry,omitempty"`
-	WebJs   string          `json:"webJs,omitempty"`
-	BodyJs  string          `json:"bodyJs,omitempty"`
-	Js      string          `json:"js,omitempty"`
-	DnsIp   string          `json:"dnsIp,omitempty"`
-	Headers json.RawMessage `json:"headers,omitempty"`
-	Type    string          `json:"type,omitempty"`
-	Origin  string          `json:"origin,omitempty"`
+	Method           string          `json:"method"`
+	Body             json.RawMessage `json:"body"`
+	Charset          string          `json:"charset"`
+	WebView          json.RawMessage `json:"webView,omitempty"`
+	Retry            json.RawMessage `json:"retry,omitempty"`
+	WebJs            string          `json:"webJs,omitempty"`
+	BodyJs           string          `json:"bodyJs,omitempty"`
+	Js               string          `json:"js,omitempty"`
+	DnsIp            string          `json:"dnsIp,omitempty"`
+	Headers          json.RawMessage `json:"headers,omitempty"`
+	Type             string          `json:"type,omitempty"`
+	Origin           string          `json:"origin,omitempty"`
+	WebViewDelayTime json.RawMessage `json:"webViewDelayTime,omitempty"`
 }
 
-// ponytail: serverID and webViewDelayTime exist in legado's UrlOption but are omitted
-// since we don't implement multi-server or WebView rendering on the backend.
+// serverID remains unsupported because this deployment has one browser worker; it is
+// preserved in imported source JSON but does not select a remote Legado server.
 
 // BuildURL constructs a request URL from a book source's URL template.
 // Returns a URLMeta with the resolved URL and all parsed options.
@@ -171,6 +173,7 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 				}
 
 				meta.WebJS = opt.WebJs
+				meta.WebViewDelayMS = parseOptionInt(opt.WebViewDelayTime)
 				meta.BodyJS = opt.BodyJs
 				meta.DNSIP = opt.DnsIp
 				meta.Origin = opt.Origin
@@ -278,6 +281,21 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 // ponytail: simple regex-based extraction, no nesting support for {{...}} inside {{...}}.
 // evalTemplateExpressions finds all {{...}} patterns and evaluates the inner content as JS.
 // Uses brace-counting instead of regex to handle nested braces like {{var x={a:1}; x}}.
+func parseOptionInt(raw json.RawMessage) int {
+	if len(raw) == 0 {
+		return 0
+	}
+	var value int
+	if json.Unmarshal(raw, &value) == nil {
+		return value
+	}
+	var text string
+	if json.Unmarshal(raw, &text) == nil {
+		fmt.Sscanf(text, "%d", &value)
+	}
+	return value
+}
+
 func optionBodyString(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""

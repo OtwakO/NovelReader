@@ -11,18 +11,19 @@ import (
 
 // RequestSpec is the fully expanded request described by a Legado URL rule.
 type RequestSpec struct {
-	URL     string
-	Method  string
-	Body    string
-	Headers map[string]string
-	Charset string
-	Retry   int
-	WebView bool
-	WebJS   string
-	BodyJS  string
-	DNSIP   string
-	Origin  string
-	Type    string
+	URL          string
+	Method       string
+	Body         string
+	Headers      map[string]string
+	Charset      string
+	Retry        int
+	WebView      bool
+	WebViewDelay int
+	WebJS        string
+	BodyJS       string
+	DNSIP        string
+	Origin       string
+	Type         string
 }
 
 // Response retains transport data needed for parsing and failure classification.
@@ -46,18 +47,19 @@ func RequestSpecFromURLMeta(meta *analyzer.URLMeta) RequestSpec {
 		return RequestSpec{}
 	}
 	return RequestSpec{
-		URL:     meta.URL,
-		Method:  meta.Method,
-		Body:    meta.Body,
-		Headers: cloneHeaders(meta.Headers),
-		Charset: meta.Charset,
-		Retry:   meta.Retry,
-		WebView: meta.WebView,
-		WebJS:   meta.WebJS,
-		BodyJS:  meta.BodyJS,
-		DNSIP:   meta.DNSIP,
-		Origin:  meta.Origin,
-		Type:    meta.Type,
+		URL:          meta.URL,
+		Method:       meta.Method,
+		Body:         meta.Body,
+		Headers:      cloneHeaders(meta.Headers),
+		Charset:      meta.Charset,
+		Retry:        meta.Retry,
+		WebView:      meta.WebView,
+		WebViewDelay: meta.WebViewDelayMS,
+		WebJS:        meta.WebJS,
+		BodyJS:       meta.BodyJS,
+		DNSIP:        meta.DNSIP,
+		Origin:       meta.Origin,
+		Type:         meta.Type,
 	}
 }
 

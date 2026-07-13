@@ -9,6 +9,9 @@ data/
 *.db-wal
 *.db-shm
 node_modules/
+__pycache__/
+*.pyc
+webview-worker/.venv/
 reference/
 backend/server
 backend/novelreader

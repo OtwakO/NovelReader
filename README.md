@@ -13,6 +13,8 @@ cd .. && ./dev.sh run
 
 The server listens on port `8888` by default. Set `PORT`, `DATABASE_PATH`, or `DATA_DIR` to override local settings.
 
+WebView sources are optional and run through the headless Patchright worker. Start it from `webview-worker/` and set `WEBVIEW_ENDPOINT=http://127.0.0.1:8787`; without this setting, WebView requests fail explicitly while normal HTTP sources continue to work.
+
 ## Tests
 
 ```bash
@@ -39,6 +41,18 @@ GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go go run ./cmd/conformance \
 `-indices` is optional; omitting it runs every source. `-health-url` is optional but aborts the run if the target server stops responding. The CLI uses the production fingerprint transport. Site DNS, WAF, timeout, WebView, and stale-rule failures are reported separately rather than silently treated as parser failures.
 
 Deterministic response fixtures live in `testdata/booksource/`; their manifest test executes the declared rules offline.
+
+## Headless WebView worker
+
+```bash
+cd webview-worker
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+patchright install chromium
+WEBVIEW_WORKER_PORT=8787 python worker.py
+```
+
+For Docker, build `webview-worker/Dockerfile`. Keep the worker on a private network; it accepts arbitrary navigation URLs.
 
 ## Deployment
 

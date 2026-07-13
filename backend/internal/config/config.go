@@ -8,20 +8,22 @@ import (
 )
 
 type Config struct {
-	Port         int
-	DatabasePath string
-	DataDir      string
-	ReadTimeout  time.Duration
-	CORSOrigin   string
+	Port            int
+	DatabasePath    string
+	DataDir         string
+	ReadTimeout     time.Duration
+	CORSOrigin      string
+	WebViewEndpoint string
 }
 
 func Load() *Config {
 	return &Config{
-		Port:         getEnvInt("PORT", 8888),
-		DatabasePath: getEnv("DATABASE_PATH", "./data/novelreader.db"),
-		DataDir:      getEnv("DATA_DIR", "./data"),
-		ReadTimeout:  time.Duration(getEnvInt("READ_TIMEOUT_SECONDS", 30)) * time.Second,
-		CORSOrigin:   getEnv("CORS_ORIGIN", "*"),
+		Port:            getEnvInt("PORT", 8888),
+		DatabasePath:    getEnv("DATABASE_PATH", "./data/novelreader.db"),
+		DataDir:         getEnv("DATA_DIR", "./data"),
+		ReadTimeout:     time.Duration(getEnvInt("READ_TIMEOUT_SECONDS", 30)) * time.Second,
+		CORSOrigin:      getEnv("CORS_ORIGIN", "*"),
+		WebViewEndpoint: getEnv("WEBVIEW_ENDPOINT", ""),
 	}
 }
 

@@ -27,15 +27,17 @@ const (
 
 // Searcher orchestrates search, book info, TOC, and content fetching.
 type TransportFactory func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport
+type WebViewTransportFactory func(session *sourceexec.SourceSession) sourceexec.Transport
 
 type Searcher struct {
-	fetcher          *fetcher.Client
-	transportFactory TransportFactory
-	jsVM             *analyzer.JSVM
-	cache            *analyzer.CacheManager
-	sourceStore      *booksource.Store
-	bookStore        *Store
-	sessions         *sourceexec.SessionRegistry
+	fetcher                 *fetcher.Client
+	transportFactory        TransportFactory
+	webViewTransportFactory WebViewTransportFactory
+	jsVM                    *analyzer.JSVM
+	cache                   *analyzer.CacheManager
+	sourceStore             *booksource.Store
+	bookStore               *Store
+	sessions                *sourceexec.SessionRegistry
 	// per-source rate limiting (concurrentRate)
 	rateMu     sync.Mutex
 	lastAccess map[string]time.Time // keyed by BookSourceURL
@@ -60,14 +62,24 @@ func NewSearcher(
 	}
 }
 
-// SetTransportFactory injects transport policy without coupling book workflows to clients.
+// SetTransportFactory injects normal transport policy without coupling book workflows to clients.
 func (s *Searcher) SetTransportFactory(factory TransportFactory) { s.transportFactory = factory }
 
+// SetWebViewTransportFactory injects the optional browser transport policy.
+func (s *Searcher) SetWebViewTransportFactory(factory WebViewTransportFactory) {
+	s.webViewTransportFactory = factory
+}
+
 func (s *Searcher) newTransport(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {
+	normal := sourceexec.Transport(sourceexec.NewHTTPTransportForSession(client, session))
 	if s.transportFactory != nil {
-		return s.transportFactory(client, session)
+		normal = s.transportFactory(client, session)
 	}
-	return sourceexec.NewHTTPTransportForSession(client, session)
+	var browser sourceexec.Transport
+	if s.webViewTransportFactory != nil {
+		browser = s.webViewTransportFactory(session)
+	}
+	return sourceexec.NewRoutingTransport(normal, browser)
 }
 
 // Search is the old synchronous aggregator. Kept for backward compat.
@@ -284,12 +296,6 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 		"url", spec.URL,
 		"charset", spec.Charset)
 
-	if spec.WebView {
-		slog.Warn("search: source needs WebView (JS rendering), skipping",
-			"source", src.BookSourceName)
-		return nil, fmt.Errorf("source requires JS rendering (webView:true)")
-	}
-
 	s.rateLimitWait(src)
 	resp, err := transport.Do(srcCtx, spec)
 	if err != nil {
@@ -462,9 +468,6 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 		return nil, fmt.Errorf("book info: build URL: %w", err)
 	}
 	spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
-	if spec.WebView {
-		return nil, fmt.Errorf("book info: source requires JS rendering (webView:true)")
-	}
 	response, err := transport.Do(ctx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("book info: fetch: %w", err)
@@ -552,9 +555,6 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 				return "", "", err
 			}
 			spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
-			if spec.WebView {
-				return "", "", fmt.Errorf("source requires JS rendering (webView:true)")
-			}
 			response, err := transport.Do(ctx, spec)
 			if err != nil {
 				return "", "", err
@@ -732,9 +732,6 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		return "", "", fmt.Errorf("content: build URL: %w", err)
 	}
 	spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
-	if spec.WebView {
-		return "", "", fmt.Errorf("content: source requires JS rendering (webView:true)")
-	}
 	response, err := transport.Do(ctx, spec)
 	if err != nil {
 		return "", "", fmt.Errorf("content: fetch: %w", err)
@@ -826,9 +823,6 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 			return "", "", fmt.Errorf("content: next page build: %w", err)
 		}
 		nextSpec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), nextSpec.Headers)
-		if nextSpec.WebView {
-			return "", "", fmt.Errorf("content: next page requires JS rendering (webView:true)")
-		}
 		slog.Debug("content: fetching next page", "source", src.BookSourceName, "url", nextSpec.URL, "method", nextSpec.Method)
 		nextResponse, err := transport.Do(ctx, nextSpec)
 		if err != nil {

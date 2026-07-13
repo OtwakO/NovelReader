@@ -20,6 +20,7 @@ import (
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/sourceexec"
+	"github.com/otwako/novelreader/internal/webview"
 )
 
 func main() {
@@ -89,6 +90,14 @@ func main() {
 		}
 		return transport
 	})
+	if cfg.WebViewEndpoint != "" {
+		browserClient, browserErr := webview.NewClient(webview.Config{Endpoint: cfg.WebViewEndpoint})
+		if browserErr != nil {
+			log.Fatalf("webview transport: %v", browserErr)
+		}
+		searcher.SetWebViewTransportFactory(browserClient.ForSession)
+		slog.Info("headless WebView transport enabled", "endpoint", cfg.WebViewEndpoint)
+	}
 
 	// Content processor config
 	procCfg := processor.DefaultConfig()

@@ -9,25 +9,26 @@ import (
 
 func TestRequestSpecFromURLMetaPreservesExecutionMetadata(t *testing.T) {
 	meta := &analyzer.URLMeta{
-		URL:     "https://example.test/search",
-		Method:  "POST",
-		Body:    "q=encoded",
-		Headers: map[string]string{"Referer": "https://example.test/"},
-		Charset: "gb2312",
-		Retry:   2,
-		WebView: true,
-		WebJS:   "click();",
-		BodyJS:  "result.trim();",
-		DNSIP:   "1.2.3.4",
-		Origin:  "https://origin.test",
-		Type:    "text",
+		URL:            "https://example.test/search",
+		Method:         "POST",
+		Body:           "q=encoded",
+		Headers:        map[string]string{"Referer": "https://example.test/"},
+		Charset:        "gb2312",
+		Retry:          2,
+		WebView:        true,
+		WebViewDelayMS: 500,
+		WebJS:          "click();",
+		BodyJS:         "result.trim();",
+		DNSIP:          "1.2.3.4",
+		Origin:         "https://origin.test",
+		Type:           "text",
 	}
 
 	spec := RequestSpecFromURLMeta(meta)
 	if spec.URL != meta.URL || spec.Method != meta.Method || spec.Body != meta.Body {
 		t.Fatalf("request core fields were not preserved: %+v", spec)
 	}
-	if spec.Charset != meta.Charset || spec.Retry != meta.Retry || !spec.WebView {
+	if spec.Charset != meta.Charset || spec.Retry != meta.Retry || !spec.WebView || spec.WebViewDelay != meta.WebViewDelayMS {
 		t.Fatalf("request execution fields were not preserved: %+v", spec)
 	}
 	if spec.WebJS != meta.WebJS || spec.BodyJS != meta.BodyJS || spec.DNSIP != meta.DNSIP || spec.Origin != meta.Origin || spec.Type != meta.Type {
