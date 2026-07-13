@@ -45,10 +45,8 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 	}
 
 	headers := cloneHeaders(spec.Headers)
-	if spec.Origin != "" {
-		if _, exists := headers["Origin"]; !exists {
-			headers["Origin"] = spec.Origin
-		}
+	if spec.Origin != "" && !hasHeader(headers, "Origin") {
+		headers["Origin"] = spec.Origin
 	}
 
 	var (
@@ -59,7 +57,7 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 	case http.MethodGet:
 		resp, err = t.client.GetContextWithCharset(ctx, spec.URL, headers, spec.Retry, spec.Charset)
 	case http.MethodPost:
-		if _, exists := headers["Content-Type"]; !exists {
+		if !hasHeader(headers, "Content-Type") {
 			headers["Content-Type"] = "application/x-www-form-urlencoded"
 		}
 		resp, err = t.client.PostContextWithCharset(ctx, spec.URL, EncodeRequestBody(spec.Body, spec.Charset), headers, spec.Retry, spec.Charset)
@@ -89,6 +87,15 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 		Transport:     "http",
 		RedirectChain: append([]string(nil), resp.RedirectChain...),
 	}, nil
+}
+
+func hasHeader(headers map[string]string, name string) bool {
+	for key := range headers {
+		if strings.EqualFold(key, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneResponseHeaders(headers http.Header) map[string][]string {

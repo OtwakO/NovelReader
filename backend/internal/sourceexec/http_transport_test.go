@@ -29,6 +29,27 @@ func TestHTTPTransportRecordsRedirectChain(t *testing.T) {
 	}
 }
 
+func TestHTTPTransportMergesHeaderNamesCaseInsensitively(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Origin"); got != "https://header.test" {
+			t.Errorf("Origin=%q", got)
+		}
+		if got := r.Header.Get("Content-Type"); got != "application/custom" {
+			t.Errorf("Content-Type=%q", got)
+		}
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	_, err := NewHTTPTransport(fetcher.NewWithTimeout(3*time.Second)).Do(t.Context(), RequestSpec{
+		URL: server.URL, Method: http.MethodPost, Body: "q=fixture", Origin: "https://option.test",
+		Headers: map[string]string{"origin": "https://header.test", "content-type": "application/custom"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestHTTPTransportPreservesRequestAndNonSuccessResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
