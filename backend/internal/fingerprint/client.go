@@ -163,7 +163,7 @@ func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string,
 	if err != nil {
 		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, err)
 	}
-	c.syncSession(result)
+	c.syncSession(result, rawURL)
 	if shouldFallback(result.StatusCode) && c.fallback != nil {
 		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, fmt.Errorf("fingerprint status %d", result.StatusCode))
 	}
@@ -231,19 +231,23 @@ func responseWithCharset(resp *fhttp.Response, responseCharset string) (*fetcher
 	}, nil
 }
 
-func (c *Client) syncSession(response *fetcher.Response) {
+func (c *Client) syncSession(response *fetcher.Response, requestURL string) {
 	if c.session == nil || c.jar == nil || response == nil {
 		return
 	}
-	rawURL := response.URL
-	if rawURL == "" {
-		return
+	urls := []string{requestURL}
+	if response.URL != "" && response.URL != requestURL {
+		urls = append(urls, response.URL)
 	}
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return
-	}
-	if cookies := c.jar.Cookies(parsed); len(cookies) > 0 {
+	for _, rawURL := range urls {
+		parsed, err := url.Parse(rawURL)
+		if err != nil {
+			continue
+		}
+		cookies := c.jar.Cookies(parsed)
+		if len(cookies) == 0 {
+			continue
+		}
 		converted := make([]*http.Cookie, 0, len(cookies))
 		for _, cookie := range cookies {
 			converted = append(converted, &http.Cookie{

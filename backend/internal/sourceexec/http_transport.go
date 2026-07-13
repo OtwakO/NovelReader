@@ -70,8 +70,14 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 		return Response{}, err
 	}
 	if t.session != nil {
-		if err := t.session.SetCookies(resp.URL, t.client.Cookies(resp.URL)); err != nil {
-			return Response{}, fmt.Errorf("sourceexec: sync session cookies after response: %w", err)
+		cookieURLs := []string{spec.URL}
+		if resp.URL != "" && resp.URL != spec.URL {
+			cookieURLs = append(cookieURLs, resp.URL)
+		}
+		for _, cookieURL := range cookieURLs {
+			if err := t.session.SetCookies(cookieURL, t.client.Cookies(cookieURL)); err != nil {
+				return Response{}, fmt.Errorf("sourceexec: sync session cookies after response: %w", err)
+			}
 		}
 	}
 
