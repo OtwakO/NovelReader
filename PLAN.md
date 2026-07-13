@@ -279,11 +279,11 @@ Every significant booksource-engine change must follow this loop:
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, and multi-class Default selectors. Full Go tests pass. Fresh raw-compilation Playwright verification passed for `露露书`: POST UTF-8 search, 2-chapter TOC, and 1,229 rendered content paragraphs.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, and declaration scoping for pooled runtimes. Full Go tests pass. Fresh raw-compilation Playwright verified POST JavaScript URL construction reached a real POST request; the sampled JavaScript sources themselves returned no matching results or timed out during live search, so full JS-source reading remains open.
 
 **In progress:** Continuing cross-source compatibility checks and auditing the remaining Phase 1 request-contract gaps.
 
-**Next action:** Continue Default/JSoup and JavaScript rule coverage, especially raw JavaScript sources with `java.ajax` and multi-step state.
+**Next action:** Test a live JavaScript source with a confirmed non-empty raw two-step result, then verify its TOC/content path; continue JS bridge coverage for arrays, response headers, and multi-step cookies.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -728,6 +728,12 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Fresh UI E2E imported `test_booksource4.json`, searched `凡人修仙传`, selected raw source `露露书`, loaded its POST UTF-8 search result, displayed 2 TOC chapters, and rendered 1,229 paragraphs from the first chapter.
 - **Affected**: Live verification; `/tmp/novelreader_lulu_fixed.log`.
 - **Watch out**: This verifies one Default/POST/UTF-8 path; JavaScript and GBK paths still require independent coverage.
+
+### [2026-07-13] JavaScript source bridge gaps found during raw verification
+- **Problem**: Raw `java.ajax` sources failed because `org.jsoup` selections were arrays without chained `attr`/`select`, `@js`-returned `url,{options}` metadata was encoded into the URL path, and pooled runtimes retained top-level `let`/`const` declarations.
+- **Fix**: Added chainable Jsoup selection methods, reparsed URL options returned by JavaScript, and block-scoped declaration-bearing scripts; added conformance tests for each behavior.
+- **Affected**: `backend/internal/analyzer/js.go`, `backend/internal/analyzer/urlbuilder.go`, `backend/internal/analyzer/jsoup_conformance_test.go`, `backend/internal/analyzer/urlbuilder_js_option_test.go`, `backend/internal/analyzer/js_scope_test.go`.
+- **Watch out**: Live sampled JS sources still need a confirmed non-empty two-step result before full TOC/content verification.
 
 ### [2026-07-13] Verification-debug-fix loop formalized
 - **Problem**: Source failures could be prematurely classified as outdated because implementation, deterministic tests, live E2E, and cross-source diagnosis were not always performed as one repeatable loop.

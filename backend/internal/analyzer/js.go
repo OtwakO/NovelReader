@@ -12,6 +12,7 @@ import (
 	"hash"
 	"log/slog"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -162,13 +163,13 @@ Map = function(a) {
 	// decode — used by some sources for base64-encoded content.
 	_ = rt.Set("decode", h.Decode)
 
-	// Run the script. For scripts that use `var` at the top level (which can
-	// collide across evals on the same pooled runtime), wrap in a block scope.
-	// We detect top-level `var` by checking for `var ` at the start of a line.
-	// Simple scripts without `var` are evaluated directly so the return value
-	// from the last expression is preserved (critical for @js: URL builders).
+	// Declarations must be block-scoped because pooled runtimes retain global
+	// lexical bindings across source evaluations.
+	// Simple scripts without declarations preserve the final expression value.
 	wrapped := script
-	if strings.Contains(script, "\nvar ") || strings.HasPrefix(strings.TrimSpace(script), "var ") {
+	trimmedScript := strings.TrimSpace(script)
+	if strings.Contains(script, "\nvar ") || strings.Contains(script, "\nlet ") || strings.Contains(script, "\nconst ") ||
+		strings.HasPrefix(trimmedScript, "var ") || strings.HasPrefix(trimmedScript, "let ") || strings.HasPrefix(trimmedScript, "const ") {
 		wrapped = "{ " + script + " }"
 	}
 
@@ -669,48 +670,82 @@ func newJSoupBridge(rt *goja.Runtime, baseURL string) map[string]interface{} {
 				"parse": func(html string) map[string]interface{} {
 					doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 					if err != nil {
-						return map[string]interface{}{
-							"select": func(string) []interface{} { return nil },
-						}
+						return map[string]interface{}{"select": func(string) map[string]interface{} { return emptyJSoupSelection() }}
 					}
 					return map[string]interface{}{
-						"select": func(css string) []interface{} {
-							var results []interface{}
+						"select": func(css string) map[string]interface{} {
+							var elements []map[string]interface{}
 							doc.Find(css).Each(func(_ int, s *goquery.Selection) {
-								el := make(map[string]interface{})
-								el["text"] = func() string { return s.Text() }
-								el["ownText"] = s.Contents().Not("script").Not("style").Text()
-								el["html"] = func() string {
-									h, _ := s.Html()
-									return h
-								}
-								el["outerHtml"] = func() string {
-									h, _ := goquery.OuterHtml(s)
-									return h
-								}
-								el["attr"] = func(name string) string {
-									v, _ := s.Attr(name)
-									return v
-								}
-								el["val"] = func() string {
-									v, _ := s.Attr("value")
-									return v
-								}
-								el["data"] = func(name string) string {
-									v, _ := s.Attr("data-" + name)
-									return v
-								}
-								// first/last/size are used for iteration
-								el["first"] = func() interface{} { return nil } // ponytail: single element
-								el["last"] = func() interface{} { return nil }
-								el["size"] = 1
-								results = append(results, el)
+								elements = append(elements, makeJSoupElement(s))
 							})
-							return results
+							return makeJSoupSelection(elements)
 						},
 					}
 				},
 			},
 		},
 	}
+}
+
+func makeJSoupElement(s *goquery.Selection) map[string]interface{} {
+	return map[string]interface{}{
+		"text":      func() string { return s.Text() },
+		"ownText":   s.Contents().Not("script").Not("style").Text(),
+		"html":      func() string { h, _ := s.Html(); return h },
+		"outerHtml": func() string { h, _ := goquery.OuterHtml(s); return h },
+		"attr":      func(name string) string { v, _ := s.Attr(name); return v },
+		"val":       func() string { v, _ := s.Attr("value"); return v },
+		"data":      func(name string) string { v, _ := s.Attr("data-" + name); return v },
+		"select":    func(css string) map[string]interface{} { return makeJSoupSelectionFromGoquery(s.Find(css)) },
+		"first":     func() interface{} { return makeJSoupElement(s.First()) },
+		"last":      func() interface{} { return makeJSoupElement(s.Last()) },
+		"size":      1,
+	}
+}
+
+func emptyJSoupSelection() map[string]interface{} { return makeJSoupSelection(nil) }
+
+func makeJSoupSelectionFromGoquery(selection *goquery.Selection) map[string]interface{} {
+	var elements []map[string]interface{}
+	selection.Each(func(_ int, s *goquery.Selection) { elements = append(elements, makeJSoupElement(s)) })
+	return makeJSoupSelection(elements)
+}
+
+func makeJSoupSelection(elements []map[string]interface{}) map[string]interface{} {
+	selection := map[string]interface{}{"size": len(elements)}
+	for i, element := range elements {
+		selection[strconv.Itoa(i)] = element
+	}
+	selection["first"] = func() interface{} {
+		if len(elements) == 0 {
+			return nil
+		}
+		return elements[0]
+	}
+	selection["last"] = func() interface{} {
+		if len(elements) == 0 {
+			return nil
+		}
+		return elements[len(elements)-1]
+	}
+	selection["attr"] = func(name string) string {
+		if len(elements) == 0 {
+			return ""
+		}
+		return elements[0]["attr"].(func(string) string)(name)
+	}
+	selection["text"] = func() string {
+		var result []string
+		for _, element := range elements {
+			result = append(result, element["text"].(func() string)())
+		}
+		return strings.Join(result, "")
+	}
+	selection["select"] = func(css string) map[string]interface{} {
+		if len(elements) == 0 {
+			return emptyJSoupSelection()
+		}
+		return elements[0]["select"].(func(string) map[string]interface{})(css)
+	}
+	return selection
 }

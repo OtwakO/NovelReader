@@ -151,13 +151,14 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 		if jsVM != nil {
 			v, err := jsVM.Eval(jsCode, "", baseURL, map[string]interface{}{"key": key, "page": page, "sourceState": sourceState})
 			if err == nil {
-				urlStr = ToString(v)
-			} else {
-				return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
+				// Legado allows @js to return `url,{...options}`. Re-run
+				// the normal URL parser so the returned POST/body/charset
+				// metadata is not treated as part of the URL path.
+				return BuildURLWithState(ToString(v), key, page, baseURL, jsVM, sourceState)
 			}
-		} else {
-			return nil, fmt.Errorf("urlbuilder: @js: no JS engine available")
+			return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
 		}
+		return nil, fmt.Errorf("urlbuilder: @js: no JS engine available")
 	}
 
 	// Handle <,{{page}}> page-selection syntax: <,a,b,c> picks page 1→a, 2→b, 3→c.
