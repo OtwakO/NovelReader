@@ -151,16 +151,16 @@ Completion gate: deterministic tests can distinguish a broken request from a bro
 Tasks:
 
 - [x] Preserve unknown BookSource fields and losslessly export imported JSON.
-- [ ] Implement `RequestSpec`, structured `Response`, and `SourceSession`.
+- [x] Implement `RequestSpec`, structured `Response`, and `SourceSession`.
 - [ ] Move URL template expansion, JSON options, `<,>` page syntax, relative URL resolution, URL-level JS, body JS, charset, headers, retry, redirect metadata, and method/body construction into `sourceexec`.
 - [ ] Apply URL options to search, book info, TOC, content, `nextTocUrl`, `nextContentUrl`, and JS bridge requests.
 - [ ] Use RFC-compatible URL resolution against the actual response/found page URL.
-- [ ] Preserve response bodies for non-2xx responses and classify rather than discard them.
+- [x] Preserve response bodies for non-2xx responses and classify rather than discard them.
 - [ ] Add request-parity diagnostics for enrichment: record exact expanded URL, method, headers, redirect chain, status, and body when NovelReader differs from curl/browser.
 - [ ] Reproduce and resolve the `m.22biqu.net` enrichment discrepancy where curl returned 200 but NovelReader observed 404.
 - [ ] Implement per-source/per-user cookie policy and source-variable persistence.
 - [ ] Ensure `Referer`, `Origin`, content type, custom headers, and cookies are forwarded exactly as the source requests them.
-- [ ] Implement `bodyJs`, `webJs` dispatch metadata, and response-body transformation hooks.
+- [x] Implement `bodyJs`, `webJs` dispatch metadata, and response-body transformation hooks.
 
 Completion gate: one fixture request produces the same method, URL, body, headers, charset, cookies, redirects, and final body behavior as Legado. Search/detail/TOC/content all call the same executor.
 
