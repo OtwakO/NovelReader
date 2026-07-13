@@ -24,6 +24,19 @@ type HTTPClient interface {
 	GetContextNoRedirect(ctx context.Context, rawURL string, extraHeaders map[string]string) (*Response, error)
 }
 
+// ContextHTTPClient is the optional context-aware surface used by JavaScript helpers.
+type ContextHTTPClient interface {
+	HTTPClient
+	GetContext(ctx context.Context, rawURL string, extraHeaders map[string]string, retry ...int) (*Response, error)
+	PostContext(ctx context.Context, rawURL, body string, extraHeaders map[string]string, retry int) (*Response, error)
+}
+
+// CookieSession carries cookies between staged source requests without sharing jars.
+type CookieSession interface {
+	CookieHeader(rawURL string) string
+	SetCookies(rawURL string, cookies []*http.Cookie) error
+}
+
 // Client wraps http.Client with context support and optional cookie jar.
 type Client struct {
 	httpClient *http.Client

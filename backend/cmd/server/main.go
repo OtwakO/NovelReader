@@ -62,14 +62,14 @@ func main() {
 	// ponytail: use insecure TLS for content fetcher too — same reason as search:
 	// many Chinese novel sites have self-signed or expired TLS certs. Search already
 	// uses InsecureSkipVerify; content/TOC/chapter fetches must match.
-	httpContent := fetcher.NewInsecure(15 * time.Second)         // normal fallback and content
-	httpSearch := fetcher.NewInsecureStateless(10 * time.Second) // no jar for search
+	httpContent := fetcher.NewInsecure(15 * time.Second) // normal fallback and content
 	fingerprintConfig := fingerprint.Config{
 		Timeout:            15 * time.Second,
 		Profile:            os.Getenv("TLS_CLIENT_PROFILE"),
 		InsecureSkipVerify: true,
 	}
-	jsHTTP, err := fingerprint.New(fingerprintConfig, httpContent)
+	jsFallback := fetcher.NewInsecureStateless(15 * time.Second)
+	jsHTTP, err := fingerprint.New(fingerprintConfig, jsFallback)
 	if err != nil {
 		log.Fatalf("fingerprint transport: %v", err)
 	}
@@ -78,9 +78,6 @@ func main() {
 	cache := analyzer.NewCacheManager()
 
 	searcher := book.NewSearcher(httpContent, jsVM, cache, sourceStore, bookStore)
-	// Override the default search fetcher (constructed inside NewSearcher) with the
-	// one we already created, so we don't create a second client.
-	searcher.SetSearchFetcher(httpSearch)
 	regularFingerprintConfig := fingerprintConfig
 	regularFingerprintConfig.Timeout = 5 * time.Second // leave room for normal fallback within per-source timeout
 	searcher.SetTransportFactory(func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {

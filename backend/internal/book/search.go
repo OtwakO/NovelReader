@@ -30,7 +30,6 @@ type TransportFactory func(client *fetcher.Client, session *sourceexec.SourceSes
 
 type Searcher struct {
 	fetcher          *fetcher.Client
-	searchFetcher    *fetcher.Client // 8s timeout for search
 	transportFactory TransportFactory
 	jsVM             *analyzer.JSVM
 	cache            *analyzer.CacheManager
@@ -50,20 +49,16 @@ func NewSearcher(
 	bookStore *Store,
 ) *Searcher {
 	return &Searcher{
-		fetcher:       hc,
-		searchFetcher: fetcher.NewInsecureStateless(perSourceTimeout),
-		jsVM:          jsVM,
-		cache:         cache,
-		sourceStore:   sourceStore,
-		bookStore:     bookStore,
-		sessions:      sourceexec.NewSessionRegistry(),
-		rateMu:        sync.Mutex{},
-		lastAccess:    make(map[string]time.Time),
+		fetcher:     hc,
+		jsVM:        jsVM,
+		cache:       cache,
+		sourceStore: sourceStore,
+		bookStore:   bookStore,
+		sessions:    sourceexec.NewSessionRegistry(),
+		rateMu:      sync.Mutex{},
+		lastAccess:  make(map[string]time.Time),
 	}
 }
-
-// SetSearchFetcher replaces the default search fetcher with a custom one.
-func (s *Searcher) SetSearchFetcher(f *fetcher.Client) { s.searchFetcher = f }
 
 // SetTransportFactory injects transport policy without coupling book workflows to clients.
 func (s *Searcher) SetTransportFactory(factory TransportFactory) { s.transportFactory = factory }
@@ -543,8 +538,9 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 		jsVM:  s.jsVM,
 		cache: s.cache,
 		state: session,
+		ctx:   ctx,
 		fetch: func(urlStr string) (string, string, error) {
-			spec, err := executor.Build(urlStr, "", 1, src.BookSourceURL)
+			spec, err := executor.BuildContext(ctx, urlStr, "", 1, src.BookSourceURL)
 			if err != nil {
 				return "", "", err
 			}

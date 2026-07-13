@@ -280,11 +280,11 @@ Every significant booksource-engine change must follow this loop:
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, fingerprint-first regular source transport with normal fallback, source-scoped cookie continuity, segmented URL `@js`, and POST-body page selectors. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库` after regular transport integration: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs. `笔趣小说` independently produced 12 search results before a later upstream DNS/503 outage.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, source-scoped fingerprint jars, segmented URL `@js`, POST-body page selectors, `<js>...</js>` wrapper execution, typed JavaScript TOC objects, and context cancellation. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库` after regular transport integration: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs. Fresh raw `趣书网吧` verification now passes search → add → 438-page TOC → first-page content with 135 rendered paragraphs. Direct book deep links now load the same 438-chapter detail page without frontend effect-loop errors.
 
 **In progress:** Continuing cross-source compatibility checks and auditing the remaining Phase 1 request-contract gaps.
 
-**Next action:** Re-run the raw `笔趣小说` two-step flow when its upstream endpoint is available, then verify another JavaScript/POST source before expanding WebView support.
+**Next action:** Re-run the raw `笔趣小说` two-step flow when its upstream endpoint is available, then complete the Phase 0 raw-source conformance harness and close remaining Phase 1/2 contract gaps before expanding WebView support.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -777,3 +777,27 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added a mandatory audit → failing test → shared implementation → deterministic suite → Playwright → layered diagnosis → second raw source → fix/retest → PLAN synchronization workflow.
 - **Affected**: `PLAN.md`.
 - **Watch out**: Do not mark a changed path complete while its live gate is blocked by an unresolved failure; do not call a raw rule outdated before independent reproduction.
+
+### [2026-07-13] Fingerprint transport audit found contract gaps
+- **Problem**: Review found incorrect page-selector indexing, discarded fingerprint response charsets, shared JavaScript cookie jars, lost redirect cookies, incomplete retry delegation, reversed fallback redirect behavior, uncancelable JavaScript HTTP calls, and unbounded fingerprint response reads.
+- **Fix**: Corrected Legado page-selector semantics, response decoding, source-scoped fingerprint clients, redirect-cookie import, retry fallback, redirect flag handling, context-aware JS helpers, and bounded reads; added focused regression tests.
+- **Affected**: `backend/internal/analyzer/`, `backend/internal/fetcher/`, `backend/internal/fingerprint/`, `backend/internal/sourceexec/`, `backend/internal/book/search.go`, `backend/cmd/server/main.go`.
+- **Watch out**: Keep JavaScript fallbacks stateless; all source-scoped cookies must enter requests through `SourceSession`.
+
+### [2026-07-13] Raw 趣书网吧 TOC exposed missing typed JS-object handling
+- **Problem**: Raw source index 778 uses `<js>...</js>` to return 438 `{text, href}` objects. The evaluator passed the wrapper through to goja and the chapter parser stringified objects, producing `Chapters (0)` despite a reachable page and valid rules.
+- **Fix**: Strip `<js>` wrappers, preserve object elements, apply `chapterName`/`chapterUrl` fields directly, and propagate the workflow context into analyzer JavaScript.
+- **Affected**: `backend/internal/analyzer/analyzer.go`, `backend/internal/book/chapterlist.go`, `backend/internal/book/chapterlist_object_test.go`, `backend/internal/analyzer/js_toc_test.go`.
+- **Watch out**: Continue testing JS-returned objects with nested fields and non-TOC rule contexts; do not regress HTML element extraction fallback.
+
+### [2026-07-13] Raw 趣书网吧 full pipeline passed after shared fixes
+- **Problem**: The first live attempt stopped at TOC with `analyzer: no elements matched`; the raw page and exact rule were independently reachable and reproducible.
+- **Fix**: Restarted a fresh server with raw `test_booksource4.json`, re-ran UI search/add, loaded 438 TOC pages, opened the first chapter, and verified 135 visible content paragraphs containing actual chapter text.
+- **Affected**: Live E2E; raw source index 778, `https://www.qubook.org##旅途`, `/tmp/novelreader_qubook_fixed2.log`.
+- **Watch out**: Keep direct deep-link verification separate from the search-user-flow gate.
+
+### [2026-07-13] Direct book deep link triggered a frontend effect loop
+- **Problem**: Opening `#/book?id=...` directly caused Svelte `effect_update_depth_exceeded` and remained on `Loading...`, while navigation from search worked.
+- **Fix**: Moved App hash-listener setup from reactive `$effect` to `onMount`, guarded BookDetail loading by book ID, and surfaced load errors instead of swallowing them.
+- **Affected**: `frontend/src/App.svelte`, `frontend/src/lib/BookDetail.svelte`.
+- **Watch out**: Existing unrelated Svelte accessibility warnings remain in `App.svelte` and `Reader.svelte`; do not treat those as this routing fix.

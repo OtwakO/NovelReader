@@ -6,27 +6,39 @@
   let book = $state<Book | null>(null);
   let chapters = $state<Chapter[]>([]);
   let loading = $state(true);
+  let error = $state('');
+  let loadedBookId = '';
 
   $effect(() => {
-    load();
+    const id = bookId;
+    if (id && id !== loadedBookId) {
+      loadedBookId = id;
+      void load(id);
+    }
   });
 
-  async function load() {
+  async function load(id: string) {
     loading = true;
+    error = '';
     try {
       const books = await listBooks();
-      book = books.find(b => b.id === bookId) || null;
-      if (book) {
-        chapters = await getChapters(bookId);
-      }
-    } catch (_) { /* ignore */ }
-    loading = false;
+      book = books.find(b => b.id === id) || null;
+      chapters = book ? await getChapters(id) : [];
+    } catch (err) {
+      book = null;
+      chapters = [];
+      error = err instanceof Error ? err.message : 'Failed to load book';
+    } finally {
+      loading = false;
+    }
   }
 </script>
 
 <div class="page">
   {#if loading}
     <p class="hint">Loading...</p>
+  {:else if error}
+    <p class="hint">{error}</p>
   {:else if !book}
     <p class="hint">Book not found.</p>
   {:else}

@@ -29,10 +29,17 @@ type Client struct {
 	fingerprint tlsclient.HttpClient
 	noRedirect  tlsclient.HttpClient
 	fallback    fetcher.HTTPClient
+	config      Config
+	session     fetcher.CookieSession
+	jar         tlsclient.CookieJar
 }
 
 // New creates a fingerprint client. An empty profile selects the dependency's latest profile.
 func New(config Config, fallback fetcher.HTTPClient) (*Client, error) {
+	return newClient(config, fallback, nil)
+}
+
+func newClient(config Config, fallback fetcher.HTTPClient, session fetcher.CookieSession) (*Client, error) {
 	if config.Timeout <= 0 {
 		config.Timeout = 15 * time.Second
 	}
@@ -59,11 +66,44 @@ func New(config Config, fallback fetcher.HTTPClient) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fingerprint: create redirect client: %w", err)
 	}
-	return &Client{fingerprint: primary, noRedirect: noRedirect, fallback: fallback}, nil
+	return &Client{
+		fingerprint: primary,
+		noRedirect:  noRedirect,
+		fallback:    fallback,
+		config:      config,
+		session:     session,
+		jar:         jar,
+	}, nil
+}
+
+// ForSource creates an isolated fingerprint jar for one source session.
+func (c *Client) ForSource(session fetcher.CookieSession) fetcher.HTTPClient {
+	if c == nil {
+		return nil
+	}
+	scoped, err := newClient(c.config, c.fallback, session)
+	if err != nil {
+		return &failedClient{err: err}
+	}
+	return scoped
+}
+
+type failedClient struct{ err error }
+
+func (c *failedClient) Get(string, map[string]string) (*fetcher.Response, error) { return nil, c.err }
+func (c *failedClient) Post(string, string, string, map[string]string) (*fetcher.Response, error) {
+	return nil, c.err
+}
+func (c *failedClient) GetContextNoRedirect(context.Context, string, map[string]string) (*fetcher.Response, error) {
+	return nil, c.err
 }
 
 func (c *Client) Get(rawURL string, headers map[string]string) (*fetcher.Response, error) {
-	return c.do(context.Background(), http.MethodGet, rawURL, "", headers, true)
+	return c.GetContext(context.Background(), rawURL, headers)
+}
+
+func (c *Client) GetContext(ctx context.Context, rawURL string, headers map[string]string, _ ...int) (*fetcher.Response, error) {
+	return c.do(ctx, http.MethodGet, rawURL, "", headers, true)
 }
 
 func (c *Client) Post(rawURL, contentType, body string, headers map[string]string) (*fetcher.Response, error) {
@@ -73,7 +113,17 @@ func (c *Client) Post(rawURL, contentType, body string, headers map[string]strin
 	if _, ok := headers["Content-Type"]; !ok && contentType != "" {
 		headers["Content-Type"] = contentType
 	}
-	return c.do(context.Background(), http.MethodPost, rawURL, body, headers, true)
+	return c.PostContext(context.Background(), rawURL, body, headers, 0)
+}
+
+func (c *Client) PostContext(ctx context.Context, rawURL, body string, headers map[string]string, _ int) (*fetcher.Response, error) {
+	if headers == nil {
+		headers = map[string]string{}
+	}
+	if _, ok := headers["Content-Type"]; !ok {
+		headers["Content-Type"] = "application/x-www-form-urlencoded"
+	}
+	return c.do(ctx, http.MethodPost, rawURL, body, headers, true)
 }
 
 func (c *Client) GetContextNoRedirect(ctx context.Context, rawURL string, headers map[string]string) (*fetcher.Response, error) {
@@ -99,6 +149,11 @@ func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string,
 		return c.fallbackRequest(ctx, method, rawURL, body, headers, followRedirect, err)
 	}
 	req.Header = makeHeaders(headers)
+	if c.session != nil && req.Header.Get("Cookie") == "" {
+		if cookie := c.session.CookieHeader(rawURL); cookie != "" {
+			req.Header.Set("Cookie", cookie)
+		}
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return c.fallbackRequest(ctx, method, rawURL, body, headers, followRedirect, err)
@@ -107,23 +162,37 @@ func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string,
 	if err != nil {
 		return c.fallbackRequest(ctx, method, rawURL, body, headers, followRedirect, err)
 	}
+	c.syncSession(result)
 	if shouldFallback(result.StatusCode) && c.fallback != nil {
 		return c.fallbackRequest(ctx, method, rawURL, body, headers, followRedirect, fmt.Errorf("fingerprint status %d", result.StatusCode))
 	}
 	return result, nil
 }
 
-func (c *Client) fallbackRequest(ctx context.Context, method, rawURL, body string, headers map[string]string, noRedirect bool, cause error) (*fetcher.Response, error) {
+func (c *Client) fallbackRequest(ctx context.Context, method, rawURL, body string, headers map[string]string, followRedirect bool, cause error) (*fetcher.Response, error) {
 	if c.fallback == nil {
 		return nil, cause
 	}
-	if method == http.MethodGet && noRedirect {
+	if method == http.MethodGet && !followRedirect {
 		return c.fallback.GetContextNoRedirect(ctx, rawURL, headers)
 	}
 	if method == http.MethodGet {
+		if client, ok := c.fallback.(fetcher.ContextHTTPClient); ok {
+			return client.GetContext(ctx, rawURL, headers)
+		}
 		return c.fallback.Get(rawURL, headers)
 	}
-	return c.fallback.Post(rawURL, "application/x-www-form-urlencoded", body, headers)
+	contentType := "application/x-www-form-urlencoded"
+	for key, value := range headers {
+		if strings.EqualFold(key, "Content-Type") && value != "" {
+			contentType = value
+			break
+		}
+	}
+	if client, ok := c.fallback.(fetcher.ContextHTTPClient); ok {
+		return client.PostContext(ctx, rawURL, body, headers, 0)
+	}
+	return c.fallback.Post(rawURL, contentType, body, headers)
 }
 
 func response(resp *fhttp.Response) (*fetcher.Response, error) {
@@ -132,7 +201,7 @@ func response(resp *fhttp.Response) (*fetcher.Response, error) {
 
 func responseWithCharset(resp *fhttp.Response, responseCharset string) (*fetcher.Response, error) {
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 	if err != nil {
 		return nil, err
 	}
@@ -140,12 +209,43 @@ func responseWithCharset(resp *fhttp.Response, responseCharset string) (*fetcher
 	for key, values := range resp.Header {
 		headers[key] = append([]string(nil), values...)
 	}
+	finalURL := ""
+	if resp.Request != nil && resp.Request.URL != nil {
+		finalURL = resp.Request.URL.String()
+	}
 	return &fetcher.Response{
 		StatusCode: resp.StatusCode,
-		Body:       fetcher.DecodeCharset(body, headers.Get("Content-Type"), ""),
+		Body:       fetcher.DecodeCharset(body, headers.Get("Content-Type"), responseCharset),
 		Headers:    headers,
-		URL:        resp.Request.URL.String(),
+		URL:        finalURL,
 	}, nil
+}
+
+func (c *Client) syncSession(response *fetcher.Response) {
+	if c.session == nil || c.jar == nil || response == nil {
+		return
+	}
+	rawURL := response.URL
+	if rawURL == "" {
+		return
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return
+	}
+	if cookies := c.jar.Cookies(parsed); len(cookies) > 0 {
+		converted := make([]*http.Cookie, 0, len(cookies))
+		for _, cookie := range cookies {
+			converted = append(converted, &http.Cookie{
+				Name: cookie.Name, Value: cookie.Value, Path: cookie.Path, Domain: cookie.Domain,
+				Expires: cookie.Expires, RawExpires: cookie.RawExpires, MaxAge: cookie.MaxAge,
+				Secure: cookie.Secure, HttpOnly: cookie.HttpOnly, SameSite: http.SameSite(cookie.SameSite),
+			})
+		}
+		if err := c.session.SetCookies(rawURL, converted); err != nil {
+			return
+		}
+	}
 }
 
 func makeHeaders(values map[string]string) fhttp.Header {

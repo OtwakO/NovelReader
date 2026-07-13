@@ -21,7 +21,11 @@ type Transport struct {
 
 // NewTransport creates a fingerprint transport with an injected normal transport fallback.
 func NewTransport(config Config, fallback sourceexec.Transport, session *sourceexec.SourceSession) (*Transport, error) {
-	client, err := New(config, nil)
+	var cookieSession fetcher.CookieSession
+	if session != nil {
+		cookieSession = session
+	}
+	client, err := newClient(config, nil, cookieSession)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +92,7 @@ func (t *Transport) finish(ctx context.Context, spec sourceexec.RequestSpec, res
 	if response == nil {
 		return sourceexec.Response{}, fmt.Errorf("fingerprint: empty response")
 	}
-	if shouldFallback(response.StatusCode) && t.fallback != nil {
+	if t.fallback != nil && (shouldFallback(response.StatusCode) || (spec.Retry > 0 && (response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices))) {
 		return t.fallback.Do(ctx, spec)
 	}
 	if t.session != nil {

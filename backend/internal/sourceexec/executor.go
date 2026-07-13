@@ -27,10 +27,15 @@ func NewExecutorWithSession(jsVM *analyzer.JSVM, transport Transport, session *S
 
 // Build expands a Legado URL template into a transport-neutral request.
 func (e *Executor) Build(template, key string, page int, baseURL string) (RequestSpec, error) {
+	return e.BuildContext(context.Background(), template, key, page, baseURL)
+}
+
+// BuildContext expands a URL while preserving the caller's cancellation context.
+func (e *Executor) BuildContext(ctx context.Context, template, key string, page int, baseURL string) (RequestSpec, error) {
 	if e == nil {
 		return RequestSpec{}, fmt.Errorf("sourceexec: nil executor")
 	}
-	meta, err := analyzer.BuildURLWithState(template, key, page, baseURL, e.jsVM, e.sourceState)
+	meta, err := analyzer.BuildURLWithContext(ctx, template, key, page, baseURL, e.jsVM, e.sourceState)
 	if err != nil {
 		return RequestSpec{}, err
 	}
@@ -42,7 +47,7 @@ func (e *Executor) Execute(ctx context.Context, template, key string, page int, 
 	if e == nil || e.transport == nil {
 		return Response{}, fmt.Errorf("sourceexec: no transport configured")
 	}
-	spec, err := e.Build(template, key, page, baseURL)
+	spec, err := e.BuildContext(ctx, template, key, page, baseURL)
 	if err != nil {
 		return Response{}, err
 	}

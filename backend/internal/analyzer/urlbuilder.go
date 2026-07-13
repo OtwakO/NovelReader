@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -59,11 +60,16 @@ type urlOption struct {
 //   - ,{...} JSON option suffix (method, body, charset, headers, webView, retry)
 //   - Relative URL resolution against baseURL
 func BuildURL(template, key string, page int, baseURL string, jsVM *JSVM) (*URLMeta, error) {
-	return BuildURLWithState(template, key, page, baseURL, jsVM, nil)
+	return BuildURLWithContext(context.Background(), template, key, page, baseURL, jsVM, nil)
 }
 
 // BuildURLWithState expands a URL with an optional Legado source session.
 func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSVM, sourceState SourceState) (*URLMeta, error) {
+	return BuildURLWithContext(context.Background(), template, key, page, baseURL, jsVM, sourceState)
+}
+
+// BuildURLWithContext expands a URL while preserving request cancellation for URL JavaScript.
+func BuildURLWithContext(ctx context.Context, template, key string, page int, baseURL string, jsVM *JSVM, sourceState SourceState) (*URLMeta, error) {
 	if template == "" {
 		return nil, fmt.Errorf("analyzer: empty URL template")
 	}
@@ -72,22 +78,22 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 
 	// Legado also permits a normal URL followed by an @js: segment. Evaluate
 	// the segment against the already-built URL so `result` has the expected value.
-	if jsIndex := strings.Index(urlStr, "@js:"); jsIndex > 0 {
+	if jsIndex := findURLJSSegment(urlStr); jsIndex > 0 {
 		baseTemplate := strings.TrimSpace(urlStr[:jsIndex])
-		baseMeta, err := BuildURLWithState(baseTemplate, key, page, baseURL, jsVM, sourceState)
+		baseMeta, err := BuildURLWithContext(ctx, baseTemplate, key, page, baseURL, jsVM, sourceState)
 		if err != nil {
 			return nil, err
 		}
 		if jsVM == nil {
 			return nil, fmt.Errorf("urlbuilder: @js: no JS engine available")
 		}
-		value, err := jsVM.Eval(urlStr[jsIndex+4:], "", baseURL, map[string]interface{}{
+		value, err := jsVM.EvalContext(ctx, urlStr[jsIndex+4:], "", baseURL, map[string]interface{}{
 			"key": key, "page": page, "result": baseMeta.URL, "baseUrl": baseURL, "sourceState": sourceState,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
 		}
-		return BuildURLWithState(ToString(value), key, page, baseURL, jsVM, sourceState)
+		return BuildURLWithContext(ctx, ToString(value), key, page, baseURL, jsVM, sourceState)
 	}
 
 	meta := &URLMeta{
@@ -172,12 +178,12 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 	if strings.HasPrefix(urlStr, "@js:") {
 		jsCode := urlStr[4:]
 		if jsVM != nil {
-			v, err := jsVM.Eval(jsCode, "", baseURL, map[string]interface{}{"key": key, "page": page, "sourceState": sourceState})
+			v, err := jsVM.EvalContext(ctx, jsCode, "", baseURL, map[string]interface{}{"key": key, "page": page, "sourceState": sourceState})
 			if err == nil {
 				// Legado allows @js to return `url,{...options}`. Re-run
 				// the normal URL parser so the returned POST/body/charset
 				// metadata is not treated as part of the URL path.
-				return BuildURLWithState(ToString(v), key, page, baseURL, jsVM, sourceState)
+				return BuildURLWithContext(ctx, ToString(v), key, page, baseURL, jsVM, sourceState)
 			}
 			return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
 		}
@@ -198,7 +204,7 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 	// Second pass: evaluate remaining {{...}} as JS expressions
 	if strings.Contains(urlStr, "{{") && jsVM != nil {
 		extra := map[string]interface{}{"key": key, "page": page, "baseUrl": baseURL, "sourceState": sourceState}
-		urlStr = evalTemplateExpressions(urlStr, jsVM, baseURL, extra)
+		urlStr = evalTemplateExpressionsContext(ctx, urlStr, jsVM, baseURL, extra)
 	}
 
 	// Replace {{key}} in POST body too
@@ -207,7 +213,7 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 		meta.Body = strings.ReplaceAll(meta.Body, "{{key}}", key)
 		meta.Body = strings.ReplaceAll(meta.Body, "{{page}}", fmt.Sprintf("%d", page))
 		if strings.Contains(meta.Body, "{{") && jsVM != nil {
-			meta.Body = evalTemplateExpressions(meta.Body, jsVM, baseURL,
+			meta.Body = evalTemplateExpressionsContext(ctx, meta.Body, jsVM, baseURL,
 				map[string]interface{}{"key": key, "page": page, "baseUrl": baseURL})
 		}
 	}
@@ -239,7 +245,7 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 			"baseUrl":     baseURL,
 			"sourceState": sourceState,
 		}
-		if v, err := jsVM.Eval(optJs, "", baseURL, bindings); err == nil {
+		if v, err := jsVM.EvalContext(ctx, optJs, "", baseURL, bindings); err == nil {
 			if s := ToString(v); s != "" {
 				urlStr = s
 			}
@@ -258,6 +264,23 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 // ponytail: simple regex-based extraction, no nesting support for {{...}} inside {{...}}.
 // evalTemplateExpressions finds all {{...}} patterns and evaluates the inner content as JS.
 // Uses brace-counting instead of regex to handle nested braces like {{var x={a:1}; x}}.
+func findURLJSSegment(input string) int {
+	for offset := 0; ; {
+		rel := strings.Index(input[offset:], "@js:")
+		if rel < 0 {
+			return -1
+		}
+		index := offset + rel
+		if index > 0 {
+			prefix := strings.TrimRight(input[:index], " \t")
+			if strings.HasSuffix(prefix, "\n") || strings.HasSuffix(prefix, "\r") {
+				return index
+			}
+		}
+		offset = index + len("@js:")
+	}
+}
+
 func expandPageSelector(input string, page int) string {
 	if !strings.Contains(input, "<,") {
 		return input
@@ -265,14 +288,14 @@ func expandPageSelector(input string, page int) string {
 	pageSelRe := regexp.MustCompile(`<,[^>]*>`)
 	return pageSelRe.ReplaceAllStringFunc(input, func(match string) string {
 		parts := strings.Split(match[1:len(match)-1], ",")
-		if page > 0 && page <= len(parts)-1 {
-			return strings.TrimSpace(parts[page])
+		if page > 0 && page < len(parts) {
+			return strings.TrimSpace(parts[page-1])
 		}
-		return ""
+		return strings.TrimSpace(parts[len(parts)-1])
 	})
 }
 
-func evalTemplateExpressions(s string, jsVM *JSVM, baseURL string, extra ...map[string]interface{}) string {
+func evalTemplateExpressionsContext(ctx context.Context, s string, jsVM *JSVM, baseURL string, extra ...map[string]interface{}) string {
 	var bindings map[string]interface{}
 	if len(extra) > 0 {
 		bindings = extra[0]
@@ -334,9 +357,9 @@ func evalTemplateExpressions(s string, jsVM *JSVM, baseURL string, extra ...map[
 		var v interface{}
 		var err error
 		if bindings != nil {
-			v, err = jsVM.Eval(inner, "", baseURL, bindings)
+			v, err = jsVM.EvalContext(ctx, inner, "", baseURL, bindings)
 		} else {
-			v, err = jsVM.Eval(inner, "", baseURL)
+			v, err = jsVM.EvalContext(ctx, inner, "", baseURL)
 		}
 		if err != nil {
 			slog.Warn("urlbuilder: template eval failed", "expr", inner[:min(len(inner), 60)], "err", err)

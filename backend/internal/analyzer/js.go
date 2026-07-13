@@ -87,6 +87,11 @@ func (vm *JSVM) LoadLib(code string) error {
 // Eval evaluates JS on a borrowed runtime with standard bindings.
 // extra can contain: key, page, book (map), chapter (map), src (alias for content).
 func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interface{}) (interface{}, error) {
+	return vm.EvalContext(context.Background(), script, content, baseURL, extra...)
+}
+
+// EvalContext evaluates JavaScript while preserving the caller's cancellation context.
+func (vm *JSVM) EvalContext(ctx context.Context, script, content, baseURL string, extra ...map[string]interface{}) (interface{}, error) {
 	rt := <-vm.pool
 	defer func() { vm.pool <- rt }()
 
@@ -121,7 +126,15 @@ Map = function(a) {
 	// Bind standard objects
 	// java MUST be a map with lowercase keys — goja exposes Go struct methods capitalized
 	// (EncodeURI, not encodeURI). Following legado's JsExtensions naming convention.
-	h := &jsHelpers{vm: vm, analyzer: activeAnalyzer, state: sourceState}
+	hc := vm.hc
+	if factory, ok := vm.hc.(interface {
+		ForSource(fetcher.CookieSession) fetcher.HTTPClient
+	}); ok {
+		if session, ok := sourceState.(fetcher.CookieSession); ok {
+			hc = factory.ForSource(session)
+		}
+	}
+	h := &jsHelpers{vm: vm, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState}
 	_ = rt.Set("result", content)
 	_ = rt.Set("src", content) // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
@@ -184,7 +197,11 @@ Map = function(a) {
 
 // EvalList evaluates JS and returns a string array.
 func (vm *JSVM) EvalList(script, content, baseURL string, extra ...map[string]interface{}) ([]string, error) {
-	v, err := vm.Eval(script, content, baseURL, extra...)
+	return vm.EvalListContext(context.Background(), script, content, baseURL, extra...)
+}
+
+func (vm *JSVM) EvalListContext(ctx context.Context, script, content, baseURL string, extra ...map[string]interface{}) ([]string, error) {
+	v, err := vm.EvalContext(ctx, script, content, baseURL, extra...)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +218,11 @@ func (vm *JSVM) EvalList(script, content, baseURL string, extra ...map[string]in
 
 // EvalElements evaluates JS and returns elements as interface{}.
 func (vm *JSVM) EvalElements(script, content, baseURL string, extra ...map[string]interface{}) ([]interface{}, error) {
-	v, err := vm.Eval(script, content, baseURL, extra...)
+	return vm.EvalElementsContext(context.Background(), script, content, baseURL, extra...)
+}
+
+func (vm *JSVM) EvalElementsContext(ctx context.Context, script, content, baseURL string, extra ...map[string]interface{}) ([]interface{}, error) {
+	v, err := vm.EvalContext(ctx, script, content, baseURL, extra...)
 	if err != nil {
 		return nil, err
 	}
@@ -280,12 +301,60 @@ func (vm *JSVM) makeCacheObj(state SourceState) map[string]interface{} {
 
 type jsHelpers struct {
 	vm       *JSVM
+	hc       fetcher.HTTPClient
+	ctx      context.Context
 	analyzer *Analyzer
 	state    SourceState
 }
 
 type responseCookieState interface {
 	SetCookies(rawURL string, cookies []*http.Cookie) error
+}
+
+func (h *jsHelpers) get(rawURL string, headers map[string]string) (*fetcher.Response, error) {
+	if client, ok := h.hc.(fetcher.ContextHTTPClient); ok {
+		return client.GetContext(h.ctx, rawURL, headers)
+	}
+	return h.hc.Get(rawURL, headers)
+}
+
+func (h *jsHelpers) getContext(ctx context.Context, rawURL string, headers map[string]string) (*fetcher.Response, error) {
+	if client, ok := h.hc.(fetcher.ContextHTTPClient); ok {
+		return client.GetContext(ctx, rawURL, headers)
+	}
+	return h.hc.Get(rawURL, headers)
+}
+
+func (h *jsHelpers) getNoRedirect(rawURL string, headers map[string]string) (*fetcher.Response, error) {
+	if client, ok := h.hc.(fetcher.ContextHTTPClient); ok {
+		return client.GetContextNoRedirect(h.ctx, rawURL, headers)
+	}
+	return h.hc.GetContextNoRedirect(h.ctx, rawURL, headers)
+}
+
+func (h *jsHelpers) post(rawURL, body string, headers map[string]string) (*fetcher.Response, error) {
+	if client, ok := h.hc.(fetcher.ContextHTTPClient); ok {
+		return client.PostContext(h.ctx, rawURL, body, headers, 0)
+	}
+	return h.hc.Post(rawURL, "application/x-www-form-urlencoded", body, headers)
+}
+
+func jsDuration(value interface{}) time.Duration {
+	var seconds float64
+	switch v := value.(type) {
+	case int:
+		seconds = float64(v)
+	case int64:
+		seconds = float64(v)
+	case float64:
+		seconds = v
+	default:
+		return 0
+	}
+	if seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Millisecond
 }
 
 func (h *jsHelpers) syncResponseCookies(rawURL string, headers http.Header) {
@@ -318,10 +387,10 @@ func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 			}
 		}
 	}
-	if h.vm.hc == nil {
+	if h.hc == nil {
 		return map[string]interface{}{"body": "", "statusCode": 0}
 	}
-	resp, err := h.vm.hc.GetContextNoRedirect(context.Background(), arg1, headers)
+	resp, err := h.getNoRedirect(arg1, headers)
 	if err != nil {
 		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
 	}
@@ -361,10 +430,10 @@ func (h *jsHelpers) Post(urlStr, body string, args ...interface{}) interface{} {
 			}
 		}
 	}
-	if h.vm.hc == nil {
+	if h.hc == nil {
 		return map[string]interface{}{"body": "", "statusCode": 0}
 	}
-	resp, err := h.vm.hc.Post(urlStr, "application/x-www-form-urlencoded", body, headers)
+	resp, err := h.post(urlStr, body, headers)
 	if err != nil {
 		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
 	}
@@ -390,8 +459,8 @@ func (h *jsHelpers) Connect(urlStr string, args ...interface{}) map[string]inter
 	code := 0
 	respHeaders := make(map[string]interface{})
 
-	if h.vm.hc != nil {
-		resp, err := h.vm.hc.Get(urlStr, headers)
+	if h.hc != nil {
+		resp, err := h.get(urlStr, headers)
 		if err == nil {
 			body = resp.Body
 			code = resp.StatusCode
@@ -508,16 +577,19 @@ func (h *jsHelpers) SetContent(content string) {
 // ajax is like get but simpler: java.ajax(url)
 func (h *jsHelpers) Ajax(urlStr interface{}, args ...interface{}) string {
 	s := fmt.Sprint(urlStr)
-	if h.vm.hc == nil {
+	if h.hc == nil {
 		return ""
 	}
 	headers := make(map[string]string)
+	requestCtx := h.ctx
 	if len(args) > 0 {
-		if timeout, ok := args[0].(int64); ok {
-			_ = timeout // ponytail: per-request timeout deferred
+		if timeout := jsDuration(args[0]); timeout > 0 {
+			var cancel context.CancelFunc
+			requestCtx, cancel = context.WithTimeout(h.ctx, timeout)
+			defer cancel()
 		}
 	}
-	resp, err := h.vm.hc.Get(s, headers)
+	resp, err := h.getContext(requestCtx, s, headers)
 	if err != nil {
 		return ""
 	}

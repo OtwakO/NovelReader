@@ -1,6 +1,7 @@
 package book
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -16,6 +17,7 @@ type ChapterListParser struct {
 	jsVM  *analyzer.JSVM
 	cache *analyzer.CacheManager
 	state analyzer.SourceState
+	ctx   context.Context
 	fetch func(urlStr string) (string, string, error) // returns (body, resolvedURL, error)
 }
 
@@ -69,6 +71,7 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 		// Extract next page URL(s) from current page
 		an := analyzer.New(body, resolvedURL, p.jsVM, p.cache)
 		an.SetSourceState(p.state)
+		an.SetContext(p.ctx)
 		nextURLs, err := an.GetStringList(nextRule)
 		if err != nil || len(nextURLs) == 0 {
 			break
@@ -109,6 +112,7 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[string]string) ([]Chapter, string, error) {
 	an := analyzer.New(body, pageURL, p.jsVM, p.cache)
 	an.SetSourceState(p.state)
+	an.SetContext(p.ctx)
 	elements, err := an.GetElements(listRule)
 	if err != nil {
 		return nil, "", fmt.Errorf("toc: get elements: %w", err)
@@ -122,12 +126,20 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 
 	var chapters []Chapter
 	for _, el := range elements {
-		elHTML := analyzer.ToString(el)
-		elAn := analyzer.New(elHTML, pageURL, p.jsVM, p.cache)
-		elAn.SetSourceState(p.state)
-
-		title := mustString(elAn, nameRule)
-		chURL := mustString(elAn, urlRule)
+		title, titleIsField := jsElementField(el, nameRule)
+		chURL, urlIsField := jsElementField(el, urlRule)
+		if !titleIsField || !urlIsField {
+			elHTML := analyzer.ToString(el)
+			elAn := analyzer.New(elHTML, pageURL, p.jsVM, p.cache)
+			elAn.SetSourceState(p.state)
+			elAn.SetContext(p.ctx)
+			if !titleIsField {
+				title = mustString(elAn, nameRule)
+			}
+			if !urlIsField {
+				chURL = mustString(elAn, urlRule)
+			}
+		}
 		if title == "" {
 			continue
 		}
@@ -136,7 +148,13 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 		chURL = resolveURL(chURL, pageURL)
 
 		// Volume detection: empty URL or explicit isVolume rule
-		isVolume := mustString(elAn, volumeRule)
+		isVolume := ""
+		if !titleIsField || !urlIsField {
+			elAn := analyzer.New(analyzer.ToString(el), pageURL, p.jsVM, p.cache)
+			elAn.SetSourceState(p.state)
+			elAn.SetContext(p.ctx)
+			isVolume = mustString(elAn, volumeRule)
+		}
 		if chURL == "" {
 			isVolume = "true" // infer volume from missing URL
 		}
@@ -144,11 +162,11 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 		ch := Chapter{
 			Title:    title,
 			URL:      chURL,
-			IsVip:    mustString(elAn, vipRule) == "true",
+			IsVip:    elementRuleString(el, vipRule, pageURL, p) == "true",
 			IsVolume: isVolume == "true",
 		}
 
-		if t := mustString(elAn, timeRule); t != "" {
+		if t := elementRuleString(el, timeRule, pageURL, p); t != "" {
 			_ = t
 		}
 
@@ -171,6 +189,36 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 	}
 
 	return chapters, "", nil
+}
+
+func jsElementField(value interface{}, rule string) (string, bool) {
+	key := strings.TrimSpace(strings.TrimPrefix(rule, "@"))
+	if key == "" {
+		return "", false
+	}
+	switch object := value.(type) {
+	case map[string]interface{}:
+		field, ok := object[key]
+		if !ok {
+			return "", false
+		}
+		return analyzer.ToString(field), true
+	case map[string]string:
+		field, ok := object[key]
+		return field, ok
+	default:
+		return "", false
+	}
+}
+
+func elementRuleString(value interface{}, rule, pageURL string, parser *ChapterListParser) string {
+	if value, ok := jsElementField(value, rule); ok {
+		return value
+	}
+	an := analyzer.New(analyzer.ToString(value), pageURL, parser.jsVM, parser.cache)
+	an.SetSourceState(parser.state)
+	an.SetContext(parser.ctx)
+	return mustString(an, rule)
 }
 
 // GetNextContentURL fetches the next content URL if the chapter has a pagination rule.

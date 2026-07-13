@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Bookshelf from './lib/Bookshelf.svelte';
   import SourceList from './lib/SourceList.svelte';
   import SearchPage from './lib/SearchPage.svelte';
@@ -21,7 +22,7 @@
     }
   }
 
-  $effect(() => {
+  onMount(() => {
     const onHash = () => navigate(window.location.hash);
     window.addEventListener('hashchange', onHash);
     if (window.location.hash) onHash();

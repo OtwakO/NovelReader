@@ -8,6 +8,7 @@
 package analyzer
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
@@ -90,6 +91,7 @@ type Analyzer struct {
 	book        map[string]string // legado's `book` object: name, author, bookUrl, etc.
 	chapter     map[string]string // legado's `chapter` object: url, title, index, etc.
 	sourceState SourceState
+	ctx         context.Context
 }
 
 // New creates an Analyzer for the given content.
@@ -101,6 +103,7 @@ func New(content, baseURL string, jsVM *JSVM, cache *CacheManager) *Analyzer {
 		isJSON:  isJSON,
 		jsVM:    jsVM,
 		cache:   cache,
+		ctx:     context.Background(),
 	}
 }
 
@@ -116,6 +119,14 @@ func (a *Analyzer) SetChapterData(c map[string]string) { a.chapter = c }
 
 // SetSourceState binds the source session used by cookie, source, and cache JS objects.
 func (a *Analyzer) SetSourceState(state SourceState) { a.sourceState = state }
+
+// SetContext binds cancellation to JavaScript HTTP helpers used by this analyzer.
+func (a *Analyzer) SetContext(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.ctx = ctx
+}
 
 // SetContent replaces the active content for JavaScript re-analysis.
 func (a *Analyzer) SetContent(content string) {
@@ -475,24 +486,32 @@ func (a *Analyzer) jsEval(expr, content string) (interface{}, error) {
 	if a.jsVM == nil {
 		return "", fmt.Errorf("analyzer: JS engine not available")
 	}
-	return a.jsVM.Eval(a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
+	return a.jsVM.EvalContext(a.ctx, a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
 }
 
 func (a *Analyzer) jsEvalList(expr, content string) ([]string, error) {
 	if a.jsVM == nil {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
-	return a.jsVM.EvalList(a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
+	return a.jsVM.EvalListContext(a.ctx, a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
 }
 
 func (a *Analyzer) jsEvalElements(expr, content string) ([]interface{}, error) {
 	if a.jsVM == nil {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
-	return a.jsVM.EvalElements(a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
+	return a.jsVM.EvalElementsContext(a.ctx, a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
 }
 
 func stripModePrefix(mode Mode, expr string) string {
+	expr = strings.TrimSpace(expr)
+	if mode == ModeJS && strings.HasPrefix(strings.ToLower(expr), "<js>") {
+		expr = strings.TrimSpace(expr[len("<js>"):])
+		if strings.HasSuffix(strings.ToLower(expr), "</js>") {
+			expr = strings.TrimSpace(expr[:len(expr)-len("</js>")])
+		}
+		return expr
+	}
 	upper := strings.ToUpper(expr)
 	prefix := ""
 	switch mode {
