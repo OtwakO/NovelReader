@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -9,72 +10,82 @@ import (
 
 // jsonQuery evaluates a JSONPath expression and returns the result as a string.
 func jsonQuery(content, expr string) (string, error) {
-	v, err := jsonpath.Get(expr, []byte(content))
+	root, err := parseJSONValue(content)
 	if err != nil {
-		// Try without $ prefix (legado sometimes uses $. but goquery wants $.)
-		if strings.HasPrefix(expr, "$.") || strings.HasPrefix(expr, "$[") {
-			return "", fmt.Errorf("json: %w", err)
-		}
-		// Fallback: try with $. prefix
-		v, err = jsonpath.Get("$."+expr, []byte(content))
-		if err != nil {
-			return "", fmt.Errorf("json: %w", err)
-		}
+		return "", err
 	}
-	return fmt.Sprintf("%v", v), nil
+	value, err := selectJSONValue(root, expr)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%v", value), nil
 }
 
 // jsonQueryList evaluates a JSONPath expression and returns a list of strings.
 func jsonQueryList(content, expr string) ([]string, error) {
-	v, err := jsonpath.Get(expr, []byte(content))
+	root, err := parseJSONValue(content)
 	if err != nil {
-		if strings.HasPrefix(expr, "$.") || strings.HasPrefix(expr, "$[") {
-			return nil, fmt.Errorf("json: %w", err)
-		}
-		v, err = jsonpath.Get("$."+expr, []byte(content))
-		if err != nil {
-			return nil, fmt.Errorf("json: %w", err)
-		}
+		return nil, err
+	}
+	value, err := selectJSONValue(root, expr)
+	if err != nil {
+		return nil, err
 	}
 
-	// Convert result to string list
-	switch typed := v.(type) {
+	switch typed := value.(type) {
 	case []interface{}:
-		var results []string
+		results := make([]string, 0, len(typed))
 		for _, item := range typed {
 			results = append(results, fmt.Sprintf("%v", item))
 		}
 		return results, nil
 	case string:
-		// Could be JSON array string
 		return []string{typed}, nil
 	default:
-		return []string{fmt.Sprintf("%v", v)}, nil
+		return []string{fmt.Sprintf("%v", value)}, nil
 	}
 }
 
-// jsonQueryElements returns elements as interface{} list from JSONPath, capped at 50.
+// jsonQueryElements returns all JSONPath elements without truncating long TOCs.
 func jsonQueryElements(content, expr string) ([]interface{}, error) {
-	v, err := jsonpath.Get(expr, []byte(content))
+	root, err := parseJSONValue(content)
 	if err != nil {
-		if strings.HasPrefix(expr, "$.") || strings.HasPrefix(expr, "$[") {
-			return nil, fmt.Errorf("json: %w", err)
-		}
-		v, err = jsonpath.Get("$."+expr, []byte(content))
-		if err != nil {
-			return nil, fmt.Errorf("json: %w", err)
-		}
+		return nil, err
+	}
+	value, err := selectJSONValue(root, expr)
+	if err != nil {
+		return nil, err
 	}
 
-	switch typed := v.(type) {
+	switch typed := value.(type) {
 	case []interface{}:
-		if len(typed) > 50 {
-			typed = typed[:50]
-		}
 		return typed, nil
-	case interface{}:
-		return []interface{}{typed}, nil
+	case nil:
+		return nil, nil
 	default:
-		return nil, fmt.Errorf("json: unexpected result type %T", v)
+		return []interface{}{typed}, nil
 	}
+}
+
+func parseJSONValue(content string) (interface{}, error) {
+	var root interface{}
+	if err := json.Unmarshal([]byte(content), &root); err != nil {
+		return nil, fmt.Errorf("json: decode: %w", err)
+	}
+	return root, nil
+}
+
+func selectJSONValue(root interface{}, expr string) (interface{}, error) {
+	value, err := jsonpath.Get(expr, root)
+	if err == nil {
+		return value, nil
+	}
+	if strings.HasPrefix(expr, "$.") || strings.HasPrefix(expr, "$[") {
+		return nil, fmt.Errorf("json: %w", err)
+	}
+	value, fallbackErr := jsonpath.Get("$."+expr, root)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("json: %w", fallbackErr)
+	}
+	return value, nil
 }

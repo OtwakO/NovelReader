@@ -135,7 +135,7 @@ When behavior is ambiguous, add a fixture and cite the upstream function/documen
 
 Tasks:
 
-- [ ] Create fixture corpus for raw search, detail, TOC, content, JSON, XPath, Regex, JS, POST/GBK, cookie, pagination, and WebView-option sources.
+- [x] Create fixture corpus for raw search, detail, TOC, content, JSON, XPath, Regex, JS, POST/GBK, cookie, pagination, and WebView-option sources.
 - [x] Build a source identity tool keyed by raw `bookSourceUrl` plus JSON index/hash, never name alone.
 - [x] Add a conformance runner that records raw source JSON, expanded request, method/body/headers, response status/final URL/body sample, rule field, extracted values, and classification.
 - [x] Add golden tests for the core regression classifications and request contracts.
@@ -278,13 +278,13 @@ Every significant booksource-engine change must follow this loop:
 
 ## Current State
 
-**Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
+**Phase:** Phase 1 — lossless source model and unified request executor; Phase 0 compatibility baseline is complete.
 
-**Last completed:** Added the production-mode raw conformance runner, golden classification tests, and optional health checks that abort after a server failure. Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, source-scoped fingerprint jars, staged-response final-URL tracking, segmented URL `@js`, POST-body page selectors, `<js>...</js>` wrapper execution, typed JavaScript TOC objects, and context cancellation. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库` after regular transport integration: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs. Fresh raw `趣书网吧` verification passes search → add → 438-page TOC → first-page content with 135 rendered paragraphs. A second fresh post-review E2E pass reproduced the same 438-page TOC and 135 rendered paragraphs. Direct book deep links now load the same 438-chapter detail page without frontend effect-loop errors. Raw `中文看书（优）` independently returned 15 exact POST results; the fixed engine also produced a live result before that upstream began timing out again. Raw `神话之后（优+）` produced 2 results and a 2271-chapter TOC through the UI. The production-mode conformance runner now records raw indices 1, 84, and 89 with request/response/classification output.
+**Last completed:** Completed the deterministic Phase 0 fixture corpus with executable rule expectations, fixed JSONPath object decoding and long-list truncation, and added the production-mode raw conformance runner, golden classification tests, and optional health checks that abort after a server failure. Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`;  content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, source-scoped fingerprint jars, staged-response final-URL tracking, segmented URL `@js`, POST-body page selectors, `<js>...</js>` wrapper execution, typed JavaScript TOC objects, and context cancellation. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库` after regular transport integration: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs. Fresh raw `趣书网吧` verification passes search → add → 438-page TOC → first-page content with 135 rendered paragraphs. A second fresh post-review E2E pass reproduced the same 438-page TOC and 135 rendered paragraphs. Direct book deep links now load the same 438-chapter detail page without frontend effect-loop errors. Raw `中文看书（优）` independently returned 15 exact POST results; the fixed engine also produced a live result before that upstream began timing out again. Raw `神话之后（优+）` produced 2 results and a 2271-chapter TOC through the UI. The production-mode conformance runner now records raw indices 1, 84, and 89 with request/response/classification output.
 
 **In progress:** Continuing cross-source compatibility checks and auditing the remaining Phase 1 request-contract gaps.
 
-**Next action:** Expand the Phase 0 fixture corpus and golden regressions, then close remaining Phase 1/2 contract gaps before expanding WebView support.
+**Next action:** Audit and close remaining Phase 1 request-contract gaps, starting with lossless source fields and exact response/charset/cookie parity, then re-run the fixture and three-source gates.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -849,3 +849,15 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added optional `-health-url` checks before/after runs and a final health gate; added golden success, legitimate-zero, rule-mismatch, and WebView classification tests.
 - **Affected**: `backend/internal/conformance/runner.go`, `backend/internal/conformance/health_test.go`, `backend/internal/conformance/golden_test.go`, `backend/cmd/conformance/main.go`.
 - **Watch out**: Use `-health-url` whenever the runner targets a live server; the runner itself uses direct source transport by design.
+
+### [2026-07-13] Executable fixture corpus exposed broken JSONPath input handling
+- **Problem**: JSONPath evaluation passed raw `[]byte` to the selector library instead of a decoded object, and JSON element extraction silently truncated results at 50.
+- **Fix**: Decode JSON once before selection, centralize selector fallback, remove the element cap, and add fixture plus 75-element regression coverage.
+- **Affected**: `backend/internal/analyzer/modes_json.go`, `backend/internal/analyzer/json_conformance_test.go`, `testdata/booksource/`.
+- **Watch out**: Keep large JSON TOCs covered; do not reintroduce arbitrary parser caps for workflow data.
+
+### [2026-07-13] Phase 0 fixture corpus completed
+- **Problem**: Compatibility tests had isolated inline fixtures but no auditable corpus covering each transport and rule category declared in the architecture.
+- **Fix**: Added a manifest-backed deterministic corpus with executable expectations for search, detail, TOC, content, JSON, XPath, Regex, JavaScript POST, charset, cookie, pagination, and WebView classification; transport-facing fixtures now run through the shared request/session paths.
+- **Affected**: `testdata/booksource/`, `backend/internal/conformance/fixture_manifest_test.go`, `backend/internal/conformance/fixture_workflow_test.go`, `.gitignore`.
+- **Watch out**: Keep fixtures small and offline; live-site samples remain a separate verification gate.

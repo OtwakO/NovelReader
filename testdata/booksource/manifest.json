@@ -1,0 +1,17 @@
+{
+  "fixtures": [
+    {"name": "search", "file": "search.html", "kind": "search", "rule": "@CSS:.title@text", "expected": "凡人修仙传"},
+    {"name": "detail", "file": "detail.html", "kind": "detail", "rule": "@CSS:#book h1@text", "expected": "凡人修仙传"},
+    {"name": "toc", "file": "toc.html", "kind": "toc", "rule": "@CSS:.chapters a:first-child@text", "expected": "第一章 山村"},
+    {"name": "content", "file": "content.html", "kind": "content", "rule": "@CSS:#content p:first-child@text", "expected": "韩立站在村口，望着远处的山路。"},
+    {"name": "json", "file": "json-response.json", "kind": "json", "rule": "@Json:$.books[0].name", "expected": "凡人修仙传"},
+    {"name": "xpath", "file": "xpath.html", "kind": "xpath", "rule": "@XPath://book/title", "expected": "凡人修仙传"},
+    {"name": "regex", "file": "regex.txt", "kind": "regex", "rule": "##name=([^\\n]+)##$1", "expected": "凡人修仙传"},
+    {"name": "js-post", "file": "js-post.html", "kind": "js-post", "rule": "@CSS:.result a@text", "expected": "凡人修仙传"},
+    {"name": "post-gbk", "file": "post-gbk.html", "kind": "post-gbk", "rule": "@CSS:.result a@text", "expected": "凡人修仙传"},
+    {"name": "cookie", "file": "cookie.html", "kind": "cookie", "rule": "@CSS:[data-session] a@text", "expected": "凡人修仙传"},
+    {"name": "pagination-page-1", "file": "pagination-1.html", "kind": "pagination", "rule": "@CSS:.chapter@text", "expected": "第一章"},
+    {"name": "pagination-page-2", "file": "pagination-2.html", "kind": "pagination", "rule": "@CSS:.chapter@text", "expected": "第二章"},
+    {"name": "webview-option", "file": "webview-shell.html", "kind": "webview", "rule": "webView:true", "expected": ""}
+  ]
+}
