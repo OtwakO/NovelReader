@@ -22,7 +22,7 @@ func NewHTTPTransport(client *fetcher.Client) *HTTPTransport {
 }
 
 // NewHTTPTransportForSession binds one HTTP client and cookie session together.
-// The client must not be shared by unrelated sessions.
+// Stateless clients may share their connection pool; jar-backed clients must remain isolated.
 func NewHTTPTransportForSession(client *fetcher.Client, session *SourceSession) *HTTPTransport {
 	return &HTTPTransport{client: client, session: session}
 }
@@ -45,6 +45,11 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 	}
 
 	headers := cloneHeaders(spec.Headers)
+	if t.session != nil && t.client.CookieJar() == nil && !hasHeader(headers, "Cookie") {
+		if cookie := t.session.CookieHeader(spec.URL); cookie != "" {
+			headers["Cookie"] = cookie
+		}
+	}
 	if spec.Origin != "" && !hasHeader(headers, "Origin") {
 		headers["Origin"] = spec.Origin
 	}
@@ -87,8 +92,10 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 		if resp.URL != "" && resp.URL != spec.URL {
 			cookieURLs = append(cookieURLs, resp.URL)
 		}
+		responseCookies := (&http.Response{Header: resp.Headers}).Cookies()
 		for _, cookieURL := range cookieURLs {
-			if err := t.session.SetCookies(cookieURL, t.client.Cookies(cookieURL)); err != nil {
+			cookies := mergeCookies(responseCookies, t.client.Cookies(cookieURL))
+			if err := t.session.SetCookies(cookieURL, cookies); err != nil {
 				return Response{}, fmt.Errorf("sourceexec: sync session cookies after response: %w", err)
 			}
 		}
@@ -102,6 +109,22 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 		Transport:     "http",
 		RedirectChain: append([]string(nil), resp.RedirectChain...),
 	}, nil
+}
+
+func mergeCookies(first, second []*http.Cookie) []*http.Cookie {
+	cookies := append([]*http.Cookie(nil), first...)
+	seen := make(map[string]struct{}, len(cookies))
+	for _, cookie := range cookies {
+		seen[cookie.Name+"\x00"+cookie.Domain+"\x00"+cookie.Path] = struct{}{}
+	}
+	for _, cookie := range second {
+		key := cookie.Name + "\x00" + cookie.Domain + "\x00" + cookie.Path
+		if _, exists := seen[key]; !exists {
+			cookies = append(cookies, cookie)
+			seen[key] = struct{}{}
+		}
+	}
+	return cookies
 }
 
 func hasHeader(headers map[string]string, name string) bool {

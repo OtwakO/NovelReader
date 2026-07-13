@@ -8,6 +8,31 @@ import (
 	"time"
 )
 
+func TestStatelessCloneSharesTransportWithoutCookies(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/set" {
+			http.SetCookie(w, &http.Cookie{Name: "private", Value: "yes", Path: "/"})
+		}
+		if r.URL.Path == "/check" && r.Header.Get("Cookie") != "" {
+			t.Errorf("stateless clone sent Cookie=%q", r.Header.Get("Cookie"))
+		}
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	original := NewWithTimeout(3 * time.Second)
+	clone := original.StatelessClone()
+	if clone == nil || clone.httpClient.Transport != original.httpClient.Transport {
+		t.Fatal("clone did not share the connection transport")
+	}
+	if _, err := original.Get(server.URL+"/set", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := clone.Get(server.URL+"/check", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestClientCanPreserveRedirectResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/start" {

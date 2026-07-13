@@ -3,9 +3,7 @@ package webview
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -103,39 +101,9 @@ func (c *Client) do(ctx context.Context, spec sourceexec.RequestSpec, session *s
 		Headers: headers, Cookies: cookies, WebJS: spec.WebJS,
 		DelayMS: spec.WebViewDelay, TimeoutMS: int(c.timeout.Milliseconds()),
 	}
-	body, err := json.Marshal(payload)
+	result, err := c.executeWorker(ctx, payload)
 	if err != nil {
-		return sourceexec.Response{}, fmt.Errorf("webview: encode request: %w", err)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint+"/execute", strings.NewReader(string(body)))
-	if err != nil {
-		return sourceexec.Response{}, fmt.Errorf("webview: create worker request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return sourceexec.Response{}, fmt.Errorf("webview: worker request: %w", err)
-	}
-	defer resp.Body.Close()
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, c.maxBodyBytes+1))
-	if err != nil {
-		return sourceexec.Response{}, fmt.Errorf("webview: read worker response: %w", err)
-	}
-	if int64(len(responseBody)) > c.maxBodyBytes {
-		return sourceexec.Response{}, fmt.Errorf("webview: worker response exceeds %d bytes", c.maxBodyBytes)
-	}
-	var result protocolResponse
-	if err := json.Unmarshal(responseBody, &result); err != nil {
-		return sourceexec.Response{}, fmt.Errorf("webview: decode worker response: %w", err)
-	}
-	if result.Error != "" {
-		return sourceexec.Response{}, fmt.Errorf("webview: %s", result.Error)
-	}
-	if result.Version != protocolVersion {
-		return sourceexec.Response{}, fmt.Errorf("webview: unsupported worker protocol %d", result.Version)
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return sourceexec.Response{}, fmt.Errorf("webview: worker status %d", resp.StatusCode)
+		return sourceexec.Response{}, err
 	}
 	finalURL := result.FinalURL
 	if finalURL == "" {

@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	maxConcurrentSearch  = 50               // max concurrent HTTP fetches for search
-	searchOverallTimeout = 30 * time.Second // max time for the entire search
-	perSourceTimeout     = 10 * time.Second // max time per single source
-	maxResultsPerSource  = 20               // max results returned per source
+	maxConcurrentSearch       = 50               // max concurrent source fetches per search
+	maxConcurrentGlobalSearch = 100              // max concurrent source fetches per process
+	searchOverallTimeout      = 30 * time.Second // max time for the entire search
+	perSourceTimeout          = 10 * time.Second // max time per single source
+	maxResultsPerSource       = 20               // max results returned per source
 )
 
 // Searcher orchestrates search, book info, TOC, and content fetching.
@@ -38,6 +39,7 @@ type Searcher struct {
 	sourceStore             *booksource.Store
 	bookStore               *Store
 	sessions                *sourceexec.SessionRegistry
+	searchSlots             chan struct{}
 	// per-source rate limiting (concurrentRate)
 	rateMu     sync.Mutex
 	lastAccess map[string]time.Time // keyed by BookSourceURL
@@ -50,13 +52,18 @@ func NewSearcher(
 	sourceStore *booksource.Store,
 	bookStore *Store,
 ) *Searcher {
+	sharedFetcher := hc
+	if hc != nil {
+		sharedFetcher = hc.StatelessClone()
+	}
 	return &Searcher{
-		fetcher:     hc,
+		fetcher:     sharedFetcher,
 		jsVM:        jsVM,
 		cache:       cache,
 		sourceStore: sourceStore,
 		bookStore:   bookStore,
 		sessions:    sourceexec.NewSessionRegistry(),
+		searchSlots: make(chan struct{}, maxConcurrentGlobalSearch),
 		rateMu:      sync.Mutex{},
 		lastAccess:  make(map[string]time.Time),
 	}
@@ -68,6 +75,13 @@ func (s *Searcher) SetTransportFactory(factory TransportFactory) { s.transportFa
 // SetWebViewTransportFactory injects the optional browser transport policy.
 func (s *Searcher) SetWebViewTransportFactory(factory WebViewTransportFactory) {
 	s.webViewTransportFactory = factory
+}
+
+func (s *Searcher) workflowClient() *fetcher.Client {
+	if s.fetcher != nil {
+		return s.fetcher
+	}
+	return fetcher.NewInsecure(perSourceTimeout)
 }
 
 func (s *Searcher) newTransport(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {
@@ -135,11 +149,27 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 	slog.Info("search: starting fan-out",
 		"query", query, "sources", len(candidates), "concurrent", maxConcurrentSearch)
 
+	globalSlots := s.searchSlots
+	if globalSlots == nil {
+		globalSlots = make(chan struct{}, maxConcurrentGlobalSearch)
+	}
+launchLoop:
 	for _, src := range candidates {
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			break launchLoop
+		}
+		select {
+		case globalSlots <- struct{}{}:
+		case <-ctx.Done():
+			<-sem
+			break launchLoop
+		}
 		wg.Add(1)
-		sem <- struct{}{}
 		go func(src booksource.BookSource) {
 			defer wg.Done()
+			defer func() { <-globalSlots }()
 			defer func() { <-sem }()
 			// Recover from panics in individual source search to avoid killing the process
 			defer func() {
@@ -277,7 +307,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	// between concurrent sources while remaining available to multi-stage rules.
 	session := sourceexec.NewSourceSession()
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
-	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
+	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.BuildContext(srcCtx, src.SearchURL, query, 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
@@ -458,7 +488,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
-	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
+	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.BuildContext(ctx, bookURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
@@ -541,7 +571,7 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
-	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
+	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	parser := &ChapterListParser{
 		src:   src,
@@ -722,7 +752,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		session = sourceexec.NewSourceSession()
 	}
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
-	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
+	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.BuildContext(ctx, chapterURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {

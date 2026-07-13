@@ -1,7 +1,10 @@
 // Conformance tests for workflow session continuity.
 package sourceexec
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestSessionRegistrySharesBookSessionWithAssociatedChapters(t *testing.T) {
 	registry := NewSessionRegistry()
@@ -17,6 +20,29 @@ func TestSessionRegistrySharesBookSessionWithAssociatedChapters(t *testing.T) {
 	}
 	if got := registry.GetChapter("other", "chapter-1"); got != nil {
 		t.Fatal("chapter session leaked across sources")
+	}
+}
+
+func TestSessionRegistryEvictsOldestSessionWhenBounded(t *testing.T) {
+	registry := NewSessionRegistryWithLimits(1, time.Hour)
+	first := registry.GetOrCreateBook("source", "book-1")
+	registry.GetOrCreateBook("source", "book-2")
+	if registry.GetBook("source", "book-1") != nil {
+		t.Fatal("oldest session was not evicted")
+	}
+	if registry.GetBook("source", "book-2") == nil || first == registry.GetBook("source", "book-2") {
+		t.Fatal("newest session was not retained")
+	}
+}
+
+func TestSessionRegistryEvictsIdleBookAndChapterAliases(t *testing.T) {
+	registry := NewSessionRegistryWithLimits(10, time.Nanosecond)
+	registry.GetOrCreateBook("source", "book").PutVariable("token", "fixture")
+	registry.AssociateChapter("source", "book", "chapter")
+	time.Sleep(time.Millisecond)
+	registry.GetOrCreateBook("source", "new-book")
+	if registry.GetBook("source", "book") != nil || registry.GetChapter("source", "chapter") != nil {
+		t.Fatal("idle session aliases were not evicted")
 	}
 }
 

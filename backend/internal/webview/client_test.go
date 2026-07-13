@@ -62,6 +62,30 @@ func TestClientSendsSessionRequestAndSyncsWorkerResponse(t *testing.T) {
 	}
 }
 
+func TestClientRetriesTransientWorkerBusyResponses(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts++
+		w.Header().Set("Content-Type", "application/json")
+		if attempts < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"version":1,"error":"browser worker is busy"}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(protocolResponse{Version: protocolVersion, StatusCode: http.StatusOK, Body: "ok"})
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{Endpoint: server.URL, Timeout: 3 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.Do(t.Context(), sourceexec.RequestSpec{URL: "https://example.test"})
+	if err != nil || response.Body != "ok" || attempts != 3 {
+		t.Fatalf("response=%+v error=%v attempts=%d", response, err, attempts)
+	}
+}
+
 func TestClientRejectsWorkerProtocolErrors(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

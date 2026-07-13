@@ -1,21 +1,46 @@
-// Scoped workflow session registry for detail, TOC, and content continuity.
+// Bounded workflow session registry for detail, TOC, and content continuity.
 package sourceexec
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
+
+const (
+	defaultMaxSessions = 4096
+	defaultSessionTTL  = time.Hour
+)
 
 // SessionRegistry keeps source state shared within one server/workflow scope.
 // The caller must provide a user-scoped registry when multiple users are supported.
 type SessionRegistry struct {
-	mu       sync.RWMutex
+	mu       sync.Mutex
 	books    map[string]*SourceSession
 	chapters map[string]*SourceSession
+	lastUsed map[*SourceSession]time.Time
+	max      int
+	ttl      time.Duration
 }
 
-// NewSessionRegistry creates an empty workflow session registry.
+// NewSessionRegistry creates a registry with bounded memory and one-hour idle expiry.
 func NewSessionRegistry() *SessionRegistry {
+	return NewSessionRegistryWithLimits(defaultMaxSessions, defaultSessionTTL)
+}
+
+// NewSessionRegistryWithLimits creates a registry with deterministic eviction policy.
+func NewSessionRegistryWithLimits(maxSessions int, idleTTL time.Duration) *SessionRegistry {
+	if maxSessions < 1 {
+		maxSessions = defaultMaxSessions
+	}
+	if idleTTL <= 0 {
+		idleTTL = defaultSessionTTL
+	}
 	return &SessionRegistry{
 		books:    make(map[string]*SourceSession),
 		chapters: make(map[string]*SourceSession),
+		lastUsed: make(map[*SourceSession]time.Time),
+		max:      maxSessions,
+		ttl:      idleTTL,
 	}
 }
 
@@ -24,14 +49,18 @@ func (r *SessionRegistry) GetOrCreateBook(sourceURL, bookURL string) *SourceSess
 	if r == nil {
 		return NewSourceSession()
 	}
-	key := sessionKey(sourceURL, bookURL)
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.evictLocked(time.Now())
+	key := sessionKey(sourceURL, bookURL)
 	if session := r.books[key]; session != nil {
+		r.touchLocked(session)
 		return session
 	}
 	session := NewSourceSession()
 	r.books[key] = session
+	r.touchLocked(session)
+	r.evictLocked(time.Now())
 	return session
 }
 
@@ -40,9 +69,14 @@ func (r *SessionRegistry) GetBook(sourceURL, bookURL string) *SourceSession {
 	if r == nil {
 		return nil
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.books[sessionKey(sourceURL, bookURL)]
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.evictLocked(time.Now())
+	session := r.books[sessionKey(sourceURL, bookURL)]
+	if session != nil {
+		r.touchLocked(session)
+	}
+	return session
 }
 
 // AssociateChapter maps a chapter URL to its book session.
@@ -52,8 +86,10 @@ func (r *SessionRegistry) AssociateChapter(sourceURL, bookURL, chapterURL string
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.evictLocked(time.Now())
 	if session := r.books[sessionKey(sourceURL, bookURL)]; session != nil {
 		r.chapters[sessionKey(sourceURL, chapterURL)] = session
+		r.touchLocked(session)
 	}
 }
 
@@ -62,9 +98,14 @@ func (r *SessionRegistry) GetChapter(sourceURL, chapterURL string) *SourceSessio
 	if r == nil {
 		return nil
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.chapters[sessionKey(sourceURL, chapterURL)]
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.evictLocked(time.Now())
+	session := r.chapters[sessionKey(sourceURL, chapterURL)]
+	if session != nil {
+		r.touchLocked(session)
+	}
+	return session
 }
 
 // IsChapter reports whether a URL belongs to a collected chapter list.
@@ -72,10 +113,50 @@ func (r *SessionRegistry) IsChapter(sourceURL, chapterURL string) bool {
 	if r == nil {
 		return false
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	_, ok := r.chapters[sessionKey(sourceURL, chapterURL)]
-	return ok
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.evictLocked(time.Now())
+	session := r.chapters[sessionKey(sourceURL, chapterURL)]
+	if session != nil {
+		r.touchLocked(session)
+	}
+	return session != nil
+}
+
+func (r *SessionRegistry) touchLocked(session *SourceSession) {
+	r.lastUsed[session] = time.Now()
+}
+
+func (r *SessionRegistry) evictLocked(now time.Time) {
+	for session, lastUsed := range r.lastUsed {
+		if now.Sub(lastUsed) > r.ttl {
+			r.removeLocked(session)
+		}
+	}
+	for len(r.lastUsed) > r.max {
+		var oldest *SourceSession
+		var oldestAt time.Time
+		for session, lastUsed := range r.lastUsed {
+			if oldest == nil || lastUsed.Before(oldestAt) {
+				oldest, oldestAt = session, lastUsed
+			}
+		}
+		r.removeLocked(oldest)
+	}
+}
+
+func (r *SessionRegistry) removeLocked(target *SourceSession) {
+	for key, session := range r.books {
+		if session == target {
+			delete(r.books, key)
+		}
+	}
+	for key, session := range r.chapters {
+		if session == target {
+			delete(r.chapters, key)
+		}
+	}
+	delete(r.lastUsed, target)
 }
 
 func sessionKey(sourceURL, resourceURL string) string { return sourceURL + "\x00" + resourceURL }

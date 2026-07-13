@@ -128,12 +128,18 @@ Map = function(a) {
 	// (EncodeURI, not encodeURI). Following legado's JsExtensions naming convention.
 	hc := vm.hc
 	if session, ok := sourceState.(fetcher.CookieSession); ok && hc != nil {
-		if factory, ok := vm.hc.(interface {
-			ForSource(fetcher.CookieSession) fetcher.HTTPClient
-		}); ok {
-			hc = factory.ForSource(session)
+		const clientMemoryKey = "__novelreader_js_http_client"
+		if cached, ok := sourceState.GetMemory(clientMemoryKey).(fetcher.HTTPClient); ok {
+			hc = cached
 		} else {
-			hc = fetcher.NewSessionHTTPClient(hc, session)
+			if factory, ok := vm.hc.(interface {
+				ForSource(fetcher.CookieSession) fetcher.HTTPClient
+			}); ok {
+				hc = factory.ForSource(session)
+			} else {
+				hc = fetcher.NewSessionHTTPClient(hc, session)
+			}
+			sourceState.PutMemory(clientMemoryKey, hc)
 		}
 	}
 	h := &jsHelpers{vm: vm, rt: rt, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState}

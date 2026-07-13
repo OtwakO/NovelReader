@@ -105,8 +105,29 @@ func NewInsecureStateless(timeout time.Duration) *Client {
 	}
 }
 
+// StatelessClone shares the connection pool without sharing cookies.
+func (c *Client) StatelessClone() *Client {
+	if c == nil || c.httpClient == nil {
+		return nil
+	}
+	client := *c.httpClient
+	client.Jar = nil
+	return &Client{httpClient: &client, headers: cloneStringMap(c.headers)}
+}
+
 // SetHeaders sets default headers for all requests.
 func (c *Client) SetHeaders(h map[string]string) { c.headers = h }
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if values == nil {
+		return nil
+	}
+	clone := make(map[string]string, len(values))
+	for key, value := range values {
+		clone[key] = value
+	}
+	return clone
+}
 
 // Get performs a GET with a background context.
 func (c *Client) Get(rawURL string, extraHeaders map[string]string) (*Response, error) {
