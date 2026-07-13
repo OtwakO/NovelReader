@@ -278,8 +278,10 @@ func looksLikeDefault(expr string) bool {
 		// tag.div.0@... (but without @, this could be CSS)
 		// tag.div → could be CSS (.div class on tag), or Default (find div)
 		// With 3+ segments it's always Default
-		// With 2 segments: if there's an @ somewhere, it's Default
-		if len(dotSegments) >= 3 || strings.Contains(expr, "@") {
+		// With 2 segments: if there's an @ somewhere, it's Default.
+		// A space-separated class list is also Legado Default syntax.
+		if len(dotSegments) >= 3 || strings.Contains(expr, "@") ||
+			(typePrefix == "class" && strings.ContainsAny(expr, " \t")) {
 			return true
 		}
 	case "children":

@@ -144,6 +144,11 @@ func parseDefault(expr string) ([]defaultSegment, string, error) {
 		if isDefaultGetter(parts[0]) {
 			return nil, parts[0], nil // no selector segments, apply getter to root
 		}
+		// A single explicit Default selector such as
+		// `class.foo bar` is still a selector, not CSS.
+		if seg, parseErr := parseDefaultSegment(parts[0]); parseErr == nil && seg.selType != "css" {
+			return []defaultSegment{seg}, "", nil
+		}
 		return []defaultSegment{{selType: "css", selVal: expr, noIndex: true}}, "", nil
 	}
 
@@ -303,7 +308,11 @@ func applyDefaultSegment(sel *goquery.Selection, seg defaultSegment) *goquery.Se
 		return sel.Children()
 	case "class":
 		if seg.selVal != "" {
-			sel = sel.Find("." + seg.selVal)
+			// Legado accepts space-separated class names as one element
+			// selector, not descendant traversal.
+			classes := strings.Fields(seg.selVal)
+			selector := "." + strings.Join(classes, ".")
+			sel = sel.Find(selector)
 		}
 	case "id":
 		if seg.selVal != "" {
