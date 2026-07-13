@@ -284,7 +284,7 @@ Every significant booksource-engine change must follow this loop:
 
 **In progress:** Continuing cross-source compatibility checks and auditing the remaining Phase 1 request-contract gaps.
 
-**Next action:** Re-run the raw `笔趣小说` two-step flow when its upstream endpoint is available, then complete the Phase 0 raw-source conformance harness and close remaining Phase 1/2 contract gaps before expanding WebView support.
+**Next action:** Pivot away from `笔趣小说` after repeated independent base-URL DNS/503 failures, verify another reachable raw JavaScript/POST source, then complete the Phase 0 raw-source conformance harness and close remaining Phase 1/2 contract gaps before expanding WebView support.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -813,3 +813,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Restarted a fresh server with raw 939-source data and reran UI search → add → 438-page TOC → first chapter; Playwright observed 135 rendered paragraphs and actual Chinese content.
 - **Affected**: `/tmp/novelreader_final_e2e.log`; raw source index 778.
 - **Watch out**: The remaining Phase 1 gate is a repeatable multi-source harness, not another one-off manual sample.
+
+### [2026-07-13] Pivoted away from unreachable 笔趣小说
+- **Problem**: `m.bqgcn.net` repeatedly returned DNS/503 failures independently through both base-URL Playwright checks and direct HTTP checks, preventing meaningful parser verification.
+- **Fix**: Classified it as an upstream connectivity failure and removed it from the active verification target; future validation will use another reachable raw source.
+- **Affected**: Verification workflow and `PLAN.md` next action.
+- **Watch out**: Do not spend implementation time on a source until its base URL is independently reachable; retain the failure as transport evidence only.
