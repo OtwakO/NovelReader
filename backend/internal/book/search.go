@@ -309,17 +309,15 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	if src.RuleSearch == "" {
 		return nil, fmt.Errorf("source %q has no search rules", src.BookSourceName)
 	}
-	results, err := s.parseSearchResultWithRuleStateContext(srcCtx, src, resp.Body, src.RuleSearch, session)
-	if err != nil {
-		return nil, err
-	}
 	resultBaseURL := resp.FinalURL
 	if resultBaseURL == "" {
 		resultBaseURL = spec.URL
 	}
+	results, err := s.parseSearchResultWithRuleStateContextAtURL(srcCtx, src, resp.Body, src.RuleSearch, resultBaseURL, session)
+	if err != nil {
+		return nil, err
+	}
 	for i := range results {
-		results[i].BookURL = resolveURL(results[i].BookURL, resultBaseURL)
-		results[i].CoverURL = resolveURL(results[i].CoverURL, resultBaseURL)
 		results[i].Score = scoreResult(query, results[i].Name)
 	}
 	return results, nil
@@ -335,6 +333,13 @@ func (s *Searcher) parseSearchResultWithRuleState(src booksource.BookSource, htm
 }
 
 func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, src booksource.BookSource, html, ruleJSON string, state analyzer.SourceState) ([]SearchResult, error) {
+	return s.parseSearchResultWithRuleStateContextAtURL(ctx, src, html, ruleJSON, src.BookSourceURL, state)
+}
+
+func (s *Searcher) parseSearchResultWithRuleStateContextAtURL(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState) ([]SearchResult, error) {
+	if baseURL == "" {
+		baseURL = src.BookSourceURL
+	}
 	rules := parseRuleJSON(ruleJSON)
 	if rules == nil {
 		return nil, fmt.Errorf("search: invalid rule JSON for %s", src.BookSourceName)
@@ -344,7 +349,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, sr
 		return nil, fmt.Errorf("search: no bookList rule for %s", src.BookSourceName)
 	}
 
-	an := analyzer.New(html, src.BookSourceURL, s.jsVM, s.cache)
+	an := analyzer.New(html, baseURL, s.jsVM, s.cache)
 	an.SetJSLib(src.JSLib)
 	an.SetSourceState(state)
 	an.SetContext(ctx)
@@ -383,7 +388,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, sr
 	var results []SearchResult
 	for _, el := range elements {
 		elHTML := analyzer.ToString(el)
-		elAn := analyzer.New(elHTML, src.BookSourceURL, s.jsVM, s.cache)
+		elAn := analyzer.New(elHTML, baseURL, s.jsVM, s.cache)
 		elAn.SetJSLib(src.JSLib)
 		elAn.SetSourceState(state)
 		elAn.SetContext(ctx)
@@ -421,6 +426,10 @@ func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, sr
 			results = append(results, r)
 		}
 	}
+	for i := range results {
+		results[i].BookURL = resolveURL(results[i].BookURL, baseURL)
+		results[i].CoverURL = resolveURL(results[i].CoverURL, baseURL)
+	}
 	return results, nil
 }
 
@@ -432,6 +441,11 @@ func (s *Searcher) ParseSearchResult(src booksource.BookSource, html string) ([]
 // ParseSearchResultWithState parses one raw search response with source session state.
 func (s *Searcher) ParseSearchResultWithState(src booksource.BookSource, html string, state analyzer.SourceState) ([]SearchResult, error) {
 	return s.parseSearchResultWithRuleStateContext(context.Background(), src, html, src.RuleSearch, state)
+}
+
+// ParseSearchResultWithStateAtURL parses results against the response page URL.
+func (s *Searcher) ParseSearchResultWithStateAtURL(src booksource.BookSource, html, baseURL string, state analyzer.SourceState) ([]SearchResult, error) {
+	return s.parseSearchResultWithRuleStateContextAtURL(context.Background(), src, html, src.RuleSearch, baseURL, state)
 }
 
 // GetBookInfo fetches and parses book info using ruleBookInfo.

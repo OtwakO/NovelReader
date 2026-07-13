@@ -182,7 +182,11 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 			records = append(records, record)
 			continue
 		}
-		results, parseErr := parser.ParseSearchResultWithState(src, response.Body, session)
+		baseURL := response.FinalURL
+		if baseURL == "" {
+			baseURL = spec.URL
+		}
+		results, parseErr := parser.ParseSearchResultWithStateAtURL(src, response.Body, baseURL, session)
 		if parseErr != nil {
 			record.Classification = "rule_mismatch"
 			record.Error = parseErr.Error()
