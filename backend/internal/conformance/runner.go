@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -63,6 +64,7 @@ type Record struct {
 type Options struct {
 	Timeout     time.Duration
 	Fingerprint bool
+	HealthURL   string
 }
 
 // RunSearch executes selected raw sources and records request, response, and parser output.
@@ -100,6 +102,11 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 	parser := book.NewSearcher(fetcher.NewInsecure(timeout), jsVM, nil, nil, nil)
 	records := make([]Record, 0, len(selected))
 	for _, index := range selected {
+		if options.HealthURL != "" {
+			if err := checkHealth(ctx, options.HealthURL, timeout); err != nil {
+				return records, fmt.Errorf("conformance: server health check before source %d: %w", index, err)
+			}
+		}
 		record := Record{
 			Identity:  SourceIdentity{Index: index, URL: sourceURL(items[index])},
 			RawSource: append(json.RawMessage(nil), items[index]...),
@@ -186,8 +193,36 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 			record.Extracted = results
 		}
 		records = append(records, record)
+		if options.HealthURL != "" {
+			if err := checkHealth(ctx, options.HealthURL, timeout); err != nil {
+				return records, fmt.Errorf("conformance: server health check after source %d: %w", index, err)
+			}
+		}
+	}
+	if options.HealthURL != "" {
+		if err := checkHealth(ctx, options.HealthURL, timeout); err != nil {
+			return records, fmt.Errorf("conformance: final server health check: %w", err)
+		}
 	}
 	return records, nil
+}
+
+func checkHealth(ctx context.Context, healthURL string, timeout time.Duration) error {
+	healthCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(healthCtx, http.MethodGet, healthURL, nil)
+	if err != nil {
+		return err
+	}
+	response, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("status %d", response.StatusCode)
+	}
+	return nil
 }
 
 func rawItems(raw []byte) ([]json.RawMessage, error) {

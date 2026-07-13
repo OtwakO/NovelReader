@@ -19,6 +19,7 @@ func main() {
 	indicesText := flag.String("indices", "", "comma-separated raw JSON indices; empty means all")
 	query := flag.String("query", "凡人修仙传", "search query")
 	timeout := flag.Duration("timeout", 10*time.Second, "per-source timeout")
+	healthURL := flag.String("health-url", "", "optional server health endpoint; abort on failure")
 	flag.Parse()
 	if *input == "" {
 		flag.Usage()
@@ -34,7 +35,7 @@ func main() {
 		fatal(err)
 	}
 	records, err := conformance.RunSearchWithOptions(context.Background(), raw, indices, *query, conformance.Options{
-		Timeout: *timeout, Fingerprint: true,
+		Timeout: *timeout, Fingerprint: true, HealthURL: *healthURL,
 	})
 	if err != nil {
 		fatal(err)

@@ -32,10 +32,11 @@ cd backend
 GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go go run ./cmd/conformance \
   -sources ../test_booksource4.json \
   -indices 1,84,89 \
-  -query '凡人修仙传'
+  -query '凡人修仙传' \
+  -health-url http://localhost:8888/
 ```
 
-`-indices` is optional; omitting it runs every source. The CLI uses the production fingerprint transport. Site DNS, WAF, timeout, WebView, and stale-rule failures are reported separately rather than silently treated as parser failures.
+`-indices` is optional; omitting it runs every source. `-health-url` is optional but aborts the run if the target server stops responding. The CLI uses the production fingerprint transport. Site DNS, WAF, timeout, WebView, and stale-rule failures are reported separately rather than silently treated as parser failures.
 
 ## Deployment
 
