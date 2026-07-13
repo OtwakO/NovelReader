@@ -279,11 +279,11 @@ Every significant booksource-engine change must follow this loop:
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Playwright now passes the indexed `m.22biqu.net` flow with 50 chapters and rendered content, plus a second `bsxiaoshuo.com` source with 167 chapters and rendered content. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses and explicit response-charset decoding in the shared transport. Full Go tests pass.
 
-**In progress:** Hardening retry/status/charset behavior and continuing cross-source compatibility checks.
+**In progress:** Continuing cross-source compatibility checks and auditing the remaining Phase 1 request-contract gaps.
 
-**Next action:** Add retry/status/charset conformance tests, then test another indexed source and continue Default/JSoup rule coverage.
+**Next action:** Run fresh Playwright E2E on raw sources after the transport changes, then continue Default/JSoup and JavaScript rule coverage.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -704,6 +704,12 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Fresh UI E2E imported the raw compilation, selected `m.22biqu.net`, loaded 50 chapters, and rendered the first chapter after fetching only its internal `_2` page; a separate `bsxiaoshuo.com` source loaded 167 chapters and rendered 38 paragraphs. Only unrelated image-host console errors remained.
 - **Affected**: Live verification; `/tmp/novelreader_m22_fixed.log`; no additional production code changed.
 - **Watch out**: Continue testing indexed/JS/charset sources; live success on two sources does not establish global compatibility.
+
+### [2026-07-13] Shared transport ignored Legado retry and response charset options
+- **Problem**: The fetcher returned the first non-2xx response even when `retry` was configured, and response decoding always relied on auto-detection instead of the source-declared URL-option charset.
+- **Fix**: Retry unsuccessful HTTP responses up to the configured count while retaining the final response body; added explicit response charset decoding through `RequestSpec` and the HTTP transport.
+- **Affected**: `backend/internal/fetcher/fetcher.go`, `backend/internal/sourceexec/http_transport.go`, `backend/internal/fetcher/fetcher_retry_test.go`, `backend/internal/sourceexec/http_transport_charset_test.go`.
+- **Watch out**: Live E2E still needs a raw POST/charset source; deterministic tests cover GBK response decoding and retry status transitions.
 
 ### [2026-07-13] Verification-debug-fix loop formalized
 - **Problem**: Source failures could be prematurely classified as outdated because implementation, deterministic tests, live E2E, and cross-source diagnosis were not always performed as one repeatable loop.

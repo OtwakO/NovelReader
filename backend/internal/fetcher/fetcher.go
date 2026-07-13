@@ -31,7 +31,7 @@ func tunedTransport(insecure bool) *http.Transport {
 		InsecureSkipVerify: insecure, // legado uses unsafeTrustManager
 	}
 	return &http.Transport{
-		TLSClientConfig:    tlsCfg,
+		TLSClientConfig:     tlsCfg,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
@@ -93,7 +93,7 @@ func (c *Client) Get(rawURL string, extraHeaders map[string]string) (*Response, 
 
 // Post performs a POST with a background context.
 func (c *Client) Post(rawURL, contentType, body string, extraHeaders map[string]string) (*Response, error) {
-	return c.doRequest(context.Background(), "POST", rawURL, body, extraHeaders, 0)
+	return c.doRequest(context.Background(), "POST", rawURL, body, extraHeaders, 0, "")
 }
 
 // GetContext performs a GET with context support.
@@ -102,16 +102,26 @@ func (c *Client) GetContext(ctx context.Context, rawURL string, extraHeaders map
 	if len(retry) > 0 {
 		r = retry[0]
 	}
-	return c.doRequest(ctx, "GET", rawURL, "", extraHeaders, r)
+	return c.doRequest(ctx, "GET", rawURL, "", extraHeaders, r, "")
+}
+
+// GetContextWithCharset performs a GET with an explicit response charset.
+func (c *Client) GetContextWithCharset(ctx context.Context, rawURL string, extraHeaders map[string]string, retry int, responseCharset string) (*Response, error) {
+	return c.doRequest(ctx, "GET", rawURL, "", extraHeaders, retry, responseCharset)
 }
 
 // PostContext performs a POST with context support and optional retry.
 func (c *Client) PostContext(ctx context.Context, rawURL, body string, extraHeaders map[string]string, retry int) (*Response, error) {
-	return c.doRequest(ctx, "POST", rawURL, body, extraHeaders, retry)
+	return c.doRequest(ctx, "POST", rawURL, body, extraHeaders, retry, "")
+}
+
+// PostContextWithCharset performs a POST with an explicit response charset.
+func (c *Client) PostContextWithCharset(ctx context.Context, rawURL, body string, extraHeaders map[string]string, retry int, responseCharset string) (*Response, error) {
+	return c.doRequest(ctx, "POST", rawURL, body, extraHeaders, retry, responseCharset)
 }
 
 // doRequest is the internal request executor with retry support.
-func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, extraHeaders map[string]string, retry int) (*Response, error) {
+func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, extraHeaders map[string]string, retry int, responseCharset string) (*Response, error) {
 	var lastErr error
 	for attempt := 0; attempt <= retry; attempt++ {
 		if attempt > 0 {
@@ -178,8 +188,16 @@ func (c *Client) doRequest(ctx context.Context, method, rawURL, reqBody string, 
 		}
 
 		// Charset detection and decoding
-		body := decodeCharset(rawBody, resp.Header.Get("Content-Type"))
+		body := DecodeCharset(rawBody, resp.Header.Get("Content-Type"), responseCharset)
 
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			if attempt < retry {
+				slog.Debug("fetcher: unsuccessful response, retrying",
+					"url", rawURL[:min(len(rawURL), 80)],
+					"status", resp.StatusCode, "attempt", attempt, "retry", retry)
+				continue
+			}
+		}
 		if attempt > 0 {
 			slog.Debug("fetcher: retry succeeded",
 				"url", rawURL[:min(len(rawURL), 80)],
@@ -232,8 +250,15 @@ func (c *Client) Cookies(rawURL string) []*http.Cookie {
 
 // decodeCharset detects and decodes non-UTF-8 character encodings (gbk, gb2312, etc.).
 // Falls back to raw bytes if detection fails.
-func decodeCharset(rawBody []byte, contentType string) string {
+// DecodeCharset decodes a response using the source-declared charset when present;
+// otherwise it follows the HTML metadata/content-type detector.
+func DecodeCharset(rawBody []byte, contentType, override string) string {
 	enc, name, _ := charset.DetermineEncoding(rawBody, contentType)
+	if override = strings.TrimSpace(override); override != "" {
+		if declared, declaredName := charset.Lookup(override); declared != nil {
+			enc, name = declared, declaredName
+		}
+	}
 	if name != "utf-8" && name != "us-ascii" {
 		if decoded, _, err := transform.String(enc.NewDecoder(), string(rawBody)); err == nil {
 			return decoded
