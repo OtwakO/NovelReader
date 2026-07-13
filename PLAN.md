@@ -261,11 +261,11 @@ Completion gate: frontend features consume stable domain APIs; no frontend code 
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, and scoped detail→TOC→content sessions have conformance tests. Multi-source Playwright verification succeeded for two sources with rendered content; an additional live source exposed a TOC rule/parser incompatibility. Full Go tests pass.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options and `nextContentUrl`; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default `.eq()`/dot-index selectors have conformance tests. Multi-source Playwright verification previously succeeded for two sources; `m.22biqu.net` exposed the selector gap now fixed. Full Go tests pass.
 
-**In progress:** Hardening retries/status/charset behavior and separating transport failures from rule/DOM compatibility.
+**In progress:** Hardening retries/status/charset behavior and preparing the required live Playwright verification of the Default-selector fix.
 
-**Next action:** Implement and test Default selector indices such as `.directoryArea:eq(1)`/`.directoryArea.1`, then add retry/status/charset conformance tests before the next major live E2E.
+**Next action:** Run Playwright against `m.22biqu.net` and another source using indexed Default selectors; then add retry/status/charset conformance tests.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -656,3 +656,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Recorded this as an engine/parser compatibility failure, not a dead source; no source-specific rule was changed.
 - **Affected**: Live verification; raw source `22笔趣阁`; no production code changed.
 - **Watch out**: Implement and test Legado Default selector indices/`:eq()` semantics before judging similar sources outdated.
+
+### [2026-07-13] Default indexed selectors were not implemented
+- **Problem**: The Default parser treated `.directoryArea:eq(1)` as an unsupported CSS pseudo-selector and `.directoryArea.1` as an invalid segment; chained child selectors consequently returned no chapters.
+- **Fix**: Added `:eq(n)`/negative-eq handling, `.class.N` shorthand, correct CSS-segment no-index behavior, and captured HTML conformance tests.
+- **Affected**: `backend/internal/analyzer/modes_default.go`, `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/default_index_conformance_test.go`.
+- **Watch out**: The fix is not live-verified yet; Playwright must retest `m.22biqu.net` and another indexed source before marking this compatibility slice complete.

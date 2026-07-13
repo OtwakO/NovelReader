@@ -256,6 +256,13 @@ func looksLikeDefault(expr string) bool {
 			}
 		}
 
+		// Legacy class/index selectors such as .directoryArea:eq(1)@p@a
+		// and .directoryArea.1@p@a are Default traversal rules.
+		lastDot := strings.LastIndex(beforeAt, ".")
+		if strings.Contains(beforeAt, ":eq(") || (strings.HasPrefix(beforeAt, ".") && lastDot > 0 && isAllDigits(beforeAt[lastDot+1:])) {
+			return true
+		}
+
 		// before @ has #id selector — probably CSS
 		// before @ is just a word + attr — probably CSS
 		return false

@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -143,7 +144,7 @@ func parseDefault(expr string) ([]defaultSegment, string, error) {
 		if isDefaultGetter(parts[0]) {
 			return nil, parts[0], nil // no selector segments, apply getter to root
 		}
-		return []defaultSegment{{selType: "css", selVal: expr}}, "", nil
+		return []defaultSegment{{selType: "css", selVal: expr, noIndex: true}}, "", nil
 	}
 
 	// Last part is the getter ONLY if it's a known getter keyword
@@ -180,13 +181,22 @@ func parseDefaultSegment(seg string) (defaultSegment, error) {
 
 	// Check for <js> or @js: inline — passthrough as CSS (handled by caller)
 	if strings.HasPrefix(seg, "<js>") || strings.HasPrefix(seg, "@js:") {
-		return defaultSegment{selType: "css", selVal: seg}, nil
+		return defaultSegment{selType: "css", selVal: seg, noIndex: true}, nil
 	}
 
 	// Handle pure CSS selectors embedded in Default mode (e.g. tbody>tr)
 	// If it contains >, +, ~, :, # — it's CSS
 	if strings.ContainsAny(seg, ">+~:#,") {
-		return defaultSegment{selType: "css", selVal: seg}, nil
+		return defaultSegment{selType: "css", selVal: seg, noIndex: true}, nil
+	}
+
+	// Legacy shorthand `.class.N` selects the Nth matching class.
+	if strings.HasPrefix(seg, ".") {
+		dotParts := strings.Split(seg, ".")
+		if len(dotParts) == 3 && dotParts[1] != "" && isAllDigits(dotParts[2]) {
+			index, _ := strconv.Atoi(dotParts[2])
+			return defaultSegment{selType: "class", selVal: dotParts[1], index: index, noIndex: false}, nil
+		}
 	}
 
 	// Split on dots
@@ -214,11 +224,11 @@ func parseDefaultSegment(seg string) (defaultSegment, error) {
 				// Keep dotParts as-is and handle below
 			} else if strings.ContainsAny(seg, ">+~:#,") {
 				// CSS selector with combinators
-				return defaultSegment{selType: "css", selVal: seg}, nil
+				return defaultSegment{selType: "css", selVal: seg, noIndex: true}, nil
 			}
 		}
 		if !isKnownType {
-			return defaultSegment{selType: "css", selVal: seg}, nil
+			return defaultSegment{selType: "css", selVal: seg, noIndex: true}, nil
 		}
 	}
 
@@ -271,7 +281,7 @@ func parseDefaultSegment(seg string) (defaultSegment, error) {
 
 	default:
 		// 4+ parts — unexpected, treat as CSS fallback
-		return defaultSegment{selType: "css", selVal: seg}, nil
+		return defaultSegment{selType: "css", selVal: seg, noIndex: true}, nil
 	}
 
 	return s, nil
@@ -308,7 +318,7 @@ func applyDefaultSegment(sel *goquery.Selection, seg defaultSegment) *goquery.Se
 			sel = sel.Find(":contains('" + seg.selVal + "')")
 		}
 	case "css":
-		sel = sel.Find(seg.selVal)
+		sel = applyDefaultCSS(sel, seg.selVal)
 	}
 
 	if sel.Length() == 0 {
@@ -347,6 +357,28 @@ func applyDefaultSegment(sel *goquery.Selection, seg defaultSegment) *goquery.Se
 	}
 
 	return sel
+}
+
+var defaultEqSelector = regexp.MustCompile(`^(.*):eq\((-?[0-9]+)\)(.*)$`)
+
+func applyDefaultCSS(sel *goquery.Selection, selector string) *goquery.Selection {
+	match := defaultEqSelector.FindStringSubmatch(selector)
+	if len(match) != 4 {
+		return sel.Find(selector)
+	}
+	selected := sel.Find(strings.TrimSpace(match[1]))
+	index, _ := strconv.Atoi(match[2])
+	if index < 0 {
+		index = selected.Length() + index
+	}
+	if index < 0 || index >= selected.Length() {
+		return selected.Filter("__never__")
+	}
+	selected = selected.Eq(index)
+	if suffix := strings.TrimSpace(match[3]); suffix != "" {
+		selected = selected.Find(suffix)
+	}
+	return selected
 }
 
 // extractDefaultGetter extracts a value from a selection based on the getter type.
