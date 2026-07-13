@@ -70,6 +70,26 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 
 	urlStr := strings.TrimSpace(template)
 
+	// Legado also permits a normal URL followed by an @js: segment. Evaluate
+	// the segment against the already-built URL so `result` has the expected value.
+	if jsIndex := strings.Index(urlStr, "@js:"); jsIndex > 0 {
+		baseTemplate := strings.TrimSpace(urlStr[:jsIndex])
+		baseMeta, err := BuildURLWithState(baseTemplate, key, page, baseURL, jsVM, sourceState)
+		if err != nil {
+			return nil, err
+		}
+		if jsVM == nil {
+			return nil, fmt.Errorf("urlbuilder: @js: no JS engine available")
+		}
+		value, err := jsVM.Eval(urlStr[jsIndex+4:], "", baseURL, map[string]interface{}{
+			"key": key, "page": page, "result": baseMeta.URL, "baseUrl": baseURL, "sourceState": sourceState,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
+		}
+		return BuildURLWithState(ToString(value), key, page, baseURL, jsVM, sourceState)
+	}
+
 	meta := &URLMeta{
 		Method:  "GET",
 		Headers: make(map[string]string),
@@ -168,17 +188,7 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 	// For page 1, <,...> should be removed (produces empty string).
 	// We use a simple regex to remove <...> segments that match the page pattern.
 	// ponytail: only handles the common case; complex JS inside <...> is deferred.
-	if strings.Contains(urlStr, "<,") {
-		pageSelRe := regexp.MustCompile(`<[^>]*{{[^}]*}}[^>]*>`)
-		urlStr = pageSelRe.ReplaceAllStringFunc(urlStr, func(match string) string {
-			parts := strings.Split(match[1:len(match)-1], ",")
-			// parts[0] is empty (from <,) or the content before first comma
-			if page > 0 && page <= len(parts)-1 {
-				return strings.TrimSpace(parts[page])
-			}
-			return ""
-		})
-	}
+	urlStr = expandPageSelector(urlStr, page)
 
 	// Evaluate {{...}} JS expressions in the URL (handles {{cookie.removeCookie(source.key)}}, etc.)
 	// First pass: simple variable replacement for {{key}} and {{page}} (no JS overhead)
@@ -193,6 +203,7 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 
 	// Replace {{key}} in POST body too
 	if meta.Body != "" {
+		meta.Body = expandPageSelector(meta.Body, page)
 		meta.Body = strings.ReplaceAll(meta.Body, "{{key}}", key)
 		meta.Body = strings.ReplaceAll(meta.Body, "{{page}}", fmt.Sprintf("%d", page))
 		if strings.Contains(meta.Body, "{{") && jsVM != nil {
@@ -247,6 +258,20 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 // ponytail: simple regex-based extraction, no nesting support for {{...}} inside {{...}}.
 // evalTemplateExpressions finds all {{...}} patterns and evaluates the inner content as JS.
 // Uses brace-counting instead of regex to handle nested braces like {{var x={a:1}; x}}.
+func expandPageSelector(input string, page int) string {
+	if !strings.Contains(input, "<,") {
+		return input
+	}
+	pageSelRe := regexp.MustCompile(`<,[^>]*>`)
+	return pageSelRe.ReplaceAllStringFunc(input, func(match string) string {
+		parts := strings.Split(match[1:len(match)-1], ",")
+		if page > 0 && page <= len(parts)-1 {
+			return strings.TrimSpace(parts[page])
+		}
+		return ""
+	})
+}
+
 func evalTemplateExpressions(s string, jsVM *JSVM, baseURL string, extra ...map[string]interface{}) string {
 	var bindings map[string]interface{}
 	if len(extra) > 0 {

@@ -280,11 +280,11 @@ Every significant booksource-engine change must follow this loop:
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, and an optional fingerprint-first JS HTTP adapter with normal fallback. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库`: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, fingerprint-first regular source transport with normal fallback, source-scoped cookie continuity, segmented URL `@js`, and POST-body page selectors. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库` after regular transport integration: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs. `笔趣小说` independently produced 12 search results before a later upstream DNS/503 outage.
 
 **In progress:** Continuing cross-source compatibility checks and auditing the remaining Phase 1 request-contract gaps.
 
-**Next action:** Verify a second raw JavaScript source using the fingerprint adapter, then extend the transport seam to regular `sourceexec` requests without coupling `book` to `tls-client`.
+**Next action:** Re-run the raw `笔趣小说` two-step flow when its upstream endpoint is available, then verify another JavaScript/POST source before expanding WebView support.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -759,6 +759,18 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Restarted the actual child server with the writable Go module cache, imported the raw 939-source compilation, and reran the fresh UI flow. `八叉书库` produced a result, detail page, 1-chapter TOC, and 352 readable paragraphs.
 - **Affected**: Live verification; `/tmp/novelreader_tlsclient_e2e6.log`.
 - **Watch out**: Use `GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go` in this environment; verify a second JS source before expanding the adapter to regular requests.
+
+### [2026-07-13] Regular source transport required staged cookie and URL-rule compatibility
+- **Problem**: The second raw JavaScript source used a URL followed by `@js:`, `<, ... >` page syntax inside a POST body, and a CSRF cookie created by the JavaScript preflight. The regular POST path initially lacked all three compatibility behaviors.
+- **Fix**: Added segmented URL JavaScript evaluation, applied page selectors to expanded POST bodies, synchronized JavaScript response cookies into the source session, added default User-Agent parity, and injected fingerprint-first transport into all `sourceexec` workflows through `book.TransportFactory`.
+- **Affected**: `backend/internal/analyzer/js.go`, `backend/internal/analyzer/urlbuilder.go`, `backend/internal/book/search.go`, `backend/internal/fingerprint/`, `backend/cmd/server/main.go`.
+- **Watch out**: Do not share fingerprint cookie jars across sources; the factory creates source-scoped transports and the normal transport remains the fallback.
+
+### [2026-07-13] Second JavaScript source verification was split by engine and upstream state
+- **Problem**: Raw `笔趣小说` independently returned 15 HTML results for `剑来`, and NovelReader later returned 12 results after the shared fixes; subsequent full-flow retries encountered `m.bqgcn.net` DNS/503 failures and could not complete TOC verification.
+- **Fix**: Confirmed the raw response and request contract with curl, diagnosed the initial failures as shared engine issues, fixed those issues, and recorded the later outage separately rather than classifying the source as outdated.
+- **Affected**: Raw verification; `/tmp/bqres`; `/tmp/novelreader_bq_diag.log`; `/tmp/novelreader_bq_final.log`.
+- **Watch out**: Re-run the full `剑来` search → add → TOC → content path when the endpoint returns HTTP 200; the remaining gate is upstream availability, not a proven parser defect.
 
 ### [2026-07-13] Verification-debug-fix loop formalized
 - **Problem**: Source failures could be prematurely classified as outdated because implementation, deterministic tests, live E2E, and cross-source diagnosis were not always performed as one repeatable loop.

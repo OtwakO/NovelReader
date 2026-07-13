@@ -81,6 +81,10 @@ func (c *Client) GetContextNoRedirect(ctx context.Context, rawURL string, header
 }
 
 func (c *Client) do(ctx context.Context, method, rawURL, body string, headers map[string]string, followRedirect bool) (*fetcher.Response, error) {
+	return c.doWithCharset(ctx, method, rawURL, body, headers, followRedirect, "")
+}
+
+func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string, headers map[string]string, followRedirect bool, responseCharset string) (*fetcher.Response, error) {
 	client := c.fingerprint
 	if !followRedirect {
 		client = c.noRedirect
@@ -99,7 +103,7 @@ func (c *Client) do(ctx context.Context, method, rawURL, body string, headers ma
 	if err != nil {
 		return c.fallbackRequest(ctx, method, rawURL, body, headers, followRedirect, err)
 	}
-	result, err := response(resp)
+	result, err := responseWithCharset(resp, responseCharset)
 	if err != nil {
 		return c.fallbackRequest(ctx, method, rawURL, body, headers, followRedirect, err)
 	}
@@ -123,6 +127,10 @@ func (c *Client) fallbackRequest(ctx context.Context, method, rawURL, body strin
 }
 
 func response(resp *fhttp.Response) (*fetcher.Response, error) {
+	return responseWithCharset(resp, "")
+}
+
+func responseWithCharset(resp *fhttp.Response, responseCharset string) (*fetcher.Response, error) {
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -142,8 +150,15 @@ func response(resp *fhttp.Response) (*fetcher.Response, error) {
 
 func makeHeaders(values map[string]string) fhttp.Header {
 	headers := make(fhttp.Header, len(values)+1)
+	hasUserAgent := false
 	for key, value := range values {
+		if strings.EqualFold(key, "User-Agent") {
+			hasUserAgent = true
+		}
 		headers[key] = []string{value}
+	}
+	if !hasUserAgent {
+		headers["User-Agent"] = []string{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 	}
 	return headers
 }

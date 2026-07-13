@@ -1,0 +1,41 @@
+// Conformance test for fingerprint-first regular source transport.
+package fingerprint
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/sourceexec"
+)
+
+func TestTransportFallsBackForRegularSourceRequest(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			http.Error(w, "reject fingerprint", http.StatusBadRequest)
+			return
+		}
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	normal := sourceexec.NewHTTPTransport(fetcher.NewInsecure(5 * time.Second))
+	transport, err := NewTransport(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true}, normal, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := transport.Do(t.Context(), sourceexec.RequestSpec{URL: server.URL, Method: http.MethodGet})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Body != "ok" || response.Transport != "http" {
+		t.Fatalf("body=%q transport=%q calls=%d", response.Body, response.Transport, calls.Load())
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("calls=%d, want 2", calls.Load())
+	}
+}

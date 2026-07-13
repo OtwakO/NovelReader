@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"hash"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -120,7 +121,7 @@ Map = function(a) {
 	// Bind standard objects
 	// java MUST be a map with lowercase keys — goja exposes Go struct methods capitalized
 	// (EncodeURI, not encodeURI). Following legado's JsExtensions naming convention.
-	h := &jsHelpers{vm: vm, analyzer: activeAnalyzer}
+	h := &jsHelpers{vm: vm, analyzer: activeAnalyzer, state: sourceState}
 	_ = rt.Set("result", content)
 	_ = rt.Set("src", content) // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
@@ -280,6 +281,22 @@ func (vm *JSVM) makeCacheObj(state SourceState) map[string]interface{} {
 type jsHelpers struct {
 	vm       *JSVM
 	analyzer *Analyzer
+	state    SourceState
+}
+
+type responseCookieState interface {
+	SetCookies(rawURL string, cookies []*http.Cookie) error
+}
+
+func (h *jsHelpers) syncResponseCookies(rawURL string, headers http.Header) {
+	state, ok := h.state.(responseCookieState)
+	if !ok || state == nil {
+		return
+	}
+	response := &http.Response{Header: headers}
+	if err := state.SetCookies(rawURL, response.Cookies()); err != nil {
+		slog.Debug("js: response cookie sync failed", "url", rawURL, "err", err)
+	}
 }
 
 // Get performs HTTP GET or variable retrieval: java.get(url, headers?) or java.get(key)
@@ -308,6 +325,7 @@ func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 	if err != nil {
 		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
 	}
+	h.syncResponseCookies(arg1, resp.Headers)
 	result := make(map[string]interface{})
 	result["body"] = func() string { return resp.Body }
 	result["bodyText"] = resp.Body
@@ -350,6 +368,7 @@ func (h *jsHelpers) Post(urlStr, body string, args ...interface{}) interface{} {
 	if err != nil {
 		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
 	}
+	h.syncResponseCookies(urlStr, resp.Headers)
 	return map[string]interface{}{"body": func() string { return resp.Body }, "bodyText": resp.Body, "statusCode": resp.StatusCode}
 }
 
@@ -502,6 +521,7 @@ func (h *jsHelpers) Ajax(urlStr interface{}, args ...interface{}) string {
 	if err != nil {
 		return ""
 	}
+	h.syncResponseCookies(s, resp.Headers)
 	return resp.Body
 }
 

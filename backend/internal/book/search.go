@@ -26,14 +26,17 @@ const (
 )
 
 // Searcher orchestrates search, book info, TOC, and content fetching.
+type TransportFactory func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport
+
 type Searcher struct {
-	fetcher       *fetcher.Client
-	searchFetcher *fetcher.Client // 8s timeout for search
-	jsVM          *analyzer.JSVM
-	cache         *analyzer.CacheManager
-	sourceStore   *booksource.Store
-	bookStore     *Store
-	sessions      *sourceexec.SessionRegistry
+	fetcher          *fetcher.Client
+	searchFetcher    *fetcher.Client // 8s timeout for search
+	transportFactory TransportFactory
+	jsVM             *analyzer.JSVM
+	cache            *analyzer.CacheManager
+	sourceStore      *booksource.Store
+	bookStore        *Store
+	sessions         *sourceexec.SessionRegistry
 	// per-source rate limiting (concurrentRate)
 	rateMu     sync.Mutex
 	lastAccess map[string]time.Time // keyed by BookSourceURL
@@ -61,6 +64,16 @@ func NewSearcher(
 
 // SetSearchFetcher replaces the default search fetcher with a custom one.
 func (s *Searcher) SetSearchFetcher(f *fetcher.Client) { s.searchFetcher = f }
+
+// SetTransportFactory injects transport policy without coupling book workflows to clients.
+func (s *Searcher) SetTransportFactory(factory TransportFactory) { s.transportFactory = factory }
+
+func (s *Searcher) newTransport(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {
+	if s.transportFactory != nil {
+		return s.transportFactory(client, session)
+	}
+	return sourceexec.NewHTTPTransportForSession(client, session)
+}
 
 // Search is the old synchronous aggregator. Kept for backward compat.
 func (s *Searcher) Search(query string) ([]SearchResult, error) {
@@ -280,7 +293,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	// Search owns one session/client pair so cookies and source variables cannot leak
 	// between concurrent sources while remaining available to multi-stage rules.
 	session := sourceexec.NewSourceSession()
-	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
+	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.Build(src.SearchURL, query, 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
@@ -433,7 +446,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
-	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
+	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.Build(bookURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
@@ -523,7 +536,7 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
-	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
+	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	parser := &ChapterListParser{
 		src:   src,
@@ -711,7 +724,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	if session == nil {
 		session = sourceexec.NewSourceSession()
 	}
-	transport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(perSourceTimeout), session)
+	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.Build(chapterURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {

@@ -19,6 +19,7 @@ import (
 	"github.com/otwako/novelreader/internal/fingerprint"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
 func main() {
@@ -63,11 +64,12 @@ func main() {
 	// uses InsecureSkipVerify; content/TOC/chapter fetches must match.
 	httpContent := fetcher.NewInsecure(15 * time.Second)         // normal fallback and content
 	httpSearch := fetcher.NewInsecureStateless(10 * time.Second) // no jar for search
-	jsHTTP, err := fingerprint.New(fingerprint.Config{
+	fingerprintConfig := fingerprint.Config{
 		Timeout:            15 * time.Second,
 		Profile:            os.Getenv("TLS_CLIENT_PROFILE"),
 		InsecureSkipVerify: true,
-	}, httpContent)
+	}
+	jsHTTP, err := fingerprint.New(fingerprintConfig, httpContent)
 	if err != nil {
 		log.Fatalf("fingerprint transport: %v", err)
 	}
@@ -79,6 +81,17 @@ func main() {
 	// Override the default search fetcher (constructed inside NewSearcher) with the
 	// one we already created, so we don't create a second client.
 	searcher.SetSearchFetcher(httpSearch)
+	regularFingerprintConfig := fingerprintConfig
+	regularFingerprintConfig.Timeout = 5 * time.Second // leave room for normal fallback within per-source timeout
+	searcher.SetTransportFactory(func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {
+		normal := sourceexec.NewHTTPTransportForSession(client, session)
+		transport, transportErr := fingerprint.NewTransport(regularFingerprintConfig, normal, session)
+		if transportErr != nil {
+			log.Printf("fingerprint source transport unavailable: %v", transportErr)
+			return normal
+		}
+		return transport
+	})
 
 	// Content processor config
 	procCfg := processor.DefaultConfig()
