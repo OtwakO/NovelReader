@@ -243,6 +243,22 @@ Tasks:
 
 Completion gate: frontend features consume stable domain APIs; no frontend code knows CSS/Default/JS source syntax.
 
+## Mandatory implementation → verification loop
+
+Every significant booksource-engine change must follow this loop:
+
+1. **Audit and design** — compare the intended behavior with the Legado source implementation and the source-rule documentation; identify the shared contract and avoid source-specific patches first.
+2. **Write a failing deterministic test** — use a captured raw response and the exact raw BookSource rule. The test must name the expected URL, method, headers/body, rule mode, and extracted result.
+3. **Implement the smallest shared fix** — change the common executor, session, analyzer, or workflow boundary; do not patch one source unless the raw source itself is demonstrably exceptional.
+4. **Run the deterministic suite** — execute the focused test, then `go test ./...`. Stop on any regression.
+5. **Run live Playwright verification** — on a fresh server, import the raw compilation, search a real book, add it through the UI, open detail, load TOC, and read content. Record source URL, source index/hash, rule field, request status, and visible result.
+6. **Debug failures by layer** — collect the exact expanded request and compare NovelReader with curl and Playwright. Classify the failure as transport/request construction, HTTP/WAF/DNS, session/cookie, rule/parser, workflow state, frontend, or legitimate zero results. Never infer parser failure from a timeout or source failure from an empty selector alone.
+7. **Cross-check another raw source** — if the selected source fails, test at least one other source using the same rule feature. If the second source passes, investigate source-specific request/DOM differences; if both fail similarly, treat it as an engine gap until disproven.
+8. **Fix and repeat** — return to step 3, add the regression test for the discovered bug, rerun deterministic tests, then repeat Playwright verification. Do not mark the change complete while the live gate is blocked by an unresolved failure in the changed path.
+9. **Synchronize documentation** — update `Current State`, append an `Issues & Fixes` entry, record the live verification evidence/limitations, and commit the PLAN update with the code/test change.
+
+**Last-resort rule:** an outdated or incorrect raw BookSource rule may be concluded only after the exact raw URL is reachable, the exact raw response is inspected, the exact rule is reproduced independently, and another source/engine path confirms the behavior is not a shared NovelReader gap.
+
 ## Testing strategy
 
 - Unit tests live beside analyzer, sourceexec, fetcher, and book modules.
@@ -688,3 +704,9 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Fresh UI E2E imported the raw compilation, selected `m.22biqu.net`, loaded 50 chapters, and rendered the first chapter after fetching only its internal `_2` page; a separate `bsxiaoshuo.com` source loaded 167 chapters and rendered 38 paragraphs. Only unrelated image-host console errors remained.
 - **Affected**: Live verification; `/tmp/novelreader_m22_fixed.log`; no additional production code changed.
 - **Watch out**: Continue testing indexed/JS/charset sources; live success on two sources does not establish global compatibility.
+
+### [2026-07-13] Verification-debug-fix loop formalized
+- **Problem**: Source failures could be prematurely classified as outdated because implementation, deterministic tests, live E2E, and cross-source diagnosis were not always performed as one repeatable loop.
+- **Fix**: Added a mandatory audit → failing test → shared implementation → deterministic suite → Playwright → layered diagnosis → second raw source → fix/retest → PLAN synchronization workflow.
+- **Affected**: `PLAN.md`.
+- **Watch out**: Do not mark a changed path complete while its live gate is blocked by an unresolved failure; do not call a raw rule outdated before independent reproduction.
