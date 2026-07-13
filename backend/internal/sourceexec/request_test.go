@@ -38,6 +38,19 @@ func TestRequestSpecFromURLMetaPreservesExecutionMetadata(t *testing.T) {
 	}
 }
 
+func TestMergeHeadersUsesCaseInsensitiveURLOverlay(t *testing.T) {
+	merged := MergeHeaders(
+		map[string]string{"user-agent": "source", "X-Source": "yes"},
+		map[string]string{"User-Agent": "url", "x-option": "yes"},
+	)
+	if len(merged) != 3 || merged["User-Agent"] != "url" || merged["user-agent"] != "" {
+		t.Fatalf("merged headers=%v", merged)
+	}
+	if merged["X-Source"] != "yes" || merged["x-option"] != "yes" {
+		t.Fatalf("unrelated headers were lost: %v", merged)
+	}
+}
+
 func TestResponseRetainsNonSuccessBodyForClassification(t *testing.T) {
 	resp := Response{StatusCode: 403, Body: "challenge page", FinalURL: "https://example.test/"}
 	if resp.StatusCode != 403 || resp.Body != "challenge page" || resp.FinalURL == "" {

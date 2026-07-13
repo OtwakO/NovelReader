@@ -60,6 +60,20 @@ func RequestSpecFromURLMeta(meta *analyzer.URLMeta) RequestSpec {
 	}
 }
 
+// MergeHeaders overlays URL-level headers on source-level headers by HTTP name.
+func MergeHeaders(base, overlay map[string]string) map[string]string {
+	merged := cloneHeaders(base)
+	for key, value := range overlay {
+		for existing := range merged {
+			if strings.EqualFold(existing, key) {
+				delete(merged, existing)
+			}
+		}
+		merged[key] = value
+	}
+	return merged
+}
+
 // EncodeRequestBody encodes form values using the source's request charset.
 func EncodeRequestBody(body, charset string) string {
 	if body == "" || charset == "" {

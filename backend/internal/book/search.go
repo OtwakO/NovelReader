@@ -264,6 +264,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	// Search owns one session/client pair so cookies and source variables cannot leak
 	// between concurrent sources while remaining available to multi-stage rules.
 	session := sourceexec.NewSourceSession()
+	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.BuildContext(srcCtx, src.SearchURL, query, 1, src.BookSourceURL)
@@ -275,11 +276,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	}
 
 	// Merge source-level headers first, then URL-option headers overlay.
-	headers := parseHeaderJSON(src.Header)
-	for k, v := range spec.Headers {
-		headers[k] = v
-	}
-	spec.Headers = headers
+	spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
 
 	slog.Debug("search: fetching source",
 		"source", src.BookSourceName,
@@ -454,6 +451,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
+	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.BuildContext(ctx, bookURL, "", 1, src.BookSourceURL)
@@ -463,14 +461,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 		}
 		return nil, fmt.Errorf("book info: build URL: %w", err)
 	}
-	if spec.Headers == nil {
-		spec.Headers = make(map[string]string)
-	}
-	for key, value := range parseHeaderJSON(src.Header) {
-		if _, exists := spec.Headers[key]; !exists {
-			spec.Headers[key] = value
-		}
-	}
+	spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
 	if spec.WebView {
 		return nil, fmt.Errorf("book info: source requires JS rendering (webView:true)")
 	}
@@ -546,6 +537,7 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
+	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	parser := &ChapterListParser{
@@ -559,14 +551,7 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 			if err != nil {
 				return "", "", err
 			}
-			if spec.Headers == nil {
-				spec.Headers = make(map[string]string)
-			}
-			for key, value := range parseHeaderJSON(src.Header) {
-				if _, exists := spec.Headers[key]; !exists {
-					spec.Headers[key] = value
-				}
-			}
+			spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
 			if spec.WebView {
 				return "", "", fmt.Errorf("source requires JS rendering (webView:true)")
 			}
@@ -736,6 +721,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	if session == nil {
 		session = sourceexec.NewSourceSession()
 	}
+	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.BuildContext(ctx, chapterURL, "", 1, src.BookSourceURL)
@@ -745,14 +731,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		}
 		return "", "", fmt.Errorf("content: build URL: %w", err)
 	}
-	if spec.Headers == nil {
-		spec.Headers = make(map[string]string)
-	}
-	for key, value := range parseHeaderJSON(src.Header) {
-		if _, exists := spec.Headers[key]; !exists {
-			spec.Headers[key] = value
-		}
-	}
+	spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
 	if spec.WebView {
 		return "", "", fmt.Errorf("content: source requires JS rendering (webView:true)")
 	}
@@ -846,14 +825,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		if err != nil {
 			return "", "", fmt.Errorf("content: next page build: %w", err)
 		}
-		if nextSpec.Headers == nil {
-			nextSpec.Headers = make(map[string]string)
-		}
-		for key, value := range parseHeaderJSON(src.Header) {
-			if _, exists := nextSpec.Headers[key]; !exists {
-				nextSpec.Headers[key] = value
-			}
-		}
+		nextSpec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), nextSpec.Headers)
 		if nextSpec.WebView {
 			return "", "", fmt.Errorf("content: next page requires JS rendering (webView:true)")
 		}

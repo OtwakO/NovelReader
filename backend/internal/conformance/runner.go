@@ -135,6 +135,7 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 
 		sourceCtx, cancel := context.WithTimeout(ctx, timeout)
 		session := sourceexec.NewSourceSession()
+		session.SetRequestHeaders(parseHeaders(src.Header))
 		normalTransport := sourceexec.NewHTTPTransportForSession(fetcher.NewInsecure(timeout), session)
 		var transport sourceexec.Transport = normalTransport
 		if options.Fingerprint {
@@ -154,7 +155,7 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 			records = append(records, record)
 			continue
 		}
-		mergeHeaders(spec.Headers, parseHeaders(src.Header))
+		spec.Headers = sourceexec.MergeHeaders(parseHeaders(src.Header), spec.Headers)
 		record.Request = &RequestRecord{
 			URL: spec.URL, Method: spec.Method, Body: spec.Body,
 			Headers: redactHeaders(spec.Headers), Charset: spec.Charset,
@@ -282,14 +283,6 @@ func parseHeaders(raw string) map[string]string {
 		_ = json.Unmarshal([]byte(encoded), &headers)
 	}
 	return headers
-}
-
-func mergeHeaders(target, source map[string]string) {
-	for key, value := range source {
-		if _, exists := target[key]; !exists {
-			target[key] = value
-		}
-	}
 }
 
 func redactHeaders(headers map[string]string) map[string]string {

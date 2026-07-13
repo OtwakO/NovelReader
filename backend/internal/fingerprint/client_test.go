@@ -30,6 +30,26 @@ func (c *captureFallback) GetContextNoRedirect(_ context.Context, _ string, head
 	return &fetcher.Response{StatusCode: http.StatusOK, Body: "fallback"}, nil
 }
 
+func TestScopedClientSendsSourceHeaders(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-Source"); got != "configured" {
+			t.Errorf("X-Source=%q", got)
+		}
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	base, err := New(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := sourceexec.NewSourceSession()
+	session.SetRequestHeaders(map[string]string{"x-source": "configured"})
+	if _, err := base.ForSource(session).Get(server.URL, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestFallbackReceivesSourceSessionCookie(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)

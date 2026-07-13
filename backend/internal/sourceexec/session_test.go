@@ -29,6 +29,22 @@ func TestSourceSessionPersistsCookiesAndVariablesWithinOneSession(t *testing.T) 
 	}
 }
 
+func TestSourceSessionCopiesRequestHeaders(t *testing.T) {
+	session := NewSourceSession()
+	sourceHeaders := map[string]string{"X-Source": "one"}
+	session.SetRequestHeaders(sourceHeaders)
+	sourceHeaders["X-Source"] = "mutated"
+
+	if got := session.RequestHeaders()["X-Source"]; got != "one" {
+		t.Fatalf("stored header = %q, want one", got)
+	}
+	headers := session.RequestHeaders()
+	headers["X-Source"] = "changed"
+	if got := session.RequestHeaders()["X-Source"]; got != "one" {
+		t.Fatalf("returned header mutated session: %q", got)
+	}
+}
+
 func TestSourceSessionsDoNotShareState(t *testing.T) {
 	first := NewSourceSession()
 	second := NewSourceSession()

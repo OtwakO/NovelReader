@@ -153,6 +153,13 @@ func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string,
 	}
 	normalizedURL := normalizeURL(rawURL)
 	effectiveHeaders := cloneHeaders(headers)
+	if source, ok := c.session.(interface{ RequestHeaders() map[string]string }); ok {
+		for key, value := range source.RequestHeaders() {
+			if !hasHeader(effectiveHeaders, key) {
+				effectiveHeaders[key] = value
+			}
+		}
+	}
 	if c.session != nil && !hasHeader(effectiveHeaders, "Cookie") {
 		if cookie := c.session.CookieHeader(rawURL); cookie != "" {
 			effectiveHeaders["Cookie"] = cookie

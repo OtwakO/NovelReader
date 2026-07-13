@@ -90,7 +90,17 @@ func (c *SessionHTTPClient) PostContext(ctx context.Context, rawURL, body string
 
 func (c *SessionHTTPClient) requestHeaders(rawURL string, headers map[string]string) map[string]string {
 	copy := make(map[string]string, len(headers)+1)
+	if source, ok := c.session.(interface{ RequestHeaders() map[string]string }); ok {
+		for key, value := range source.RequestHeaders() {
+			copy[key] = value
+		}
+	}
 	for key, value := range headers {
+		for existing := range copy {
+			if strings.EqualFold(existing, key) {
+				delete(copy, existing)
+			}
+		}
 		copy[key] = value
 	}
 	if c.session != nil && !hasSessionHeader(copy, "Cookie") {

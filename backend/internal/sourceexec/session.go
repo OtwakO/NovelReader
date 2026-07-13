@@ -17,13 +17,14 @@ type SourceSession struct {
 	mu      sync.RWMutex
 	vars    map[string]string
 	memory  map[string]interface{}
+	headers map[string]string
 	lastURL string
 }
 
 // NewSourceSession creates an isolated cookie and variable scope.
 func NewSourceSession() *SourceSession {
 	jar, _ := cookiejar.New(nil)
-	return &SourceSession{jar: jar, vars: make(map[string]string), memory: make(map[string]interface{})}
+	return &SourceSession{jar: jar, vars: make(map[string]string), memory: make(map[string]interface{}), headers: make(map[string]string)}
 }
 
 // SetCookie stores one cookie for a source URL.
@@ -116,6 +117,27 @@ func (s *SourceSession) LastURL() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.lastURL
+}
+
+// SetRequestHeaders stores source-level defaults for staged and JavaScript requests.
+func (s *SourceSession) SetRequestHeaders(headers map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.headers = make(map[string]string, len(headers))
+	for key, value := range headers {
+		s.headers[key] = value
+	}
+}
+
+// RequestHeaders returns a copy of source-level request defaults.
+func (s *SourceSession) RequestHeaders() map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	headers := make(map[string]string, len(s.headers))
+	for key, value := range s.headers {
+		headers[key] = value
+	}
+	return headers
 }
 
 // PutVariable stores a persistent source variable.
