@@ -29,7 +29,7 @@ type JSVM struct {
 	pool        chan *goja.Runtime
 	initCode    string
 	mu          sync.Mutex
-	hc          *fetcher.Client        // for java.get/java.post from JS
+	hc          fetcher.HTTPClient     // for java.get/java.post from JS
 	cacheData   map[string]string      // java.put/java.get storage
 	memoryCache map[string]interface{} // cache.putMemory/cache.getFromMemory
 }
@@ -58,7 +58,7 @@ type SourceState interface {
 }
 
 // SetFetcher provides an HTTP client for java.get/java.post calls from JS.
-func (vm *JSVM) SetFetcher(hc *fetcher.Client) {
+func (vm *JSVM) SetFetcher(hc fetcher.HTTPClient) {
 	vm.hc = hc
 }
 
@@ -309,7 +309,8 @@ func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
 	}
 	result := make(map[string]interface{})
-	result["body"] = resp.Body
+	result["body"] = func() string { return resp.Body }
+	result["bodyText"] = resp.Body
 	result["statusCode"] = resp.StatusCode
 	hdr := make(map[string]string)
 	for k, v := range resp.Headers {
@@ -349,7 +350,7 @@ func (h *jsHelpers) Post(urlStr, body string, args ...interface{}) interface{} {
 	if err != nil {
 		return map[string]interface{}{"body": "", "statusCode": 0, "error": err.Error()}
 	}
-	return map[string]interface{}{"body": resp.Body, "statusCode": resp.StatusCode}
+	return map[string]interface{}{"body": func() string { return resp.Body }, "bodyText": resp.Body, "statusCode": resp.StatusCode}
 }
 
 // connect performs HTTP and returns a chainable response object.

@@ -16,6 +16,14 @@ import (
 	"golang.org/x/text/transform"
 )
 
+// HTTPClient is the small request surface consumed by JavaScript source helpers.
+// Alternate transports implement it without coupling the analyzer to net/http.
+type HTTPClient interface {
+	Get(rawURL string, extraHeaders map[string]string) (*Response, error)
+	Post(rawURL, contentType, body string, extraHeaders map[string]string) (*Response, error)
+	GetContextNoRedirect(ctx context.Context, rawURL string, extraHeaders map[string]string) (*Response, error)
+}
+
 // Client wraps http.Client with context support and optional cookie jar.
 type Client struct {
 	httpClient *http.Client

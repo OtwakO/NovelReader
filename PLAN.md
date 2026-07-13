@@ -18,7 +18,8 @@ backend/internal/
   booksource/   canonical source model, import/export, persistence
   sourceexec/   unified URL/request/session/transport execution (new)
   analyzer/     Legado rule engine and JS bridge
-  fetcher/      HTTP transport implementation
+  fetcher/      HTTP transport implementation and transport-neutral HTTP client contract
+  fingerprint/  optional TLS/HTTP fingerprint transport adapter
   webview/      optional browser transport implementation (new seam)
   book/         search, enrichment, TOC, content domain workflows
   processor/    content safety and paragraph formatting
@@ -58,7 +59,7 @@ Response
   transport kind, redirect chain, timing, error classification
 ```
 
-`HTTPTransport` and `WebViewTransport` implement the same interface. The selector is a policy decision in the executor, not a branch duplicated inside each book workflow.
+`HTTPTransport`, `FingerprintTransport`, and `WebViewTransport` implement the same interface. Fingerprint transport is an injected adapter, not a dependency of `book` or `sourceexec`. The selector is a policy decision in the executor, not a branch duplicated inside each book workflow. The initial policy is fingerprint-first with normal HTTP fallback; the browser profile is configurable and defaults to the newest pinned Chrome profile.
 
 #### SourceSession
 
@@ -279,11 +280,11 @@ Every significant booksource-engine change must follow this loop:
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, and redirect-preserving `java.get().header()`. Full Go tests pass. Raw `八叉书库` verification reached the JavaScript bridge and exposed the next transport issue: its exact browser-style headers receive HTTP 400 from the Go client while a reduced request receives the expected 302 redirect.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, and an optional fingerprint-first JS HTTP adapter with normal fallback. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库`: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs.
 
 **In progress:** Continuing cross-source compatibility checks and auditing the remaining Phase 1 request-contract gaps.
 
-**Next action:** Reproduce the `八叉书库` exact-header 400 versus reduced-header 302 with request-level diagnostics, then implement a safe transport compatibility fallback and retest with another raw JavaScript source.
+**Next action:** Verify a second raw JavaScript source using the fingerprint adapter, then extend the transport seam to regular `sourceexec` requests without coupling `book` to `tls-client`.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -740,6 +741,24 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added redirect-preserving `java.get()` responses and `.header()` access, with a deterministic redirect conformance test. The remaining 400-vs-302 request parity is not classified as source failure.
 - **Affected**: `backend/internal/fetcher/fetcher.go`, `backend/internal/fetcher/fetcher_redirect_test.go`, `backend/internal/analyzer/js.go`.
 - **Watch out**: Add request diagnostics and a conservative header compatibility fallback before declaring this JS source unsupported.
+
+### [2026-07-13] Fingerprint transport integration boundary selected
+- **Problem**: Solving TLS/HTTP fingerprint mismatch by coupling `tls-client` directly into `book` or `sourceexec` would make the request engine difficult to test, replace, and extend to WebView.
+- **Fix**: Chose an injected `fetcher.HTTPClient` contract and a separate `internal/fingerprint` adapter. The initial policy is fingerprint-first with normal HTTP fallback and configurable Chrome profile; the existing `sourceexec.Transport` contract remains stable.
+- **Affected**: Architecture and Phase 1 plan; implementation pending.
+- **Watch out**: Pin the dependency, test fallback/status/cookies/charset, and do not classify the raw source as outdated until the adapter is verified.
+
+### [2026-07-13] Fingerprint adapter passed raw JavaScript full-pipeline verification
+- **Problem**: The adapter needed to prove it solved the exact request mismatch without leaking `tls-client` types into analyzer or book workflows.
+- **Fix**: Added `fetcher.HTTPClient`, isolated `internal/fingerprint`, fingerprint-first/normal-fallback behavior, Unicode query normalization, and `StrResponse.body()` compatibility. The adapter uses the latest pinned Chrome profile by default and remains configurable through `TLS_CLIENT_PROFILE`.
+- **Affected**: `backend/internal/fetcher/fetcher.go`, `backend/internal/fingerprint/`, `backend/internal/analyzer/js.go`, `backend/cmd/server/main.go`, `backend/go.mod`, `backend/go.sum`.
+- **Watch out**: This first integration covers JavaScript bridge requests; regular `sourceexec` requests still use their existing transport and need a separate injected seam.
+
+### [2026-07-13] Fingerprint adapter live verification passed
+- **Problem**: The first E2E attempt used a stale server binary and could not validate the new adapter.
+- **Fix**: Restarted the actual child server with the writable Go module cache, imported the raw 939-source compilation, and reran the fresh UI flow. `八叉书库` produced a result, detail page, 1-chapter TOC, and 352 readable paragraphs.
+- **Affected**: Live verification; `/tmp/novelreader_tlsclient_e2e6.log`.
+- **Watch out**: Use `GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go` in this environment; verify a second JS source before expanding the adapter to regular requests.
 
 ### [2026-07-13] Verification-debug-fix loop formalized
 - **Problem**: Source failures could be prematurely classified as outdated because implementation, deterministic tests, live E2E, and cross-source diagnosis were not always performed as one repeatable loop.

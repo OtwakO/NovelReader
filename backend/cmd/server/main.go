@@ -16,6 +16,7 @@ import (
 	"github.com/otwako/novelreader/internal/config"
 	"github.com/otwako/novelreader/internal/database"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/fingerprint"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/processor"
 )
@@ -60,10 +61,18 @@ func main() {
 	// ponytail: use insecure TLS for content fetcher too — same reason as search:
 	// many Chinese novel sites have self-signed or expired TLS certs. Search already
 	// uses InsecureSkipVerify; content/TOC/chapter fetches must match.
-	httpContent := fetcher.NewInsecure(15 * time.Second)  // with cookie jar for content
+	httpContent := fetcher.NewInsecure(15 * time.Second)         // normal fallback and content
 	httpSearch := fetcher.NewInsecureStateless(10 * time.Second) // no jar for search
+	jsHTTP, err := fingerprint.New(fingerprint.Config{
+		Timeout:            15 * time.Second,
+		Profile:            os.Getenv("TLS_CLIENT_PROFILE"),
+		InsecureSkipVerify: true,
+	}, httpContent)
+	if err != nil {
+		log.Fatalf("fingerprint transport: %v", err)
+	}
 	jsVM := analyzer.NewJSVM()
-	jsVM.SetFetcher(httpContent)
+	jsVM.SetFetcher(jsHTTP)
 	cache := analyzer.NewCacheManager()
 
 	searcher := book.NewSearcher(httpContent, jsVM, cache, sourceStore, bookStore)
