@@ -8,28 +8,44 @@
   let loading = $state(true);
   let error = $state('');
   let loadedBookId = '';
+  let requestGeneration = 0;
 
   $effect(() => {
     const id = bookId;
-    if (id && id !== loadedBookId) {
+    if (!id) {
+      requestGeneration += 1;
+      loadedBookId = '';
+      book = null;
+      chapters = [];
+      error = '';
+      loading = false;
+      return;
+    }
+    if (id !== loadedBookId) {
       loadedBookId = id;
-      void load(id);
+      const generation = ++requestGeneration;
+      void load(id, generation);
     }
   });
 
-  async function load(id: string) {
+  async function load(id: string, generation: number) {
     loading = true;
     error = '';
     try {
       const books = await listBooks();
-      book = books.find(b => b.id === id) || null;
-      chapters = book ? await getChapters(id) : [];
+      if (generation !== requestGeneration) return;
+      const nextBook = books.find(b => b.id === id) || null;
+      const nextChapters = nextBook ? await getChapters(id) : [];
+      if (generation !== requestGeneration) return;
+      book = nextBook;
+      chapters = nextChapters;
     } catch (err) {
+      if (generation !== requestGeneration) return;
       book = null;
       chapters = [];
       error = err instanceof Error ? err.message : 'Failed to load book';
     } finally {
-      loading = false;
+      if (generation === requestGeneration) loading = false;
     }
   }
 </script>

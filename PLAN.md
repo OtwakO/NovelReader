@@ -280,7 +280,7 @@ Every significant booksource-engine change must follow this loop:
 
 **Phase:** Phase 0 — compatibility baseline and harness; Phase 1 request-contract slice started.
 
-**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, source-scoped fingerprint jars, segmented URL `@js`, POST-body page selectors, `<js>...</js>` wrapper execution, typed JavaScript TOC objects, and context cancellation. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库` after regular transport integration: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs. Fresh raw `趣书网吧` verification now passes search → add → 438-page TOC → first-page content with 135 rendered paragraphs. Direct book deep links now load the same 438-chapter detail page without frontend effect-loop errors.
+**Last completed:** Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`; content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, source-scoped fingerprint jars, segmented URL `@js`, POST-body page selectors, `<js>...</js>` wrapper execution, typed JavaScript TOC objects, and context cancellation. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库` after regular transport integration: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs. Fresh raw `趣书网吧` verification now passes search → add → 438-page TOC → first-page content with 135 rendered paragraphs. A second fresh post-review E2E pass reproduced the same 438-page TOC and 135 rendered paragraphs. Direct book deep links now load the same 438-chapter detail page without frontend effect-loop errors.
 
 **In progress:** Continuing cross-source compatibility checks and auditing the remaining Phase 1 request-contract gaps.
 
@@ -801,3 +801,15 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Moved App hash-listener setup from reactive `$effect` to `onMount`, guarded BookDetail loading by book ID, and surfaced load errors instead of swallowing them.
 - **Affected**: `frontend/src/App.svelte`, `frontend/src/lib/BookDetail.svelte`.
 - **Watch out**: Existing unrelated Svelte accessibility warnings remain in `App.svelte` and `Reader.svelte`; do not treat those as this routing fix.
+
+### [2026-07-13] Reviewer found incomplete context and fallback contracts
+- **Problem**: Search/book/content JavaScript paths did not all inherit cancellation; fingerprint fallback omitted source-session cookies; typed TOC objects skipped explicit volume flags; BookDetail accepted stale async responses and could hang on empty IDs.
+- **Fix**: Threaded contexts through executor and analyzers, passed effective session headers to fallback, evaluated `isVolume` for typed objects, and added generation/empty-ID guards to BookDetail.
+- **Affected**: `backend/internal/book/search.go`, `backend/internal/fingerprint/client.go`, `backend/internal/book/chapterlist.go`, `frontend/src/lib/BookDetail.svelte`.
+- **Watch out**: Keep adding cancellation and source-session tests when new rule-evaluation paths are introduced.
+
+### [2026-07-13] Post-review raw 趣书网吧 E2E passed
+- **Problem**: The transport and parser corrections needed verification after the reviewer fixes, not just deterministic tests.
+- **Fix**: Restarted a fresh server with raw 939-source data and reran UI search → add → 438-page TOC → first chapter; Playwright observed 135 rendered paragraphs and actual Chinese content.
+- **Affected**: `/tmp/novelreader_final_e2e.log`; raw source index 778.
+- **Watch out**: The remaining Phase 1 gate is a repeatable multi-source harness, not another one-off manual sample.

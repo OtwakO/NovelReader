@@ -148,13 +148,7 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 		chURL = resolveURL(chURL, pageURL)
 
 		// Volume detection: empty URL or explicit isVolume rule
-		isVolume := ""
-		if !titleIsField || !urlIsField {
-			elAn := analyzer.New(analyzer.ToString(el), pageURL, p.jsVM, p.cache)
-			elAn.SetSourceState(p.state)
-			elAn.SetContext(p.ctx)
-			isVolume = mustString(elAn, volumeRule)
-		}
+		isVolume := elementRuleString(el, volumeRule, pageURL, p)
 		if chURL == "" {
 			isVolume = "true" // infer volume from missing URL
 		}

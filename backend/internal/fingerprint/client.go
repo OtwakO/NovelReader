@@ -144,27 +144,28 @@ func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string,
 		reqBody = bytes.NewBufferString(body)
 	}
 	normalizedURL := normalizeURL(rawURL)
-	req, err := fhttp.NewRequestWithContext(ctx, method, normalizedURL, reqBody)
-	if err != nil {
-		return c.fallbackRequest(ctx, method, rawURL, body, headers, followRedirect, err)
-	}
-	req.Header = makeHeaders(headers)
-	if c.session != nil && req.Header.Get("Cookie") == "" {
+	effectiveHeaders := cloneHeaders(headers)
+	if c.session != nil && !hasHeader(effectiveHeaders, "Cookie") {
 		if cookie := c.session.CookieHeader(rawURL); cookie != "" {
-			req.Header.Set("Cookie", cookie)
+			effectiveHeaders["Cookie"] = cookie
 		}
 	}
+	req, err := fhttp.NewRequestWithContext(ctx, method, normalizedURL, reqBody)
+	if err != nil {
+		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, err)
+	}
+	req.Header = makeHeaders(effectiveHeaders)
 	resp, err := client.Do(req)
 	if err != nil {
-		return c.fallbackRequest(ctx, method, rawURL, body, headers, followRedirect, err)
+		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, err)
 	}
 	result, err := responseWithCharset(resp, responseCharset)
 	if err != nil {
-		return c.fallbackRequest(ctx, method, rawURL, body, headers, followRedirect, err)
+		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, err)
 	}
 	c.syncSession(result)
 	if shouldFallback(result.StatusCode) && c.fallback != nil {
-		return c.fallbackRequest(ctx, method, rawURL, body, headers, followRedirect, fmt.Errorf("fingerprint status %d", result.StatusCode))
+		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, fmt.Errorf("fingerprint status %d", result.StatusCode))
 	}
 	return result, nil
 }
@@ -193,6 +194,15 @@ func (c *Client) fallbackRequest(ctx context.Context, method, rawURL, body strin
 		return client.PostContext(ctx, rawURL, body, headers, 0)
 	}
 	return c.fallback.Post(rawURL, contentType, body, headers)
+}
+
+func hasHeader(headers map[string]string, name string) bool {
+	for key := range headers {
+		if strings.EqualFold(key, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func response(resp *fhttp.Response) (*fetcher.Response, error) {

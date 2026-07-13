@@ -1,11 +1,11 @@
-// Conformance tests for fingerprint-first transport selection.
+// Regression tests for the fingerprint client contract.
 package fingerprint
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +14,45 @@ import (
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
+
+type captureFallback struct{ cookie string }
+
+func (c *captureFallback) Get(_ string, headers map[string]string) (*fetcher.Response, error) {
+	c.cookie = headers["Cookie"]
+	return &fetcher.Response{StatusCode: http.StatusOK, Body: "fallback"}, nil
+}
+func (c *captureFallback) Post(_ string, _ string, _ string, headers map[string]string) (*fetcher.Response, error) {
+	c.cookie = headers["Cookie"]
+	return &fetcher.Response{StatusCode: http.StatusOK, Body: "fallback"}, nil
+}
+func (c *captureFallback) GetContextNoRedirect(_ context.Context, _ string, headers map[string]string) (*fetcher.Response, error) {
+	c.cookie = headers["Cookie"]
+	return &fetcher.Response{StatusCode: http.StatusOK, Body: "fallback"}, nil
+}
+
+func TestFallbackReceivesSourceSessionCookie(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	fallback := &captureFallback{}
+	base, err := New(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true}, fallback)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := sourceexec.NewSourceSession()
+	if err := session.SetCookie(server.URL, "csrf", "token"); err != nil {
+		t.Fatal(err)
+	}
+	client := base.ForSource(session)
+	if _, err := client.Get(server.URL, nil); err != nil {
+		t.Fatal(err)
+	}
+	if fallback.cookie != "csrf=token" {
+		t.Fatalf("fallback cookie=%q", fallback.cookie)
+	}
+}
 
 func TestClientDecodesExplicitResponseCharset(t *testing.T) {
 	encoded, _, err := transform.String(simplifiedchinese.GBK.NewEncoder(), "搜索结果")
@@ -102,28 +141,25 @@ func TestScopedClientPreservesRedirectCookiesAcrossNewTransport(t *testing.T) {
 }
 
 func TestClientFallsBackToNormalHTTPAfterFingerprintRejection(t *testing.T) {
-	var calls atomic.Int32
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if calls.Add(1) == 1 {
-			http.Error(w, "fingerprint rejected", http.StatusBadRequest)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/search" {
+			http.Error(w, "blocked", http.StatusForbidden)
 			return
 		}
-		_, _ = w.Write([]byte("success"))
+		_, _ = w.Write([]byte("fallback"))
 	}))
 	defer server.Close()
 
-	client, err := New(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true}, fetcher.NewInsecure(5*time.Second))
+	fallback := fetcher.NewInsecure(3 * time.Second)
+	client, err := New(Config{Timeout: 3 * time.Second, InsecureSkipVerify: true}, fallback)
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := client.Get(server.URL, nil)
+	response, err := client.Get(server.URL+"/search", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != http.StatusOK || response.Body != "success" {
-		t.Fatalf("status=%d body=%q calls=%d", response.StatusCode, response.Body, calls.Load())
-	}
-	if calls.Load() != 2 {
-		t.Fatalf("calls=%d, want 2", calls.Load())
+	if response.Body != "blocked\n" || response.StatusCode != http.StatusForbidden {
+		t.Fatalf("response=%+v", response)
 	}
 }

@@ -290,7 +290,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	session := sourceexec.NewSourceSession()
 	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
-	spec, err := executor.Build(src.SearchURL, query, 1, src.BookSourceURL)
+	spec, err := executor.BuildContext(srcCtx, src.SearchURL, query, 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
 			err = fmt.Errorf("empty URL")
@@ -333,7 +333,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	if src.RuleSearch == "" {
 		return nil, fmt.Errorf("source %q has no search rules", src.BookSourceName)
 	}
-	results, err := s.parseSearchResultWithRuleState(src, resp.Body, src.RuleSearch, session)
+	results, err := s.parseSearchResultWithRuleStateContext(srcCtx, src, resp.Body, src.RuleSearch, session)
 	if err != nil {
 		return nil, err
 	}
@@ -349,6 +349,10 @@ func (s *Searcher) parseSearchResultWithRule(src booksource.BookSource, html, ru
 }
 
 func (s *Searcher) parseSearchResultWithRuleState(src booksource.BookSource, html, ruleJSON string, state analyzer.SourceState) ([]SearchResult, error) {
+	return s.parseSearchResultWithRuleStateContext(context.Background(), src, html, ruleJSON, state)
+}
+
+func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, src booksource.BookSource, html, ruleJSON string, state analyzer.SourceState) ([]SearchResult, error) {
 	rules := parseRuleJSON(ruleJSON)
 	if rules == nil {
 		return nil, fmt.Errorf("search: invalid rule JSON for %s", src.BookSourceName)
@@ -361,6 +365,7 @@ func (s *Searcher) parseSearchResultWithRuleState(src booksource.BookSource, htm
 	an := analyzer.New(html, src.BookSourceURL, s.jsVM, s.cache)
 	an.SetJSLib(src.JSLib)
 	an.SetSourceState(state)
+	an.SetContext(ctx)
 	elements, err := an.GetElements(bookListRule)
 	if err != nil {
 		return nil, fmt.Errorf("search: bookList: %w", err)
@@ -398,6 +403,7 @@ func (s *Searcher) parseSearchResultWithRuleState(src booksource.BookSource, htm
 		elHTML := analyzer.ToString(el)
 		elAn := analyzer.New(elHTML, src.BookSourceURL, s.jsVM, s.cache)
 		elAn.SetJSLib(src.JSLib)
+		elAn.SetContext(ctx)
 
 		r := SearchResult{
 			SourceURL:  src.BookSourceURL,
@@ -443,7 +449,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
 	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
-	spec, err := executor.Build(bookURL, "", 1, src.BookSourceURL)
+	spec, err := executor.BuildContext(ctx, bookURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
 			err = fmt.Errorf("empty URL")
@@ -478,6 +484,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	an := analyzer.New(response.Body, baseURL, s.jsVM, s.cache)
 	an.SetJSLib(src.JSLib)
 	an.SetSourceState(session)
+	an.SetContext(ctx)
 
 	// Set book context for JS rules that reference book.name, book.author, etc.
 	an.SetBookData(map[string]string{
@@ -722,7 +729,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	}
 	transport := s.newTransport(fetcher.NewInsecure(perSourceTimeout), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
-	spec, err := executor.Build(chapterURL, "", 1, src.BookSourceURL)
+	spec, err := executor.BuildContext(ctx, chapterURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
 			err = fmt.Errorf("empty URL")
@@ -758,6 +765,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	an := analyzer.New(response.Body, fullURL, s.jsVM, s.cache)
 	an.SetJSLib(src.JSLib)
 	an.SetSourceState(session)
+	an.SetContext(ctx)
 	// Bind chapter context for JS rules that reference chapter.url, chapter.baseUrl
 	an.SetChapterData(map[string]string{
 		"url":     fullURL,
@@ -824,7 +832,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		}
 		visited[nextURL] = true
 
-		nextSpec, err := executor.Build(nextURL, "", 1, src.BookSourceURL)
+		nextSpec, err := executor.BuildContext(ctx, nextURL, "", 1, src.BookSourceURL)
 		if err != nil {
 			return "", "", fmt.Errorf("content: next page build: %w", err)
 		}
@@ -858,6 +866,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		nextAnalyzer := analyzer.New(nextResponse.Body, nextFullURL, s.jsVM, s.cache)
 		nextAnalyzer.SetJSLib(src.JSLib)
 		nextAnalyzer.SetSourceState(session)
+		nextAnalyzer.SetContext(ctx)
 		nextAnalyzer.SetChapterData(map[string]string{"url": nextFullURL, "baseUrl": nextFullURL})
 		if pageContent := extractPage(nextAnalyzer, nextResponse.Body, nextFullURL); pageContent != "" {
 			content += "\n" + pageContent
