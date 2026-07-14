@@ -52,6 +52,24 @@ services:
     networks:
       - novelreader
 
+  fixture:
+    profiles: [e2e]
+    image: ${NOVELREADER_WEBVIEW_IMAGE:-ghcr.io/otwako/novelreader-webview:edge}
+    platform: linux/amd64
+    entrypoint: ["python", "-m", "http.server", "8000", "--directory", "/fixtures"]
+    read_only: true
+    volumes:
+      - ./testdata/docker:/fixtures:ro
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/search.html',timeout=2).read()"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    networks:
+      - novelreader
+
 volumes:
   novelreader-data:
 

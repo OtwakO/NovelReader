@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Docker WebView fixture</title></head>
+<body>
+  <main id="results"></main>
+  <script>
+    setTimeout(() => {
+      document.querySelector('#results').innerHTML = '<article class="book"><a class="name" href="/book/1">Rendered Fixture Book</a><span class="author">Fixture Author</span></article>';
+    }, 50);
+  </script>
+</body>
+</html>

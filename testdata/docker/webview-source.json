@@ -1,0 +1,15 @@
+[
+  {
+    "bookSourceUrl": "http://fixture:8000",
+    "bookSourceName": "Docker WebView Fixture",
+    "customOrder": 0,
+    "enabled": true,
+    "searchUrl": "http://fixture:8000/search.html,{'webView': true}",
+    "ruleSearch": {
+      "bookList": ".book",
+      "name": ".name@text",
+      "author": ".author@text",
+      "bookUrl": ".name@href"
+    }
+  }
+]
