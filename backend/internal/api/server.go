@@ -239,13 +239,14 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ID        string `json:"id"`
-		Name      string `json:"name"`
-		Author    string `json:"author,omitempty"`
-		CoverURL  string `json:"coverUrl,omitempty"`
-		Intro     string `json:"intro,omitempty"`
-		SourceURL string `json:"sourceUrl"`
-		BookURL   string `json:"bookUrl"`
+		ID               string           `json:"id"`
+		Name             string           `json:"name"`
+		Author           string           `json:"author,omitempty"`
+		CoverURL         string           `json:"coverUrl,omitempty"`
+		Intro            string           `json:"intro,omitempty"`
+		SourceURL        string           `json:"sourceUrl"`
+		BookURL          string           `json:"bookUrl"`
+		AlternateSources []book.AltSource `json:"alternateSources,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -267,14 +268,15 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 
 	// Create book with available info from request
 	b := &book.Book{
-		ID:        req.ID,
-		Name:      req.Name,
-		Author:    req.Author,
-		CoverURL:  req.CoverURL,
-		Intro:     req.Intro,
-		SourceURL: req.SourceURL,
-		BookURL:   req.BookURL,
-		Origin:    req.SourceURL,
+		ID:               req.ID,
+		Name:             req.Name,
+		Author:           req.Author,
+		CoverURL:         req.CoverURL,
+		Intro:            req.Intro,
+		SourceURL:        req.SourceURL,
+		BookURL:          req.BookURL,
+		Origin:           req.SourceURL,
+		AlternateSources: req.AlternateSources,
 	}
 
 	// Try to enrich from source

@@ -1104,3 +1104,8 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added typed batch/cursor validation errors, return sanitized 500 responses for internal preparation failures, and covered the failure boundary.
 - **Affected**: `backend/internal/book/search_batch.go`, `backend/internal/api/search.go`, `backend/internal/api/search_test.go`.
 - **Watch out**: Keep trust-boundary validation errors distinct from storage and execution failures.
+### [2026-07-14] Shelving discarded alternate search sources
+- **Problem**: The enrichment request ignored `alternateSources`, so a cumulatively merged result lost every fallback source when added to the shelf.
+- **Fix**: Decode alternatives into the new book before enrichment or fallback persistence and cover the source-missing fallback.
+- **Affected**: `backend/internal/api/server.go`, `backend/internal/api/enrich_test.go`.
+- **Watch out**: Every frontend shelf fallback and future book-creation endpoint must preserve the same alternate-source contract.
