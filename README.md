@@ -31,7 +31,7 @@ GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go go test ./...
 cd ../frontend && npm test && npm run build
 ```
 
-Tests are colocated with the analyzer, source executor, transport, book, and conformance code.
+Tests are colocated with the analyzer, source executor, transport, book, and conformance code. With Docker Compose 2.20.2 or newer, `./docker-e2e.sh` additionally builds both production images and verifies frontend delivery, readiness, private WebView routing, rendered search, graceful shutdown, and named-volume persistence without live sites.
 
 ## Raw-source conformance runner
 
@@ -62,12 +62,44 @@ WEBVIEW_WORKER_PORT=8787 python worker.py
 
 For Docker, build `webview-worker/Dockerfile`; the image binds `0.0.0.0:8787` internally so other containers can reach it. Publish it only on a private network because it accepts arbitrary navigation URLs. Apply resource limits at runtime, for example `docker run --cpus=2 --memory=4g ...`; Dockerfiles cannot enforce deployment resource limits.
 
-## Deployment
+## Container deployment
 
-Build the frontend, then build and run the backend server:
+Requirements: Docker Engine and Docker Compose 2.20.2 or newer. The default stack pulls the public `linux/amd64` app image, binds the UI only to `127.0.0.1:8888`, and persists SQLite and downloaded data in the `novelreader-data` named volume:
 
 ```bash
-cd frontend && npm run build
-cd ../backend && go build -o novelreader ./cmd/server
-./novelreader
+docker compose pull
+docker compose up -d --no-build
+curl http://127.0.0.1:8888/api/healthz
 ```
+
+Enable browser-backed sources with the private WebView profile:
+
+```bash
+export WEBVIEW_ENDPOINT=http://webview-worker:8787
+docker compose --profile webview pull
+docker compose --profile webview up -d --no-build
+```
+
+The worker has no host port. Do not add one: `POST /execute` can navigate arbitrary URLs. Override the host app port with `APP_PORT`, image references with `NOVELREADER_IMAGE` and `NOVELREADER_WEBVIEW_IMAGE`, and measured resource ceilings with the variables in `compose.yaml`.
+
+To build locally instead of pulling GHCR:
+
+```bash
+export NOVELREADER_IMAGE=novelreader:local
+export NOVELREADER_WEBVIEW_IMAGE=novelreader-webview:local
+docker compose --profile webview build
+docker compose --profile webview up -d --no-build
+```
+
+Both containers run as UID/GID 10001. Named volumes work without host preparation; a bind-mounted data directory must be writable by `10001:10001`. Stop the app before copying or archiving `/data` so the SQLite database and sidecar files form a consistent backup.
+
+## GHCR publishing
+
+`.github/workflows/publish.yml` verifies all tests and the Compose E2E gate before publishing:
+
+- `ghcr.io/otwako/novelreader`
+- `ghcr.io/otwako/novelreader-webview`
+
+A `main` push receives `edge` and `sha-*`; a valid `v*` tag receives its semantic version and `sha-*`; manual dispatch receives `manual` and `sha-*`. No `latest` tag is produced. Base images intentionally follow the latest official Node, Go, Alpine, and Python tags; application lockfiles and Patchright remain pinned.
+
+After the first workflow publication, the owner must mark both packages **Public** in GitHub package settings. Until then, authenticate with `docker login ghcr.io`. The repository must have a `main` branch and Actions permission to write packages before the workflow can publish.
