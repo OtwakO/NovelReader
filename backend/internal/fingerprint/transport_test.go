@@ -3,8 +3,10 @@ package fingerprint
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -58,6 +60,36 @@ func TestTransportHonorsRetryAfterFingerprintNonSuccess(t *testing.T) {
 	}
 }
 
+func TestTransportCloseIdleConnectionsReleasesScopedPool(t *testing.T) {
+	var mu sync.Mutex
+	states := make(map[net.Conn]http.ConnState)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	server.Config.ConnState = func(connection net.Conn, state http.ConnState) {
+		mu.Lock()
+		states[connection] = state
+		mu.Unlock()
+	}
+	server.Start()
+	defer server.Close()
+
+	transport, err := NewTransport(Config{Timeout: time.Second}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := transport.Do(t.Context(), sourceexec.RequestSpec{URL: server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	if !waitForConnectionState(time.Second, &mu, states, http.StateIdle) {
+		t.Fatal("fingerprint connection never became idle")
+	}
+	transport.CloseIdleConnections()
+	if !waitForNoOpenConnections(time.Second, &mu, states) {
+		t.Fatalf("scoped fingerprint connections remained open: %+v", states)
+	}
+}
+
 func TestTransportFallsBackForRegularSourceRequest(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -84,4 +116,38 @@ func TestTransportFallsBackForRegularSourceRequest(t *testing.T) {
 	if calls.Load() != 2 {
 		t.Fatalf("calls=%d, want 2", calls.Load())
 	}
+}
+
+func waitForConnectionState(timeout time.Duration, mu *sync.Mutex, states map[net.Conn]http.ConnState, wanted http.ConnState) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		found := false
+		for _, state := range states {
+			found = found || state == wanted
+		}
+		mu.Unlock()
+		if found {
+			return true
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return false
+}
+
+func waitForNoOpenConnections(timeout time.Duration, mu *sync.Mutex, states map[net.Conn]http.ConnState) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		open := false
+		for _, state := range states {
+			open = open || (state != http.StateClosed && state != http.StateHijacked)
+		}
+		mu.Unlock()
+		if !open {
+			return true
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return false
 }

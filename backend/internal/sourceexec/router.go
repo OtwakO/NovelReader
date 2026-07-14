@@ -17,6 +17,13 @@ func NewRoutingTransport(normal, webView Transport) *RoutingTransport {
 	return &RoutingTransport{normal: normal, webView: webView}
 }
 
+// CloseIdleConnections releases pools owned by ephemeral normal transports.
+func (t *RoutingTransport) CloseIdleConnections() {
+	if closer, ok := t.normal.(interface{ CloseIdleConnections() }); ok {
+		closer.CloseIdleConnections()
+	}
+}
+
 func (t *RoutingTransport) Do(ctx context.Context, spec RequestSpec) (Response, error) {
 	if spec.WebView {
 		if t.webView == nil {

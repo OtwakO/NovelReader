@@ -177,7 +177,7 @@ func (s *Searcher) workflowClient() *fetcher.Client {
 	return fetcher.NewInsecure(s.sourceTimeout())
 }
 
-func (s *Searcher) newTransport(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {
+func (s *Searcher) newTransport(client *fetcher.Client, session *sourceexec.SourceSession) *sourceexec.RoutingTransport {
 	normal := sourceexec.Transport(sourceexec.NewHTTPTransportForSession(client, session))
 	if s.transportFactory != nil {
 		normal = s.transportFactory(client, session)
@@ -294,6 +294,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	session := sourceexec.NewSourceSession()
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(s.workflowClient(), session)
+	defer transport.CloseIdleConnections()
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	spec, err := executor.BuildContext(srcCtx, src.SearchURL, query, 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {

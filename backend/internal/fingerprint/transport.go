@@ -32,6 +32,13 @@ func NewTransport(config Config, fallback sourceexec.Transport, session *sourcee
 	return &Transport{client: client, fallback: fallback, session: session}, nil
 }
 
+// CloseIdleConnections releases this per-source fingerprint pool.
+func (t *Transport) CloseIdleConnections() {
+	if t != nil && t.client != nil {
+		t.client.CloseIdleConnections()
+	}
+}
+
 // Do implements sourceexec.Transport without exposing tls-client to sourceexec or book.
 func (t *Transport) Do(ctx context.Context, spec sourceexec.RequestSpec) (sourceexec.Response, error) {
 	if t == nil || t.client == nil {

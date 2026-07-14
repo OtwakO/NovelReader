@@ -88,6 +88,19 @@ func newClient(config Config, fallback fetcher.HTTPClient, session fetcher.Cooki
 	}, nil
 }
 
+// CloseIdleConnections releases connections owned by this scoped client.
+func (c *Client) CloseIdleConnections() {
+	if c == nil {
+		return
+	}
+	if c.fingerprint != nil {
+		c.fingerprint.CloseIdleConnections()
+	}
+	if c.noRedirect != nil {
+		c.noRedirect.CloseIdleConnections()
+	}
+}
+
 // ForSource creates an isolated fingerprint jar for one source session.
 func (c *Client) ForSource(session fetcher.CookieSession) fetcher.HTTPClient {
 	if c == nil {
