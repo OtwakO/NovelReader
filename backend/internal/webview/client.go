@@ -98,7 +98,7 @@ func (c *Client) do(ctx context.Context, spec sourceexec.RequestSpec, session *s
 	}
 	payload := protocolRequest{
 		Version: protocolVersion, URL: spec.URL, Method: method, Body: spec.Body,
-		Headers: headers, Cookies: cookies, WebJS: spec.WebJS,
+		Charset: spec.Charset, Headers: headers, Cookies: cookies, WebJS: spec.WebJS,
 		DelayMS: spec.WebViewDelay, TimeoutMS: int(c.timeout.Milliseconds()),
 	}
 	result, err := c.executeWorker(ctx, payload)

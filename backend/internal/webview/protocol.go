@@ -6,6 +6,7 @@ type protocolRequest struct {
 	URL       string            `json:"url"`
 	Method    string            `json:"method"`
 	Body      string            `json:"body,omitempty"`
+	Charset   string            `json:"charset,omitempty"`
 	Headers   map[string]string `json:"headers,omitempty"`
 	Cookies   []protocolCookie  `json:"cookies,omitempty"`
 	WebJS     string            `json:"webJs,omitempty"`

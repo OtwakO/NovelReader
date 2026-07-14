@@ -38,7 +38,7 @@ GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go go run ./cmd/conformance \
   -health-url http://localhost:8888/
 ```
 
-`-indices` is optional; omitting it runs every source. `-health-url` is optional but aborts the run if the target server stops responding. Add `-webview-endpoint http://127.0.0.1:8787` to execute `webView:true` requests through the Patchright worker. The CLI uses the production fingerprint transport. Site DNS, WAF, timeout, WebView, and stale-rule failures are reported separately rather than silently treated as parser failures.
+`-indices` is optional; omitting it runs every source. `-health-url` is optional but aborts the run if the target server stops responding. Add `-webview-endpoint http://127.0.0.1:8787` to execute `webView:true` requests through the Patchright worker. Add `-indices N -book-url URL` to run detail → TOC → first-chapter content for one source. The CLI uses the production fingerprint transport. Site DNS, WAF, timeout, WebView, and stale-rule failures are reported separately rather than silently treated as parser failures.
 
 Deterministic response fixtures live in `testdata/booksource/`; their manifest test executes the declared rules offline.
 

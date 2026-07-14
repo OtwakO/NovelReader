@@ -180,7 +180,8 @@ class BrowserWorker:
                     timeout=timeout_ms,
                     fail_on_status_code=False,
                 )
-                body = await response.text()
+                headers = response_headers(response)
+                body = decode_response_body(await response.body(), request, headers)
                 ensure_body_size(body, self.max_body_bytes)
                 await page.set_content(
                     with_base_url(body, target),
@@ -200,13 +201,16 @@ class BrowserWorker:
 
             body = await page.content()
             ensure_body_size(body, self.max_body_bytes)
-            headers = await response.all_headers() if response else {}
+            headers = await response_headers_async(response)
+            final_url = page.url
+            if not final_url or final_url == "about:blank":
+                final_url = getattr(response, "url", None) or target
             return {
                 "version": PROTOCOL_VERSION,
                 "statusCode": response.status if response else 200,
                 "headers": {key: [value] for key, value in headers.items()},
                 "body": body,
-                "finalUrl": page.url or target,
+                "finalUrl": final_url,
                 "redirectChain": navigation_urls[1:],
                 "cookies": protocol_cookies(await context.cookies()),
             }
@@ -294,3 +298,35 @@ def with_base_url(body: str, target: str) -> str:
 def ensure_body_size(body: str, max_bytes: int) -> None:
     if len(body.encode("utf-8")) > max_bytes:
         raise ValueError(f"response body exceeds {max_bytes} bytes")
+
+
+def response_headers(response) -> dict[str, str]:
+    """Read headers from Patchright APIResponse without requiring Playwright-only methods."""
+    return dict(getattr(response, "headers", {}) or {})
+
+
+async def response_headers_async(response) -> dict[str, str]:
+    if response is None:
+        return {}
+    method = getattr(response, "all_headers", None)
+    if method is not None:
+        return dict(await method())
+    return response_headers(response)
+
+
+def decode_response_body(raw: bytes, request: dict, headers: dict[str, str]) -> str:
+    """Decode fetched HTML using the source charset before loading it into the DOM."""
+    charset = request.get("charset") or response_charset(headers) or "utf-8"
+    try:
+        return raw.decode(charset, errors="replace")
+    except LookupError:
+        return raw.decode("utf-8", errors="replace")
+
+
+def response_charset(headers: dict[str, str]) -> str:
+    content_type = headers.get("content-type", "")
+    marker = "charset="
+    lower = content_type.lower()
+    if marker not in lower:
+        return ""
+    return content_type[lower.index(marker) + len(marker):].split(";", 1)[0].strip()

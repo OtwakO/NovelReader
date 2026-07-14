@@ -21,6 +21,7 @@ func main() {
 	timeout := flag.Duration("timeout", 10*time.Second, "per-source timeout")
 	healthURL := flag.String("health-url", "", "optional server health endpoint; abort on failure")
 	webViewEndpoint := flag.String("webview-endpoint", "", "optional Patchright worker endpoint for webView requests")
+	bookURL := flag.String("book-url", "", "optional book URL; runs detail, TOC, and first-chapter workflow for one index")
 	flag.Parse()
 	if *input == "" {
 		flag.Usage()
@@ -35,14 +36,28 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	records, err := conformance.RunSearchWithOptions(context.Background(), raw, indices, *query, conformance.Options{
+	options := conformance.Options{
 		Timeout: *timeout, Fingerprint: true, HealthURL: *healthURL, WebViewEndpoint: *webViewEndpoint,
-	})
-	if err != nil {
-		fatal(err)
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
+	if *bookURL != "" {
+		if len(indices) != 1 {
+			fatal(fmt.Errorf("-book-url requires exactly one index in -indices"))
+		}
+		record, err := conformance.RunWorkflowWithOptions(context.Background(), raw, indices[0], *bookURL, options)
+		if err != nil {
+			fatal(err)
+		}
+		if err := encoder.Encode(record); err != nil {
+			fatal(err)
+		}
+		return
+	}
+	records, err := conformance.RunSearchWithOptions(context.Background(), raw, indices, *query, options)
+	if err != nil {
+		fatal(err)
+	}
 	if err := encoder.Encode(records); err != nil {
 		fatal(err)
 	}

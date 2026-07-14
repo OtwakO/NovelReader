@@ -1042,16 +1042,48 @@ func resolveURL(urlStr, baseURL string) string {
 	if strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://") {
 		return urlStr
 	}
+	// Resolve the URL portion separately so `{...}` request options remain
+	// parseable by sourceexec after relative-link resolution.
+	urlPart, optionSuffix := splitURLOptionSuffix(urlStr)
 	// Use stdlib URL resolution: handles ../, //, and absolute-path (/foo) correctly.
 	// e.g., base="https://site.com/novel/123" + url="/catalog/456" → "https://site.com/catalog/456"
 	base, err := url.Parse(baseURL)
 	if err != nil {
-		// Fallback to naive join on parse error
 		return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
 	}
-	ref, err := url.Parse(urlStr)
+	ref, err := url.Parse(urlPart)
 	if err != nil {
 		return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(urlStr, "/")
 	}
-	return base.ResolveReference(ref).String()
+	return base.ResolveReference(ref).String() + optionSuffix
+}
+
+func splitURLOptionSuffix(value string) (string, string) {
+	for i := len(value) - 2; i >= 0; i-- {
+		if value[i] != ',' {
+			continue
+		}
+		j := i + 1
+		for j < len(value) && (value[j] == ' ' || value[j] == '\t' || value[j] == '\n' || value[j] == '\r') {
+			j++
+		}
+		if j >= len(value) || value[j] != '{' {
+			continue
+		}
+		depth := 1
+		k := j + 1
+		for k < len(value) && depth > 0 {
+			switch value[k] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			}
+			k++
+		}
+		if depth == 0 && strings.TrimSpace(value[k:]) == "" && json.Valid([]byte(value[j:k])) {
+			return value[:i], value[i:]
+		}
+	}
+	return value, ""
 }
