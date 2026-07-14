@@ -1,0 +1,60 @@
+services:
+  app:
+    image: ${NOVELREADER_IMAGE:-ghcr.io/otwako/novelreader:edge}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    restart: unless-stopped
+    stop_grace_period: 15s
+    ports:
+      - "127.0.0.1:${APP_PORT:-8888}:8888"
+    volumes:
+      - novelreader-data:/data
+    environment:
+      TZ: ${TZ:-UTC}
+      SEARCH_CONCURRENCY: ${SEARCH_CONCURRENCY:-16}
+      GLOBAL_SEARCH_CONCURRENCY: ${GLOBAL_SEARCH_CONCURRENCY:-32}
+      JS_POOL_SIZE: ${JS_POOL_SIZE:-4}
+      MAX_WORKFLOW_SESSIONS: ${MAX_WORKFLOW_SESSIONS:-1024}
+      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-30}
+      WEBVIEW_ENDPOINT: ${WEBVIEW_ENDPOINT:-}
+    cpus: ${APP_CPUS:-2.0}
+    mem_limit: ${APP_MEMORY:-4g}
+    depends_on:
+      webview-worker:
+        condition: service_healthy
+        required: false
+    networks:
+      - novelreader
+
+  webview-worker:
+    profiles: [webview]
+    image: ${NOVELREADER_WEBVIEW_IMAGE:-ghcr.io/otwako/novelreader-webview:edge}
+    build:
+      context: ./webview-worker
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    restart: unless-stopped
+    stop_grace_period: 15s
+    expose:
+      - "8787"
+    environment:
+      WEBVIEW_WORKER_HOST: 0.0.0.0
+      WEBVIEW_WORKER_PORT: 8787
+      WEBVIEW_MAX_PAGES: ${WEBVIEW_MAX_PAGES:-2}
+      WEBVIEW_MAX_PENDING: ${WEBVIEW_MAX_PENDING:-8}
+      WEBVIEW_MAX_CONTEXTS_PER_BROWSER: ${WEBVIEW_MAX_CONTEXTS_PER_BROWSER:-100}
+      WEBVIEW_MAX_BODY_BYTES: ${WEBVIEW_MAX_BODY_BYTES:-10485760}
+    cpus: ${WEBVIEW_CPUS:-2.0}
+    mem_limit: ${WEBVIEW_MEMORY:-4g}
+    shm_size: 512m
+    networks:
+      - novelreader
+
+volumes:
+  novelreader-data:
+
+networks:
+  novelreader:
+    driver: bridge
