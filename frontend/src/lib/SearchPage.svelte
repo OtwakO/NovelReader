@@ -1,242 +1,304 @@
 <script lang="ts">
-  import { searchBooksStream, enrichBook, addBook, type SearchResult } from '../api/client';
+  import {
+    searchBooksBatchStream, enrichBook, addBook, type SearchResult,
+  } from '../api/client';
+  import SearchControls from './SearchControls.svelte';
+  import SearchResults from './SearchResults.svelte';
+  import SearchStatus from './SearchStatus.svelte';
+  import { mergeSearchResults } from './searchResults.js';
+  import {
+    loadSearchPreferences, requestedConcurrency, saveSearchPreferences,
+    type SearchIntensity,
+  } from './searchPreferences';
 
   let { go }: { go: (path: string) => void } = $props();
 
   const STORAGE_KEY = 'nr_search_state';
+  const STATE_VERSION = 2;
 
   let query = $state('');
+  let searchedQuery = $state('');
   let results = $state<SearchResult[]>([]);
   let searching = $state(false);
-  let sourcesDone = $state(0);
-  let totalResults = $state(0);
+  let checked = $state(0);
+  let eligible = $state(0);
+  let committedOffset = $state(0);
+  let cursor = $state('');
+  let retryCursor = $state('');
+  let hasMore = $state(false);
+  let retryRequired = $state(false);
+  let restartRequired = $state(false);
+  let batchSourceIds = $state<string[]>([]);
+  let sourceFailures = $state(0);
+  let effectiveConcurrency = $state(0);
+  let activeBatchSize = $state(50);
+  let activeConcurrency = $state(8);
   let error = $state('');
+  let storageWarning = $state('');
   let es = $state<EventSource | null>(null);
+  let initialized = $state(false);
+
+  let batchSize = $state(50);
+  let intensity = $state<SearchIntensity>('balanced');
+  let advancedConcurrency = $state(8);
+
+  $effect(() => {
+    if (initialized) return;
+    initialized = true;
+    const preferences = loadSearchPreferences();
+    batchSize = preferences.batchSize;
+    intensity = preferences.intensity;
+    advancedConcurrency = preferences.advancedConcurrency;
+
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (!saved) return;
+    try {
+      const state = JSON.parse(saved);
+      if (!Array.isArray(state.results)) throw new Error('invalid saved results');
+      query = typeof state.query === 'string' ? state.query : '';
+      searchedQuery = typeof state.searchedQuery === 'string' ? state.searchedQuery : query;
+      results = state.results;
+      if (state.version === STATE_VERSION) {
+        const numbers = [state.checked, state.eligible, state.committedOffset, state.sourceFailures, state.activeBatchSize, state.activeConcurrency];
+        if (!Array.isArray(state.batchSourceIds) || numbers.some((value) => !Number.isFinite(value))) {
+          throw new Error('invalid saved search state');
+        }
+        checked = Math.max(0, state.checked);
+        eligible = Math.max(0, state.eligible);
+        committedOffset = Math.max(0, state.committedOffset);
+        cursor = typeof state.cursor === 'string' ? state.cursor : '';
+        retryCursor = typeof state.retryCursor === 'string' ? state.retryCursor : '';
+        hasMore = Boolean(state.hasMore);
+        retryRequired = Boolean(state.retryRequired || state.inFlight);
+        restartRequired = Boolean(state.restartRequired);
+        batchSourceIds = state.batchSourceIds.filter((value: unknown) => typeof value === 'string');
+        sourceFailures = Math.max(0, state.sourceFailures);
+        activeBatchSize = Math.min(500, Math.max(1, state.activeBatchSize));
+        activeConcurrency = Math.max(1, state.activeConcurrency);
+      } else {
+        checked = Number.isFinite(state.sourcesDone) ? Math.max(0, state.sourcesDone) : 0;
+        restartRequired = results.length > 0;
+      }
+    } catch {
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+  });
+
+  $effect(() => () => {
+    if (es) {
+      es.close();
+      es = null;
+      searching = false;
+      retryRequired = true;
+      saveState();
+    }
+  });
+
+  function preferences() {
+    return { batchSize, intensity, advancedConcurrency };
+  }
+
+  function persistPreferences() {
+    saveSearchPreferences(preferences());
+  }
 
   function saveState() {
-    if (results.length > 0) {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ query, results, sourcesDone, totalResults }));
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version: STATE_VERSION,
+        query, searchedQuery, results, checked, eligible, committedOffset,
+        cursor, retryCursor, hasMore, retryRequired, restartRequired, inFlight: searching,
+        batchSourceIds, sourceFailures, activeBatchSize, activeConcurrency,
+      }));
+      storageWarning = '';
+    } catch {
+      storageWarning = 'Search state could not be saved in this tab.';
     }
   }
 
-  // Restore search state from sessionStorage on mount (survives navigation)
-  $effect(() => {
-    const saved = sessionStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const state = JSON.parse(saved);
-        query = state.query || '';
-        results = state.results || [];
-        sourcesDone = state.sourcesDone || 0;
-        totalResults = state.totalResults || 0;
-      } catch { /* ignore */ }
-    }
-  });
+  function handleSearch(event: Event) {
+    event.preventDefault();
+    const nextQuery = query.trim();
+    if (!nextQuery) return;
 
-  // Clean up EventSource on unmount (route change, back nav)
-  $effect(() => {
-    return () => {
-      if (es) { es.close(); es = null; }
-    };
-  });
-
-  function handleSearch(e: Event) {
-    e.preventDefault();
-    if (!query.trim()) return;
-
-    // Cancel previous search
     if (es) es.close();
-
+    searchedQuery = nextQuery;
     results = [];
-    sourcesDone = 0;
-    totalResults = 0;
+    checked = 0;
+    eligible = 0;
+    committedOffset = 0;
+    cursor = '';
+    retryCursor = '';
+    hasMore = false;
+    retryRequired = false;
+    restartRequired = false;
+    batchSourceIds = [];
+    sourceFailures = 0;
     error = '';
-    searching = true;
-
     sessionStorage.removeItem(STORAGE_KEY);
+    startBatch('', batchSize, requestedConcurrency(preferences()), false);
+  }
 
-    const q = query.trim();
-    // Track if we've saved state for the completion; prevents race where
-    // both onDone and onMerged fire separately due to async timing.
-    let completed = false;
+  function startBatch(startCursor: string, size: number, concurrency: number, preservePartial: boolean) {
+    if (es) es.close();
+    if (!preservePartial) batchSourceIds = [];
+    activeBatchSize = size;
+    activeConcurrency = concurrency;
+    retryCursor = startCursor;
+    searching = true;
+    retryRequired = false;
+    restartRequired = false;
+    error = '';
 
-    es = searchBooksStream(
-      q,
-      (source, items) => {
-        results = [...results, ...items];
-        results.sort((a, b) => (b.score || 0) - (a.score || 0));
-        sourcesDone++;
+    es = searchBooksBatchStream(searchedQuery, {
+      cursor: startCursor, batchSize: size, concurrency,
+    }, {
+      onStart: (event) => {
+        committedOffset = event.offset;
+        eligible = event.eligible;
+        retryCursor = event.retryCursor;
+        effectiveConcurrency = event.effectiveConcurrency;
+        checked = committedOffset + batchSourceIds.length;
+        saveState();
       },
-      (_source, _msg) => {
-        sourcesDone++;
+      onResult: (sourceId, items) => {
+        markSourceChecked(sourceId);
+        results = mergeSearchResults(results, items, searchedQuery);
+        saveState();
       },
-      (total, done) => {
-        totalResults = total;
-        sourcesDone = done;
+      onSourceError: (sourceId) => {
+        markSourceChecked(sourceId);
+        saveState();
+      },
+      onDone: (event) => {
         searching = false;
         es = null;
-        if (!completed) {
-          completed = true;
-          saveState();
+        if (event.complete) {
+          committedOffset = event.checked;
+          checked = event.checked;
+          cursor = event.nextCursor || '';
+          retryCursor = '';
+          hasMore = event.hasMore;
+          retryRequired = false;
+          batchSourceIds = [];
+          sourceFailures += event.sourceFailures;
+        } else {
+          retryRequired = true;
         }
-      },
-      // Called after all search completes — replace with cross-source merged results
-      (merged) => {
-        if (merged) results = merged;
-        if (!completed) {
-          completed = true;
-        }
-        // Always save after merge, even if onDone already called
         saveState();
-      }
-    );
+      },
+      onStale: (message) => {
+        searching = false;
+        es = null;
+        restartRequired = true;
+        error = message;
+        saveState();
+      },
+      onDisconnect: () => {
+        searching = false;
+        es = null;
+        retryRequired = true;
+        error = 'Search connection was interrupted. Retry this batch.';
+        saveState();
+      },
+    });
+  }
+
+  function markSourceChecked(sourceId: string) {
+    if (!batchSourceIds.includes(sourceId)) batchSourceIds = [...batchSourceIds, sourceId];
+    checked = committedOffset + batchSourceIds.length;
   }
 
   function cancelSearch() {
-    if (es) { es.close(); es = null; }
+    if (es) {
+      es.close();
+      es = null;
+    }
     searching = false;
+    retryRequired = true;
+    error = '';
+    saveState();
+  }
+
+  function retryBatch() {
+    startBatch(retryCursor, activeBatchSize, activeConcurrency, true);
+  }
+
+  function searchMore() {
+    startBatch(cursor, batchSize, requestedConcurrency(preferences()), false);
+  }
+
+  function restartSearch() {
+    query = searchedQuery || query;
+    handleSearch(new Event('submit'));
   }
 
   let adding = $state<string | null>(null);
-  async function addToShelf(r: SearchResult) {
-    adding = r.bookUrl;
+  async function addToShelf(result: SearchResult) {
+    adding = result.bookUrl;
     try {
       const id = crypto.randomUUID?.() ?? (Date.now().toString(36) + Math.random().toString(36).slice(2));
       try {
         await enrichBook({
-          id, name: r.name, author: r.author || '',
-          coverUrl: r.coverUrl || '', intro: r.intro || '',
-          sourceUrl: r.sourceUrl, bookUrl: r.bookUrl,
-          alternateSources: r.alternateSources,
+          id, name: result.name, author: result.author || '',
+          coverUrl: result.coverUrl || '', intro: result.intro || '',
+          sourceUrl: result.sourceUrl, bookUrl: result.bookUrl,
+          alternateSources: result.alternateSources,
         });
       } catch {
         await addBook({
-          id, name: r.name, author: r.author, coverUrl: r.coverUrl,
-          intro: r.intro, kind: r.kind, sourceUrl: r.sourceUrl, bookUrl: r.bookUrl,
+          id, name: result.name, author: result.author, coverUrl: result.coverUrl,
+          intro: result.intro, kind: result.kind, sourceUrl: result.sourceUrl,
+          bookUrl: result.bookUrl, alternateSources: result.alternateSources,
         });
       }
       go(`book?id=${id}`);
-    } catch (e: unknown) {
-      alert('Failed: ' + (e as Error).message);
+    } catch (caught: unknown) {
+      alert('Failed: ' + (caught as Error).message);
     }
     adding = null;
   }
 
-  function uniqueBooks() {
-    let count = 0;
-    let multi = 0;
-    for (const r of results) {
-      count++;
-      if (r.alternateSources && r.alternateSources.length > 0) multi++;
-    }
-    return { count, multi };
-  }
 </script>
 
 <div class="page">
   <form class="search-bar" onsubmit={handleSearch}>
-    <input
-      type="search"
-      bind:value={query}
-      placeholder="Search books..."
-    />
+    <input type="search" bind:value={query} placeholder="Search books..." aria-label="Book title" />
     {#if searching}
-      <button type="button" class="cancel-btn" onclick={cancelSearch}>✕</button>
+      <button type="button" class="cancel-btn" onclick={cancelSearch}>Stop</button>
     {:else}
       <button type="submit">Search</button>
     {/if}
   </form>
 
-  {#if searching}
-    <div class="search-status">
-      <span class="spinner"></span>
-      <span>Searching... {totalResults || results.length} results from {sourcesDone} sources</span>
-    </div>
-  {:else if error}
-    <p class="error">{error}</p>
+  <SearchControls bind:batchSize bind:intensity bind:advancedConcurrency onchange={persistPreferences} />
+
+  {#if searchedQuery}
+    <SearchStatus
+      {checked} {eligible} resultCount={results.length} {searching}
+      effectiveConcurrency={effectiveConcurrency || activeConcurrency}
+      {sourceFailures} {error} {storageWarning} {restartRequired}
+      {retryRequired} {hasMore} {batchSize}
+      onrestart={restartSearch} onretry={retryBatch} onmore={searchMore}
+    />
   {/if}
 
   {#if results.length > 0}
-    <div class="result-count">
-      {results.length} book{#if results.length !== 1}s{/if} · {sourcesDone} sources
-      {#if uniqueBooks().multi > 0}
-        · {uniqueBooks().multi} with multiple sources
-      {/if}
-    </div>
-    <div class="results">
-      {#each results as r, i (r.sourceUrl + r.bookUrl + i)}
-        <div class="result-card">
-          {#if r.coverUrl}
-            <img src={r.coverUrl} alt={r.name} class="cover" loading="lazy" />
-          {/if}
-          <div class="info">
-            <strong>{r.name}</strong>
-            {#if r.author}<span class="author">{r.author}</span>{/if}
-            {#if r.kind}<span class="kind">{r.kind}</span>{/if}
-            {#if r.lastChapter}<span class="last">{r.lastChapter}</span>{/if}
-            <div class="source-row">
-              <span class="source">{r.sourceName}</span>
-              {#if r.alternateSources && r.alternateSources.length > 0}
-                <span class="alt-count">+{r.alternateSources.length} sources</span>
-              {/if}
-            </div>
-          </div>
-          <button class="add-btn" onclick={() => addToShelf(r)} disabled={adding === r.bookUrl}>
-            +
-          </button>
-        </div>
-      {/each}
-    </div>
+    <SearchResults {results} {adding} onadd={addToShelf} />
   {/if}
 </div>
 
 <style>
   .page { padding: 1rem; }
-  .search-bar { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .search-bar { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
   .search-bar input {
-    flex: 1; padding: 0.6rem 0.8rem; border: 1px solid var(--border);
+    flex: 1; min-width: 0; padding: 0.6rem 0.8rem; border: 1px solid var(--border);
     border-radius: 10px; font-size: 1rem; background: var(--card-bg);
   }
-  .search-bar button, .cancel-btn {
+  .search-bar button {
     background: var(--accent); color: white; border: none;
-    padding: 0.6rem 1rem; border-radius: 10px; font-size: 0.95rem; cursor: pointer;
+    padding: 0.6rem 1rem; border-radius: 10px; font-size: 0.9rem; cursor: pointer;
   }
-  .cancel-btn { background: #e74c3c; }
-  .search-bar button:disabled { opacity: 0.5; }
-
-  .search-status {
-    display: flex; align-items: center; gap: 0.5rem;
-    font-size: 0.85rem; color: #888; margin-bottom: 0.75rem;
-  }
-  .spinner {
-    width: 1rem; height: 1rem; border: 2px solid var(--border);
-    border-top-color: var(--accent); border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .result-count { font-size: 0.8rem; color: #999; margin-bottom: 0.5rem; }
-
-  .results { display: flex; flex-direction: column; gap: 0.5rem; }
-  .result-card {
-    display: flex; gap: 0.75rem; align-items: center;
-    padding: 0.75rem; background: var(--card-bg); border-radius: 10px;
-    border: 1px solid var(--border);
-  }
-  .cover { width: 48px; height: 64px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
-  .info { flex: 1; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-  .info strong { font-size: 0.95rem; }
-  .author { font-size: 0.8rem; color: #888; }
-  .kind { font-size: 0.75rem; color: var(--accent); }
-  .last { font-size: 0.75rem; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .source-row { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
-  .source { font-size: 0.7rem; color: #aaa; }
-  .alt-count { font-size: 0.7rem; color: var(--accent); font-weight: 600; }
-  .add-btn {
-    background: var(--accent); color: white; border: none;
-    width: 2rem; height: 2rem; border-radius: 50%; font-size: 1.2rem;
-    cursor: pointer; flex-shrink: 0;
-  }
-  .add-btn:disabled { opacity: 0.5; }
-  .error { color: #e74c3c; margin-bottom: 0.5rem; }
+  .search-bar .cancel-btn { background: #b42318; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>

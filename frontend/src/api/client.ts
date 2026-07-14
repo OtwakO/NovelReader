@@ -109,6 +109,81 @@ export function searchBooksStream(
   return es;
 }
 
+export interface SearchBatchOptions {
+  batchSize: number;
+  concurrency: number;
+  cursor?: string;
+}
+
+export interface SearchBatchStart {
+  offset: number;
+  eligible: number;
+  sourcesInBatch: number;
+  requestedConcurrency: number;
+  effectiveConcurrency: number;
+  retryCursor: string;
+}
+
+export interface SearchBatchDone {
+  complete: boolean;
+  checked: number;
+  eligible: number;
+  hasMore: boolean;
+  nextCursor?: string;
+  retryCursor: string;
+  sourceFailures: number;
+}
+
+export interface SearchBatchHandlers {
+  onStart: (event: SearchBatchStart) => void;
+  onResult: (sourceId: string, items: SearchResult[], checked: number) => void;
+  onSourceError: (sourceId: string, message: string, checked: number) => void;
+  onDone: (event: SearchBatchDone) => void;
+  onStale: (message: string) => void;
+  onDisconnect: () => void;
+}
+
+export function searchBooksBatchStream(
+  query: string,
+  options: SearchBatchOptions,
+  handlers: SearchBatchHandlers,
+): EventSource {
+  const params = new URLSearchParams({
+    q: query,
+    batchSize: String(options.batchSize),
+    concurrency: String(options.concurrency),
+  });
+  if (options.cursor) params.set('cursor', options.cursor);
+
+  const es = new EventSource(`/api/search/stream?${params}`);
+  let finished = false;
+  es.onmessage = (message) => {
+    try {
+      const event = JSON.parse(message.data);
+      if (event.type === 'start') handlers.onStart(event);
+      else if (event.type === 'results') handlers.onResult(event.sourceId, event.data, event.checked);
+      else if (event.type === 'source_error') handlers.onSourceError(event.sourceId, event.message, event.checked);
+      else if (event.type === 'stale') {
+        finished = true;
+        handlers.onStale(event.message);
+        es.close();
+      } else if (event.type === 'done') {
+        finished = true;
+        handlers.onDone(event);
+        es.close();
+      }
+    } catch { /* malformed events cannot safely change search state */ }
+  };
+  es.onerror = () => {
+    if (!finished) {
+      finished = true;
+      es.close();
+      handlers.onDisconnect();
+    }
+  };
+  return es;
+}
+
 // --- Books ---
 export interface Book {
   id: string;
