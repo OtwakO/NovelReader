@@ -63,6 +63,7 @@ type Searcher struct {
 	sourceStore             sourceLister
 	bookStore               *Store
 	sessions                *sourceexec.SessionRegistry
+	workflowTimeout         time.Duration
 	searchSlots             chan struct{}
 	capacity                capacityCounters
 	// per-source rate limiting (concurrentRate)
@@ -82,15 +83,16 @@ func NewSearcher(
 		sharedFetcher = hc.StatelessClone()
 	}
 	return &Searcher{
-		fetcher:     sharedFetcher,
-		jsVM:        jsVM,
-		cache:       cache,
-		sourceStore: sourceStore,
-		bookStore:   bookStore,
-		sessions:    sourceexec.NewSessionRegistry(),
-		searchSlots: make(chan struct{}, maxConcurrentGlobalSearch),
-		rateMu:      sync.Mutex{},
-		lastAccess:  make(map[string]time.Time),
+		fetcher:         sharedFetcher,
+		jsVM:            jsVM,
+		cache:           cache,
+		sourceStore:     sourceStore,
+		bookStore:       bookStore,
+		sessions:        sourceexec.NewSessionRegistry(),
+		workflowTimeout: perSourceTimeout,
+		searchSlots:     make(chan struct{}, maxConcurrentGlobalSearch),
+		rateMu:          sync.Mutex{},
+		lastAccess:      make(map[string]time.Time),
 	}
 }
 
@@ -102,11 +104,25 @@ func (s *Searcher) SetWebViewTransportFactory(factory WebViewTransportFactory) {
 	s.webViewTransportFactory = factory
 }
 
+// SetWorkflowTimeout changes the per-stage timeout; the default is ten seconds.
+func (s *Searcher) SetWorkflowTimeout(timeout time.Duration) {
+	if timeout > 0 {
+		s.workflowTimeout = timeout
+	}
+}
+
+func (s *Searcher) sourceTimeout() time.Duration {
+	if s.workflowTimeout > 0 {
+		return s.workflowTimeout
+	}
+	return perSourceTimeout
+}
+
 func (s *Searcher) workflowClient() *fetcher.Client {
 	if s.fetcher != nil {
 		return s.fetcher
 	}
-	return fetcher.NewInsecure(perSourceTimeout)
+	return fetcher.NewInsecure(s.sourceTimeout())
 }
 
 func (s *Searcher) newTransport(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {
@@ -349,7 +365,7 @@ func (s *Searcher) rateLimitWait(src booksource.BookSource) {
 
 // searchSource performs a single source search.
 func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, query string) ([]SearchResult, error) {
-	srcCtx, cancel := context.WithTimeout(ctx, perSourceTimeout)
+	srcCtx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
 	defer cancel()
 
 	// Search owns one session/client pair so cookies and source variables cannot leak
@@ -532,7 +548,7 @@ func (s *Searcher) ParseSearchResultWithStateAtURL(src booksource.BookSource, ht
 
 // GetBookInfo fetches and parses book info using ruleBookInfo.
 func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), perSourceTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
 	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
@@ -615,7 +631,7 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 	if fetchURL == "" {
 		fetchURL = bookURL
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), perSourceTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
 	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
@@ -793,7 +809,7 @@ func detectTOCPage(bookPageURL, sourceURL string, fetcher *fetcher.Client, heade
 // If the standard rule extraction returns empty content, it attempts to
 // find content embedded as JSON in <script> tags (common for Vue.js/React SPAs).
 func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL string) (string, string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), perSourceTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
 	defer cancel()
 
 	session := s.sessions.GetChapter(src.BookSourceURL, chapterURL)
@@ -1081,7 +1097,8 @@ func splitURLOptionSuffix(value string) (string, string) {
 			}
 			k++
 		}
-		if depth == 0 && strings.TrimSpace(value[k:]) == "" && json.Valid([]byte(value[j:k])) {
+		if depth == 0 && strings.TrimSpace(value[k:]) == "" &&
+			(json.Valid([]byte(value[j:k])) || strings.Contains(value[j:k], "'")) {
 			return value[:i], value[i:]
 		}
 	}

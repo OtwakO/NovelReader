@@ -11,7 +11,7 @@ import (
 )
 
 func TestWorkflowRoutesWebViewTOCAndContent(t *testing.T) {
-	detail := `<html><h1 class="title">Fixture novel</h1><a class="toc" href='/toc,{"webView":true}'>目录</a></html>`
+	detail := `<html><h1 class="title">Fixture novel</h1><a class="toc" href="/toc,{'webView':true}">目录</a></html>`
 	normal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/book" {
 			t.Errorf("normal request path=%q", r.URL.Path)
@@ -22,14 +22,16 @@ func TestWorkflowRoutesWebViewTOCAndContent(t *testing.T) {
 	}))
 	defer normal.Close()
 
+	browserCalls := 0
 	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		browserCalls++
 		var request struct {
 			URL string `json:"url"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatal(err)
 		}
-		body := `<a class="chapter" href='/content,{"webView":true}'><span class="name">第一章</span></a>`
+		body := `<a class="chapter" href="/content,{'webView':true}"><span class="name">第一章</span></a>`
 		if strings.Contains(request.URL, "/content") {
 			body = `<article class="content">rendered browser chapter</article>`
 		}
@@ -62,7 +64,7 @@ func TestWorkflowRoutesWebViewTOCAndContent(t *testing.T) {
 	if record.FirstChapter == nil || !strings.Contains(record.FirstChapter.URL, "/content") {
 		t.Fatalf("chapter=%+v", record.FirstChapter)
 	}
-	if record.ContentSample != "rendered browser chapter" {
-		t.Fatalf("content=%q", record.ContentSample)
+	if record.ContentSample != "rendered browser chapter" || browserCalls != 2 {
+		t.Fatalf("content=%q browserCalls=%d", record.ContentSample, browserCalls)
 	}
 }

@@ -155,7 +155,10 @@ class BrowserWorker:
             )
             cookies = browser_cookies(request.get("cookies") or [], target)
             if cookies:
-                await context.add_cookies(cookies)
+                try:
+                    await context.add_cookies(cookies)
+                except Exception as exc:
+                    raise ValueError(f"cookie input rejected ({len(cookies)} cookies): {exc}") from exc
             page = await context.new_page()
             navigation_urls: list[str] = []
             page.on(
@@ -255,12 +258,12 @@ def browser_cookies(cookies: list[dict], target: str) -> list[dict]:
         item = {
             "name": cookie["name"],
             "value": cookie["value"],
-            "path": cookie.get("path") or "/",
             "httpOnly": bool(cookie.get("httpOnly")),
             "secure": bool(cookie.get("secure")),
         }
         if cookie.get("domain"):
             item["domain"] = cookie["domain"]
+            item["path"] = cookie.get("path") or "/"
         else:
             item["url"] = cookie.get("url") or target
         if cookie.get("expires"):
@@ -275,7 +278,7 @@ def protocol_cookies(cookies: list[dict]) -> list[dict]:
             "name": cookie["name"],
             "value": cookie["value"],
             "domain": cookie.get("domain", ""),
-            "path": cookie.get("path", "/"),
+            "path": cookie.get("path") or "/",
             "expires": cookie.get("expires", -1),
             "httpOnly": cookie.get("httpOnly", False),
             "secure": cookie.get("secure", False),
@@ -309,7 +312,7 @@ async def response_headers_async(response) -> dict[str, str]:
     if response is None:
         return {}
     method = getattr(response, "all_headers", None)
-    if method is not None:
+    if callable(method):
         return dict(await method())
     return response_headers(response)
 

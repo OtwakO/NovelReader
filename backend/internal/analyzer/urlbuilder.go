@@ -512,15 +512,71 @@ func extractJSONOption(url string) (before string, option string, found bool) {
 				}
 				if depth == 0 {
 					optionStr := url[j:k]
-					if json.Valid([]byte(optionStr)) {
-						// Return URL up to comma (not including it) and option without comma
-						return url[:i], optionStr, true
+					if normalized, ok := normalizeJSONOption(optionStr); ok {
+						// Return URL up to comma (not including it) and normalized option.
+						return url[:i], normalized, true
 					}
 				}
 			}
 		}
 	}
 	return url, "", false
+}
+
+func normalizeJSONOption(raw string) (string, bool) {
+	if json.Valid([]byte(raw)) {
+		return raw, true
+	}
+	var out strings.Builder
+	out.Grow(len(raw))
+	inDouble, inSingle, escaped := false, false, false
+	for _, char := range raw {
+		switch {
+		case inDouble:
+			out.WriteRune(char)
+			if escaped {
+				escaped = false
+			} else if char == '\\' {
+				escaped = true
+			} else if char == '"' {
+				inDouble = false
+			}
+		case inSingle:
+			if escaped {
+				if char == '"' {
+					out.WriteString(`\"`)
+				} else {
+					out.WriteRune(char)
+				}
+				escaped = false
+			} else if char == '\\' {
+				escaped = true
+			} else if char == '\'' {
+				out.WriteByte('"')
+				inSingle = false
+			} else if char == '"' {
+				out.WriteString(`\"`)
+			} else {
+				out.WriteRune(char)
+			}
+		default:
+			switch char {
+			case '"':
+				inDouble = true
+				out.WriteRune(char)
+			case '\'':
+				inSingle = true
+				out.WriteByte('"')
+			default:
+				out.WriteRune(char)
+			}
+		}
+	}
+	if inDouble || inSingle || escaped {
+		return "", false
+	}
+	normalized := out.String()
+	return normalized, json.Valid([]byte(normalized))
 }
 
 // findJSONOption is deprecated. Use extractJSONOption instead.

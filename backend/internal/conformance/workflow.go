@@ -109,6 +109,7 @@ func RunWorkflowWithOptions(ctx context.Context, raw []byte, index int, bookURL 
 func newWorkflowSearcher(timeout time.Duration, options Options) (*book.Searcher, error) {
 	jsVM := analyzer.NewJSVM()
 	searcher := book.NewSearcher(fetcher.NewInsecureStateless(timeout), jsVM, nil, nil, nil)
+	searcher.SetWorkflowTimeout(timeout)
 	searcher.SetTransportFactory(func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {
 		normal := sourceexec.NewHTTPTransportForSession(client, session)
 		if !options.Fingerprint {
