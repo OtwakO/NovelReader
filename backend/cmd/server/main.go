@@ -2,11 +2,16 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -140,8 +145,37 @@ func main() {
 		WriteTimeout: 0, // no write timeout for long reads
 	}
 
-	if err := srv.ListenAndServe(); err != nil {
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalf("server: listen: %v", err)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := serve(ctx, srv, listener); err != nil {
 		log.Fatalf("server: %v", err)
+	}
+}
+
+func serve(ctx context.Context, server *http.Server, listener net.Listener) error {
+	serverErrors := make(chan error, 1)
+	go func() { serverErrors <- server.Serve(listener) }()
+
+	select {
+	case err := <-serverErrors:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("shutdown: %w", err)
+		}
+		if err := <-serverErrors; err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
 	}
 }
 
