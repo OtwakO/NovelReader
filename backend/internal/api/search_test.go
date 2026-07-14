@@ -3,6 +3,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -62,6 +63,19 @@ func TestHandleSearchStreamValidatesBatchParameters(t *testing.T) {
 	}
 }
 
+func TestHandleSearchStreamReportsSourceStoreFailures(t *testing.T) {
+	apiServer, store, _, closeSource := newSearchAPIFixture(t, 1)
+	defer closeSource()
+	store.err = errors.New("database unavailable")
+	response := performSearch(t, apiServer, "/api/search/stream?q=fixture&batchSize=1&concurrency=2")
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want 500; body=%s", response.Code, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), "database unavailable") {
+		t.Fatalf("internal error leaked to client: %s", response.Body.String())
+	}
+}
+
 func TestHandleSearchStreamKeepsLegacyEventContract(t *testing.T) {
 	apiServer, _, _, closeSource := newSearchAPIFixture(t, 1)
 	defer closeSource()
@@ -72,10 +86,13 @@ func TestHandleSearchStreamKeepsLegacyEventContract(t *testing.T) {
 	}
 }
 
-type apiSourceStore struct{ sources []booksource.BookSource }
+type apiSourceStore struct {
+	sources []booksource.BookSource
+	err     error
+}
 
 func (s *apiSourceStore) ListEnabled() ([]booksource.BookSource, error) {
-	return append([]booksource.BookSource(nil), s.sources...), nil
+	return append([]booksource.BookSource(nil), s.sources...), s.err
 }
 
 func newSearchAPIFixture(t *testing.T, count int) (*Server, *apiSourceStore, *atomic.Int64, func()) {

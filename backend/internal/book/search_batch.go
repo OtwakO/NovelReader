@@ -21,7 +21,11 @@ const (
 	MaxSearchBatchSize  = 500
 )
 
-var ErrStaleSearchCursor = errors.New("search sources changed")
+var (
+	ErrInvalidSearchBatch  = errors.New("invalid search batch")
+	ErrInvalidSearchCursor = errors.New("invalid search cursor")
+	ErrStaleSearchCursor   = errors.New("search sources changed")
+)
 
 type SearchBatchOptions struct {
 	Cursor      string
@@ -51,10 +55,10 @@ type searchCursor struct {
 
 func (s *Searcher) PrepareSearchBatch(options SearchBatchOptions) (SearchBatchPlan, error) {
 	if options.Limit < 1 || options.Limit > MaxSearchBatchSize {
-		return SearchBatchPlan{}, fmt.Errorf("search batch size must be between 1 and %d", MaxSearchBatchSize)
+		return SearchBatchPlan{}, fmt.Errorf("%w: size must be between 1 and %d", ErrInvalidSearchBatch, MaxSearchBatchSize)
 	}
 	if options.Concurrency < 0 {
-		return SearchBatchPlan{}, errors.New("search concurrency must not be negative")
+		return SearchBatchPlan{}, fmt.Errorf("%w: concurrency must not be negative", ErrInvalidSearchBatch)
 	}
 
 	candidates, err := s.searchCandidates()
@@ -84,7 +88,7 @@ func (s *Searcher) PrepareSearchBatch(options SearchBatchOptions) (SearchBatchPl
 		offset = cursor.Offset
 	}
 	if offset < 0 || offset > len(candidates) {
-		return SearchBatchPlan{}, errors.New("search cursor offset is out of range")
+		return SearchBatchPlan{}, fmt.Errorf("%w: offset is out of range", ErrInvalidSearchCursor)
 	}
 
 	end := min(offset+options.Limit, len(candidates))
@@ -141,14 +145,14 @@ func encodeSearchCursor(offset int, revision string) string {
 func decodeSearchCursor(value string) (searchCursor, error) {
 	payload, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {
-		return searchCursor{}, errors.New("invalid search cursor")
+		return searchCursor{}, ErrInvalidSearchCursor
 	}
 	var cursor searchCursor
 	if err := json.Unmarshal(payload, &cursor); err != nil || cursor.Version != searchCursorVersion || cursor.Offset < 0 || len(cursor.Revision) != sha256.Size*2 {
-		return searchCursor{}, errors.New("invalid search cursor")
+		return searchCursor{}, ErrInvalidSearchCursor
 	}
 	if _, err := hex.DecodeString(cursor.Revision); err != nil {
-		return searchCursor{}, errors.New("invalid search cursor")
+		return searchCursor{}, ErrInvalidSearchCursor
 	}
 	return cursor, nil
 }

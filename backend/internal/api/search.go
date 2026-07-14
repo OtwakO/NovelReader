@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
@@ -37,16 +39,28 @@ func (s *Server) handleSearchBatchStream(w http.ResponseWriter, r *http.Request)
 		Cursor: r.URL.Query().Get("cursor"), Limit: batchSize, Concurrency: concurrency,
 	})
 	if errors.Is(err, book.ErrStaleSearchCursor) {
+		slog.Info("search batch rejected", "reason", "sources_changed")
 		writeSearchSSE(w, map[string]interface{}{
 			"type": "stale", "code": "sources_changed", "restartRequired": true,
 			"message": "Eligible sources changed; restart the search.",
 		})
 		return
 	}
-	if err != nil {
+	if errors.Is(err, book.ErrInvalidSearchBatch) || errors.Is(err, book.ErrInvalidSearchCursor) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to prepare search batch")
+		return
+	}
+
+	started := time.Now()
+	slog.Info("search batch starting",
+		"revision", plan.Revision[:8], "offset", plan.Offset,
+		"batch_size", plan.SourcesInBatch, "eligible", plan.Eligible,
+		"requested_concurrency", plan.RequestedConcurrency,
+		"effective_concurrency", plan.EffectiveConcurrency)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -100,6 +114,10 @@ func (s *Server) handleSearchBatchStream(w http.ResponseWriter, r *http.Request)
 		done["error"] = true
 	}
 	write(done)
+	slog.Info("search batch finished",
+		"revision", plan.Revision[:8], "offset", plan.Offset,
+		"completed", batchChecked, "failures", sourceFailures,
+		"duration", time.Since(started), "cancelled", errors.Is(err, context.Canceled))
 }
 
 func positiveQueryInt(r *http.Request, name string) (int, error) {

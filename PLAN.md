@@ -1099,3 +1099,8 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Replaced launch-then-drain behavior with a fixed worker pool whose completion channel is consumed immediately; a blocking fixture proves the first callback arrives before the full batch starts.
 - **Affected**: `backend/internal/book/search_stream.go`, `backend/internal/book/search_batch_test.go`.
 - **Watch out**: Keep completion consumption concurrent with job admission; otherwise cancellation again loses useful partial progress.
+### [2026-07-14] Batch preparation hid source-store failures
+- **Problem**: The API treated every non-stale batch preparation failure as invalid client input, so database failures returned 400 responses with internal error text.
+- **Fix**: Added typed batch/cursor validation errors, return sanitized 500 responses for internal preparation failures, and covered the failure boundary.
+- **Affected**: `backend/internal/book/search_batch.go`, `backend/internal/api/search.go`, `backend/internal/api/search_test.go`.
+- **Watch out**: Keep trust-boundary validation errors distinct from storage and execution failures.
