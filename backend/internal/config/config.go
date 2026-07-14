@@ -8,22 +8,32 @@ import (
 )
 
 type Config struct {
-	Port            int
-	DatabasePath    string
-	DataDir         string
-	ReadTimeout     time.Duration
-	CORSOrigin      string
-	WebViewEndpoint string
+	Port                    int
+	DatabasePath            string
+	DataDir                 string
+	ReadTimeout             time.Duration
+	CORSOrigin              string
+	WebViewEndpoint         string
+	SearchConcurrency       int
+	GlobalSearchConcurrency int
+	JSPoolSize              int
+	MaxSessions             int
+	SessionTTL              time.Duration
 }
 
 func Load() *Config {
 	return &Config{
-		Port:            getEnvInt("PORT", 8888),
-		DatabasePath:    getEnv("DATABASE_PATH", "./data/novelreader.db"),
-		DataDir:         getEnv("DATA_DIR", "./data"),
-		ReadTimeout:     time.Duration(getEnvInt("READ_TIMEOUT_SECONDS", 30)) * time.Second,
-		CORSOrigin:      getEnv("CORS_ORIGIN", "*"),
-		WebViewEndpoint: getEnv("WEBVIEW_ENDPOINT", ""),
+		Port:                    getEnvInt("PORT", 8888),
+		DatabasePath:            getEnv("DATABASE_PATH", "./data/novelreader.db"),
+		DataDir:                 getEnv("DATA_DIR", "./data"),
+		ReadTimeout:             time.Duration(getEnvInt("READ_TIMEOUT_SECONDS", 30)) * time.Second,
+		CORSOrigin:              getEnv("CORS_ORIGIN", "*"),
+		WebViewEndpoint:         getEnv("WEBVIEW_ENDPOINT", ""),
+		SearchConcurrency:       getEnvPositiveInt("SEARCH_CONCURRENCY", 16),
+		GlobalSearchConcurrency: getEnvPositiveInt("GLOBAL_SEARCH_CONCURRENCY", 32),
+		JSPoolSize:              getEnvPositiveInt("JS_POOL_SIZE", 4),
+		MaxSessions:             getEnvPositiveInt("MAX_WORKFLOW_SESSIONS", 1024),
+		SessionTTL:              time.Duration(getEnvPositiveInt("SESSION_TTL_MINUTES", 30)) * time.Minute,
 	}
 }
 
@@ -41,4 +51,12 @@ func getEnvInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+func getEnvPositiveInt(key string, fallback int) int {
+	value := getEnvInt(key, fallback)
+	if value < 1 {
+		return fallback
+	}
+	return value
 }

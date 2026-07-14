@@ -74,11 +74,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("fingerprint transport: %v", err)
 	}
-	jsVM := analyzer.NewJSVM()
+	jsVM := analyzer.NewJSVMWithPoolSize(cfg.JSPoolSize)
 	jsVM.SetFetcher(jsHTTP)
 	cache := analyzer.NewCacheManager()
 
-	searcher := book.NewSearcher(httpContent, jsVM, cache, sourceStore, bookStore)
+	limits := book.DefaultSearcherLimits()
+	limits.ConcurrentPerSearch = cfg.SearchConcurrency
+	limits.ConcurrentGlobal = cfg.GlobalSearchConcurrency
+	limits.MaxSessions = cfg.MaxSessions
+	limits.SessionTTL = cfg.SessionTTL
+	searcher := book.NewSearcherWithLimits(httpContent, jsVM, cache, sourceStore, bookStore, limits)
 	regularFingerprintConfig := fingerprintConfig
 	regularFingerprintConfig.Timeout = 5 * time.Second // leave room for normal fallback within per-source timeout
 	searcher.SetTransportFactory(func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {
@@ -120,6 +125,13 @@ func main() {
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	log.Printf("NovelReader server starting on %s", addr)
 	log.Printf("Database: %s", cfg.DatabasePath)
+	slog.Info("capacity limits",
+		"searchConcurrency", cfg.SearchConcurrency,
+		"globalSearchConcurrency", cfg.GlobalSearchConcurrency,
+		"jsPoolSize", cfg.JSPoolSize,
+		"maxWorkflowSessions", cfg.MaxSessions,
+		"sessionTTL", cfg.SessionTTL,
+	)
 
 	srv := &http.Server{
 		Addr:         addr,

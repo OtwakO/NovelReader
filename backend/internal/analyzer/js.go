@@ -35,9 +35,14 @@ type JSVM struct {
 	memoryCache map[string]interface{} // cache.putMemory/cache.getFromMemory
 }
 
-// NewJSVM creates a JSVM with a pool of 16 runtimes.
-func NewJSVM() *JSVM {
-	const poolSize = 16
+// NewJSVM creates a JSVM with the compatibility pool size of 16 runtimes.
+func NewJSVM() *JSVM { return NewJSVMWithPoolSize(16) }
+
+// NewJSVMWithPoolSize creates a bounded JavaScript runtime pool.
+func NewJSVMWithPoolSize(poolSize int) *JSVM {
+	if poolSize < 1 {
+		poolSize = 1
+	}
 	pool := make(chan *goja.Runtime, poolSize)
 	for range poolSize {
 		pool <- goja.New()

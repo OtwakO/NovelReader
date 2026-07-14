@@ -20,12 +20,34 @@ import (
 )
 
 const (
-	maxConcurrentSearch       = 50               // max concurrent source fetches per search
-	maxConcurrentGlobalSearch = 100              // max concurrent source fetches per process
-	searchOverallTimeout      = 30 * time.Second // max time for the entire search
-	perSourceTimeout          = 10 * time.Second // max time per single source
-	maxResultsPerSource       = 20               // max results returned per source
+	defaultMaxConcurrentSearch       = 16               // small-container source fetches per search
+	defaultMaxConcurrentGlobalSearch = 32               // small-container source fetches per process
+	defaultMaxSessions               = 1024             // retained workflow sessions
+	defaultSessionTTL                = 30 * time.Minute // idle workflow session expiry
+	searchOverallTimeout             = 30 * time.Second // max time for the entire search
+	perSourceTimeout                 = 10 * time.Second // max time per single source
+	maxResultsPerSource              = 20               // max results returned per source
 )
+
+// SearcherLimits bounds process-local work and retained workflow state.
+type SearcherLimits struct {
+	ConcurrentPerSearch int
+	ConcurrentGlobal    int
+	MaxSessions         int
+	SessionTTL          time.Duration
+	WorkflowTimeout     time.Duration
+}
+
+// DefaultSearcherLimits returns conservative limits for a 2-vCPU/4-GB container.
+func DefaultSearcherLimits() SearcherLimits {
+	return SearcherLimits{
+		ConcurrentPerSearch: defaultMaxConcurrentSearch,
+		ConcurrentGlobal:    defaultMaxConcurrentGlobalSearch,
+		MaxSessions:         defaultMaxSessions,
+		SessionTTL:          defaultSessionTTL,
+		WorkflowTimeout:     perSourceTimeout,
+	}
+}
 
 // CapacityStats reports process-local Searcher work without exposing internal limiters.
 type CapacityStats struct {
@@ -64,6 +86,7 @@ type Searcher struct {
 	bookStore               *Store
 	sessions                *sourceexec.SessionRegistry
 	workflowTimeout         time.Duration
+	concurrentPerSearch     int
 	searchSlots             chan struct{}
 	capacity                capacityCounters
 	// per-source rate limiting (concurrentRate)
@@ -78,21 +101,50 @@ func NewSearcher(
 	sourceStore sourceLister,
 	bookStore *Store,
 ) *Searcher {
+	return NewSearcherWithLimits(hc, jsVM, cache, sourceStore, bookStore, DefaultSearcherLimits())
+}
+
+// NewSearcherWithLimits creates a Searcher with explicit process capacity bounds.
+func NewSearcherWithLimits(
+	hc *fetcher.Client,
+	jsVM *analyzer.JSVM,
+	cache *analyzer.CacheManager,
+	sourceStore sourceLister,
+	bookStore *Store,
+	limits SearcherLimits,
+) *Searcher {
+	defaults := DefaultSearcherLimits()
+	if limits.ConcurrentPerSearch < 1 {
+		limits.ConcurrentPerSearch = defaults.ConcurrentPerSearch
+	}
+	if limits.ConcurrentGlobal < 1 {
+		limits.ConcurrentGlobal = defaults.ConcurrentGlobal
+	}
+	if limits.MaxSessions < 1 {
+		limits.MaxSessions = defaults.MaxSessions
+	}
+	if limits.SessionTTL <= 0 {
+		limits.SessionTTL = defaults.SessionTTL
+	}
+	if limits.WorkflowTimeout <= 0 {
+		limits.WorkflowTimeout = defaults.WorkflowTimeout
+	}
 	sharedFetcher := hc
 	if hc != nil {
 		sharedFetcher = hc.StatelessClone()
 	}
 	return &Searcher{
-		fetcher:         sharedFetcher,
-		jsVM:            jsVM,
-		cache:           cache,
-		sourceStore:     sourceStore,
-		bookStore:       bookStore,
-		sessions:        sourceexec.NewSessionRegistry(),
-		workflowTimeout: perSourceTimeout,
-		searchSlots:     make(chan struct{}, maxConcurrentGlobalSearch),
-		rateMu:          sync.Mutex{},
-		lastAccess:      make(map[string]time.Time),
+		fetcher:             sharedFetcher,
+		jsVM:                jsVM,
+		cache:               cache,
+		sourceStore:         sourceStore,
+		bookStore:           bookStore,
+		sessions:            sourceexec.NewSessionRegistryWithLimits(limits.MaxSessions, limits.SessionTTL),
+		workflowTimeout:     limits.WorkflowTimeout,
+		concurrentPerSearch: limits.ConcurrentPerSearch,
+		searchSlots:         make(chan struct{}, limits.ConcurrentGlobal),
+		rateMu:              sync.Mutex{},
+		lastAccess:          make(map[string]time.Time),
 	}
 }
 
@@ -198,14 +250,18 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 
 	ch := make(chan jobResult, len(candidates))
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, maxConcurrentSearch)
+	concurrentPerSearch := s.concurrentPerSearch
+	if concurrentPerSearch < 1 {
+		concurrentPerSearch = defaultMaxConcurrentSearch
+	}
+	sem := make(chan struct{}, concurrentPerSearch)
 
 	slog.Info("search: starting fan-out",
-		"query", query, "sources", len(candidates), "concurrent", maxConcurrentSearch)
+		"query", query, "sources", len(candidates), "concurrent", concurrentPerSearch)
 
 	globalSlots := s.searchSlots
 	if globalSlots == nil {
-		globalSlots = make(chan struct{}, maxConcurrentGlobalSearch)
+		globalSlots = make(chan struct{}, defaultMaxConcurrentGlobalSearch)
 	}
 launchLoop:
 	for _, src := range candidates {

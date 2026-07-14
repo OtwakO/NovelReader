@@ -66,14 +66,21 @@ async def serve_connection(
         await writer.wait_closed()
 
 
+def capacity_settings() -> tuple[int, int, int, int]:
+    """Load bounded worker capacity, using small-container defaults."""
+    return (
+        max(1, int(os.getenv("WEBVIEW_MAX_PAGES", "2"))),
+        max(1, int(os.getenv("WEBVIEW_MAX_PENDING", "8"))),
+        int(os.getenv("WEBVIEW_MAX_BODY_BYTES", str(10 * 1024 * 1024))),
+        max(1, int(os.getenv("WEBVIEW_MAX_CONTEXTS_PER_BROWSER", "100"))),
+    )
+
+
 async def main() -> None:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
     host = os.getenv("WEBVIEW_WORKER_HOST", "127.0.0.1")
     port = int(os.getenv("WEBVIEW_WORKER_PORT", "8787"))
-    max_pages = max(1, int(os.getenv("WEBVIEW_MAX_PAGES", "4")))
-    max_pending = max(0, int(os.getenv("WEBVIEW_MAX_PENDING", "16")))
-    max_body = int(os.getenv("WEBVIEW_MAX_BODY_BYTES", str(10 * 1024 * 1024)))
-    max_contexts = max(1, int(os.getenv("WEBVIEW_MAX_CONTEXTS_PER_BROWSER", "250")))
+    max_pages, max_pending, max_body, max_contexts = capacity_settings()
     stop = asyncio.Event()
 
     async with async_playwright() as playwright:
