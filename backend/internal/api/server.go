@@ -373,6 +373,11 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSearchStream(w http.ResponseWriter, r *http.Request) {
+	if _, batched := r.URL.Query()["batchSize"]; batched {
+		s.handleSearchBatchStream(w, r)
+		return
+	}
+
 	query := r.URL.Query().Get("q")
 	if query == "" {
 		writeError(w, http.StatusBadRequest, "missing query param q")
