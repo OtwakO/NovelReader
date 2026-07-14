@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ import (
 
 // Server holds API dependencies.
 type Server struct {
+	db           *sql.DB
 	sourceStore  *booksource.Store
 	bookStore    *book.Store
 	searcher     *book.Searcher
@@ -53,8 +55,10 @@ func NewServer(
 	cache *analyzer.CacheManager,
 	processorCfg processor.Config,
 	dataDir string,
+	db *sql.DB,
 ) *Server {
 	s := &Server{
+		db:           db,
 		sourceStore:  sourceStore,
 		bookStore:    bookStore,
 		searcher:     searcher,
@@ -85,6 +89,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) registerRoutes() {
+	s.mux.HandleFunc("GET /api/healthz", s.handleHealth)
+
 	// Book sources — URLs with slashes can't go in path segments, use query param
 	s.mux.HandleFunc("GET /api/sources", s.handleListSources)
 	s.mux.HandleFunc("POST /api/sources", s.handleImportSources)

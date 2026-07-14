@@ -111,7 +111,7 @@ func main() {
 	api.TimeNowMillis = func() int64 { return time.Now().UnixMilli() }
 
 	// Create API server
-	apiSrv := api.NewServer(sourceStore, bookStore, searcher, fStore, httpContent, jsVM, cache, procCfg, cfg.DataDir)
+	apiSrv := api.NewServer(sourceStore, bookStore, searcher, fStore, httpContent, jsVM, cache, procCfg, cfg.DataDir, db)
 
 	// Serve frontend static files from the project frontend dist
 	staticDir := "../frontend/dist"
