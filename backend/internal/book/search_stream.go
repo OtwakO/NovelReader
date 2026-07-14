@@ -28,9 +28,8 @@ func (s *Searcher) searchSources(ctx context.Context, query string, candidates [
 		concurrency = defaultMaxConcurrentSearch
 	}
 
-	ch := make(chan searchJobResult, len(candidates))
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, concurrency)
+	jobs := make(chan booksource.BookSource)
+	results := make(chan searchJobResult, len(candidates))
 	globalSlots := s.searchSlots
 	if globalSlots == nil {
 		globalSlots = make(chan struct{}, defaultMaxConcurrentGlobalSearch)
@@ -38,50 +37,40 @@ func (s *Searcher) searchSources(ctx context.Context, query string, candidates [
 
 	slog.Info("search: starting fan-out", "query", query, "sources", len(candidates), "concurrent", concurrency)
 
-launchLoop:
-	for _, src := range candidates {
-		select {
-		case sem <- struct{}{}:
-		case <-ctx.Done():
-			break launchLoop
-		}
-		select {
-		case globalSlots <- struct{}{}:
-		case <-ctx.Done():
-			<-sem
-			break launchLoop
-		}
-		wg.Add(1)
-		s.capacity.activeSourceFetches.Add(1)
-		s.capacity.totalSourceFetches.Add(1)
-		go func(src booksource.BookSource) {
-			defer wg.Done()
-			defer s.capacity.activeSourceFetches.Add(-1)
-			defer func() { <-globalSlots }()
-			defer func() { <-sem }()
-			defer func() {
-				if rec := recover(); rec != nil {
-					s.capacity.failedSources.Add(1)
-					slog.Error("search: panic in source goroutine", "source", src.BookSourceName, "panic", fmt.Sprintf("%v", rec))
-					ch <- searchJobResult{src, nil, fmt.Errorf("panic: %v", rec)}
+	var workers sync.WaitGroup
+	for range min(concurrency, len(candidates)) {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for src := range jobs {
+				select {
+				case globalSlots <- struct{}{}:
+				case <-ctx.Done():
+					return
 				}
-			}()
-			results, err := s.searchSource(ctx, src, query)
-			if err != nil {
-				s.capacity.failedSources.Add(1)
-			} else {
-				s.capacity.completedSources.Add(1)
+				s.searchSourceJob(ctx, query, src, globalSlots, results)
 			}
-			ch <- searchJobResult{src, results, err}
-		}(src)
+		}()
 	}
-
-	go func() { wg.Wait(); close(ch) }()
+	go func() {
+		defer close(jobs)
+		for _, src := range candidates {
+			select {
+			case jobs <- src:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
+		workers.Wait()
+		close(results)
+	}()
 
 	successCount := 0
 	errorCount := 0
 	errCats := make(map[string]int)
-	for result := range ch {
+	for result := range results {
 		if ctx.Err() != nil {
 			break
 		}
@@ -111,6 +100,28 @@ launchLoop:
 		"active_searches", s.capacity.activeSearches.Load(),
 		"active_source_fetches", s.capacity.activeSourceFetches.Load())
 	return ctx.Err()
+}
+
+func (s *Searcher) searchSourceJob(ctx context.Context, query string, src booksource.BookSource, globalSlots chan struct{}, results chan<- searchJobResult) {
+	s.capacity.activeSourceFetches.Add(1)
+	s.capacity.totalSourceFetches.Add(1)
+	defer s.capacity.activeSourceFetches.Add(-1)
+	defer func() { <-globalSlots }()
+	defer func() {
+		if rec := recover(); rec != nil {
+			s.capacity.failedSources.Add(1)
+			slog.Error("search: panic in source goroutine", "source", src.BookSourceName, "panic", fmt.Sprintf("%v", rec))
+			results <- searchJobResult{src, nil, fmt.Errorf("panic: %v", rec)}
+		}
+	}()
+
+	found, err := s.searchSource(ctx, src, query)
+	if err != nil {
+		s.capacity.failedSources.Add(1)
+	} else {
+		s.capacity.completedSources.Add(1)
+	}
+	results <- searchJobResult{src, found, err}
 }
 
 func searchErrorCategory(message string) string {

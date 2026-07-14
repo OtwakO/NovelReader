@@ -83,6 +83,51 @@ func TestPrepareSearchBatchValidatesInput(t *testing.T) {
 	}
 }
 
+func TestSearchBatchStreamsBeforeWholeBatchFinishes(t *testing.T) {
+	var started atomic.Int64
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started.Add(1)
+		if r.URL.Query().Get("source") != "0" {
+			<-release
+		}
+		_, _ = fmt.Fprint(w, `<div class="book"><a class="name" href="/book">fixture</a></div>`)
+	}))
+	defer server.Close()
+
+	sources := make([]booksource.BookSource, 4)
+	for i := range sources {
+		sources[i] = batchSource(server.URL+"/"+strconv.Itoa(i), strconv.Itoa(i), i)
+		sources[i].SearchURL = server.URL + "/search?q={{key}}&source=" + strconv.Itoa(i)
+		sources[i].RuleSearch = `{"bookList":".book","name":".name@text","bookUrl":".name@href"}`
+	}
+	searcher := NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), nil, &mutableSourceStore{sources: sources}, nil)
+	plan, err := searcher.PrepareSearchBatch(SearchBatchOptions{Limit: 4, Concurrency: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	callbacks := make(chan struct{}, 4)
+	done := make(chan error, 1)
+	go func() {
+		done <- searcher.SearchBatch(context.Background(), "fixture", plan, func(booksource.BookSource, []SearchResult, error) {
+			callbacks <- struct{}{}
+		})
+	}()
+
+	select {
+	case <-callbacks:
+		if started.Load() >= 4 {
+			t.Fatalf("first callback arrived only after all %d sources started", started.Load())
+		}
+	case <-time.After(time.Second):
+		t.Fatal("first result was not streamed while later sources were blocked")
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSearchBatchHonorsRequestedConcurrency(t *testing.T) {
 	var active atomic.Int64
 	var peak atomic.Int64

@@ -1094,3 +1094,8 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added a 2-vCPU/4-GB baseline of 16 per-search and 32 global source requests, 4 JavaScript runtimes, 1,024 sessions with 30-minute TTL, 2 browser pages, 8 pending browser requests, and recycling after 100 contexts; backend limits are environment-configurable, tested, and a medium-server starting profile is documented.
 - **Affected**: `backend/internal/config/`, `backend/internal/book/search.go`, `backend/internal/book/search_capacity_test.go`, `backend/internal/analyzer/js.go`, `backend/internal/analyzer/js_pool_test.go`, `backend/cmd/server/main.go`, `webview-worker/worker.py`, `webview-worker/test_worker.py`, `README.md`.
 - **Watch out**: These are conservative starting values, not benchmark-derived maxima; preserve Docker resource limits and tune from active/queue/failure metrics.
+### [2026-07-14] Search fan-out buffered completed sources
+- **Problem**: Fan-out filled semaphore slots and waited to launch every source before consuming completion events, delaying SSE results until most or all of a large batch had already run.
+- **Fix**: Replaced launch-then-drain behavior with a fixed worker pool whose completion channel is consumed immediately; a blocking fixture proves the first callback arrives before the full batch starts.
+- **Affected**: `backend/internal/book/search_stream.go`, `backend/internal/book/search_batch_test.go`.
+- **Watch out**: Keep completion consumption concurrent with job admission; otherwise cancellation again loses useful partial progress.
