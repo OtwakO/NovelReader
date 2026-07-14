@@ -115,6 +115,41 @@ func TestFixturePaginationResponsesRemainSeparate(t *testing.T) {
 	}
 }
 
+func TestFixtureWebViewUsesConfiguredBrowserTransport(t *testing.T) {
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Version int `json:"version"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.Version != 1 {
+			t.Fatalf("worker request=%+v err=%v", request, err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"version": 1, "statusCode": 200, "finalUrl": "https://fixture.test/rendered",
+			"body": `<div class="book"><a class="name" href="/book">browser fixture</a></div>`,
+		})
+	}))
+	defer worker.Close()
+
+	source, _ := json.Marshal([]map[string]interface{}{{
+		"bookSourceUrl": "https://fixture.test", "bookSourceName": "fixture browser", "bookSourceType": 0,
+		"searchUrl":  `https://fixture.test/search,{"webView":true}`,
+		"ruleSearch": map[string]string{"bookList": ".book", "name": ".name@text", "bookUrl": ".name@href"},
+	}})
+	records, err := RunSearchWithOptions(context.Background(), source, []int{0}, "书", Options{
+		Timeout: 2 * time.Second, WebViewEndpoint: worker.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || records[0].Classification != "success" || records[0].Response.Transport != "webview" {
+		t.Fatalf("records=%+v", records)
+	}
+	if len(records[0].Extracted) != 1 || records[0].Extracted[0].Name != "browser fixture" {
+		t.Fatalf("results=%+v", records[0].Extracted)
+	}
+}
+
 func TestFixtureWebViewIsClassifiedBeforeHTTPParsing(t *testing.T) {
 	body := readFixture(t, "webview-shell.html")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

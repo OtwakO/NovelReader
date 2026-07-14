@@ -17,6 +17,7 @@ import (
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/fingerprint"
 	"github.com/otwako/novelreader/internal/sourceexec"
+	"github.com/otwako/novelreader/internal/webview"
 )
 
 const bodySampleLimit = 1000
@@ -64,9 +65,10 @@ type Record struct {
 
 // Options controls whether the runner matches production fingerprint transport.
 type Options struct {
-	Timeout     time.Duration
-	Fingerprint bool
-	HealthURL   string
+	Timeout         time.Duration
+	Fingerprint     bool
+	HealthURL       string
+	WebViewEndpoint string
 }
 
 // RunSearch executes selected raw sources and records request, response, and parser output.
@@ -102,7 +104,14 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 		}
 	}
 	jsVM.SetFetcher(jsHTTP)
-	parser := book.NewSearcher(fetcher.NewInsecure(timeout), jsVM, nil, nil, nil)
+	parser := book.NewSearcher(fetcher.NewInsecureStateless(timeout), jsVM, nil, nil, nil)
+	var webViewClient *webview.Client
+	if options.WebViewEndpoint != "" {
+		webViewClient, err = webview.NewClient(webview.Config{Endpoint: options.WebViewEndpoint, Timeout: timeout})
+		if err != nil {
+			return nil, err
+		}
+	}
 	records := make([]Record, 0, len(selected))
 	for _, index := range selected {
 		if options.HealthURL != "" {
@@ -146,6 +155,9 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 				transport = fingerprintTransport
 			}
 		}
+		if webViewClient != nil {
+			transport = sourceexec.NewRoutingTransport(transport, webViewClient.ForSession(session))
+		}
 		executor := sourceexec.NewExecutorWithSession(jsVM, transport, session)
 		spec, buildErr := executor.BuildContext(sourceCtx, src.SearchURL, query, 1, src.BookSourceURL)
 		if buildErr != nil {
@@ -161,7 +173,7 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 			Headers: redactHeaders(spec.Headers), Charset: spec.Charset,
 			Retry: spec.Retry, WebView: spec.WebView,
 		}
-		if spec.WebView {
+		if spec.WebView && webViewClient == nil {
 			record.Classification = "unsupported_webview"
 			cancel()
 			records = append(records, record)
@@ -334,7 +346,8 @@ func classifyTransportError(err error) string {
 	if strings.Contains(message, "context deadline") || strings.Contains(message, "timeout") {
 		return "transport_timeout"
 	}
-	if strings.Contains(message, "no such host") || strings.Contains(message, "dns") {
+	if strings.Contains(message, "no such host") || strings.Contains(message, "dns") ||
+		strings.Contains(message, "err_name_not_resolved") {
 		return "transport_dns_failure"
 	}
 	return "transport_failure"

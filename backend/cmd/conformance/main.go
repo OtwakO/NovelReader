@@ -20,6 +20,7 @@ func main() {
 	query := flag.String("query", "凡人修仙传", "search query")
 	timeout := flag.Duration("timeout", 10*time.Second, "per-source timeout")
 	healthURL := flag.String("health-url", "", "optional server health endpoint; abort on failure")
+	webViewEndpoint := flag.String("webview-endpoint", "", "optional Patchright worker endpoint for webView requests")
 	flag.Parse()
 	if *input == "" {
 		flag.Usage()
@@ -35,7 +36,7 @@ func main() {
 		fatal(err)
 	}
 	records, err := conformance.RunSearchWithOptions(context.Background(), raw, indices, *query, conformance.Options{
-		Timeout: *timeout, Fingerprint: true, HealthURL: *healthURL,
+		Timeout: *timeout, Fingerprint: true, HealthURL: *healthURL, WebViewEndpoint: *webViewEndpoint,
 	})
 	if err != nil {
 		fatal(err)
