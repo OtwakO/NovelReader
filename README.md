@@ -17,7 +17,7 @@ Capacity defaults target a 2-vCPU/4-GB container: 16 source requests per search,
 
 Search runs in user-sized source batches. The default checks 50 sources with Balanced concurrency 8; the UI persists batch size and Gentle/Balanced/Fast or advanced concurrency preferences. User concurrency is only a request: `SEARCH_CONCURRENCY` remains the authoritative per-search ceiling, while global, JavaScript, and browser limits remain independent. “Search more” continues through a versioned cursor; changing the eligible source list requires restarting that search.
 
-The 2-vCPU/4-GB HTTP-search gate sustained 48,000 deterministic source requests across 16 concurrent users with zero post-fix failures: median batch latency about 2.59s, p95 2.82s or lower, 27.32 MiB observed peak backend memory, and no retained established source connections. Keep the 16-per-search/32-global deployment ceilings until real upstream or browser measurements justify changing them.
+The 2-vCPU/4-GB HTTP-search gate sustained 48,000 deterministic source requests across 16 concurrent users with zero post-fix failures: median batch latency about 2.59s, p95 2.82s or lower, 27.32 MiB observed peak backend memory, and no retained established source connections. The separately constrained Patchright gate completed 200 requests from 10 clients with 2 pages and 8 queued: zero failures/rejections, 3.27s median, 3.33s p95, 153.6 MiB observed peak memory, and a healthy recycle after 100 contexts. Keep the current capacity ceilings until real upstream measurements justify changing them.
 
 The batched SSE API is `GET /api/search/stream?q=...&batchSize=50&concurrency=8&cursor=...`. It emits `start`, per-source `results` or `source_error`, and `done` events. `done.nextCursor` continues a completed batch; `retryCursor` repeats an interrupted batch; `stale` means the eligible source revision changed. Omitting `batchSize` preserves the legacy all-source stream contract.
 
@@ -60,7 +60,7 @@ patchright install chromium
 WEBVIEW_WORKER_PORT=8787 python worker.py
 ```
 
-For Docker, build `webview-worker/Dockerfile`. Keep the worker on a private network; it accepts arbitrary navigation URLs. Apply resource limits at runtime, for example `docker run --cpus=2 --memory=4g ...`; Dockerfiles cannot enforce deployment resource limits.
+For Docker, build `webview-worker/Dockerfile`; the image binds `0.0.0.0:8787` internally so other containers can reach it. Publish it only on a private network because it accepts arbitrary navigation URLs. Apply resource limits at runtime, for example `docker run --cpus=2 --memory=4g ...`; Dockerfiles cannot enforce deployment resource limits.
 
 ## Deployment
 

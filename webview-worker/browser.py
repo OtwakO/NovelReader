@@ -227,9 +227,12 @@ class BrowserWorker:
 
     async def health(self) -> dict:
         async with self.state_lock:
+            consumers_ready = len(self.consumers) == self.max_pages and all(
+                not consumer.done() for consumer in self.consumers
+            )
             return {
                 "version": PROTOCOL_VERSION,
-                "ok": not self.closing and self.browser is not None and self.browser.is_connected(),
+                "ok": not self.closing and consumers_ready,
                 "queueDepth": self.queue.qsize(),
                 "active": self.active,
                 "totalRequests": self.total_requests,

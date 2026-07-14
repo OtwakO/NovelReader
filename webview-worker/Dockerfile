@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 RUN useradd --create-home --uid 10001 appuser
 COPY browser.py worker.py .
+ENV WEBVIEW_WORKER_HOST=0.0.0.0
 USER appuser
 
 EXPOSE 8787

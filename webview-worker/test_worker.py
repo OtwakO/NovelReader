@@ -2,9 +2,21 @@
 
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from browser import BrowserWorker
 from worker import capacity_settings
+
+
+class BrowserWorkerHealthTest(unittest.IsolatedAsyncioTestCase):
+    async def test_idle_recycled_browser_is_ready_when_consumers_are_alive(self) -> None:
+        worker = BrowserWorker(None, max_pages=2, max_pending=8, max_body_bytes=1024, max_contexts=100)
+        worker.browser = None
+        worker.consumers = [MagicMock(done=lambda: False), MagicMock(done=lambda: False)]
+
+        self.assertTrue((await worker.health())["ok"])
+        worker.consumers[0].done = lambda: True
+        self.assertFalse((await worker.health())["ok"])
 
 
 class CapacitySettingsTest(unittest.TestCase):
