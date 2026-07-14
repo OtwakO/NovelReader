@@ -37,9 +37,9 @@ var sourceColumns = `id, name, group_name, source_type, book_url_pattern,
 	comment, variable_comment, last_update_time, respond_time, weight,
 	created_at, updated_at, source_json`
 
-// List returns all book sources, ordered by custom_order then name.
+// List returns all book sources in deterministic user order.
 func (s *Store) List() ([]BookSource, error) {
-	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources ORDER BY custom_order ASC, name ASC`)
+	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources ORDER BY custom_order ASC, name ASC, id ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("booksource: list: %w", err)
 	}
@@ -49,7 +49,7 @@ func (s *Store) List() ([]BookSource, error) {
 
 // ListEnabled returns enabled sources, used for search.
 func (s *Store) ListEnabled() ([]BookSource, error) {
-	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources WHERE enabled = 1 ORDER BY custom_order ASC, name ASC`)
+	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources WHERE enabled = 1 ORDER BY custom_order ASC, name ASC, id ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("booksource: list enabled: %w", err)
 	}
