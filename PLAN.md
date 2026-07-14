@@ -254,6 +254,26 @@ Tasks:
 
 Completion gate: load tests show bounded memory and no permanent busy failures under configured capacity; session and browser lifetimes are observable and reclaimable.
 
+### Phase 5.6 — Batched streaming search
+
+**Goal:** make search coverage predictable for any enabled-source count while preserving bounded execution and cumulative results.
+
+Decisions: the browser owns cumulative search state; the backend remains stateless between batches. A versioned cursor identifies the next offset and hashes the deterministically ordered eligible source IDs. Source-list changes require restart. Batch size controls coverage; requested concurrency controls only per-search parallelism and is clamped by deployment limits.
+
+Tasks:
+
+- [ ] Preserve legacy all-source `Search`/`SearchStream` behavior behind shared fan-out code.
+- [ ] Add deterministic source ordering, versioned cursors, source-list revisions, and exact batch partitions.
+- [ ] Add requested per-batch concurrency without weakening global, JS, or browser capacity limits.
+- [ ] Extend search SSE with start, progress, completion, retry, and stale-source events.
+- [ ] Add cumulative frontend result merging that deduplicates retries and preserves alternate sources.
+- [ ] Add persistent batch-size and search-intensity controls, cumulative progress, Stop, Retry, Search more, and Restart behavior.
+- [ ] Verify alternate sources survive shelving from merged search results.
+
+Defaults: 50 sources per batch, user range 1–500, and Balanced concurrency 8. Gentle/Balanced/Fast map to 4/8/16; an advanced positive value is allowed but the server reports and enforces the effective deployment cap.
+
+Completion gate: deterministic tests prove batches have no gaps or overlaps, stale cursors execute no source work, cancellation retries safely, cumulative merging loses no alternate sources, existing callers remain compatible, and browser verification passes the complete search-control lifecycle.
+
 ### Phase 6 — Diagnostics, frontend extensibility, and operational hardening
 
 Tasks:
@@ -302,13 +322,13 @@ Every significant booksource-engine change must follow this loop:
 
 ## Current State
 
-**Phase:** Phase 5 — WebView transport implementation; Phase 0 compatibility baseline is complete.
+**Phase:** Phase 5.6 — Batched streaming search; Phase 0 compatibility baseline is complete.
 
 **Last completed:** Enabled the conformance runner's `-webview-endpoint` path and verified raw index 213 reached Patchright, returned `transport:webview` with HTTP 200, and produced a rule mismatch from rendered DOM rather than an unsupported-transport error. Added and passed the deterministic 2×200-source concurrent search load test, including process-wide admission and zero leaked active work; Searcher capacity snapshots and Patchright `/healthz` counters, plus a 256-concurrent-session registry stress test are also covered. Added process-wide search admission on top of per-search fan-out. Implemented the first Phase 5.5 capacity controls: transient browser busy retry, bounded TTL/LRU workflow sessions, shared stateless HTTP connection pools, and SourceSession-scoped JS/fingerprint client reuse. The current worker also has bounded admission, whole-request deadlines, cancellation-safe context cleanup, graceful shutdown, browser crash recovery, and configurable browser-process recycling. Verified the Go client and a local HTML fixture, including forced browser recycling. Go workflows route `webView:true` requests through a session-scoped Patchright worker client, while HTTP-only deployments fail explicitly. The worker supports isolated browser contexts, page JavaScript, `webJs`, delays, cookies, headers, redirects, and final DOM capture. Preserved structured URL-option JSON bodies and prepared raw-vs-form POST payloads consistently across normal and fingerprint transports. Added URL-option `HEAD` execution through normal and fingerprint transports. Added URL-option `dnsIp` execution for normal HTTP requests while preserving the original host for HTTP Host/TLS behavior. Applied case-insensitive URL/source header overlays across search, book info, TOC, content, pagination, and conformance execution. Source-level headers now also reach JavaScript bridge requests through SourceSession and both normal/fingerprint clients. Preserved JS bridge POST content types through the cookie-session adapter. Added a cookie-session adapter for JS HTTP clients without native `ForSource` support, so stateless `java.get/post/ajax` calls now inject and persist source cookies. Made HTTP transport header merging case-insensitive so explicit lowercase `Origin` and `Content-Type` values are not overridden or duplicated. Completed conformance request diagnostics across normal and fingerprint transports: exact request metadata, redacted response headers, redirect chains, status, and bounded body samples. Updated the conformance parser to resolve search links against each response's final URL, verified live sources 1 and 84 still return 13 and 2 results with absolute book URLs, and classified source 89 as a transport timeout. Threaded source-session state into per-result search analyzers so field-level JS rules can read cookies and variables. Resolved search, cover, and TOC links against the actual final response page URL instead of the source root/book input. Preserved redirect-origin cookies across normal and fingerprint transports by syncing both requested and final URL scopes. Added shared `bodyJs` response transformation after transport success and threaded it through search, book info, TOC, and content pagination. Moved request-body charset encoding into the shared source transports so normal and fingerprint requests use the same `RequestSpec` contract. Preserved imported BookSource JSON (including unknown fields and rule value shapes) through JSON round-trip and SQLite persistence. Completed the deterministic Phase 0 fixture corpus with executable rule expectations, fixed JSONPath object decoding and long-list truncation, and added the production-mode raw conformance runner, golden classification tests, and optional health checks that abort after a server failure. Routed search, book-info, TOC, and chapter content through `sourceexec.Executor`;  content supports URL options, `nextContentUrl`, and Legado’s next-TOC-chapter stop condition; TOC pagination reports failures; explicit mode prefixes, standalone Regex, `###`, `&&`, `%%`, Analyzer-backed Java helpers, scoped sessions, and Default indexed selectors have conformance tests. Added Legado-compatible HTTP retry on unsuccessful responses, explicit response-charset decoding, multi-class Default selectors, chainable Jsoup selections, JavaScript-returned URL-option parsing, declaration scoping for pooled runtimes, redirect-preserving `java.get().header()`, source-scoped fingerprint jars, staged-response final-URL tracking, segmented URL `@js`, POST-body page selectors, `<js>...</js>` wrapper execution, typed JavaScript TOC objects, and context cancellation. Full Go tests pass. Fresh raw-compilation Playwright verified `八叉书库` after regular transport integration: search result, book detail, 1-chapter TOC, and 352 rendered readable paragraphs. Fresh raw `趣书网吧` verification passes search → add → 438-page TOC → first-page content with 135 rendered paragraphs. A second fresh post-review E2E pass reproduced the same 438-page TOC and 135 rendered paragraphs. Direct book deep links now load the same 438-chapter detail page without frontend effect-loop errors. Raw `中文看书（优）` independently returned 15 exact POST results; the fixed engine also produced a live result before that upstream began timing out again. Raw `神话之后（优+）` produced 2 results and a 2271-chapter TOC through the UI. The production-mode conformance runner now records raw indices 1, 84, and 89 with request/response/classification output. It also supports a bounded detail → TOC → first-chapter workflow; raw index 788 completed that workflow with a 828-chapter TOC and readable first-chapter content through the fixed runner, and raw index 779 completed a later-stage WebView workflow with a 1-chapter TOC and browser-rendered content. A deterministic source-779 replay now covers its real rule shapes, single-quoted WebView options, HTTP-to-browser cookies, and paginated browser content without network access. Capacity defaults now target a 2-vCPU/4-GB container and remain environment-configurable for the likely 4-vCPU/8-GB deployment.
 
-**In progress:** System-wide concurrency is bounded, observable, and covered by deterministic 400-source concurrent search and registry stress tests. Conservative small-container limits are wired through production configuration; real deployment measurements are still required before raising the documented medium-server profile. Browser conformance now covers WebView search plus detail → TOC → content workflow execution. The worker was validated from a temporary environment using Patchright 1.59.1 and Chromium 147.0.7727.15; those runtime artifacts are not stored in the repository.
+**In progress:** Batched streaming search is planned with stateless cursor/revision continuation, browser-owned cumulative merging, retry-whole-batch cancellation, persistent coverage controls, and user-requested concurrency clamped by deployment limits. No implementation has started. System-wide concurrency remains bounded, observable, and covered by deterministic 400-source concurrent search and registry stress tests; Docker-constrained measurement remains pending after this feature slice.
 
-**Next action:** Measure the small-container profile under Docker CPU/memory limits, then adjust only limits that show sustained saturation.
+**Next action:** Characterize legacy `SearchStream` behavior, then extract and reuse its bounded fan-out before adding batch cursor logic.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
@@ -322,6 +342,8 @@ Every significant booksource-engine change must follow this loop:
 | Browser runtime | Python Patchright worker over localhost HTTP | Keeps Chromium/Patchright lifecycle out of the Go process while remaining headless-Docker compatible. |
 | Browser protocol | Versioned JSON `/execute` and `/healthz` endpoints | Small explicit contract; easy fake transport and independent worker upgrades. |
 | Capacity policy | Bounded browser wait, TTL/LRU sessions, shared stateless HTTP pools | Protects memory and remote sites while preserving staged source continuity. |
+| Batch search state | Stateless cursor/revision; cumulative browser state | Avoids backend TTL/session and multi-instance coupling; source-list changes restart safely. |
+| Search controls | 50 sources per batch; Balanced concurrency 8 | Coverage and parallelism remain separate, persistent, and server-bounded. |
 | Source identity | `bookSourceUrl`, not name | Names are duplicated in compilations. |
 | State | SourceSession with explicit scope | Cookies and variables must persist within a source flow but never leak across users/sources. |
 | Rule values | Typed intermediates | Re-parsing HTML strings loses Legado element/JSON behavior. |
@@ -337,6 +359,7 @@ Every significant booksource-engine change must follow this loop:
 | Login UI automation | Requires credential/captcha UX | After WebView and explicit user sessions. |
 | Audio/image source workflows | Separate domain models | After text compatibility milestone. |
 | Advanced Android-only Java APIs | Not part of the portable backend contract | Add only when a real source and safe equivalent require it. |
+| Backend-persisted search sessions | Stateless cursor and tab-scoped browser state cover current needs | Revisit only if searches must roam across devices or backend instances. |
 
 ## Synchronization rules
 
