@@ -8,6 +8,15 @@ import (
 	"github.com/PaesslerAG/jsonpath"
 )
 
+// jsonQueryElement evaluates JSONPath without flattening objects or arrays.
+func jsonQueryElement(content, expr string) (interface{}, error) {
+	root, err := parseJSONValue(content)
+	if err != nil {
+		return nil, err
+	}
+	return selectJSONValue(root, expr)
+}
+
 // jsonQuery evaluates a JSONPath expression and returns the result as a string.
 func jsonQuery(content, expr string) (string, error) {
 	root, err := parseJSONValue(content)

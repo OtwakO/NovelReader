@@ -9,6 +9,7 @@ package analyzer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -82,7 +83,7 @@ type Rule struct {
 
 // Analyzer evaluates rules against content (HTML or JSON string).
 type Analyzer struct {
-	content     string
+	content     interface{}
 	baseURL     string
 	isJSON      bool
 	jsVM        *JSVM
@@ -129,9 +130,17 @@ func (a *Analyzer) SetContext(ctx context.Context) {
 }
 
 // SetContent replaces the active content for JavaScript re-analysis.
-func (a *Analyzer) SetContent(content string) {
+func (a *Analyzer) SetContent(content interface{}) {
 	a.content = content
-	a.isJSON = looksLikeJSON(content)
+	switch value := content.(type) {
+	case map[string]interface{}:
+		_, isHTML := value["__html"]
+		a.isJSON = !isHTML
+	case map[string]string, []interface{}, []string:
+		a.isJSON = true
+	default:
+		a.isJSON = looksLikeJSON(ToString(content))
+	}
 }
 
 // GetString evaluates a rule string and returns the first text result.
@@ -245,6 +254,13 @@ func (a *Analyzer) getStringListOR(ruleStr string) ([]string, error) {
 
 // GetElement evaluates a rule and returns a single element.
 func (a *Analyzer) GetElement(ruleStr string) (interface{}, error) {
+	if len(splitTopLevel(ruleStr, "&&")) > 1 || len(splitTopLevel(ruleStr, "||")) > 1 {
+		values, err := a.GetElements(ruleStr)
+		if err != nil {
+			return nil, err
+		}
+		return collapseElementValues(values), nil
+	}
 	rules, err := ParseRules(ruleStr, a.isJSON)
 	if err != nil {
 		return nil, err
@@ -307,7 +323,7 @@ func (a *Analyzer) evalString(rules []Rule) (string, error) {
 			return "", err
 		}
 	}
-	return current, nil
+	return ToString(current), nil
 }
 
 // evalStringList evaluates a chain of rules returning a string list.
@@ -323,14 +339,14 @@ func (a *Analyzer) evalStringList(rules []Rule) ([]string, error) {
 			return nil, err
 		}
 	}
-	return []string{current}, nil
+	return []string{ToString(current)}, nil
 }
 
 func (a *Analyzer) evalElement(rules []Rule) (interface{}, error) {
-	current := interface{}(a.content)
+	current := a.content
 	for _, rule := range rules {
 		var err error
-		current, err = a.applyRuleElement(current, rule)
+		current, err = a.dispatchElement(rule.Mode, current, rule.Expression)
 		if err != nil {
 			return nil, err
 		}
@@ -339,7 +355,7 @@ func (a *Analyzer) evalElement(rules []Rule) (interface{}, error) {
 }
 
 func (a *Analyzer) evalElements(rules []Rule) ([]interface{}, error) {
-	current := interface{}(a.content)
+	current := a.content
 	for i, rule := range rules {
 		if i == len(rules)-1 {
 			return a.applyRuleElements(current, rule)
@@ -354,8 +370,14 @@ func (a *Analyzer) evalElements(rules []Rule) ([]interface{}, error) {
 }
 
 // applyRuleString runs a single rule against string content, returns string.
-func (a *Analyzer) applyRuleString(content string, rule Rule) (string, error) {
-	result, err := a.dispatch(rule.Mode, content, rule.Expression)
+func (a *Analyzer) applyRuleString(content interface{}, rule Rule) (string, error) {
+	var result interface{}
+	var err error
+	if rule.Mode == ModeJS {
+		result, err = a.jsEval(stripModePrefix(rule.Mode, rule.Expression), content)
+	} else {
+		result, err = a.dispatch(rule.Mode, ToString(content), rule.Expression)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -367,8 +389,14 @@ func (a *Analyzer) applyRuleString(content string, rule Rule) (string, error) {
 }
 
 // applyRuleStringList runs a single rule returning a string list.
-func (a *Analyzer) applyRuleStringList(content string, rule Rule) ([]string, error) {
-	result, err := a.dispatchList(rule.Mode, content, rule.Expression)
+func (a *Analyzer) applyRuleStringList(content interface{}, rule Rule) ([]string, error) {
+	var result []string
+	var err error
+	if rule.Mode == ModeJS {
+		result, err = a.jsEvalList(stripModePrefix(rule.Mode, rule.Expression), content)
+	} else {
+		result, err = a.dispatchList(rule.Mode, ToString(content), rule.Expression)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -381,17 +409,74 @@ func (a *Analyzer) applyRuleStringList(content string, rule Rule) ([]string, err
 }
 
 func (a *Analyzer) applyRuleElement(content interface{}, rule Rule) (interface{}, error) {
-	s := ToString(content)
-	result, err := a.dispatch(rule.Mode, s, rule.Expression)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
+	return a.dispatchElement(rule.Mode, content, rule.Expression)
 }
 
 func (a *Analyzer) applyRuleElements(content interface{}, rule Rule) ([]interface{}, error) {
-	s := ToString(content)
-	return a.dispatchElements(rule.Mode, s, rule.Expression)
+	return a.dispatchElements(rule.Mode, content, rule.Expression)
+}
+
+// dispatchElement preserves structured JSON/JS values and complete HTML selections.
+func (a *Analyzer) dispatchElement(mode Mode, content interface{}, expr string) (interface{}, error) {
+	expr = stripModePrefix(mode, expr)
+	text := ToString(content)
+	switch mode {
+	case ModeJSON:
+		return jsonQueryElement(text, expr)
+	case ModeJS:
+		return a.jsEval(expr, content)
+	case ModeCSS, ModeDefault, ModeXPath:
+		values, err := a.dispatchElements(mode, text, expr)
+		if err != nil {
+			return nil, err
+		}
+		return serializeHTMLSelection(values), nil
+	case ModeRegex:
+		return a.dispatchElements(mode, text, expr)
+	default:
+		return content, nil
+	}
+}
+
+func collapseElementValues(values []interface{}) interface{} {
+	if len(values) == 0 {
+		return ""
+	}
+	allHTML := true
+	for _, value := range values {
+		if !strings.HasPrefix(strings.TrimSpace(ToString(value)), "<") {
+			allHTML = false
+			break
+		}
+	}
+	if allHTML {
+		return serializeHTMLSelection(values)
+	}
+	if len(values) == 1 {
+		return values[0]
+	}
+	return values
+}
+
+func serializeHTMLSelection(values []interface{}) string {
+	var joined strings.Builder
+	for _, value := range values {
+		joined.WriteString(ToString(value))
+	}
+	content := joined.String()
+	lower := strings.ToLower(strings.TrimSpace(content))
+	switch {
+	case strings.HasPrefix(lower, "<tr"):
+		return "<table><tbody>" + content + "</tbody></table>"
+	case strings.HasPrefix(lower, "<td"), strings.HasPrefix(lower, "<th"):
+		return "<table><tbody><tr>" + content + "</tr></tbody></table>"
+	case strings.HasPrefix(lower, "<thead"), strings.HasPrefix(lower, "<tbody"), strings.HasPrefix(lower, "<tfoot"), strings.HasPrefix(lower, "<caption"), strings.HasPrefix(lower, "<colgroup"):
+		return "<table>" + content + "</table>"
+	case strings.HasPrefix(lower, "<option"), strings.HasPrefix(lower, "<optgroup"):
+		return "<select>" + content + "</select>"
+	default:
+		return content
+	}
 }
 
 // dispatch routes to the correct parser mode and returns a single result.
@@ -437,19 +522,20 @@ func (a *Analyzer) dispatchList(mode Mode, content, expr string) ([]string, erro
 }
 
 // dispatchElements routes and returns a list of elements.
-func (a *Analyzer) dispatchElements(mode Mode, content, expr string) ([]interface{}, error) {
+func (a *Analyzer) dispatchElements(mode Mode, content interface{}, expr string) ([]interface{}, error) {
 	expr = stripModePrefix(mode, expr)
+	text := ToString(content)
 	switch mode {
 	case ModeCSS:
-		return cssQueryElements(content, expr)
+		return cssQueryElements(text, expr)
 	case ModeDefault:
-		return defaultQueryElements(content, expr)
+		return defaultQueryElements(text, expr)
 	case ModeXPath:
-		return xpathQueryElements(content, expr)
+		return xpathQueryElements(text, expr)
 	case ModeJSON:
-		return jsonQueryElements(content, expr)
+		return jsonQueryElements(text, expr)
 	case ModeRegex:
-		return regexQueryElements(content, expr)
+		return regexQueryElements(text, expr)
 	case ModeJS:
 		return a.jsEvalElements(expr, content)
 	default:
@@ -482,21 +568,21 @@ func (a *Analyzer) jsBindings() map[string]interface{} {
 	return b
 }
 
-func (a *Analyzer) jsEval(expr, content string) (interface{}, error) {
+func (a *Analyzer) jsEval(expr string, content interface{}) (interface{}, error) {
 	if a.jsVM == nil {
 		return "", fmt.Errorf("analyzer: JS engine not available")
 	}
 	return a.jsVM.EvalContext(a.ctx, a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
 }
 
-func (a *Analyzer) jsEvalList(expr, content string) ([]string, error) {
+func (a *Analyzer) jsEvalList(expr string, content interface{}) ([]string, error) {
 	if a.jsVM == nil {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
 	return a.jsVM.EvalListContext(a.ctx, a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
 }
 
-func (a *Analyzer) jsEvalElements(expr, content string) ([]interface{}, error) {
+func (a *Analyzer) jsEvalElements(expr string, content interface{}) ([]interface{}, error) {
 	if a.jsVM == nil {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
@@ -540,6 +626,21 @@ func ToString(v interface{}) string {
 		return s
 	case fmt.Stringer:
 		return s.String()
+	case map[string]interface{}:
+		if html, ok := s["__html"].(string); ok {
+			return html
+		}
+		encoded, err := json.Marshal(s)
+		if err == nil {
+			return string(encoded)
+		}
+		return fmt.Sprintf("%v", s)
+	case map[string]string, []interface{}, []string:
+		encoded, err := json.Marshal(s)
+		if err == nil {
+			return string(encoded)
+		}
+		return fmt.Sprintf("%v", s)
 	default:
 		return fmt.Sprintf("%v", v)
 	}

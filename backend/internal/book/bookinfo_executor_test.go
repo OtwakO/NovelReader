@@ -2,8 +2,10 @@
 package book
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,63 @@ import (
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fetcher"
 )
+
+func TestGetBookInfoAppliesInitBeforeDetailRules(t *testing.T) {
+	fixtures := map[string]string{
+		"/css":   `<div><span class="name">Wrong</span></div><table><tr class="noise"><td>Noise</td></tr><tr class="detail"><td class="name">CSS Book</td><td class="author">CSS Author</td></tr></table>`,
+		"/json":  `{"wrong":{"name":"Wrong"},"payload":{"name":"JSON Book","author":"JSON Author"}}`,
+		"/array": `{"payload":[{"name":"Wrong"},{"name":"Array Book","author":"Array Author"}]}`,
+		"/js":    `{"wrong":{"name":"Wrong"},"payload":{"name":"JS Book","author":"JS Author"}}`,
+		"/jsoup": `<table><tr class="detail"><td class="name">JSoup Book</td><td class="author">JSoup Author</td></tr></table>`,
+		"/null":  `{"payload":null}`,
+		"/xpath": `<ul>` + strings.Repeat(`<li></li>`, 55) + `<li><span class="name">XPath Book</span><span class="author">XPath Author</span></li></ul>`,
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(fixtures[r.URL.Path]))
+	}))
+	defer server.Close()
+
+	tests := []struct {
+		name, path, init, nameRule, authorRule, wantName, wantAuthor, wantErr string
+	}{
+		{"CSS merged collection", "/css", ".noise&&tr.detail", ".name@text", ".author@text", "CSS Book", "CSS Author", ""},
+		{"CSS alternative", "/css", ".missing||tr.detail", ".name@text", ".author@text", "CSS Book", "CSS Author", ""},
+		{"JSON object", "/json", "$.payload", "$.name", "$.author", "JSON Book", "JSON Author", ""},
+		{"JSON array", "/array", "$.payload", "$[1].name", "$[1].author", "Array Book", "Array Author", ""},
+		{"JavaScript object", "/js", `<js>JSON.parse(result).payload</js>`, `<js>result.name</js>`, `<js>result.author</js>`, "JS Book", "JS Author", ""},
+		{"JavaScript JSoup collection", "/jsoup", `<js>org.jsoup.Jsoup.parse(result).select("tr.detail")</js>`, ".name@text", ".author@text", "JSoup Book", "JSoup Author", ""},
+		{"XPath collection beyond 50", "/xpath", "@XPath://li", ".name@text", ".author@text", "XPath Book", "XPath Author", ""},
+		{"null result", "/null", "$.payload", "$.name", "$.author", "", "", "init rule returned null"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+			rule, err := json.Marshal(map[string]string{
+				"init": tt.init, "name": tt.nameRule, "author": tt.authorRule,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			book, err := s.GetBookInfo(booksource.BookSource{
+				BookSourceURL: server.URL,
+				RuleBookInfo:  string(rule),
+			}, server.URL+tt.path)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if book.Name != tt.wantName || book.Author != tt.wantAuthor {
+				t.Fatalf("book = %+v, want name %q and author %q", book, tt.wantName, tt.wantAuthor)
+			}
+		})
+	}
+}
 
 func TestGetBookInfoUsesDetailURLOptions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

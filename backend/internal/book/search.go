@@ -513,6 +513,16 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	})
 
 	rules := parseRuleJSON(src.RuleBookInfo)
+	if initRule := strings.TrimSpace(rules["init"]); initRule != "" {
+		content, err := an.GetElement(initRule)
+		if err != nil {
+			return nil, fmt.Errorf("book info: init rule: %w", err)
+		}
+		if content == nil {
+			return nil, fmt.Errorf("book info: init rule returned null")
+		}
+		an.SetContent(content)
+	}
 	b := &Book{
 		SourceURL: src.BookSourceURL,
 		BookURL:   bookURL,

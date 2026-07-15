@@ -26,4 +26,12 @@ func TestJavaHelpersReevaluateCurrentAnalyzer(t *testing.T) {
 	if err != nil || ToString(value) != "updated" {
 		t.Fatalf("setContent result = %q, err=%v", ToString(value), err)
 	}
+
+	if _, err := analyzer.jsEval(`java.setContent({payload:{name:'structured'}})`, ""); err != nil {
+		t.Fatal(err)
+	}
+	value, err = analyzer.GetString("$.payload.name")
+	if err != nil || value != "structured" {
+		t.Fatalf("structured setContent result = %q, err=%v", value, err)
+	}
 }
