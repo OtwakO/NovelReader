@@ -221,8 +221,12 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetBook(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	b, err := s.bookStore.GetBook(id)
-	if err != nil || b == nil {
-		writeError(w, http.StatusNotFound, "book not found")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load book failed")
+		return
+	}
+	if b == nil {
+		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, b)
@@ -267,7 +271,11 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 
 	// Check if book already exists
 	existing, err := s.bookStore.GetBook(req.ID)
-	if err == nil && existing != nil {
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load book failed")
+		return
+	}
+	if existing != nil {
 		writeJSON(w, http.StatusOK, existing)
 		return
 	}
@@ -287,8 +295,12 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 
 	// Try to enrich from source
 	src, err := s.sourceStore.GetByID(req.SourceURL)
-	if err != nil || src == nil {
-		// Source not found, save with minimal info
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load source failed")
+		return
+	}
+	if src == nil {
+		// An unimported source keeps the existing minimal-book fallback.
 		if err := s.bookStore.AddBook(b); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -300,16 +312,7 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 	// Fetch and enrich book info from source
 	enriched, err := s.searcher.GetBookInfo(*src, req.BookURL)
 	if err != nil {
-		// Enrichment failed, save with minimal info
-		slog.Warn("book enrichment failed, saving with minimal info",
-			"source", req.SourceURL,
-			"book", req.BookURL,
-			"error", err.Error())
-		if err := s.bookStore.AddBook(b); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		writeJSON(w, http.StatusOK, b)
+		writeCrawlError(w, "book_info", err)
 		return
 	}
 
@@ -456,28 +459,40 @@ func (s *Server) handleSearchStream(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetChapters(w http.ResponseWriter, r *http.Request) {
 	bookID := r.PathValue("id")
 	b, err := s.bookStore.GetBook(bookID)
-	if err != nil || b == nil {
-		writeError(w, http.StatusNotFound, "book not found")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load book failed")
+		return
+	}
+	if b == nil {
+		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
 		return
 	}
 
-	// Return cached chapters if available
+	// Return cached chapters if available.
 	chapters, err := s.bookStore.GetChapters(bookID)
-	if err == nil && len(chapters) > 0 {
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load chapters failed")
+		return
+	}
+	if len(chapters) > 0 {
 		writeJSON(w, http.StatusOK, chapters)
 		return
 	}
 
-	// Fetch TOC from source
+	// Fetch TOC from source.
 	src, err := s.sourceStore.GetByID(b.SourceURL)
-	if err != nil || src == nil {
-		writeError(w, http.StatusNotFound, "source not found")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load source failed")
+		return
+	}
+	if src == nil {
+		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
 		return
 	}
 
 	chapters, err = s.searcher.GetChapterListForBook(*src, b, b.TocURL)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeCrawlError(w, "toc", err)
 		return
 	}
 
@@ -505,14 +520,18 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 	idx := r.PathValue("idx")
 
 	b, err := s.bookStore.GetBook(bookID)
-	if err != nil || b == nil {
-		writeError(w, http.StatusNotFound, "book not found")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load book failed")
+		return
+	}
+	if b == nil {
+		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
 		return
 	}
 
 	chapters, err := s.bookStore.GetChapters(bookID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "load chapters failed")
 		return
 	}
 
@@ -524,13 +543,17 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	if ch == nil {
-		writeError(w, http.StatusNotFound, "chapter not found")
+		writeErrorCode(w, http.StatusNotFound, "chapter_not_found", "chapter not found")
 		return
 	}
 
 	src, err := s.sourceStore.GetByID(b.SourceURL)
-	if err != nil || src == nil {
-		writeError(w, http.StatusNotFound, "source not found")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load source failed")
+		return
+	}
+	if src == nil {
+		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
 		return
 	}
 
@@ -543,7 +566,7 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 	}
 	rawContent, contentTitle, err := s.searcher.GetChapterContentForBook(*src, b, ch, next)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeCrawlError(w, "content", err)
 		return
 	}
 
