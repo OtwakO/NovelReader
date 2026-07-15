@@ -3,6 +3,7 @@ package book
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -843,6 +844,10 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 			pageContent = mustString(pageAnalyzer, "body@text")
 		}
 		if pageContent == "" && strings.Contains(body, "<script") {
+			if contentRule != "" {
+				slog.Warn("content: declared rule returned empty; trying SPA/script diagnostic fallback",
+					"source", src.BookSourceName, "url", pageURL, "rule", contentRule)
+			}
 			if extracted := extractContentFromScriptJSON(body); extracted != "" {
 				pageContent = extracted
 				slog.Debug("content: extracted from script tag JSON fallback",
@@ -858,64 +863,84 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 	}
 
 	content := extractPage(an, response.Body, fullURL)
-	visited := map[string]bool{fullURL: true}
-	for nextRule := rules["nextContentUrl"]; nextRule != ""; {
-		nextURLs, err := an.GetStringList(nextRule)
-		if err != nil || len(nextURLs) == 0 {
-			break
-		}
-		var nextURL string
-		for _, candidate := range nextURLs {
-			candidate = resolveURL(candidate, fullURL)
-			if candidate == "" || visited[candidate] {
+	nextRule := rules["nextContentUrl"]
+	scheduledRequests := map[string]bool{fullURL: true}
+	processedPages := map[string]bool{contentURLKey(fullURL): true}
+	pendingURLs := make([]string, 0, 1)
+	pagesFetched := 1
+
+	// Legado follows one next URL as a sequential chain. Multiple URLs are
+	// fetched once as a fixed page set; their pages do not recursively expand.
+	enqueueCandidates := func(candidates []string) bool {
+		for _, candidate := range candidates {
+			candidate = resolveURL(strings.TrimSpace(candidate), fullURL)
+			if candidate == "" || scheduledRequests[candidate] {
 				continue
 			}
 			// Legado stops when a content-page link reaches the next TOC
 			// chapter; otherwise a normal next-chapter link is mistaken for
 			// another page of the current chapter.
 			if next != nil && sameChapterURL(candidate, next.URL, fullURL) {
-				break
+				return true
 			}
-			if next == nil && s.sessions.IsChapter(src.BookSourceURL, candidate) {
-				break
+			if next == nil && s.sessions.IsChapter(src.BookSourceURL, contentURLKey(candidate)) {
+				return true
 			}
-			nextURL = candidate
-			break
+			scheduledRequests[candidate] = true
+			pendingURLs = append(pendingURLs, candidate)
 		}
-		if nextURL == "" {
-			break
-		}
-		visited[nextURL] = true
+		return false
+	}
 
+	singleChain := false
+	if nextRule != "" {
+		nextURLs, err := an.GetStringList(nextRule)
+		if err != nil && !errors.Is(err, analyzer.ErrNoListValues) {
+			return "", "", newContentPaginationError("nextContentUrl", fullURL, fullURL, pagesFetched, err)
+		}
+		if err == nil {
+			singleChain = len(nextURLs) == 1
+			enqueueCandidates(nextURLs)
+		}
+	}
+
+	for len(pendingURLs) > 0 {
+		nextURL := pendingURLs[0]
+		pendingURLs = pendingURLs[1:]
 		nextSpec, err := executor.BuildContext(ctx, nextURL, "", 1, src.BookSourceURL)
 		if err != nil {
-			return "", "", fmt.Errorf("content: next page build: %w", err)
+			return "", "", newContentPaginationError("next page build", fullURL, nextURL, pagesFetched, err)
 		}
 		nextSpec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), nextSpec.Headers)
 		slog.Debug("content: fetching next page", "source", src.BookSourceName, "url", nextSpec.URL, "method", nextSpec.Method)
 		nextResponse, err := transport.Do(ctx, nextSpec)
 		if err != nil {
-			return "", "", fmt.Errorf("content: next page fetch: %w", err)
+			return "", "", newContentPaginationError("next page fetch", fullURL, nextURL, pagesFetched, err)
 		}
 		nextResponse, err = executor.TransformResponse(ctx, nextSpec, nextResponse)
 		if err != nil {
-			return "", "", fmt.Errorf("content: next page bodyJs: %w", err)
+			return "", "", newContentPaginationError("next page bodyJs", fullURL, nextURL, pagesFetched, err)
 		}
 		slog.Debug("content: next page response", "source", src.BookSourceName, "url", nextSpec.URL, "status", nextResponse.StatusCode, "finalURL", nextResponse.FinalURL)
 		if nextResponse.StatusCode < http.StatusOK || nextResponse.StatusCode >= http.StatusMultipleChoices {
-			return "", "", fmt.Errorf("content: next page status %d from %s", nextResponse.StatusCode, src.BookSourceName)
+			return "", "", newContentPaginationError("next page status", fullURL, nextURL, pagesFetched, fmt.Errorf("status %d from %s", nextResponse.StatusCode, src.BookSourceName))
 		}
 		nextFullURL := nextResponse.FinalURL
 		if nextFullURL == "" {
 			nextFullURL = nextSpec.URL
 		}
 		if next != nil && sameChapterURL(nextFullURL, next.URL, fullURL) {
-			break
+			// This queued request crossed the TOC boundary. Do not parse it,
+			// but continue draining other fixed-set content pages.
+			continue
 		}
-		if nextFullURL != nextURL && visited[nextFullURL] {
-			break
+		resolvedKey := contentURLKey(nextFullURL)
+		requestedKey := contentURLKey(nextURL)
+		if processedPages[resolvedKey] && requestedKey != resolvedKey {
+			continue
 		}
-		visited[nextFullURL] = true
+		processedPages[resolvedKey] = true
+		pagesFetched++
 		nextAnalyzer := analyzer.New(nextResponse.Body, nextFullURL, s.jsVM, s.cache)
 		nextAnalyzer.SetContext(ctx)
 		setAnalyzerContextWithBookData(nextAnalyzer, src, session, bookData, b, current, next, nextFullURL)
@@ -924,6 +949,21 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 		}
 		an = nextAnalyzer
 		fullURL = nextFullURL
+
+		if !singleChain || nextRule == "" {
+			continue
+		}
+		nextURLs, err := an.GetStringList(nextRule)
+		if err != nil {
+			if errors.Is(err, analyzer.ErrNoListValues) {
+				break
+			}
+			return "", "", newContentPaginationError("nextContentUrl", fullURL, fullURL, pagesFetched, err)
+		}
+		if len(nextURLs) == 0 {
+			break
+		}
+		enqueueCandidates(nextURLs[:1])
 	}
 	return content, chapterTitle, nil
 }

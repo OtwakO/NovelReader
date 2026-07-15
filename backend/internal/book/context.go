@@ -145,7 +145,9 @@ func sameChapterURL(candidate, expected, baseURL string) bool {
 	if candidate == "" || expected == "" {
 		return false
 	}
-	return resolveURL(candidate, baseURL) == resolveURL(expected, baseURL)
+	candidateURL, _ := splitURLOptionSuffix(resolveURL(candidate, baseURL))
+	expectedURL, _ := splitURLOptionSuffix(resolveURL(expected, baseURL))
+	return candidateURL == expectedURL
 }
 
 func chapterContext(b *Book, c *Chapter, baseURL string) map[string]interface{} {

@@ -304,8 +304,7 @@ func uniqueChapterCount(chapters []Chapter) int {
 }
 
 func tocVisitKey(rawURL string) string {
-	urlPart, _ := splitURLOptionSuffix(rawURL)
-	return urlPart
+	return contentURLKey(rawURL)
 }
 
 func reverseChapters(chapters []Chapter) {
