@@ -21,7 +21,7 @@ func main() {
 	timeout := flag.Duration("timeout", 10*time.Second, "per-source timeout")
 	healthURL := flag.String("health-url", "", "optional server health endpoint; abort on failure")
 	webViewEndpoint := flag.String("webview-endpoint", "", "optional Patchright worker endpoint for webView requests")
-	bookURL := flag.String("book-url", "", "optional book URL; runs detail, TOC, and first-chapter workflow for one index")
+	bookURL := flag.String("book-url", "", "optional book URL; runs detail, TOC, and first/middle/last chapter workflow for one index")
 	flag.Parse()
 	if *input == "" {
 		flag.Usage()

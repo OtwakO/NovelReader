@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -18,6 +19,14 @@ import (
 	"github.com/otwako/novelreader/internal/webview"
 )
 
+// ChapterCheck captures one bounded first/middle/last content probe.
+type ChapterCheck struct {
+	Position      string       `json:"position"`
+	Chapter       book.Chapter `json:"chapter"`
+	ContentTitle  string       `json:"contentTitle,omitempty"`
+	ContentSample string       `json:"contentSample,omitempty"`
+}
+
 // WorkflowRecord captures the small, bounded output of one book workflow.
 type WorkflowRecord struct {
 	Identity       SourceIdentity `json:"identity"`
@@ -25,7 +34,8 @@ type WorkflowRecord struct {
 	BookURL        string         `json:"bookUrl"`
 	Detail         *book.Book     `json:"detail,omitempty"`
 	ChapterCount   int            `json:"chapterCount,omitempty"`
-	FirstChapter   *book.Chapter  `json:"firstChapter,omitempty"`
+	ChapterChecks  []ChapterCheck `json:"chapterChecks,omitempty"`
+	FirstChapter   *book.Chapter  `json:"firstChapter,omitempty"` // retained for CLI compatibility
 	ContentTitle   string         `json:"contentTitle,omitempty"`
 	ContentSample  string         `json:"contentSample,omitempty"`
 	Classification string         `json:"classification"`
@@ -33,7 +43,7 @@ type WorkflowRecord struct {
 	Error          string         `json:"error,omitempty"`
 }
 
-// RunWorkflowWithOptions executes detail, TOC, and first-chapter content for one source.
+// RunWorkflowWithOptions executes detail, TOC, and first/middle/last chapter content for one source.
 func RunWorkflowWithOptions(ctx context.Context, raw []byte, index int, bookURL string, options Options) (WorkflowRecord, error) {
 	items, err := rawItems(raw)
 	if err != nil {
@@ -84,33 +94,70 @@ func RunWorkflowWithOptions(ctx context.Context, raw []byte, index int, bookURL 
 		return record, nil
 	}
 	record.ChapterCount = len(chapters)
-	for i := range chapters {
-		if chapters[i].URL != "" && !chapters[i].IsVolume {
-			record.FirstChapter = &chapters[i]
-			break
-		}
-	}
-	if record.FirstChapter == nil {
+	checks := chapterCheckIndexes(chapters)
+	if len(checks) == 0 {
 		record.Stage, record.Classification = "toc", "toc_empty"
 		return record, nil
 	}
 
-	var next *book.Chapter
-	for i := range chapters {
-		if &chapters[i] == record.FirstChapter && i+1 < len(chapters) {
-			next = &chapters[i+1]
-			break
+	for _, check := range checks {
+		chapter := &chapters[check.index]
+		if record.FirstChapter == nil {
+			record.FirstChapter = chapter
+		}
+		var next *book.Chapter
+		if check.index+1 < len(chapters) {
+			next = &chapters[check.index+1]
+		}
+		content, title, err := searcher.GetChapterContentForBook(src, detail, chapter, next)
+		if err != nil {
+			record.Stage, record.Classification, record.Error = "content_"+check.position, "content_failure", err.Error()
+			return record, nil
+		}
+		if strings.TrimSpace(content) == "" {
+			record.Stage, record.Classification, record.Error = "content_"+check.position, "content_empty", "chapter content is empty"
+			return record, nil
+		}
+		result := ChapterCheck{Position: check.position, Chapter: *chapter, ContentTitle: title, ContentSample: sample(content)}
+		record.ChapterChecks = append(record.ChapterChecks, result)
+		if check.position == "first" {
+			record.ContentTitle = title
+			record.ContentSample = result.ContentSample
 		}
 	}
-	content, title, err := searcher.GetChapterContentForBook(src, detail, record.FirstChapter, next)
-	if err != nil {
-		record.Stage, record.Classification, record.Error = "content", "content_failure", err.Error()
-		return record, nil
-	}
-	record.ContentTitle = title
-	record.ContentSample = sample(content)
 	record.Stage, record.Classification = "content", "success"
 	return record, nil
+}
+
+type chapterCheckIndex struct {
+	position string
+	index    int
+}
+
+func chapterCheckIndexes(chapters []book.Chapter) []chapterCheckIndex {
+	readable := make([]int, 0, len(chapters))
+	for i := range chapters {
+		if chapters[i].URL != "" && !chapters[i].IsVolume {
+			readable = append(readable, i)
+		}
+	}
+	if len(readable) == 0 {
+		return nil
+	}
+	candidates := []chapterCheckIndex{
+		{position: "first", index: readable[0]},
+		{position: "middle", index: readable[len(readable)/2]},
+		{position: "last", index: readable[len(readable)-1]},
+	}
+	checks := make([]chapterCheckIndex, 0, 3)
+	seen := make(map[int]bool, 3)
+	for _, candidate := range candidates {
+		if !seen[candidate.index] {
+			seen[candidate.index] = true
+			checks = append(checks, candidate)
+		}
+	}
+	return checks
 }
 
 func newWorkflowSearcher(timeout time.Duration, options Options) (*book.Searcher, error) {
