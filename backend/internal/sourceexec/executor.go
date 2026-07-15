@@ -13,6 +13,7 @@ type Executor struct {
 	jsVM        *analyzer.JSVM
 	transport   Transport
 	sourceState analyzer.SourceState
+	urlContext  *analyzer.URLContext
 }
 
 // NewExecutor creates an executor with explicit JavaScript and transport dependencies.
@@ -25,6 +26,9 @@ func NewExecutorWithSession(jsVM *analyzer.JSVM, transport Transport, session *S
 	return &Executor{jsVM: jsVM, transport: transport, sourceState: session}
 }
 
+// SetURLContext applies typed book/chapter bindings to URL and bodyJs evaluation.
+func (e *Executor) SetURLContext(data *analyzer.URLContext) { e.urlContext = data }
+
 // Build expands a Legado URL template into a transport-neutral request.
 func (e *Executor) Build(template, key string, page int, baseURL string) (RequestSpec, error) {
 	return e.BuildContext(context.Background(), template, key, page, baseURL)
@@ -35,7 +39,7 @@ func (e *Executor) BuildContext(ctx context.Context, template, key string, page 
 	if e == nil {
 		return RequestSpec{}, fmt.Errorf("sourceexec: nil executor")
 	}
-	meta, err := analyzer.BuildURLWithContext(ctx, template, key, page, baseURL, e.jsVM, e.sourceState)
+	meta, err := analyzer.BuildURLWithContextData(ctx, template, key, page, baseURL, e.jsVM, e.sourceState, e.urlContext)
 	if err != nil {
 		return RequestSpec{}, err
 	}
@@ -70,9 +74,8 @@ func (e *Executor) TransformResponse(ctx context.Context, spec RequestSpec, resp
 	if baseURL == "" {
 		baseURL = spec.URL
 	}
-	value, err := e.jsVM.EvalContext(ctx, spec.BodyJS, response.Body, baseURL, map[string]interface{}{
-		"sourceState": e.sourceState,
-	})
+	bindings := analyzer.URLBindings(e.urlContext, baseURL, e.sourceState)
+	value, err := analyzer.EvalURLScript(ctx, e.jsVM, spec.BodyJS, response.Body, baseURL, e.urlContext, bindings)
 	if err != nil {
 		return Response{}, fmt.Errorf("sourceexec: bodyJs: %w", err)
 	}

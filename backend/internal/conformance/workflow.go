@@ -78,7 +78,7 @@ func RunWorkflowWithOptions(ctx context.Context, raw []byte, index int, bookURL 
 	}
 	record.Detail = detail
 
-	chapters, err := searcher.GetChapterList(src, bookURL, detail.TocURL)
+	chapters, err := searcher.GetChapterListForBook(src, detail, detail.TocURL)
 	if err != nil {
 		record.Stage, record.Classification, record.Error = "toc", "toc_failure", err.Error()
 		return record, nil
@@ -95,7 +95,14 @@ func RunWorkflowWithOptions(ctx context.Context, raw []byte, index int, bookURL 
 		return record, nil
 	}
 
-	content, title, err := searcher.GetChapterContent(src, record.FirstChapter.URL)
+	var next *book.Chapter
+	for i := range chapters {
+		if &chapters[i] == record.FirstChapter && i+1 < len(chapters) {
+			next = &chapters[i+1]
+			break
+		}
+	}
+	content, title, err := searcher.GetChapterContentForBook(src, detail, record.FirstChapter, next)
 	if err != nil {
 		record.Stage, record.Classification, record.Error = "content", "content_failure", err.Error()
 		return record, nil

@@ -92,9 +92,10 @@ type Analyzer struct {
 	isJSON      bool
 	jsVM        *JSVM
 	cache       *CacheManager
-	jsLib       string            // prepended to every JS eval (from source's jsLib field)
-	book        map[string]string // legado's `book` object: name, author, bookUrl, etc.
-	chapter     map[string]string // legado's `chapter` object: url, title, index, etc.
+	jsLib       string                 // prepended to every JS eval (from source's jsLib field)
+	book        map[string]interface{} // legado's `book` object: name, author, bookUrl, etc.
+	chapter     map[string]interface{} // legado's `chapter` object: url, title, index, etc.
+	nextChapter map[string]interface{} // the exact next TOC chapter, when known
 	ruleVars    map[string]string
 	sourceState SourceState
 	ctx         context.Context
@@ -117,11 +118,32 @@ func New(content, baseURL string, jsVM *JSVM, cache *CacheManager) *Analyzer {
 // legado evaluates jsLib once before source-specific JS; we prepend it per-eval.
 func (a *Analyzer) SetJSLib(jsLib string) { a.jsLib = jsLib }
 
-// SetBookData sets the `book` JS context object (name, author, bookUrl, etc.)
-func (a *Analyzer) SetBookData(b map[string]string) { a.book = b }
+// SetBookData sets the `book` JS context object using string-valued fields.
+func (a *Analyzer) SetBookData(b map[string]string) {
+	values := make(map[string]interface{}, len(b))
+	for key, value := range b {
+		values[key] = value
+	}
+	a.SetBookDataValues(values)
+}
 
-// SetChapterData sets the `chapter` JS context object (url, title, index, etc.)
-func (a *Analyzer) SetChapterData(c map[string]string) { a.chapter = c }
+// SetBookDataValues binds complete typed book fields for JavaScript rules.
+func (a *Analyzer) SetBookDataValues(b map[string]interface{}) { a.book = b }
+
+// SetChapterData sets the `chapter` JS context object using string-valued fields.
+func (a *Analyzer) SetChapterData(c map[string]string) {
+	values := make(map[string]interface{}, len(c))
+	for key, value := range c {
+		values[key] = value
+	}
+	a.SetChapterDataValues(values)
+}
+
+// SetChapterDataValues binds complete typed current-chapter fields.
+func (a *Analyzer) SetChapterDataValues(c map[string]interface{}) { a.chapter = c }
+
+// SetNextChapterDataValues binds the exact next chapter for content rules.
+func (a *Analyzer) SetNextChapterDataValues(c map[string]interface{}) { a.nextChapter = c }
 
 // SetSourceState binds the source session used by cookie, source, and cache JS objects.
 func (a *Analyzer) SetSourceState(state SourceState) { a.sourceState = state }
@@ -620,6 +642,12 @@ func (a *Analyzer) jsBindings() map[string]interface{} {
 	}
 	if a.chapter != nil {
 		b["chapter"] = a.chapter
+	}
+	b["nextChapter"] = nil
+	b["nextChapterUrl"] = nil
+	if a.nextChapter != nil {
+		b["nextChapter"] = a.nextChapter
+		b["nextChapterUrl"] = a.nextChapter["url"]
 	}
 	if a.sourceState != nil {
 		b["sourceState"] = a.sourceState

@@ -44,30 +44,34 @@ type Book struct {
 
 // Chapter represents a single chapter.
 type Chapter struct {
-	ID      string `json:"id" db:"id"`
-	BookID  string `json:"bookId" db:"book_id"`
-	Index   int    `json:"index" db:"idx"`
-	Title   string `json:"title" db:"title"`
-	URL     string `json:"url" db:"url"`
-	IsVip   bool   `json:"isVip" db:"is_vip"`
-	IsVolume bool  `json:"isVolume" db:"is_volume"`
-	Cached  bool   `json:"cached" db:"cached"`
+	ID        string `json:"id" db:"id"`
+	BookID    string `json:"bookId" db:"book_id"`
+	Index     int    `json:"index" db:"idx"`
+	Title     string `json:"title" db:"title"`
+	URL       string `json:"url" db:"url"`
+	IsVip     bool   `json:"isVip" db:"is_vip"`
+	IsVolume  bool   `json:"isVolume" db:"is_volume"`
+	IsPay     bool   `json:"isPay" db:"is_pay"`
+	BaseURL   string `json:"baseUrl" db:"base_url"`
+	Tag       string `json:"tag,omitempty" db:"tag"`
+	WordCount string `json:"wordCount,omitempty" db:"word_count"`
+	Cached    bool   `json:"cached" db:"cached"`
 }
 
 // SearchResult is a book found by searching a source.
 type SearchResult struct {
-	Name       string `json:"name"`
-	Author     string `json:"author"`
-	CoverURL   string `json:"coverUrl"`
-	Intro      string `json:"intro"`
-	Kind       string `json:"kind"`
-	LastChapter string `json:"lastChapter"`
-	UpdateTime string `json:"updateTime"`
-	WordCount  string `json:"wordCount"`
-	BookURL    string `json:"bookUrl"`
-	SourceURL  string `json:"sourceUrl"`
-	SourceName string `json:"sourceName"`
-	Score      int           `json:"score"`
+	Name             string      `json:"name"`
+	Author           string      `json:"author"`
+	CoverURL         string      `json:"coverUrl"`
+	Intro            string      `json:"intro"`
+	Kind             string      `json:"kind"`
+	LastChapter      string      `json:"lastChapter"`
+	UpdateTime       string      `json:"updateTime"`
+	WordCount        string      `json:"wordCount"`
+	BookURL          string      `json:"bookUrl"`
+	SourceURL        string      `json:"sourceUrl"`
+	SourceName       string      `json:"sourceName"`
+	Score            int         `json:"score"`
 	AlternateSources []AltSource `json:"alternateSources,omitempty"`
 }
 
@@ -112,6 +116,10 @@ func (s *Store) Init() error {
 			url TEXT NOT NULL,
 			is_vip INTEGER DEFAULT 0,
 			is_volume INTEGER DEFAULT 0,
+			is_pay INTEGER DEFAULT 0,
+			base_url TEXT DEFAULT '',
+			tag TEXT DEFAULT '',
+			word_count TEXT DEFAULT '',
 			cached INTEGER DEFAULT 0,
 			FOREIGN KEY (book_id) REFERENCES books(id)
 		)`,
@@ -122,8 +130,16 @@ func (s *Store) Init() error {
 			return fmt.Errorf("book: init: %w", err)
 		}
 	}
-	// ponytail: alternate_sources is already in the CREATE TABLE above.
-	// The (now-removed) ALTER TABLE was creating a duplicate column on every restart.
+	for _, column := range []struct{ name, definition string }{
+		{"is_pay", "INTEGER DEFAULT 0"},
+		{"base_url", "TEXT DEFAULT ''"},
+		{"tag", "TEXT DEFAULT ''"},
+		{"word_count", "TEXT DEFAULT ''"},
+	} {
+		if err := ensureColumn(s.db, "chapters", column.name, column.definition); err != nil {
+			return fmt.Errorf("book: init chapter column %s: %w", column.name, err)
+		}
+	}
 	return nil
 }
 
@@ -137,7 +153,7 @@ var bookColumns = `id, name, author, cover_url, intro, kind,
 	alternate_sources, created_at, updated_at`
 
 // chapterColumns for SELECT queries on the chapters table.
-var chapterColumns = `id, book_id, idx, title, url, is_vip, is_volume, cached`
+var chapterColumns = `id, book_id, idx, title, url, is_vip, is_volume, is_pay, base_url, tag, word_count, cached`
 
 // AddBook inserts a book into the shelf.
 func (s *Store) AddBook(b *Book) error {
@@ -217,8 +233,8 @@ func (s *Store) SaveChapters(bookID string, chapters []Chapter) error {
 		if ch.ID == "" {
 			ch.ID = fmt.Sprintf("%s_%d", bookID, ch.Index)
 		}
-		_, err := tx.Exec(`INSERT INTO chapters (id, book_id, idx, title, url, is_vip, is_volume, cached) VALUES (?,?,?,?,?,?,?,?)`,
-			ch.ID, ch.BookID, ch.Index, ch.Title, ch.URL, boolToInt(ch.IsVip), boolToInt(ch.IsVolume), boolToInt(ch.Cached))
+		_, err := tx.Exec(`INSERT INTO chapters (id, book_id, idx, title, url, is_vip, is_volume, is_pay, base_url, tag, word_count, cached) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+			ch.ID, ch.BookID, ch.Index, ch.Title, ch.URL, boolToInt(ch.IsVip), boolToInt(ch.IsVolume), boolToInt(ch.IsPay), ch.BaseURL, ch.Tag, ch.WordCount, boolToInt(ch.Cached))
 		if err != nil {
 			return err
 		}
@@ -354,12 +370,37 @@ func scanChapters(rows *sql.Rows) ([]Chapter, error) {
 	var list []Chapter
 	for rows.Next() {
 		var ch Chapter
-		if err := rows.Scan(&ch.ID, &ch.BookID, &ch.Index, &ch.Title, &ch.URL, &ch.IsVip, &ch.IsVolume, &ch.Cached); err != nil {
+		if err := rows.Scan(&ch.ID, &ch.BookID, &ch.Index, &ch.Title, &ch.URL, &ch.IsVip, &ch.IsVolume, &ch.IsPay, &ch.BaseURL, &ch.Tag, &ch.WordCount, &ch.Cached); err != nil {
 			return nil, err
 		}
 		list = append(list, ch)
 	}
 	return list, rows.Err()
+}
+
+func ensureColumn(db *sql.DB, table, column, definition string) error {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notNull, primaryKey int
+		var defaultValue interface{}
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &primaryKey); err != nil {
+			return err
+		}
+		if name == column {
+			return rows.Err()
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + definition)
+	return err
 }
 
 func boolToInt(b bool) int {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -13,17 +14,22 @@ import (
 // ChapterListParser handles the full legado-compatible TOC parsing pipeline.
 // Mirrors legado's BookChapterList.analyzeChapterList.
 type ChapterListParser struct {
-	src   booksource.BookSource
-	jsVM  *analyzer.JSVM
-	cache *analyzer.CacheManager
-	state analyzer.SourceState
-	ctx   context.Context
-	fetch func(urlStr string) (string, string, error) // returns (body, resolvedURL, error)
+	src      booksource.BookSource
+	jsVM     *analyzer.JSVM
+	cache    *analyzer.CacheManager
+	state    analyzer.SourceState
+	book     *Book
+	bookData map[string]interface{}
+	ctx      context.Context
+	fetch    func(urlStr string) (string, string, error) // returns (body, resolvedURL, error)
 }
 
 // ParseChapterList fetches and parses the complete chapter list, handling pagination.
 func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter, error) {
 	rules := parseRuleJSON(p.src.RuleToc)
+	if p.bookData == nil {
+		p.bookData = bookContext(p.book, p.src)
+	}
 	if rules == nil {
 		return nil, fmt.Errorf("toc: no rules for %s", p.src.BookSourceName)
 	}
@@ -70,8 +76,8 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 
 		// Extract next page URL(s) from current page
 		an := analyzer.New(body, resolvedURL, p.jsVM, p.cache)
-		an.SetSourceState(p.state)
 		an.SetContext(p.ctx)
+		setAnalyzerContextMaps(an, p.src, p.state, p.bookData, nil, nil)
 		nextURLs, err := an.GetStringList(nextRule)
 		if err != nil || len(nextURLs) == 0 {
 			break
@@ -111,8 +117,8 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 
 func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[string]string) ([]Chapter, string, error) {
 	an := analyzer.New(body, pageURL, p.jsVM, p.cache)
-	an.SetSourceState(p.state)
 	an.SetContext(p.ctx)
+	setAnalyzerContextMaps(an, p.src, p.state, p.bookData, nil, nil)
 	elements, err := an.GetElements(listRule)
 	if err != nil {
 		return nil, "", fmt.Errorf("toc: get elements: %w", err)
@@ -121,50 +127,68 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 	nameRule := rules["chapterName"]
 	urlRule := rules["chapterUrl"]
 	vipRule := rules["isVip"]
+	payRule := rules["isPay"]
 	volumeRule := rules["isVolume"]
 	timeRule := rules["updateTime"]
 
 	var chapters []Chapter
-	for _, el := range elements {
+	for elementIndex, el := range elements {
+		current := &Chapter{}
+		elHTML := analyzer.ToString(el)
+		elAn := analyzer.New(elHTML, pageURL, p.jsVM, p.cache)
+		elAn.SetContext(p.ctx)
+		chapterData := chapterContext(p.book, current, pageURL)
+		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
+
 		title, titleIsField := jsElementField(el, nameRule)
-		chURL, urlIsField := jsElementField(el, urlRule)
-		if !titleIsField || !urlIsField {
-			elHTML := analyzer.ToString(el)
-			elAn := analyzer.New(elHTML, pageURL, p.jsVM, p.cache)
-			elAn.SetSourceState(p.state)
-			elAn.SetContext(p.ctx)
-			if !titleIsField {
-				title = mustString(elAn, nameRule)
-			}
-			if !urlIsField {
-				chURL = mustString(elAn, urlRule)
-			}
+		if !titleIsField {
+			title = mustString(elAn, nameRule)
 		}
 		if title == "" {
 			continue
 		}
+		// BookChapter is mutable in Legado: chapterUrl rules can use the title
+		// extracted immediately before them.
+		current.Title = title
+		chapterData["title"] = title
+		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
 
-		// Resolve chapter URL against the page it was found on
+		chURL, urlIsField := jsElementField(el, urlRule)
+		if !urlIsField {
+			chURL = mustString(elAn, urlRule)
+		}
+		// Resolve chapter URL against the page it was found on.
 		chURL = resolveURL(chURL, pageURL)
+		current.URL = chURL
+		chapterData["url"] = chURL
+		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
 
-		// Volume detection: empty URL or explicit isVolume rule
-		isVolume := elementRuleString(el, volumeRule, pageURL, p)
+		// Match Legado's mutable chapter lifecycle: update info, volume, URL
+		// fallback, then VIP/pay flags.
+		current.BaseURL = pageURL
+		chapterData["baseUrl"] = pageURL
+		if t := elementRuleString(el, timeRule, pageURL, p, current, p.bookData, chapterData); t != "" {
+			current.Tag = t
+			chapterData["tag"] = t
+		}
+		current.IsVolume = legadoTrue(elementRuleString(el, volumeRule, pageURL, p, current, p.bookData, chapterData))
 		if chURL == "" {
-			isVolume = "true" // infer volume from missing URL
+			if current.IsVolume {
+				chURL = title + strconv.Itoa(elementIndex)
+			} else {
+				chURL = pageURL
+			}
 		}
-
-		ch := Chapter{
-			Title:    title,
-			URL:      chURL,
-			IsVip:    elementRuleString(el, vipRule, pageURL, p) == "true",
-			IsVolume: isVolume == "true",
-		}
-
-		if t := elementRuleString(el, timeRule, pageURL, p); t != "" {
-			_ = t
-		}
-
-		chapters = append(chapters, ch)
+		current.URL = chURL
+		chapterData["url"] = chURL
+		chapterData["isVolume"] = current.IsVolume
+		current.IsVip = legadoTrue(elementRuleString(el, vipRule, pageURL, p, current, p.bookData, chapterData))
+		current.IsPay = legadoTrue(elementRuleString(el, payRule, pageURL, p, current, p.bookData, chapterData))
+		chapterData["isVolume"] = current.IsVolume
+		chapterData["isVip"] = current.IsVip
+		chapterData["isPay"] = current.IsPay
+		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
+		chapters = append(chapters, *current)
 	}
 
 	// Log warning when elements matched but no chapters had extractable titles.
@@ -183,6 +207,16 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 	}
 
 	return chapters, "", nil
+}
+
+func legadoTrue(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "", "false", "no", "not", "null", "0", "0.0":
+		return false
+	default:
+		return true
+	}
 }
 
 func jsElementField(value interface{}, rule string) (string, bool) {
@@ -205,13 +239,13 @@ func jsElementField(value interface{}, rule string) (string, bool) {
 	}
 }
 
-func elementRuleString(value interface{}, rule, pageURL string, parser *ChapterListParser) string {
+func elementRuleString(value interface{}, rule, pageURL string, parser *ChapterListParser, current *Chapter, bookData, chapterData map[string]interface{}) string {
 	if value, ok := jsElementField(value, rule); ok {
 		return value
 	}
 	an := analyzer.New(analyzer.ToString(value), pageURL, parser.jsVM, parser.cache)
-	an.SetSourceState(parser.state)
 	an.SetContext(parser.ctx)
+	setAnalyzerContextMaps(an, parser.src, parser.state, bookData, chapterData, nil)
 	return mustString(an, rule)
 }
 

@@ -16,15 +16,16 @@ import (
 
 func TestGetBookInfoAppliesInitBeforeDetailRules(t *testing.T) {
 	fixtures := map[string]string{
-		"/css":   `<div><span class="name">Wrong</span></div><table><tr class="noise"><td>Noise</td></tr><tr class="detail"><td class="name">CSS Book</td><td class="author">CSS Author</td></tr></table>`,
-		"/json":  `{"wrong":{"name":"Wrong"},"payload":{"name":"JSON Book","author":"JSON Author"}}`,
-		"/array": `{"payload":[{"name":"Wrong"},{"name":"Array Book","author":"Array Author"}]}`,
-		"/js":    `{"wrong":{"name":"Wrong"},"payload":{"name":"JS Book","author":"JS Author"}}`,
-		"/jsoup": `<table><tr class="detail"><td class="name">JSoup Book</td><td class="author">JSoup Author</td></tr></table>`,
-		"/null":  `{"payload":null}`,
-		"/put":   `<h1 class="name">Put Book</h1><span class="author">Put Author</span>`,
-		"/regex": `<script>window.book={"name":"Regex Book","author":"Regex Author"}</script>`,
-		"/xpath": `<ul>` + strings.Repeat(`<li></li>`, 55) + `<li><span class="name">XPath Book</span><span class="author">XPath Author</span></li></ul>`,
+		"/css":     `<div><span class="name">Wrong</span></div><table><tr class="noise"><td>Noise</td></tr><tr class="detail"><td class="name">CSS Book</td><td class="author">CSS Author</td></tr></table>`,
+		"/mutable": `<h1 class="name">Mutable Book</h1>`,
+		"/json":    `{"wrong":{"name":"Wrong"},"payload":{"name":"JSON Book","author":"JSON Author"}}`,
+		"/array":   `{"payload":[{"name":"Wrong"},{"name":"Array Book","author":"Array Author"}]}`,
+		"/js":      `{"wrong":{"name":"Wrong"},"payload":{"name":"JS Book","author":"JS Author"}}`,
+		"/jsoup":   `<table><tr class="detail"><td class="name">JSoup Book</td><td class="author">JSoup Author</td></tr></table>`,
+		"/null":    `{"payload":null}`,
+		"/put":     `<h1 class="name">Put Book</h1><span class="author">Put Author</span>`,
+		"/regex":   `<script>window.book={"name":"Regex Book","author":"Regex Author"}</script>`,
+		"/xpath":   `<ul>` + strings.Repeat(`<li></li>`, 55) + `<li><span class="name">XPath Book</span><span class="author">XPath Author</span></li></ul>`,
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(fixtures[r.URL.Path]))
@@ -35,6 +36,7 @@ func TestGetBookInfoAppliesInitBeforeDetailRules(t *testing.T) {
 		name, path, init, nameRule, authorRule, wantName, wantAuthor, wantErr string
 	}{
 		{"CSS merged collection", "/css", ".noise&&tr.detail", ".name@text", ".author@text", "CSS Book", "CSS Author", ""},
+		{"mutable book context", "/mutable", "", ".name@text", `<js>book.name + ' Author'</js>`, "Mutable Book", "Mutable Book Author", ""},
 		{"CSS alternative", "/css", ".missing||tr.detail", ".name@text", ".author@text", "CSS Book", "CSS Author", ""},
 		{"JSON object", "/json", "$.payload", "$.name", "$.author", "JSON Book", "JSON Author", ""},
 		{"JSON array", "/array", "$.payload", "$[1].name", "$[1].author", "Array Book", "Array Author", ""},
@@ -72,6 +74,26 @@ func TestGetBookInfoAppliesInitBeforeDetailRules(t *testing.T) {
 				t.Fatalf("book = %+v, want name %q and author %q", book, tt.wantName, tt.wantAuthor)
 			}
 		})
+	}
+}
+
+func TestGetBookInfoKeepsMutableBookContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<h1 class="name">Mutable Book</h1>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL,
+		RuleBookInfo:  `{"name":"@css:.name@text","author":"<js>book.author='Mutated Author'; book.author</js>","intro":"<js>book.author + ' intro'</js>"}`,
+	}
+	book, err := s.GetBookInfo(src, server.URL+"/book")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if book.Author != "Mutated Author" || book.Intro != "Mutated Author intro" {
+		t.Fatalf("book=%+v, want mutable author in later fields", book)
 	}
 }
 

@@ -477,6 +477,12 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
+	b := &Book{
+		SourceURL: src.BookSourceURL,
+		BookURL:   bookURL,
+		Origin:    src.BookSourceName,
+	}
+	setExecutorContext(executor, src, b, nil, nil, bookURL)
 	spec, err := executor.BuildContext(ctx, bookURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
@@ -501,16 +507,9 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 		baseURL = spec.URL
 	}
 	an := analyzer.New(response.Body, baseURL, s.jsVM, s.cache)
-	an.SetJSLib(src.JSLib)
-	an.SetSourceState(session)
 	an.SetContext(ctx)
-
-	// Set book context for JS rules that reference book.name, book.author, etc.
-	an.SetBookData(map[string]string{
-		"bookUrl":    bookURL,
-		"origin":     src.BookSourceURL,
-		"originName": src.BookSourceName,
-	})
+	bookData := bookContext(b, src)
+	setAnalyzerContextWithBookData(an, src, session, bookData, b, nil, nil, baseURL)
 
 	rules := parseRuleJSON(src.RuleBookInfo)
 	if initRule := strings.TrimSpace(rules["init"]); initRule != "" {
@@ -523,26 +522,39 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 		}
 		an.SetContent(content)
 	}
-	b := &Book{
-		SourceURL: src.BookSourceURL,
-		BookURL:   bookURL,
-		Origin:    src.BookSourceName,
-	}
-
 	if rules != nil {
-		b.Name = mustString(an, rules["name"])
-		b.Author = mustString(an, rules["author"])
-		b.CoverURL = resolveURL(mustString(an, rules["coverUrl"]), baseURL)
-		b.Intro = mustString(an, rules["intro"])
-		b.Kind = mustString(an, rules["kind"])
-		b.LastChapter = mustString(an, rules["lastChapter"])
-		b.UpdateTime = mustString(an, rules["updateTime"])
-		b.WordCount = mustString(an, rules["wordCount"])
+		readField := func(rule string) string {
+			// Legado exposes one mutable Book object; later fields may depend on
+			// values extracted by earlier fields or JS assignments.
+			setAnalyzerContextWithBookData(an, src, session, bookData, b, nil, nil, baseURL)
+			return mustString(an, rule)
+		}
+		b.Name = readField(rules["name"])
+		bookData["name"] = b.Name
+		syncBookFromContext(b, bookData)
+		b.Author = readField(rules["author"])
+		bookData["author"] = b.Author
+		syncBookFromContext(b, bookData)
+		b.Kind = readField(rules["kind"])
+		bookData["kind"] = b.Kind
+		b.WordCount = readField(rules["wordCount"])
+		bookData["wordCount"] = b.WordCount
+		b.LastChapter = readField(rules["lastChapter"])
+		bookData["lastChapter"] = b.LastChapter
+		bookData["latestChapterTitle"] = b.LastChapter
+		b.Intro = readField(rules["intro"])
+		bookData["intro"] = b.Intro
+		b.CoverURL = resolveURL(readField(rules["coverUrl"]), baseURL)
+		bookData["coverUrl"] = b.CoverURL
+		b.UpdateTime = readField(rules["updateTime"])
+		bookData["updateTime"] = b.UpdateTime
 
 		// resolve tocUrl against bookUrl, not source root
-		if tocURL := mustString(an, rules["tocUrl"]); tocURL != "" {
+		if tocURL := readField(rules["tocUrl"]); tocURL != "" {
 			b.TocURL = resolveURL(tocURL, baseURL)
+			bookData["tocUrl"] = b.TocURL
 		}
+		syncBookFromContext(b, bookData)
 	}
 
 	if b.TocURL == "" {
@@ -559,6 +571,19 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 // If tocURL is empty, it attempts to auto-detect a TOC page link from the book detail page
 // by scanning for common TOC URL patterns when the extracted chapters look invalid.
 func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL string) ([]Chapter, error) {
+	return s.GetChapterListForBook(src, &Book{
+		SourceURL: src.BookSourceURL,
+		BookURL:   bookURL,
+		Origin:    src.BookSourceName,
+	}, tocURL)
+}
+
+// GetChapterListForBook parses a TOC with the complete stored book context.
+func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, tocURL string) ([]Chapter, error) {
+	if b == nil {
+		return nil, fmt.Errorf("chapter list: book is required")
+	}
+	bookURL := b.BookURL
 	fetchURL := tocURL
 	if fetchURL == "" {
 		fetchURL = bookURL
@@ -570,12 +595,16 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
+	bookData := bookContext(b, src)
+	setExecutorContextWithBookData(executor, src, bookData, b, nil, nil, fetchURL)
 	parser := &ChapterListParser{
-		src:   src,
-		jsVM:  s.jsVM,
-		cache: s.cache,
-		state: session,
-		ctx:   ctx,
+		src:      src,
+		jsVM:     s.jsVM,
+		cache:    s.cache,
+		state:    session,
+		book:     b,
+		bookData: bookData,
+		ctx:      ctx,
 		fetch: func(urlStr string) (string, string, error) {
 			spec, err := executor.BuildContext(ctx, urlStr, "", 1, src.BookSourceURL)
 			if err != nil {
@@ -737,20 +766,36 @@ func detectTOCPage(bookPageURL, sourceURL string, fetcher *fetcher.Client, heade
 	return ""
 }
 
-// GetChapterContent fetches and parses chapter content using ruleContent.
-// If the standard rule extraction returns empty content, it attempts to
-// find content embedded as JSON in <script> tags (common for Vue.js/React SPAs).
+// GetChapterContent keeps the legacy URL-only API for callers without stored context.
 func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL string) (string, string, error) {
+	return s.GetChapterContentForBook(src, nil, &Chapter{URL: chapterURL}, nil)
+}
+
+// GetChapterContentForBook fetches content with the complete book/current/next context.
+// If the standard rule extraction returns empty content, it attempts to find content
+// embedded as JSON in <script> tags (common for Vue.js/React SPAs).
+func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, current, next *Chapter) (string, string, error) {
+	if current == nil || current.URL == "" {
+		return "", "", fmt.Errorf("content: current chapter is required")
+	}
+	chapterURL := current.URL
 	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
 	defer cancel()
 
-	session := s.sessions.GetChapter(src.BookSourceURL, chapterURL)
+	var session *sourceexec.SourceSession
+	if b != nil && b.BookURL != "" {
+		session = s.sessions.GetOrCreateBook(src.BookSourceURL, b.BookURL)
+	} else {
+		session = s.sessions.GetChapter(src.BookSourceURL, chapterURL)
+	}
 	if session == nil {
 		session = sourceexec.NewSourceSession()
 	}
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
+	bookData := bookContext(b, src)
+	setExecutorContextWithBookData(executor, src, bookData, b, current, next, chapterURL)
 	spec, err := executor.BuildContext(ctx, chapterURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
@@ -776,14 +821,8 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	}
 
 	an := analyzer.New(response.Body, fullURL, s.jsVM, s.cache)
-	an.SetJSLib(src.JSLib)
-	an.SetSourceState(session)
 	an.SetContext(ctx)
-	// Bind chapter context for JS rules that reference chapter.url, chapter.baseUrl
-	an.SetChapterData(map[string]string{
-		"url":     fullURL,
-		"baseUrl": fullURL,
-	})
+	setAnalyzerContextWithBookData(an, src, session, bookData, b, current, next, fullURL)
 	rules := parseRuleJSON(src.RuleContent)
 	if rules == nil {
 		return mustString(an, "body@text"), "", nil
@@ -834,7 +873,10 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 			// Legado stops when a content-page link reaches the next TOC
 			// chapter; otherwise a normal next-chapter link is mistaken for
 			// another page of the current chapter.
-			if s.sessions.IsChapter(src.BookSourceURL, candidate) {
+			if next != nil && sameChapterURL(candidate, next.URL, fullURL) {
+				break
+			}
+			if next == nil && s.sessions.IsChapter(src.BookSourceURL, candidate) {
 				break
 			}
 			nextURL = candidate
@@ -867,11 +909,16 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		if nextFullURL == "" {
 			nextFullURL = nextSpec.URL
 		}
+		if next != nil && sameChapterURL(nextFullURL, next.URL, fullURL) {
+			break
+		}
+		if nextFullURL != nextURL && visited[nextFullURL] {
+			break
+		}
+		visited[nextFullURL] = true
 		nextAnalyzer := analyzer.New(nextResponse.Body, nextFullURL, s.jsVM, s.cache)
-		nextAnalyzer.SetJSLib(src.JSLib)
-		nextAnalyzer.SetSourceState(session)
 		nextAnalyzer.SetContext(ctx)
-		nextAnalyzer.SetChapterData(map[string]string{"url": nextFullURL, "baseUrl": nextFullURL})
+		setAnalyzerContextWithBookData(nextAnalyzer, src, session, bookData, b, current, next, nextFullURL)
 		if pageContent := extractPage(nextAnalyzer, nextResponse.Body, nextFullURL); pageContent != "" {
 			content += "\n" + pageContent
 		}

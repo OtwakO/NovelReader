@@ -475,7 +475,7 @@ func (s *Server) handleGetChapters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chapters, err = s.searcher.GetChapterList(*src, b.BookURL, b.TocURL)
+	chapters, err = s.searcher.GetChapterListForBook(*src, b, b.TocURL)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -534,7 +534,14 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rawContent, contentTitle, err := s.searcher.GetChapterContent(*src, ch.URL)
+	var next *book.Chapter
+	for i := range chapters {
+		if &chapters[i] == ch && i+1 < len(chapters) {
+			next = &chapters[i+1]
+			break
+		}
+	}
+	rawContent, contentTitle, err := s.searcher.GetChapterContentForBook(*src, b, ch, next)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
