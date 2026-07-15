@@ -12,6 +12,35 @@ import (
 	"github.com/otwako/novelreader/internal/booksource"
 )
 
+// TOCPaginationError reports a failed paginated TOC while retaining enough
+// context to diagnose the discarded partial result.
+type TOCPaginationError struct {
+	PageURL         string
+	FailedURL       string
+	PagesFetched    int
+	ChaptersFetched int
+	Operation       string
+	Err             error
+}
+
+func (e *TOCPaginationError) Error() string {
+	if e == nil {
+		return "toc: pagination failed"
+	}
+	location := e.PageURL
+	if e.FailedURL != "" {
+		location = e.FailedURL
+	}
+	return fmt.Sprintf("toc: %s %s after %d pages (%d chapters): %v", e.Operation, location, e.PagesFetched, e.ChaptersFetched, e.Err)
+}
+
+func (e *TOCPaginationError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 // ChapterListParser handles the full legado-compatible TOC parsing pipeline.
 // Mirrors legado's BookChapterList.analyzeChapterList.
 type ChapterListParser struct {
@@ -52,8 +81,12 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 	}
 
 	var allChapters []Chapter
-	visitedNext := make(map[string]bool)
-	visitedNext[resolvedURL] = true
+	scheduledRequests := make(map[string]bool)
+	processedPages := make(map[string]bool)
+	initialPageKey := tocVisitKey(resolvedURL)
+	scheduledRequests[resolvedURL] = true
+	processedPages[initialPageKey] = true
+	pendingURLs := make([]string, 0, 1)
 	pageCount := 0
 
 	// Handle pagination via nextTocUrl.
@@ -62,49 +95,71 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 		pageCount++
 		chapters, _, err := p.parsePage(body, resolvedURL, listRule, rules)
 		if err != nil {
-			return nil, fmt.Errorf("toc: parse page %s after %d pages (%d chapters): %w", resolvedURL, pageCount, len(allChapters), err)
+			return nil, newTOCPaginationError("parse page", resolvedURL, resolvedURL, pageCount, allChapters, err)
 		}
 		allChapters = append(allChapters, chapters...)
 
-		if nextRule == "" {
-			break
-		}
-
-		// Extract next page URL(s) from the current page. A missing URL is the
-		// normal terminal condition; rule evaluation failures are not.
-		an := analyzer.New(body, resolvedURL, p.jsVM, p.cache)
-		an.SetContext(p.ctx)
-		setAnalyzerContextMaps(an, p.src, p.state, p.bookData, nil, nil)
-		nextURLs, err := an.GetStringList(nextRule)
-		if err != nil {
-			if errors.Is(err, analyzer.ErrNoListValues) {
-				break
+		if nextRule != "" {
+			// Extract next page URL(s) from the current page. A missing URL is the
+			// normal terminal condition; rule evaluation failures are not.
+			an := analyzer.New(body, resolvedURL, p.jsVM, p.cache)
+			an.SetContext(p.ctx)
+			setAnalyzerContextMaps(an, p.src, p.state, p.bookData, nil, nil)
+			nextURLs, err := an.GetStringList(nextRule)
+			if err != nil && !errors.Is(err, analyzer.ErrNoListValues) {
+				return nil, newTOCPaginationError("nextTocUrl", resolvedURL, resolvedURL, pageCount, allChapters, err)
 			}
-			return nil, fmt.Errorf("toc: nextTocUrl failed at %s after %d pages (%d chapters): %w", resolvedURL, pageCount, len(allChapters), err)
-		}
-		if len(nextURLs) == 0 || strings.TrimSpace(nextURLs[0]) == "" {
-			break
+			if err == nil {
+				for _, rawURL := range nextURLs {
+					rawURL = strings.TrimSpace(rawURL)
+					if rawURL == "" {
+						continue
+					}
+					nextURL := resolveURL(rawURL, resolvedURL)
+					if nextURL == "" {
+						continue
+					}
+					if scheduledRequests[nextURL] {
+						slog.Warn("toc: pagination skipped a scheduled next request",
+							"source", p.src.BookSourceName,
+							"page", resolvedURL,
+							"next", nextURL,
+							"pages", pageCount,
+							"chapters", uniqueChapterCount(allChapters),
+						)
+						continue
+					}
+					scheduledRequests[nextURL] = true
+					pendingURLs = append(pendingURLs, nextURL)
+				}
+			}
 		}
 
-		nextURL := resolveURL(nextURLs[0], resolvedURL)
-		// Resolve before cycle detection so relative and absolute spellings cannot
-		// bypass the visited set.
-		if nextURL == "" || visitedNext[nextURL] {
-			slog.Warn("toc: pagination stopped at a visited next page",
-				"source", p.src.BookSourceName,
-				"page", resolvedURL,
-				"next", nextURL,
-				"pages", pageCount,
-				"chapters", len(allChapters),
-			)
+		if len(pendingURLs) == 0 {
 			break
 		}
-		visitedNext[nextURL] = true
-
-		body, resolvedURL, err = p.fetch(nextURL)
+		nextURL := pendingURLs[0]
+		pendingURLs = pendingURLs[1:]
+		pageURL := resolvedURL
+		nextBody, nextResolvedURL, err := p.fetch(nextURL)
 		if err != nil {
-			return nil, fmt.Errorf("toc: next page %s after %d pages (%d chapters): %w", nextURL, pageCount, len(allChapters), err)
+			return nil, newTOCPaginationError("next page", pageURL, nextURL, pageCount, allChapters, err)
 		}
+		resolvedKey := tocVisitKey(nextResolvedURL)
+		requestedKey := tocVisitKey(nextURL)
+		if processedPages[resolvedKey] && requestedKey != resolvedKey {
+			slog.Warn("toc: pagination skipped a redirect to a processed page",
+				"source", p.src.BookSourceName,
+				"page", pageURL,
+				"next", nextURL,
+				"resolved", nextResolvedURL,
+				"pages", pageCount,
+				"chapters", uniqueChapterCount(allChapters),
+			)
+			continue
+		}
+		processedPages[resolvedKey] = true
+		body, resolvedURL = nextBody, nextResolvedURL
 	}
 
 	// Legado reverses the accumulated pages before LinkedHashSet deduplication
@@ -227,6 +282,30 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 	}
 
 	return chapters, "", nil
+}
+
+func newTOCPaginationError(operation, pageURL, failedURL string, pages int, chapters []Chapter, err error) *TOCPaginationError {
+	return &TOCPaginationError{
+		PageURL:         pageURL,
+		FailedURL:       failedURL,
+		PagesFetched:    pages,
+		ChaptersFetched: uniqueChapterCount(chapters),
+		Operation:       operation,
+		Err:             err,
+	}
+}
+
+func uniqueChapterCount(chapters []Chapter) int {
+	seen := make(map[string]bool, len(chapters))
+	for _, chapter := range chapters {
+		seen[chapter.URL] = true
+	}
+	return len(seen)
+}
+
+func tocVisitKey(rawURL string) string {
+	urlPart, _ := splitURLOptionSuffix(rawURL)
+	return urlPart
 }
 
 func reverseChapters(chapters []Chapter) {
