@@ -16,3 +16,4 @@ reference/
 backend/server
 backend/novelreader
 .playwright-cli/
+OLD_AGENTS.md
