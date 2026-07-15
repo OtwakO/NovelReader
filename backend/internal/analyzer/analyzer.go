@@ -10,9 +10,14 @@ package analyzer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+// ErrNoListValues marks a list rule that matched no values; callers may treat
+// it as a normal terminal condition when a list is optional.
+var ErrNoListValues = errors.New("analyzer: no list values matched")
 
 // splitTopLevel splits a rule string on a separator (||, &&, %%) at top level,
 // respecting <js>...</js> blocks and {{...}} expressions.
@@ -224,24 +229,35 @@ func (a *Analyzer) getFirstOr(ruleStr string) (string, error) {
 func (a *Analyzer) GetStringList(ruleStr string) ([]string, error) {
 	if parts := splitTopLevel(ruleStr, "&&"); len(parts) > 1 {
 		var combined []string
+		var firstErr error
 		for _, part := range parts {
 			values, err := a.getStringListOR(part)
 			if err != nil {
+				if !errors.Is(err, ErrNoListValues) && firstErr == nil {
+					firstErr = err
+				}
 				continue
 			}
 			combined = append(combined, values...)
 		}
 		if len(combined) == 0 {
-			return nil, fmt.Errorf("analyzer: no list values matched")
+			if firstErr != nil {
+				return nil, firstErr
+			}
+			return nil, ErrNoListValues
 		}
 		return combined, nil
 	}
 	if parts := splitTopLevel(ruleStr, "%%"); len(parts) > 1 {
 		lists := make([][]string, 0, len(parts))
 		maxLen := 0
+		var firstErr error
 		for _, part := range parts {
 			values, err := a.getStringListOR(part)
 			if err != nil {
+				if !errors.Is(err, ErrNoListValues) && firstErr == nil {
+					firstErr = err
+				}
 				continue
 			}
 			lists = append(lists, values)
@@ -258,7 +274,10 @@ func (a *Analyzer) GetStringList(ruleStr string) ([]string, error) {
 			}
 		}
 		if len(interleaved) == 0 {
-			return nil, fmt.Errorf("analyzer: no list values matched")
+			if firstErr != nil {
+				return nil, firstErr
+			}
+			return nil, ErrNoListValues
 		}
 		return interleaved, nil
 	}
@@ -266,17 +285,27 @@ func (a *Analyzer) GetStringList(ruleStr string) ([]string, error) {
 }
 
 func (a *Analyzer) getStringListOR(ruleStr string) ([]string, error) {
+	var firstErr error
 	for _, segment := range splitTopLevel(ruleStr, "||") {
 		rules, err := ParseRules(strings.TrimSpace(segment), a.isJSON)
 		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		values, err := a.evalStringList(rules)
 		if err == nil && len(values) > 0 {
 			return values, nil
 		}
+		if err != nil && !errors.Is(err, ErrNoListValues) && firstErr == nil {
+			firstErr = err
+		}
 	}
-	return nil, fmt.Errorf("analyzer: no list values matched")
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	return nil, ErrNoListValues
 }
 
 // GetElement evaluates a rule and returns a single element.

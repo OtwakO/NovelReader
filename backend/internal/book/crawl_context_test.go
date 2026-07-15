@@ -100,13 +100,13 @@ func TestTOCChapterURLSeesExtractedTitle(t *testing.T) {
 
 func TestTOCChapterFieldsFollowLegadoFallbacks(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`<div class="entry volume"><span class="name">Volume One</span><span class="volume-flag">yes</span></div><div class="entry ordinary"><span class="name">Chapter One</span><span class="pay">paid</span></div><div class="entry null"><span class="name">Null Volume</span><span class="volume-flag">null</span></div>`))
+		_, _ = w.Write([]byte(`<div class="entry volume"><span class="name">Volume One</span><span class="volume-flag">yes</span></div><div class="entry ordinary"><span class="name">Chapter One</span><span class="pay">paid</span></div><div class="entry null"><span class="name">Null Volume</span><span class="volume-flag">null</span><a href="/chapter/null">link</a></div>`))
 	}))
 	defer server.Close()
 
 	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
 	src := booksource.BookSource{BookSourceURL: server.URL, BookSourceName: "Fixture", RuleToc: `{
-		"chapterList":"@css:.entry", "chapterName":"@css:.name@text", "chapterUrl":"@href",
+		"chapterList":"@css:.entry", "chapterName":"@css:.name@text", "chapterUrl":"@css:a@href",
 		"isVolume":"@css:.volume-flag@text", "isVip":"<js>chapter.isVolume === false && chapter.url.indexOf('/toc') >= 0 ? 'yes' : 'no'</js>",
 		"isPay":"@css:.pay@text"
 	}`}
@@ -121,8 +121,8 @@ func TestTOCChapterFieldsFollowLegadoFallbacks(t *testing.T) {
 	if chapters[1].IsVolume || chapters[1].URL != server.URL+"/toc" || !chapters[1].IsPay || !chapters[1].IsVip {
 		t.Fatalf("ordinary=%+v, want page URL fallback, vip=true, and pay=true", chapters[1])
 	}
-	if chapters[2].IsVolume || chapters[2].URL != server.URL+"/toc" {
-		t.Fatalf("null=%+v, want false volume and page URL fallback", chapters[2])
+	if chapters[2].IsVolume || chapters[2].URL != server.URL+"/chapter/null" {
+		t.Fatalf("null=%+v, want false volume and a distinct chapter URL", chapters[2])
 	}
 }
 

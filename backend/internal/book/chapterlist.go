@@ -2,6 +2,7 @@ package book
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -51,63 +52,82 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 	}
 
 	var allChapters []Chapter
-	seen := make(map[string]bool) // dedup by URL+title
 	visitedNext := make(map[string]bool)
 	visitedNext[resolvedURL] = true
+	pageCount := 0
 
-	// Handle pagination via nextTocUrl
+	// Handle pagination via nextTocUrl.
 	nextRule := rules["nextTocUrl"]
 	for {
-		chapters, nextURL, err := p.parsePage(body, resolvedURL, listRule, rules)
+		pageCount++
+		chapters, _, err := p.parsePage(body, resolvedURL, listRule, rules)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("toc: parse page %s after %d pages (%d chapters): %w", resolvedURL, pageCount, len(allChapters), err)
 		}
-		for _, ch := range chapters {
-			key := ch.URL + "|" + ch.Title
-			if !seen[key] {
-				seen[key] = true
-				allChapters = append(allChapters, ch)
-			}
-		}
+		allChapters = append(allChapters, chapters...)
 
 		if nextRule == "" {
 			break
 		}
 
-		// Extract next page URL(s) from current page
+		// Extract next page URL(s) from the current page. A missing URL is the
+		// normal terminal condition; rule evaluation failures are not.
 		an := analyzer.New(body, resolvedURL, p.jsVM, p.cache)
 		an.SetContext(p.ctx)
 		setAnalyzerContextMaps(an, p.src, p.state, p.bookData, nil, nil)
 		nextURLs, err := an.GetStringList(nextRule)
-		if err != nil || len(nextURLs) == 0 {
+		if err != nil {
+			if errors.Is(err, analyzer.ErrNoListValues) {
+				break
+			}
+			return nil, fmt.Errorf("toc: nextTocUrl failed at %s after %d pages (%d chapters): %w", resolvedURL, pageCount, len(allChapters), err)
+		}
+		if len(nextURLs) == 0 || strings.TrimSpace(nextURLs[0]) == "" {
 			break
 		}
 
-		nextURL = nextURLs[0]
+		nextURL := resolveURL(nextURLs[0], resolvedURL)
 		// Resolve before cycle detection so relative and absolute spellings cannot
 		// bypass the visited set.
-		nextURL = resolveURL(nextURL, resolvedURL)
 		if nextURL == "" || visitedNext[nextURL] {
+			slog.Warn("toc: pagination stopped at a visited next page",
+				"source", p.src.BookSourceName,
+				"page", resolvedURL,
+				"next", nextURL,
+				"pages", pageCount,
+				"chapters", len(allChapters),
+			)
 			break
 		}
 		visitedNext[nextURL] = true
 
 		body, resolvedURL, err = p.fetch(nextURL)
 		if err != nil {
-			return nil, fmt.Errorf("toc: next page %s: %w", nextURL, err)
+			return nil, fmt.Errorf("toc: next page %s after %d pages (%d chapters): %w", nextURL, pageCount, len(allChapters), err)
 		}
 	}
 
-	// Reverse if needed (legado: if not reverse, reverse; if reverse, keep order)
-	// legado logic: if !reverse { reverse() }; later: if !book.getReverseToc() { reverse() }
-	// The documented source rule contract reverses only when the rule starts with '-'.
-	if reverse {
-		for i, j := 0, len(allChapters)-1; i < j; i, j = i+1, j-1 {
-			allChapters[i], allChapters[j] = allChapters[j], allChapters[i]
-		}
+	// Legado reverses the accumulated pages before LinkedHashSet deduplication
+	// unless the rule starts with '-', then applies the user's default
+	// non-reversed TOC preference after deduplication. NovelReader has no
+	// persisted per-book reverse preference yet, so that final reversal is
+	// always applied.
+	if !reverse {
+		reverseChapters(allChapters)
 	}
+	seen := make(map[string]bool, len(allChapters))
+	unique := make([]Chapter, 0, len(allChapters))
+	for _, chapter := range allChapters {
+		if seen[chapter.URL] {
+			continue
+		}
+		seen[chapter.URL] = true
+		unique = append(unique, chapter)
+	}
+	reverseChapters(unique)
+	allChapters = unique
 
-	// Assign indices
+	// Assign indices after reversal and deduplication.
 	for i := range allChapters {
 		allChapters[i].Index = i
 	}
@@ -207,6 +227,12 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 	}
 
 	return chapters, "", nil
+}
+
+func reverseChapters(chapters []Chapter) {
+	for i, j := 0, len(chapters)-1; i < j; i, j = i+1, j-1 {
+		chapters[i], chapters[j] = chapters[j], chapters[i]
+	}
 }
 
 func legadoTrue(value string) bool {
