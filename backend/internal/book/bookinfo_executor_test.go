@@ -22,6 +22,8 @@ func TestGetBookInfoAppliesInitBeforeDetailRules(t *testing.T) {
 		"/js":    `{"wrong":{"name":"Wrong"},"payload":{"name":"JS Book","author":"JS Author"}}`,
 		"/jsoup": `<table><tr class="detail"><td class="name">JSoup Book</td><td class="author">JSoup Author</td></tr></table>`,
 		"/null":  `{"payload":null}`,
+		"/put":   `<h1 class="name">Put Book</h1><span class="author">Put Author</span>`,
+		"/regex": `<script>window.book={"name":"Regex Book","author":"Regex Author"}</script>`,
 		"/xpath": `<ul>` + strings.Repeat(`<li></li>`, 55) + `<li><span class="name">XPath Book</span><span class="author">XPath Author</span></li></ul>`,
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +41,8 @@ func TestGetBookInfoAppliesInitBeforeDetailRules(t *testing.T) {
 		{"JavaScript object", "/js", `<js>JSON.parse(result).payload</js>`, `<js>result.name</js>`, `<js>result.author</js>`, "JS Book", "JS Author", ""},
 		{"JavaScript JSoup collection", "/jsoup", `<js>org.jsoup.Jsoup.parse(result).select("tr.detail")</js>`, ".name@text", ".author@text", "JSoup Book", "JSoup Author", ""},
 		{"XPath collection beyond 50", "/xpath", "@XPath://li", ".name@text", ".author@text", "XPath Book", "XPath Author", ""},
+		{"put/get variables", "/put", `@put:{n:".name@text",a:'.author@text'}`, `@get:{n}`, `@get:{a}`, "Put Book", "Put Author", ""},
+		{"regex capture", "/regex", `:(\{"name".*?\})`, `<js>JSON.parse(result[0]).name</js>`, `<js>JSON.parse(result[0]).author</js>`, "Regex Book", "Regex Author", ""},
 		{"null result", "/null", "$.payload", "$.name", "$.author", "", "", "init rule returned null"},
 	}
 

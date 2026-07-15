@@ -75,6 +75,10 @@ type Result struct {
 type Rule struct {
 	Mode       Mode
 	Expression string
+	Template   string
+	PutRules   map[string]string
+	HasGet     bool
+	Literal    bool
 	// ReplaceRegex: post-extraction substitution via ##pattern##replacement### suffix
 	ReplaceRegex string
 	Replacement  string
@@ -91,6 +95,7 @@ type Analyzer struct {
 	jsLib       string            // prepended to every JS eval (from source's jsLib field)
 	book        map[string]string // legado's `book` object: name, author, bookUrl, etc.
 	chapter     map[string]string // legado's `chapter` object: url, title, index, etc.
+	ruleVars    map[string]string
 	sourceState SourceState
 	ctx         context.Context
 }
@@ -254,6 +259,19 @@ func (a *Analyzer) getStringListOR(ruleStr string) ([]string, error) {
 
 // GetElement evaluates a rule and returns a single element.
 func (a *Analyzer) GetElement(ruleStr string) (interface{}, error) {
+	if strings.HasPrefix(strings.TrimSpace(ruleStr), ":") {
+		rules, err := ParseRules(strings.TrimSpace(ruleStr)[1:], false)
+		if err != nil {
+			return nil, err
+		}
+		for index := range rules {
+			if rules[index].Mode != ModeJS {
+				rules[index].Mode = ModeRegex
+				rules[index].Literal = false
+			}
+		}
+		return a.evalElement(rules)
+	}
 	if len(splitTopLevel(ruleStr, "&&")) > 1 || len(splitTopLevel(ruleStr, "||")) > 1 {
 		values, err := a.GetElements(ruleStr)
 		if err != nil {
@@ -346,7 +364,7 @@ func (a *Analyzer) evalElement(rules []Rule) (interface{}, error) {
 	current := a.content
 	for _, rule := range rules {
 		var err error
-		current, err = a.dispatchElement(rule.Mode, current, rule.Expression)
+		current, err = a.applyRuleElement(current, rule)
 		if err != nil {
 			return nil, err
 		}
@@ -371,11 +389,19 @@ func (a *Analyzer) evalElements(rules []Rule) ([]interface{}, error) {
 
 // applyRuleString runs a single rule against string content, returns string.
 func (a *Analyzer) applyRuleString(content interface{}, rule Rule) (string, error) {
+	rule, err := a.prepareRuleForEvaluation(rule)
+	if err != nil {
+		return "", err
+	}
 	var result interface{}
-	var err error
-	if rule.Mode == ModeJS {
+	switch {
+	case rule.Literal:
+		result = rule.Expression
+	case strings.TrimSpace(rule.Expression) == "":
+		result = content
+	case rule.Mode == ModeJS:
 		result, err = a.jsEval(stripModePrefix(rule.Mode, rule.Expression), content)
-	} else {
+	default:
 		result, err = a.dispatch(rule.Mode, ToString(content), rule.Expression)
 	}
 	if err != nil {
@@ -390,11 +416,19 @@ func (a *Analyzer) applyRuleString(content interface{}, rule Rule) (string, erro
 
 // applyRuleStringList runs a single rule returning a string list.
 func (a *Analyzer) applyRuleStringList(content interface{}, rule Rule) ([]string, error) {
+	rule, err := a.prepareRuleForEvaluation(rule)
+	if err != nil {
+		return nil, err
+	}
 	var result []string
-	var err error
-	if rule.Mode == ModeJS {
+	switch {
+	case rule.Literal:
+		result = []string{rule.Expression}
+	case strings.TrimSpace(rule.Expression) == "":
+		result = []string{ToString(content)}
+	case rule.Mode == ModeJS:
 		result, err = a.jsEvalList(stripModePrefix(rule.Mode, rule.Expression), content)
-	} else {
+	default:
 		result, err = a.dispatchList(rule.Mode, ToString(content), rule.Expression)
 	}
 	if err != nil {
@@ -409,10 +443,36 @@ func (a *Analyzer) applyRuleStringList(content interface{}, rule Rule) ([]string
 }
 
 func (a *Analyzer) applyRuleElement(content interface{}, rule Rule) (interface{}, error) {
-	return a.dispatchElement(rule.Mode, content, rule.Expression)
+	rule, err := a.prepareRuleForEvaluation(rule)
+	if err != nil {
+		return nil, err
+	}
+	var result interface{}
+	switch {
+	case rule.Literal:
+		result = rule.Expression
+	case strings.TrimSpace(rule.Expression) == "":
+		result = content
+	default:
+		result, err = a.dispatchElement(rule.Mode, content, rule.Expression)
+	}
+	if err != nil || rule.ReplaceRegex == "" {
+		return result, err
+	}
+	return applyReplace(ToString(result), rule.ReplaceRegex, rule.Replacement, rule.ReplaceFirst)
 }
 
 func (a *Analyzer) applyRuleElements(content interface{}, rule Rule) ([]interface{}, error) {
+	rule, err := a.prepareRuleForEvaluation(rule)
+	if err != nil {
+		return nil, err
+	}
+	if rule.Literal {
+		return []interface{}{rule.Expression}, nil
+	}
+	if strings.TrimSpace(rule.Expression) == "" {
+		return []interface{}{content}, nil
+	}
 	return a.dispatchElements(rule.Mode, content, rule.Expression)
 }
 
@@ -432,7 +492,7 @@ func (a *Analyzer) dispatchElement(mode Mode, content interface{}, expr string) 
 		}
 		return serializeHTMLSelection(values), nil
 	case ModeRegex:
-		return a.dispatchElements(mode, text, expr)
+		return regexQueryElement(text, expr)
 	default:
 		return content, nil
 	}

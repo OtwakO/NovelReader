@@ -87,14 +87,20 @@ func nextSegment(s string) (string, string, error) {
 
 // buildRule creates a Rule from a single segment, determining mode and extracting ## suffix.
 func buildRule(seg string, isJSON bool) Rule {
-	// Extract ## replacement suffix before mode detection
-	expression, replaceRegex, replacement, replaceFirst := extractReplaceSuffix(seg)
-
-	// Determine mode
+	template, putRules := extractPutRules(seg)
+	expression, replaceRegex, replacement, replaceFirst := extractReplaceSuffix(template)
 	mode := detectMode(expression, isJSON)
+	hasGet := containsRuleGet(template)
+	getIndex := strings.Index(strings.ToLower(template), "@get:{")
+	replaceIndex := strings.Index(template, "##")
+	literal := hasGet && mode != ModeJS && (replaceIndex < 0 || getIndex < replaceIndex)
 	return Rule{
 		Mode:         mode,
 		Expression:   expression,
+		Template:     template,
+		PutRules:     putRules,
+		HasGet:       hasGet,
+		Literal:      literal,
 		ReplaceRegex: replaceRegex,
 		Replacement:  replacement,
 		ReplaceFirst: replaceFirst,

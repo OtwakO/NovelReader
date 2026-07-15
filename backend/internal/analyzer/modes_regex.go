@@ -55,6 +55,35 @@ func regexQueryList(content, expr string) ([]string, error) {
 	return results, nil
 }
 
+// regexQueryElement applies chained patterns and preserves every group from the final first match.
+func regexQueryElement(content, expr string) (interface{}, error) {
+	patterns := strings.Split(expr, "&&")
+	current := content
+	for index, pattern := range patterns {
+		re, err := regexp.Compile(strings.TrimSpace(pattern))
+		if err != nil {
+			return nil, fmt.Errorf("regex: compile: %w", err)
+		}
+		matches := re.FindAllStringSubmatch(current, -1)
+		if len(matches) == 0 {
+			return nil, nil
+		}
+		if index == len(patterns)-1 {
+			groups := make([]interface{}, len(matches[0]))
+			for groupIndex, group := range matches[0] {
+				groups[groupIndex] = group
+			}
+			return groups, nil
+		}
+		var joined strings.Builder
+		for _, match := range matches {
+			joined.WriteString(match[0])
+		}
+		current = joined.String()
+	}
+	return nil, nil
+}
+
 // regexQueryElements returns capture groups as interface{}.
 func regexQueryElements(content, expr string) ([]interface{}, error) {
 	re, err := regexp.Compile(expr)
