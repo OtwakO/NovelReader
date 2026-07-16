@@ -2,7 +2,9 @@
 
 These are small, deterministic response bodies used by compatibility tests. They are intentionally not live-site snapshots: each fixture isolates one Legado contract so a site outage cannot hide a regression.
 
-`manifest.json` is the index. Every required category has one response file and a named rule mode:
+`manifest.json` is the response-fixture index. `explore-sources.json` contains exact raw source entries for Explore compatibility; each entry is guarded by raw index, source URL, per-entry SHA-256, and the SHA-256 of the untracked 939-source compilation it came from.
+
+Every required category has one response file and a named rule mode:
 
 - search, detail, TOC, content: normal HTML workflow stages
 - JSON, XPath, Regex: non-CSS rule evaluation

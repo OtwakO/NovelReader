@@ -58,6 +58,20 @@ func TestBookSourceJSONRoundTripPreservesUnknownFieldsAndRuleShape(t *testing.T)
 	}
 }
 
+func TestBookSourceJSONDefaultsExploreEnabledLikeLegado(t *testing.T) {
+	missing, err := NewFromJSON([]byte(`{"bookSourceUrl":"https://default.test","exploreUrl":"分类::/books"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	disabled, err := NewFromJSON([]byte(`{"bookSourceUrl":"https://disabled.test","enabledExplore":false,"exploreUrl":"分类::/books"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !missing.EnabledExplore || disabled.EnabledExplore {
+		t.Fatalf("missing=%v disabled=%v, want omitted=true and explicit false", missing.EnabledExplore, disabled.EnabledExplore)
+	}
+}
+
 func TestBookSourceStoreRoundTripPreservesRawJSON(t *testing.T) {
 	db, err := database.Open(filepath.Join(t.TempDir(), "sources.db"))
 	if err != nil {

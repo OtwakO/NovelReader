@@ -16,7 +16,7 @@ type rawBookSource struct {
 	BookURLPattern    string          `json:"bookUrlPattern,omitempty"`
 	CustomOrder       int             `json:"customOrder,omitempty"`
 	Enabled           bool            `json:"enabled"`
-	EnabledExplore    bool            `json:"enabledExplore"`
+	EnabledExplore    *bool           `json:"enabledExplore"`
 	EnabledCookieJar  *bool           `json:"enabledCookieJar,omitempty"`
 	SearchURL         string          `json:"searchUrl,omitempty"`
 	ExploreURL        string          `json:"exploreUrl,omitempty"`
@@ -55,7 +55,10 @@ func (s *BookSource) UnmarshalJSON(data []byte) error {
 	s.BookURLPattern = raw.BookURLPattern
 	s.CustomOrder = raw.CustomOrder
 	s.Enabled = raw.Enabled
-	s.EnabledExplore = raw.EnabledExplore
+	s.EnabledExplore = true
+	if raw.EnabledExplore != nil {
+		s.EnabledExplore = *raw.EnabledExplore
+	}
 	s.EnabledCookieJar = raw.EnabledCookieJar
 	s.SearchURL = raw.SearchURL
 	s.ExploreURL = raw.ExploreURL
