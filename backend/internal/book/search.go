@@ -568,9 +568,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	return b, nil
 }
 
-// GetChapterList fetches and parses the TOC using the legado-compatible parser.
-// If tocURL is empty, it attempts to auto-detect a TOC page link from the book detail page
-// by scanning for common TOC URL patterns when the extracted chapters look invalid.
+// GetChapterList fetches and parses the declared TOC, using the book page when tocURL is empty.
 func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL string) ([]Chapter, error) {
 	return s.GetChapterListForBook(src, &Book{
 		SourceURL: src.BookSourceURL,
@@ -641,130 +639,7 @@ func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, toc
 		}
 	}
 
-	// Auto-detect TOC page if chapters look invalid (e.g., URLs are book URLs instead of chapter URLs)
-	if len(chapters) > 0 && tocURL == "" && !looksLikeChapters(chapters, bookURL) {
-		slog.Debug("chapter list: extracted chapters look invalid, attempting TOC auto-detection",
-			"source", src.BookSourceName,
-			"bookURL", bookURL,
-			"extractedCount", len(chapters),
-		)
-
-		// Try to find a TOC link on the book detail page
-		if detectedTOC := detectTOCPage(fetchURL, src.BookSourceURL, s.fetcher, parseHeaderJSON(src.Header)); detectedTOC != "" {
-			slog.Info("chapter list: auto-detected TOC page",
-				"source", src.BookSourceName,
-				"tocURL", detectedTOC,
-			)
-
-			// Re-parse with the detected TOC page
-			chapters, err = parser.ParseChapterList(detectedTOC, src.BookSourceURL)
-			if err != nil {
-				slog.Warn("chapter list: TOC auto-detection failed, falling back to book page",
-					"source", src.BookSourceName,
-					"error", err.Error(),
-				)
-				// Fall back to original chapters
-				chapters, _ = parser.ParseChapterList(fetchURL, src.BookSourceURL)
-			}
-		}
-	}
 	return chapters, nil
-}
-
-// looksLikeChapters validates whether extracted chapters look like actual chapter data.
-// Returns false if most URLs look like book detail pages instead of chapter pages.
-func looksLikeChapters(chapters []Chapter, bookURL string) bool {
-	if len(chapters) == 0 {
-		return false
-	}
-
-	// Count chapters with suspicious URLs (look like book detail pages)
-	suspiciousCount := 0
-	validChapterCount := 0
-
-	for _, ch := range chapters {
-		if ch.URL == "" {
-			continue // volume headers are OK
-		}
-
-		// Check if URL contains book URL patterns (suggesting it's a book page, not a chapter)
-		if strings.Contains(ch.URL, "/book/") || strings.Contains(ch.URL, "/shu/") || strings.Contains(ch.URL, "/info/") {
-			suspiciousCount++
-		}
-
-		// Check if URL looks like a valid chapter URL
-		if strings.Contains(ch.URL, "/chapter/") ||
-			strings.Contains(ch.URL, "/read/") ||
-			strings.Contains(ch.URL, "/content/") ||
-			strings.Contains(ch.URL, "/c/") ||
-			strings.Contains(ch.URL, "/ch/") {
-			validChapterCount++
-		}
-	}
-
-	// Count non-volume chapters
-	nonVolumeCount := 0
-	for _, ch := range chapters {
-		if ch.URL != "" && !ch.IsVolume {
-			nonVolumeCount++
-		}
-	}
-
-	if nonVolumeCount == 0 {
-		return false // all volumes, no actual chapters
-	}
-
-	// If more than 50% have book-like URLs, it's likely wrong
-	if float64(suspiciousCount)/float64(nonVolumeCount) >= 0.5 {
-		return false
-	}
-
-	// If we have at least some valid chapter URLs, it's probably correct
-	if validChapterCount > 0 && float64(validChapterCount)/float64(nonVolumeCount) >= 0.5 {
-		return true
-	}
-
-	// Default: assume correct if not obviously wrong
-	return true
-}
-
-// detectTOCPage scans the book detail page for links to a separate TOC page.
-// Returns the detected TOC URL or empty string if not found.
-func detectTOCPage(bookPageURL, sourceURL string, fetcher *fetcher.Client, headers map[string]string) string {
-	// Resolve book page URL to absolute URL
-	fullURL := resolveURL(bookPageURL, sourceURL)
-
-	resp, err := fetcher.Get(fullURL, headers)
-	if err != nil {
-		return ""
-	}
-
-	// Common TOC URL patterns (case-insensitive)
-	tocPatterns := []string{
-		`href="([^"]*(?:chapterlist|mulu|catalog|directory|chapter-list|目录)[^"]*)"`,
-		`href="([^"]*(?:/chapter/|/mulu/|/catalog/)[^"]*)"`,
-		`href="([^"]*(?:作品目录|章节目录|全部章节|目录)[^"]*)"`,
-		`>([^<]*(?:作品目录|章节目录|全部章节|目录)[^<]*)<`,
-	}
-
-	baseURL := resp.Body
-	for _, pattern := range tocPatterns {
-		re := regexp.MustCompile(`(?i)` + pattern)
-		matches := re.FindAllStringSubmatch(baseURL, -1)
-		for _, match := range matches {
-			if len(match) >= 2 {
-				candidate := match[1]
-				// Resolve relative URL
-				resolved := resolveURL(candidate, fullURL)
-				// Skip if it's the same as the book page
-				if resolved != fullURL && strings.HasPrefix(resolved, "http") {
-					return resolved
-				}
-			}
-		}
-	}
-
-	return ""
 }
 
 // GetChapterContent keeps the legacy URL-only API for callers without stored context.
@@ -773,8 +648,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 }
 
 // GetChapterContentForBook fetches content with the complete book/current/next context.
-// If the standard rule extraction returns empty content, it attempts to find content
-// embedded as JSON in <script> tags (common for Vue.js/React SPAs).
+// Script JSON is considered only when the source declares no content rule.
 func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, current, next *Chapter) (string, string, error) {
 	if current == nil || current.URL == "" {
 		return "", "", fmt.Errorf("content: current chapter is required")
@@ -843,11 +717,7 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 		} else {
 			pageContent = mustString(pageAnalyzer, "body@text")
 		}
-		if pageContent == "" && strings.Contains(body, "<script") {
-			if contentRule != "" {
-				slog.Warn("content: declared rule returned empty; trying SPA/script diagnostic fallback",
-					"source", src.BookSourceName, "url", pageURL, "rule", contentRule)
-			}
+		if pageContent == "" && contentRule == "" && strings.Contains(body, "<script") {
 			if extracted := extractContentFromScriptJSON(body); extracted != "" {
 				pageContent = extracted
 				slog.Debug("content: extracted from script tag JSON fallback",
@@ -1045,18 +915,6 @@ func findStringInJSON(data interface{}, targetKeys []string, depth int) string {
 	}
 
 	return ""
-}
-
-func (s *Searcher) fetchAndAnalyze(urlStr, baseURL, headerJSON, jsLib string) *analyzer.Analyzer {
-	headers := parseHeaderJSON(headerJSON)
-	fullURL := resolveURL(urlStr, baseURL)
-	resp, err := s.fetcher.Get(fullURL, headers)
-	if err != nil {
-		return nil
-	}
-	an := analyzer.New(resp.Body, fullURL, s.jsVM, s.cache)
-	an.SetJSLib(jsLib)
-	return an
 }
 
 func mustString(a *analyzer.Analyzer, rule string) string {

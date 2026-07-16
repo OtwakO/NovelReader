@@ -141,6 +141,40 @@ func TestDeclaredContentRuleWinsOverScriptFallback(t *testing.T) {
 	}
 }
 
+func TestDeclaredContentRuleDoesNotUseScriptFallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<script>{"content":"script content that is intentionally long enough to satisfy the old heuristic fallback and must not replace a broken declared selector"}</script>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL,
+		RuleContent:   `{"content":"@css:.missing@text"}`,
+	}
+	content, _, err := s.GetChapterContent(src, server.URL+"/chapter/1")
+	if err != nil || content != "" {
+		t.Fatalf("content=%q err=%v, want empty declared-rule result without heuristic replacement", content, err)
+	}
+}
+
+func TestContentWithoutDeclaredRuleUsesScriptDiagnosticFallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<script>{"content":"script content that is intentionally long enough to remain available only when no content selector is declared by the source"}</script>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL,
+		RuleContent:   `{"title":"@css:.title@text"}`,
+	}
+	content, _, err := s.GetChapterContent(src, server.URL+"/chapter/1")
+	if err != nil || !strings.Contains(content, "script content") {
+		t.Fatalf("content=%q err=%v, want script diagnostic when no content selector is declared", content, err)
+	}
+}
+
 func TestGetChapterContentFollowsNextContentURL(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

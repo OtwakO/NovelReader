@@ -352,21 +352,3 @@ func elementRuleString(value interface{}, rule, pageURL string, parser *ChapterL
 	setAnalyzerContextMaps(an, parser.src, parser.state, bookData, chapterData, nil)
 	return mustString(an, rule)
 }
-
-// GetNextContentURL fetches the next content URL if the chapter has a pagination rule.
-// Not yet implemented — most chapters are single-page.
-func (s *Searcher) GetNextContentURL(src booksource.BookSource, currentURL string) (string, error) {
-	rules := parseRuleJSON(src.RuleContent)
-	if rules == nil {
-		return "", nil
-	}
-	nextRule := rules["nextContentUrl"]
-	if nextRule == "" {
-		return "", nil
-	}
-	an := s.fetchAndAnalyze(currentURL, src.BookSourceURL, src.Header, src.JSLib)
-	if an == nil {
-		return "", nil
-	}
-	return mustString(an, nextRule), nil
-}

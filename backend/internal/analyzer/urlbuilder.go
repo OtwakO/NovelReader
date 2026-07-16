@@ -125,7 +125,7 @@ func BuildURLWithContextData(ctx context.Context, template, key string, page int
 
 	// Strip newlines and carriage returns for non-@js: URLs.
 	// @js: URLs need newlines for JS code. We remove newlines entirely so
-	// that ,\n{ stays adjacent (crucial for findJSONOption detection).
+	// that ,\n{ stays adjacent for trailing JSON-option extraction.
 	if !strings.HasPrefix(urlStr, "@js:") {
 		urlStr = strings.NewReplacer("\n", "", "\r", "").Replace(urlStr)
 		urlStr = strings.TrimSpace(urlStr)
@@ -543,8 +543,7 @@ func lookupEncoding(charset string) (encoding.Encoding, error) {
 
 // extractJSONOption finds a trailing ,{...} JSON option suffix and returns
 // the URL before it, the option string, and whether found.
-// Unlike findJSONOption (which only returned the comma index), this returns
-// the brace-counted bounds so trailing JS remnants after the JSON object
+// It returns brace-counted bounds so trailing JS remnants after the JSON object
 // (e.g. ,{"method":"POST"}';extra stuff) don't corrupt json.Unmarshal.
 func extractJSONOption(url string) (before string, option string, found bool) {
 	for i := len(url) - 2; i >= 0; i-- {
@@ -633,13 +632,4 @@ func normalizeJSONOption(raw string) (string, bool) {
 	}
 	normalized := out.String()
 	return normalized, json.Valid([]byte(normalized))
-}
-
-// findJSONOption is deprecated. Use extractJSONOption instead.
-func findJSONOption(url string) int {
-	before, _, found := extractJSONOption(url)
-	if found {
-		return len(before)
-	}
-	return -1
 }
