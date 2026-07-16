@@ -31,7 +31,7 @@ GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go go test ./...
 cd ../frontend && npm test && npm run build
 ```
 
-Tests are colocated with the analyzer, source executor, transport, book, and conformance code. With Docker Compose 2.20.2 or newer, `./docker-e2e.sh` additionally builds both production images and verifies frontend delivery, readiness, private WebView routing, rendered search, graceful shutdown, and named-volume persistence without live sites.
+Tests are colocated with the analyzer, source executor, transport, book, and conformance code. The deterministic workflow matrix runs detail → TOC → first/middle/last content for normal HTML, JSONPath, XPath/Regex, GBK POST, and multi-page TOC/content source shapes. With Docker Compose 2.20.2 or newer, `./docker-e2e.sh` additionally builds both production images and verifies frontend delivery, readiness, private WebView routing, rendered search, graceful shutdown, and named-volume persistence without live sites.
 
 ## Raw-source conformance runner
 
