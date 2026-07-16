@@ -91,12 +91,12 @@ func (vm *JSVM) LoadLib(code string) error {
 
 // Eval evaluates JS on a borrowed runtime with standard bindings.
 // extra can contain: key, page, book (map), chapter (map), src (alias for content).
-func (vm *JSVM) Eval(script, content, baseURL string, extra ...map[string]interface{}) (interface{}, error) {
+func (vm *JSVM) Eval(script string, content interface{}, baseURL string, extra ...map[string]interface{}) (interface{}, error) {
 	return vm.EvalContext(context.Background(), script, content, baseURL, extra...)
 }
 
 // EvalContext evaluates JavaScript while preserving the caller's cancellation context.
-func (vm *JSVM) EvalContext(ctx context.Context, script, content, baseURL string, extra ...map[string]interface{}) (interface{}, error) {
+func (vm *JSVM) EvalContext(ctx context.Context, script string, content interface{}, baseURL string, extra ...map[string]interface{}) (interface{}, error) {
 	rt := <-vm.pool
 	defer func() { vm.pool <- rt }()
 
@@ -209,11 +209,11 @@ Map = function(a) {
 }
 
 // EvalList evaluates JS and returns a string array.
-func (vm *JSVM) EvalList(script, content, baseURL string, extra ...map[string]interface{}) ([]string, error) {
+func (vm *JSVM) EvalList(script string, content interface{}, baseURL string, extra ...map[string]interface{}) ([]string, error) {
 	return vm.EvalListContext(context.Background(), script, content, baseURL, extra...)
 }
 
-func (vm *JSVM) EvalListContext(ctx context.Context, script, content, baseURL string, extra ...map[string]interface{}) ([]string, error) {
+func (vm *JSVM) EvalListContext(ctx context.Context, script string, content interface{}, baseURL string, extra ...map[string]interface{}) ([]string, error) {
 	v, err := vm.EvalContext(ctx, script, content, baseURL, extra...)
 	if err != nil {
 		return nil, err
@@ -230,11 +230,11 @@ func (vm *JSVM) EvalListContext(ctx context.Context, script, content, baseURL st
 }
 
 // EvalElements evaluates JS and returns elements as interface{}.
-func (vm *JSVM) EvalElements(script, content, baseURL string, extra ...map[string]interface{}) ([]interface{}, error) {
+func (vm *JSVM) EvalElements(script string, content interface{}, baseURL string, extra ...map[string]interface{}) ([]interface{}, error) {
 	return vm.EvalElementsContext(context.Background(), script, content, baseURL, extra...)
 }
 
-func (vm *JSVM) EvalElementsContext(ctx context.Context, script, content, baseURL string, extra ...map[string]interface{}) ([]interface{}, error) {
+func (vm *JSVM) EvalElementsContext(ctx context.Context, script string, content interface{}, baseURL string, extra ...map[string]interface{}) ([]interface{}, error) {
 	v, err := vm.EvalContext(ctx, script, content, baseURL, extra...)
 	if err != nil {
 		return nil, err
@@ -587,7 +587,7 @@ func (h *jsHelpers) GetElements(rule string, args ...interface{}) []interface{} 
 	return values
 }
 
-func (h *jsHelpers) SetContent(content string) {
+func (h *jsHelpers) SetContent(content interface{}) {
 	if h.analyzer != nil {
 		h.analyzer.SetContent(content)
 	}
@@ -812,7 +812,9 @@ func newJSoupBridge(rt *goja.Runtime, baseURL string) map[string]interface{} {
 }
 
 func makeJSoupElement(s *goquery.Selection) map[string]interface{} {
+	outerHTML, _ := goquery.OuterHtml(s)
 	return map[string]interface{}{
+		"__html":    outerHTML,
 		"text":      func() string { return s.Text() },
 		"ownText":   s.Contents().Not("script").Not("style").Text(),
 		"html":      func() string { h, _ := s.Html(); return h },
@@ -836,7 +838,11 @@ func makeJSoupSelectionFromGoquery(selection *goquery.Selection) map[string]inte
 }
 
 func makeJSoupSelection(elements []map[string]interface{}) map[string]interface{} {
-	selection := map[string]interface{}{"size": len(elements)}
+	fragments := make([]interface{}, 0, len(elements))
+	for _, element := range elements {
+		fragments = append(fragments, element["__html"])
+	}
+	selection := map[string]interface{}{"__html": serializeHTMLSelection(fragments), "size": len(elements)}
 	for i, element := range elements {
 		selection[strconv.Itoa(i)] = element
 	}

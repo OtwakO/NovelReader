@@ -70,8 +70,21 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 	return BuildURLWithContext(context.Background(), template, key, page, baseURL, jsVM, sourceState)
 }
 
+// URLContext carries the same typed crawl objects used by page analyzers.
+type URLContext struct {
+	Book        map[string]interface{}
+	Chapter     map[string]interface{}
+	NextChapter map[string]interface{}
+	JSLib       string
+}
+
 // BuildURLWithContext expands a URL while preserving request cancellation for URL JavaScript.
 func BuildURLWithContext(ctx context.Context, template, key string, page int, baseURL string, jsVM *JSVM, sourceState SourceState) (*URLMeta, error) {
+	return BuildURLWithContextData(ctx, template, key, page, baseURL, jsVM, sourceState, nil)
+}
+
+// BuildURLWithContextData expands a URL with optional book/chapter JavaScript context.
+func BuildURLWithContextData(ctx context.Context, template, key string, page int, baseURL string, jsVM *JSVM, sourceState SourceState, data *URLContext) (*URLMeta, error) {
 	if template == "" {
 		return nil, fmt.Errorf("analyzer: empty URL template")
 	}
@@ -82,16 +95,16 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 	// the segment against the already-built URL so `result` has the expected value.
 	if jsIndex := findURLJSSegment(urlStr); jsIndex > 0 {
 		baseTemplate := strings.TrimSpace(urlStr[:jsIndex])
-		baseMeta, err := BuildURLWithContext(ctx, baseTemplate, key, page, baseURL, jsVM, sourceState)
+		baseMeta, err := BuildURLWithContextData(ctx, baseTemplate, key, page, baseURL, jsVM, sourceState, data)
 		if err != nil {
 			return nil, err
 		}
 		if jsVM == nil {
 			return nil, fmt.Errorf("urlbuilder: @js: no JS engine available")
 		}
-		value, err := jsVM.EvalContext(ctx, urlStr[jsIndex+4:], "", baseURL, map[string]interface{}{
-			"key": key, "page": page, "result": baseMeta.URL, "baseUrl": baseURL, "sourceState": sourceState,
-		})
+		bindings := urlBindings(data, key, page, baseURL, sourceState)
+		bindings["result"] = baseMeta.URL
+		value, err := evalURLScript(ctx, jsVM, urlStr[jsIndex+4:], "", baseURL, data, bindings)
 		if err != nil {
 			return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
 		}
@@ -102,7 +115,7 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 				resultBase = lastURL
 			}
 		}
-		return BuildURLWithContext(ctx, resultURL, key, page, resultBase, jsVM, sourceState)
+		return BuildURLWithContextData(ctx, resultURL, key, page, resultBase, jsVM, sourceState, data)
 	}
 
 	meta := &URLMeta{
@@ -112,7 +125,7 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 
 	// Strip newlines and carriage returns for non-@js: URLs.
 	// @js: URLs need newlines for JS code. We remove newlines entirely so
-	// that ,\n{ stays adjacent (crucial for findJSONOption detection).
+	// that ,\n{ stays adjacent for trailing JSON-option extraction.
 	if !strings.HasPrefix(urlStr, "@js:") {
 		urlStr = strings.NewReplacer("\n", "", "\r", "").Replace(urlStr)
 		urlStr = strings.TrimSpace(urlStr)
@@ -188,7 +201,7 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 	if strings.HasPrefix(urlStr, "@js:") {
 		jsCode := urlStr[4:]
 		if jsVM != nil {
-			v, err := jsVM.EvalContext(ctx, jsCode, "", baseURL, map[string]interface{}{"key": key, "page": page, "sourceState": sourceState})
+			v, err := evalURLScript(ctx, jsVM, jsCode, "", baseURL, data, urlBindings(data, key, page, baseURL, sourceState))
 			if err == nil {
 				// Legado allows @js to return `url,{...options}`. Re-run
 				// the normal URL parser so the returned POST/body/charset
@@ -200,7 +213,7 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 						resultBase = lastURL
 					}
 				}
-				return BuildURLWithContext(ctx, resultURL, key, page, resultBase, jsVM, sourceState)
+				return BuildURLWithContextData(ctx, resultURL, key, page, resultBase, jsVM, sourceState, data)
 			}
 			return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
 		}
@@ -220,8 +233,7 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 
 	// Second pass: evaluate remaining {{...}} as JS expressions
 	if strings.Contains(urlStr, "{{") && jsVM != nil {
-		extra := map[string]interface{}{"key": key, "page": page, "baseUrl": baseURL, "sourceState": sourceState}
-		urlStr = evalTemplateExpressionsContext(ctx, urlStr, jsVM, baseURL, extra)
+		urlStr = evalTemplateExpressionsContext(ctx, urlStr, jsVM, baseURL, urlBindings(data, key, page, baseURL, sourceState))
 	}
 
 	// Replace {{key}} in POST body too
@@ -231,7 +243,7 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 		meta.Body = strings.ReplaceAll(meta.Body, "{{page}}", fmt.Sprintf("%d", page))
 		if strings.Contains(meta.Body, "{{") && jsVM != nil {
 			meta.Body = evalTemplateExpressionsContext(ctx, meta.Body, jsVM, baseURL,
-				map[string]interface{}{"key": key, "page": page, "baseUrl": baseURL})
+				urlBindings(data, key, page, baseURL, sourceState))
 		}
 	}
 
@@ -252,17 +264,12 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 	// In legado this is eval'd after full URL construction, before the request.
 	// Supported patterns: {"js":"java.url=java.url+'yyyy'"}, {"js":"java.headerMap.put('x','y')"}
 	if optJs != "" && jsVM != nil {
-		bindings := map[string]interface{}{
-			"java": map[string]interface{}{
-				"url":       urlStr, // mutable — JS can change it
-				"headerMap": meta.Headers,
-			},
-			"key":         key,
-			"page":        page,
-			"baseUrl":     baseURL,
-			"sourceState": sourceState,
+		bindings := urlBindings(data, key, page, baseURL, sourceState)
+		bindings["java"] = map[string]interface{}{
+			"url":       urlStr, // mutable — JS can change it
+			"headerMap": meta.Headers,
 		}
-		if v, err := jsVM.EvalContext(ctx, optJs, "", baseURL, bindings); err == nil {
+		if v, err := evalURLScript(ctx, jsVM, optJs, "", baseURL, data, bindings); err == nil {
 			if s := ToString(v); s != "" {
 				urlStr = s
 			}
@@ -279,6 +286,51 @@ func BuildURLWithContext(ctx context.Context, template, key string, page int, ba
 // evalTemplateExpressions finds all {{...}} patterns and evaluates the content as JS.
 // Handles cases like {{cookie.removeCookie(source.key)}}, {{source.key}}, etc.
 // ponytail: simple regex-based extraction, no nesting support for {{...}} inside {{...}}.
+// URLBindings returns standard and crawl bindings for response body JavaScript.
+func URLBindings(data *URLContext, baseURL string, state SourceState) map[string]interface{} {
+	return urlBindings(data, "", 0, baseURL, state)
+}
+
+func urlBindings(data *URLContext, key string, page int, baseURL string, state SourceState) map[string]interface{} {
+	bindings := map[string]interface{}{
+		"key":            key,
+		"page":           page,
+		"baseUrl":        baseURL,
+		"sourceState":    state,
+		"nextChapter":    nil,
+		"nextChapterUrl": nil,
+	}
+	if data == nil {
+		return bindings
+	}
+	if data.Book != nil {
+		bindings["book"] = data.Book
+	}
+	if data.Chapter != nil {
+		bindings["chapter"] = data.Chapter
+	}
+	if data.NextChapter != nil {
+		bindings["nextChapter"] = data.NextChapter
+		bindings["nextChapterUrl"] = data.NextChapter["url"]
+	}
+	if data.JSLib != "" {
+		bindings["__novelreader_jslib"] = data.JSLib
+	}
+	return bindings
+}
+
+// EvalURLScript evaluates JavaScript using URL and crawl context bindings.
+func EvalURLScript(ctx context.Context, jsVM *JSVM, script, content, baseURL string, data *URLContext, bindings map[string]interface{}) (interface{}, error) {
+	return evalURLScript(ctx, jsVM, script, content, baseURL, data, bindings)
+}
+
+func evalURLScript(ctx context.Context, jsVM *JSVM, script, content, baseURL string, data *URLContext, bindings map[string]interface{}) (interface{}, error) {
+	if data != nil && data.JSLib != "" {
+		script = data.JSLib + "\n" + script
+	}
+	return jsVM.EvalContext(ctx, script, content, baseURL, bindings)
+}
+
 // evalTemplateExpressions finds all {{...}} patterns and evaluates the inner content as JS.
 // Uses brace-counting instead of regex to handle nested braces like {{var x={a:1}; x}}.
 func parseOptionInt(raw json.RawMessage) int {
@@ -407,10 +459,14 @@ func evalTemplateExpressionsContext(ctx context.Context, s string, jsVM *JSVM, b
 
 		var v interface{}
 		var err error
+		script := inner
 		if bindings != nil {
-			v, err = jsVM.EvalContext(ctx, inner, "", baseURL, bindings)
+			if jsLib, ok := bindings["__novelreader_jslib"].(string); ok && jsLib != "" {
+				script = jsLib + "\n" + script
+			}
+			v, err = jsVM.EvalContext(ctx, script, "", baseURL, bindings)
 		} else {
-			v, err = jsVM.EvalContext(ctx, inner, "", baseURL)
+			v, err = jsVM.EvalContext(ctx, script, "", baseURL)
 		}
 		if err != nil {
 			slog.Warn("urlbuilder: template eval failed", "expr", inner[:min(len(inner), 60)], "err", err)
@@ -487,8 +543,7 @@ func lookupEncoding(charset string) (encoding.Encoding, error) {
 
 // extractJSONOption finds a trailing ,{...} JSON option suffix and returns
 // the URL before it, the option string, and whether found.
-// Unlike findJSONOption (which only returned the comma index), this returns
-// the brace-counted bounds so trailing JS remnants after the JSON object
+// It returns brace-counted bounds so trailing JS remnants after the JSON object
 // (e.g. ,{"method":"POST"}';extra stuff) don't corrupt json.Unmarshal.
 func extractJSONOption(url string) (before string, option string, found bool) {
 	for i := len(url) - 2; i >= 0; i-- {
@@ -577,13 +632,4 @@ func normalizeJSONOption(raw string) (string, bool) {
 	}
 	normalized := out.String()
 	return normalized, json.Valid([]byte(normalized))
-}
-
-// findJSONOption is deprecated. Use extractJSONOption instead.
-func findJSONOption(url string) int {
-	before, _, found := extractJSONOption(url)
-	if found {
-		return len(before)
-	}
-	return -1
 }

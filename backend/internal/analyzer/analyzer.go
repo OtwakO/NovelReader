@@ -9,9 +9,15 @@ package analyzer
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+// ErrNoListValues marks a list rule that matched no values; callers may treat
+// it as a normal terminal condition when a list is optional.
+var ErrNoListValues = errors.New("analyzer: no list values matched")
 
 // splitTopLevel splits a rule string on a separator (||, &&, %%) at top level,
 // respecting <js>...</js> blocks and {{...}} expressions.
@@ -74,6 +80,10 @@ type Result struct {
 type Rule struct {
 	Mode       Mode
 	Expression string
+	Template   string
+	PutRules   map[string]string
+	HasGet     bool
+	Literal    bool
 	// ReplaceRegex: post-extraction substitution via ##pattern##replacement### suffix
 	ReplaceRegex string
 	Replacement  string
@@ -82,14 +92,16 @@ type Rule struct {
 
 // Analyzer evaluates rules against content (HTML or JSON string).
 type Analyzer struct {
-	content     string
+	content     interface{}
 	baseURL     string
 	isJSON      bool
 	jsVM        *JSVM
 	cache       *CacheManager
-	jsLib       string            // prepended to every JS eval (from source's jsLib field)
-	book        map[string]string // legado's `book` object: name, author, bookUrl, etc.
-	chapter     map[string]string // legado's `chapter` object: url, title, index, etc.
+	jsLib       string                 // prepended to every JS eval (from source's jsLib field)
+	book        map[string]interface{} // legado's `book` object: name, author, bookUrl, etc.
+	chapter     map[string]interface{} // legado's `chapter` object: url, title, index, etc.
+	nextChapter map[string]interface{} // the exact next TOC chapter, when known
+	ruleVars    map[string]string
 	sourceState SourceState
 	ctx         context.Context
 }
@@ -111,11 +123,32 @@ func New(content, baseURL string, jsVM *JSVM, cache *CacheManager) *Analyzer {
 // legado evaluates jsLib once before source-specific JS; we prepend it per-eval.
 func (a *Analyzer) SetJSLib(jsLib string) { a.jsLib = jsLib }
 
-// SetBookData sets the `book` JS context object (name, author, bookUrl, etc.)
-func (a *Analyzer) SetBookData(b map[string]string) { a.book = b }
+// SetBookData sets the `book` JS context object using string-valued fields.
+func (a *Analyzer) SetBookData(b map[string]string) {
+	values := make(map[string]interface{}, len(b))
+	for key, value := range b {
+		values[key] = value
+	}
+	a.SetBookDataValues(values)
+}
 
-// SetChapterData sets the `chapter` JS context object (url, title, index, etc.)
-func (a *Analyzer) SetChapterData(c map[string]string) { a.chapter = c }
+// SetBookDataValues binds complete typed book fields for JavaScript rules.
+func (a *Analyzer) SetBookDataValues(b map[string]interface{}) { a.book = b }
+
+// SetChapterData sets the `chapter` JS context object using string-valued fields.
+func (a *Analyzer) SetChapterData(c map[string]string) {
+	values := make(map[string]interface{}, len(c))
+	for key, value := range c {
+		values[key] = value
+	}
+	a.SetChapterDataValues(values)
+}
+
+// SetChapterDataValues binds complete typed current-chapter fields.
+func (a *Analyzer) SetChapterDataValues(c map[string]interface{}) { a.chapter = c }
+
+// SetNextChapterDataValues binds the exact next chapter for content rules.
+func (a *Analyzer) SetNextChapterDataValues(c map[string]interface{}) { a.nextChapter = c }
 
 // SetSourceState binds the source session used by cookie, source, and cache JS objects.
 func (a *Analyzer) SetSourceState(state SourceState) { a.sourceState = state }
@@ -129,9 +162,17 @@ func (a *Analyzer) SetContext(ctx context.Context) {
 }
 
 // SetContent replaces the active content for JavaScript re-analysis.
-func (a *Analyzer) SetContent(content string) {
+func (a *Analyzer) SetContent(content interface{}) {
 	a.content = content
-	a.isJSON = looksLikeJSON(content)
+	switch value := content.(type) {
+	case map[string]interface{}:
+		_, isHTML := value["__html"]
+		a.isJSON = !isHTML
+	case map[string]string, []interface{}, []string:
+		a.isJSON = true
+	default:
+		a.isJSON = looksLikeJSON(ToString(content))
+	}
 }
 
 // GetString evaluates a rule string and returns the first text result.
@@ -188,24 +229,35 @@ func (a *Analyzer) getFirstOr(ruleStr string) (string, error) {
 func (a *Analyzer) GetStringList(ruleStr string) ([]string, error) {
 	if parts := splitTopLevel(ruleStr, "&&"); len(parts) > 1 {
 		var combined []string
+		var firstErr error
 		for _, part := range parts {
 			values, err := a.getStringListOR(part)
 			if err != nil {
+				if !errors.Is(err, ErrNoListValues) && firstErr == nil {
+					firstErr = err
+				}
 				continue
 			}
 			combined = append(combined, values...)
 		}
 		if len(combined) == 0 {
-			return nil, fmt.Errorf("analyzer: no list values matched")
+			if firstErr != nil {
+				return nil, firstErr
+			}
+			return nil, ErrNoListValues
 		}
 		return combined, nil
 	}
 	if parts := splitTopLevel(ruleStr, "%%"); len(parts) > 1 {
 		lists := make([][]string, 0, len(parts))
 		maxLen := 0
+		var firstErr error
 		for _, part := range parts {
 			values, err := a.getStringListOR(part)
 			if err != nil {
+				if !errors.Is(err, ErrNoListValues) && firstErr == nil {
+					firstErr = err
+				}
 				continue
 			}
 			lists = append(lists, values)
@@ -222,7 +274,10 @@ func (a *Analyzer) GetStringList(ruleStr string) ([]string, error) {
 			}
 		}
 		if len(interleaved) == 0 {
-			return nil, fmt.Errorf("analyzer: no list values matched")
+			if firstErr != nil {
+				return nil, firstErr
+			}
+			return nil, ErrNoListValues
 		}
 		return interleaved, nil
 	}
@@ -230,21 +285,51 @@ func (a *Analyzer) GetStringList(ruleStr string) ([]string, error) {
 }
 
 func (a *Analyzer) getStringListOR(ruleStr string) ([]string, error) {
+	var firstErr error
 	for _, segment := range splitTopLevel(ruleStr, "||") {
 		rules, err := ParseRules(strings.TrimSpace(segment), a.isJSON)
 		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		values, err := a.evalStringList(rules)
 		if err == nil && len(values) > 0 {
 			return values, nil
 		}
+		if err != nil && !errors.Is(err, ErrNoListValues) && firstErr == nil {
+			firstErr = err
+		}
 	}
-	return nil, fmt.Errorf("analyzer: no list values matched")
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	return nil, ErrNoListValues
 }
 
 // GetElement evaluates a rule and returns a single element.
 func (a *Analyzer) GetElement(ruleStr string) (interface{}, error) {
+	if strings.HasPrefix(strings.TrimSpace(ruleStr), ":") {
+		rules, err := ParseRules(strings.TrimSpace(ruleStr)[1:], false)
+		if err != nil {
+			return nil, err
+		}
+		for index := range rules {
+			if rules[index].Mode != ModeJS {
+				rules[index].Mode = ModeRegex
+				rules[index].Literal = false
+			}
+		}
+		return a.evalElement(rules)
+	}
+	if len(splitTopLevel(ruleStr, "&&")) > 1 || len(splitTopLevel(ruleStr, "||")) > 1 {
+		values, err := a.GetElements(ruleStr)
+		if err != nil {
+			return nil, err
+		}
+		return collapseElementValues(values), nil
+	}
 	rules, err := ParseRules(ruleStr, a.isJSON)
 	if err != nil {
 		return nil, err
@@ -307,7 +392,7 @@ func (a *Analyzer) evalString(rules []Rule) (string, error) {
 			return "", err
 		}
 	}
-	return current, nil
+	return ToString(current), nil
 }
 
 // evalStringList evaluates a chain of rules returning a string list.
@@ -323,11 +408,11 @@ func (a *Analyzer) evalStringList(rules []Rule) ([]string, error) {
 			return nil, err
 		}
 	}
-	return []string{current}, nil
+	return []string{ToString(current)}, nil
 }
 
 func (a *Analyzer) evalElement(rules []Rule) (interface{}, error) {
-	current := interface{}(a.content)
+	current := a.content
 	for _, rule := range rules {
 		var err error
 		current, err = a.applyRuleElement(current, rule)
@@ -339,7 +424,7 @@ func (a *Analyzer) evalElement(rules []Rule) (interface{}, error) {
 }
 
 func (a *Analyzer) evalElements(rules []Rule) ([]interface{}, error) {
-	current := interface{}(a.content)
+	current := a.content
 	for i, rule := range rules {
 		if i == len(rules)-1 {
 			return a.applyRuleElements(current, rule)
@@ -354,8 +439,22 @@ func (a *Analyzer) evalElements(rules []Rule) ([]interface{}, error) {
 }
 
 // applyRuleString runs a single rule against string content, returns string.
-func (a *Analyzer) applyRuleString(content string, rule Rule) (string, error) {
-	result, err := a.dispatch(rule.Mode, content, rule.Expression)
+func (a *Analyzer) applyRuleString(content interface{}, rule Rule) (string, error) {
+	rule, err := a.prepareRuleForEvaluation(rule)
+	if err != nil {
+		return "", err
+	}
+	var result interface{}
+	switch {
+	case rule.Literal:
+		result = rule.Expression
+	case strings.TrimSpace(rule.Expression) == "":
+		result = content
+	case rule.Mode == ModeJS:
+		result, err = a.jsEval(stripModePrefix(rule.Mode, rule.Expression), content)
+	default:
+		result, err = a.dispatch(rule.Mode, ToString(content), rule.Expression)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -367,8 +466,22 @@ func (a *Analyzer) applyRuleString(content string, rule Rule) (string, error) {
 }
 
 // applyRuleStringList runs a single rule returning a string list.
-func (a *Analyzer) applyRuleStringList(content string, rule Rule) ([]string, error) {
-	result, err := a.dispatchList(rule.Mode, content, rule.Expression)
+func (a *Analyzer) applyRuleStringList(content interface{}, rule Rule) ([]string, error) {
+	rule, err := a.prepareRuleForEvaluation(rule)
+	if err != nil {
+		return nil, err
+	}
+	var result []string
+	switch {
+	case rule.Literal:
+		result = []string{rule.Expression}
+	case strings.TrimSpace(rule.Expression) == "":
+		result = []string{ToString(content)}
+	case rule.Mode == ModeJS:
+		result, err = a.jsEvalList(stripModePrefix(rule.Mode, rule.Expression), content)
+	default:
+		result, err = a.dispatchList(rule.Mode, ToString(content), rule.Expression)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -381,17 +494,100 @@ func (a *Analyzer) applyRuleStringList(content string, rule Rule) ([]string, err
 }
 
 func (a *Analyzer) applyRuleElement(content interface{}, rule Rule) (interface{}, error) {
-	s := ToString(content)
-	result, err := a.dispatch(rule.Mode, s, rule.Expression)
+	rule, err := a.prepareRuleForEvaluation(rule)
 	if err != nil {
 		return nil, err
 	}
-	return result, nil
+	var result interface{}
+	switch {
+	case rule.Literal:
+		result = rule.Expression
+	case strings.TrimSpace(rule.Expression) == "":
+		result = content
+	default:
+		result, err = a.dispatchElement(rule.Mode, content, rule.Expression)
+	}
+	if err != nil || rule.ReplaceRegex == "" {
+		return result, err
+	}
+	return applyReplace(ToString(result), rule.ReplaceRegex, rule.Replacement, rule.ReplaceFirst)
 }
 
 func (a *Analyzer) applyRuleElements(content interface{}, rule Rule) ([]interface{}, error) {
-	s := ToString(content)
-	return a.dispatchElements(rule.Mode, s, rule.Expression)
+	rule, err := a.prepareRuleForEvaluation(rule)
+	if err != nil {
+		return nil, err
+	}
+	if rule.Literal {
+		return []interface{}{rule.Expression}, nil
+	}
+	if strings.TrimSpace(rule.Expression) == "" {
+		return []interface{}{content}, nil
+	}
+	return a.dispatchElements(rule.Mode, content, rule.Expression)
+}
+
+// dispatchElement preserves structured JSON/JS values and complete HTML selections.
+func (a *Analyzer) dispatchElement(mode Mode, content interface{}, expr string) (interface{}, error) {
+	expr = stripModePrefix(mode, expr)
+	text := ToString(content)
+	switch mode {
+	case ModeJSON:
+		return jsonQueryElement(text, expr)
+	case ModeJS:
+		return a.jsEval(expr, content)
+	case ModeCSS, ModeDefault, ModeXPath:
+		values, err := a.dispatchElements(mode, text, expr)
+		if err != nil {
+			return nil, err
+		}
+		return serializeHTMLSelection(values), nil
+	case ModeRegex:
+		return regexQueryElement(text, expr)
+	default:
+		return content, nil
+	}
+}
+
+func collapseElementValues(values []interface{}) interface{} {
+	if len(values) == 0 {
+		return ""
+	}
+	allHTML := true
+	for _, value := range values {
+		if !strings.HasPrefix(strings.TrimSpace(ToString(value)), "<") {
+			allHTML = false
+			break
+		}
+	}
+	if allHTML {
+		return serializeHTMLSelection(values)
+	}
+	if len(values) == 1 {
+		return values[0]
+	}
+	return values
+}
+
+func serializeHTMLSelection(values []interface{}) string {
+	var joined strings.Builder
+	for _, value := range values {
+		joined.WriteString(ToString(value))
+	}
+	content := joined.String()
+	lower := strings.ToLower(strings.TrimSpace(content))
+	switch {
+	case strings.HasPrefix(lower, "<tr"):
+		return "<table><tbody>" + content + "</tbody></table>"
+	case strings.HasPrefix(lower, "<td"), strings.HasPrefix(lower, "<th"):
+		return "<table><tbody><tr>" + content + "</tr></tbody></table>"
+	case strings.HasPrefix(lower, "<thead"), strings.HasPrefix(lower, "<tbody"), strings.HasPrefix(lower, "<tfoot"), strings.HasPrefix(lower, "<caption"), strings.HasPrefix(lower, "<colgroup"):
+		return "<table>" + content + "</table>"
+	case strings.HasPrefix(lower, "<option"), strings.HasPrefix(lower, "<optgroup"):
+		return "<select>" + content + "</select>"
+	default:
+		return content
+	}
 }
 
 // dispatch routes to the correct parser mode and returns a single result.
@@ -437,19 +633,20 @@ func (a *Analyzer) dispatchList(mode Mode, content, expr string) ([]string, erro
 }
 
 // dispatchElements routes and returns a list of elements.
-func (a *Analyzer) dispatchElements(mode Mode, content, expr string) ([]interface{}, error) {
+func (a *Analyzer) dispatchElements(mode Mode, content interface{}, expr string) ([]interface{}, error) {
 	expr = stripModePrefix(mode, expr)
+	text := ToString(content)
 	switch mode {
 	case ModeCSS:
-		return cssQueryElements(content, expr)
+		return cssQueryElements(text, expr)
 	case ModeDefault:
-		return defaultQueryElements(content, expr)
+		return defaultQueryElements(text, expr)
 	case ModeXPath:
-		return xpathQueryElements(content, expr)
+		return xpathQueryElements(text, expr)
 	case ModeJSON:
-		return jsonQueryElements(content, expr)
+		return jsonQueryElements(text, expr)
 	case ModeRegex:
-		return regexQueryElements(content, expr)
+		return regexQueryElements(text, expr)
 	case ModeJS:
 		return a.jsEvalElements(expr, content)
 	default:
@@ -475,6 +672,12 @@ func (a *Analyzer) jsBindings() map[string]interface{} {
 	if a.chapter != nil {
 		b["chapter"] = a.chapter
 	}
+	b["nextChapter"] = nil
+	b["nextChapterUrl"] = nil
+	if a.nextChapter != nil {
+		b["nextChapter"] = a.nextChapter
+		b["nextChapterUrl"] = a.nextChapter["url"]
+	}
 	if a.sourceState != nil {
 		b["sourceState"] = a.sourceState
 	}
@@ -482,21 +685,21 @@ func (a *Analyzer) jsBindings() map[string]interface{} {
 	return b
 }
 
-func (a *Analyzer) jsEval(expr, content string) (interface{}, error) {
+func (a *Analyzer) jsEval(expr string, content interface{}) (interface{}, error) {
 	if a.jsVM == nil {
 		return "", fmt.Errorf("analyzer: JS engine not available")
 	}
 	return a.jsVM.EvalContext(a.ctx, a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
 }
 
-func (a *Analyzer) jsEvalList(expr, content string) ([]string, error) {
+func (a *Analyzer) jsEvalList(expr string, content interface{}) ([]string, error) {
 	if a.jsVM == nil {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
 	return a.jsVM.EvalListContext(a.ctx, a.prependJSLib(expr), content, a.baseURL, a.jsBindings())
 }
 
-func (a *Analyzer) jsEvalElements(expr, content string) ([]interface{}, error) {
+func (a *Analyzer) jsEvalElements(expr string, content interface{}) ([]interface{}, error) {
 	if a.jsVM == nil {
 		return nil, fmt.Errorf("analyzer: JS engine not available")
 	}
@@ -540,6 +743,21 @@ func ToString(v interface{}) string {
 		return s
 	case fmt.Stringer:
 		return s.String()
+	case map[string]interface{}:
+		if html, ok := s["__html"].(string); ok {
+			return html
+		}
+		encoded, err := json.Marshal(s)
+		if err == nil {
+			return string(encoded)
+		}
+		return fmt.Sprintf("%v", s)
+	case map[string]string, []interface{}, []string:
+		encoded, err := json.Marshal(s)
+		if err == nil {
+			return string(encoded)
+		}
+		return fmt.Sprintf("%v", s)
 	default:
 		return fmt.Sprintf("%v", v)
 	}

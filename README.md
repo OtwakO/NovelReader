@@ -19,7 +19,7 @@ Search runs in user-sized source batches. The default checks 50 sources with Bal
 
 The 2-vCPU/4-GB HTTP-search gate sustained 48,000 deterministic source requests across 16 concurrent users with zero post-fix failures: median batch latency about 2.59s, p95 2.82s or lower, 27.32 MiB observed peak backend memory, and no retained established source connections. The separately constrained Patchright gate completed 200 requests from 10 clients with 2 pages and 8 queued: zero failures/rejections, 3.27s median, 3.33s p95, 153.6 MiB observed peak memory, and a healthy recycle after 100 contexts. Keep the current capacity ceilings until real upstream measurements justify changing them.
 
-The batched SSE API is `GET /api/search/stream?q=...&batchSize=50&concurrency=8&cursor=...`. It emits `start`, per-source `results` or `source_error`, and `done` events. `done.nextCursor` continues a completed batch; `retryCursor` repeats an interrupted batch; `stale` means the eligible source revision changed. Omitting `batchSize` preserves the legacy all-source stream contract.
+The batched SSE API is `GET /api/search/stream?q=...&batchSize=50&concurrency=8&cursor=...`. It emits `start`, per-source `results` or `source_error`, and `done` events. `done.nextCursor` continues a completed batch; `retryCursor` repeats an interrupted batch; `stale` means the eligible source revision changed. Omitting `batchSize` preserves the legacy all-source stream contract. TOC/content/book-info upstream failures return HTTP 502 with a stable `code` and crawl diagnostics; missing books, chapters, and sources return 404, while storage failures return 500.
 
 WebView sources are optional and run through the headless Patchright worker. Start it from `webview-worker/` and set `WEBVIEW_ENDPOINT=http://127.0.0.1:8787`; without this setting, WebView requests fail explicitly while normal HTTP sources continue to work.
 
@@ -31,7 +31,7 @@ GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go go test ./...
 cd ../frontend && npm test && npm run build
 ```
 
-Tests are colocated with the analyzer, source executor, transport, book, and conformance code. With Docker Compose 2.20.2 or newer, `./docker-e2e.sh` additionally builds both production images and verifies frontend delivery, readiness, private WebView routing, rendered search, graceful shutdown, and named-volume persistence without live sites.
+Tests are colocated with the analyzer, source executor, transport, book, and conformance code. The deterministic workflow matrix runs detail → TOC → first/middle/last content for normal HTML, JSONPath, XPath/Regex, GBK POST, and multi-page TOC/content source shapes. With Docker Compose 2.20.2 or newer, `./docker-e2e.sh` additionally builds both production images and verifies frontend delivery, readiness, private WebView routing, rendered search, graceful shutdown, and named-volume persistence without live sites.
 
 ## Raw-source conformance runner
 
@@ -46,7 +46,7 @@ GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go go run ./cmd/conformance \
   -health-url http://localhost:8888/
 ```
 
-`-indices` is optional; omitting it runs every source. `-health-url` is optional but aborts the run if the target server stops responding. Add `-webview-endpoint http://127.0.0.1:8787` to execute `webView:true` requests through the Patchright worker. Add `-indices N -book-url URL` to run detail → TOC → first-chapter content for one source. The CLI uses the production fingerprint transport. Site DNS, WAF, timeout, WebView, and stale-rule failures are reported separately rather than silently treated as parser failures.
+`-indices` is optional; omitting it runs every source. `-health-url` is optional but aborts the run if the target server stops responding. Add `-webview-endpoint http://127.0.0.1:8787` to execute `webView:true` requests through the Patchright worker. Add `-indices N -book-url URL` to run detail → TOC → first/middle/last non-volume chapter content for one source. The CLI uses the production fingerprint transport. Site DNS, WAF, timeout, WebView, and stale-rule failures are reported separately rather than silently treated as parser failures.
 
 Deterministic response fixtures live in `testdata/booksource/`; their manifest test executes the declared rules offline.
 

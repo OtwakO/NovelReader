@@ -3,6 +3,7 @@ package book
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -477,6 +478,12 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
+	b := &Book{
+		SourceURL: src.BookSourceURL,
+		BookURL:   bookURL,
+		Origin:    src.BookSourceName,
+	}
+	setExecutorContext(executor, src, b, nil, nil, bookURL)
 	spec, err := executor.BuildContext(ctx, bookURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
@@ -501,38 +508,54 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 		baseURL = spec.URL
 	}
 	an := analyzer.New(response.Body, baseURL, s.jsVM, s.cache)
-	an.SetJSLib(src.JSLib)
-	an.SetSourceState(session)
 	an.SetContext(ctx)
-
-	// Set book context for JS rules that reference book.name, book.author, etc.
-	an.SetBookData(map[string]string{
-		"bookUrl":    bookURL,
-		"origin":     src.BookSourceURL,
-		"originName": src.BookSourceName,
-	})
+	bookData := bookContext(b, src)
+	setAnalyzerContextWithBookData(an, src, session, bookData, b, nil, nil, baseURL)
 
 	rules := parseRuleJSON(src.RuleBookInfo)
-	b := &Book{
-		SourceURL: src.BookSourceURL,
-		BookURL:   bookURL,
-		Origin:    src.BookSourceName,
+	if initRule := strings.TrimSpace(rules["init"]); initRule != "" {
+		content, err := an.GetElement(initRule)
+		if err != nil {
+			return nil, fmt.Errorf("book info: init rule: %w", err)
+		}
+		if content == nil {
+			return nil, fmt.Errorf("book info: init rule returned null")
+		}
+		an.SetContent(content)
 	}
-
 	if rules != nil {
-		b.Name = mustString(an, rules["name"])
-		b.Author = mustString(an, rules["author"])
-		b.CoverURL = resolveURL(mustString(an, rules["coverUrl"]), baseURL)
-		b.Intro = mustString(an, rules["intro"])
-		b.Kind = mustString(an, rules["kind"])
-		b.LastChapter = mustString(an, rules["lastChapter"])
-		b.UpdateTime = mustString(an, rules["updateTime"])
-		b.WordCount = mustString(an, rules["wordCount"])
+		readField := func(rule string) string {
+			// Legado exposes one mutable Book object; later fields may depend on
+			// values extracted by earlier fields or JS assignments.
+			setAnalyzerContextWithBookData(an, src, session, bookData, b, nil, nil, baseURL)
+			return mustString(an, rule)
+		}
+		b.Name = readField(rules["name"])
+		bookData["name"] = b.Name
+		syncBookFromContext(b, bookData)
+		b.Author = readField(rules["author"])
+		bookData["author"] = b.Author
+		syncBookFromContext(b, bookData)
+		b.Kind = readField(rules["kind"])
+		bookData["kind"] = b.Kind
+		b.WordCount = readField(rules["wordCount"])
+		bookData["wordCount"] = b.WordCount
+		b.LastChapter = readField(rules["lastChapter"])
+		bookData["lastChapter"] = b.LastChapter
+		bookData["latestChapterTitle"] = b.LastChapter
+		b.Intro = readField(rules["intro"])
+		bookData["intro"] = b.Intro
+		b.CoverURL = resolveURL(readField(rules["coverUrl"]), baseURL)
+		bookData["coverUrl"] = b.CoverURL
+		b.UpdateTime = readField(rules["updateTime"])
+		bookData["updateTime"] = b.UpdateTime
 
 		// resolve tocUrl against bookUrl, not source root
-		if tocURL := mustString(an, rules["tocUrl"]); tocURL != "" {
+		if tocURL := readField(rules["tocUrl"]); tocURL != "" {
 			b.TocURL = resolveURL(tocURL, baseURL)
+			bookData["tocUrl"] = b.TocURL
 		}
+		syncBookFromContext(b, bookData)
 	}
 
 	if b.TocURL == "" {
@@ -545,10 +568,21 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	return b, nil
 }
 
-// GetChapterList fetches and parses the TOC using the legado-compatible parser.
-// If tocURL is empty, it attempts to auto-detect a TOC page link from the book detail page
-// by scanning for common TOC URL patterns when the extracted chapters look invalid.
+// GetChapterList fetches and parses the declared TOC, using the book page when tocURL is empty.
 func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL string) ([]Chapter, error) {
+	return s.GetChapterListForBook(src, &Book{
+		SourceURL: src.BookSourceURL,
+		BookURL:   bookURL,
+		Origin:    src.BookSourceName,
+	}, tocURL)
+}
+
+// GetChapterListForBook parses a TOC with the complete stored book context.
+func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, tocURL string) ([]Chapter, error) {
+	if b == nil {
+		return nil, fmt.Errorf("chapter list: book is required")
+	}
+	bookURL := b.BookURL
 	fetchURL := tocURL
 	if fetchURL == "" {
 		fetchURL = bookURL
@@ -560,12 +594,16 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
+	bookData := bookContext(b, src)
+	setExecutorContextWithBookData(executor, src, bookData, b, nil, nil, fetchURL)
 	parser := &ChapterListParser{
-		src:   src,
-		jsVM:  s.jsVM,
-		cache: s.cache,
-		state: session,
-		ctx:   ctx,
+		src:      src,
+		jsVM:     s.jsVM,
+		cache:    s.cache,
+		state:    session,
+		book:     b,
+		bookData: bookData,
+		ctx:      ctx,
 		fetch: func(urlStr string) (string, string, error) {
 			spec, err := executor.BuildContext(ctx, urlStr, "", 1, src.BookSourceURL)
 			if err != nil {
@@ -601,146 +639,38 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 		}
 	}
 
-	// Auto-detect TOC page if chapters look invalid (e.g., URLs are book URLs instead of chapter URLs)
-	if len(chapters) > 0 && tocURL == "" && !looksLikeChapters(chapters, bookURL) {
-		slog.Debug("chapter list: extracted chapters look invalid, attempting TOC auto-detection",
-			"source", src.BookSourceName,
-			"bookURL", bookURL,
-			"extractedCount", len(chapters),
-		)
-
-		// Try to find a TOC link on the book detail page
-		if detectedTOC := detectTOCPage(fetchURL, src.BookSourceURL, s.fetcher, parseHeaderJSON(src.Header)); detectedTOC != "" {
-			slog.Info("chapter list: auto-detected TOC page",
-				"source", src.BookSourceName,
-				"tocURL", detectedTOC,
-			)
-
-			// Re-parse with the detected TOC page
-			chapters, err = parser.ParseChapterList(detectedTOC, src.BookSourceURL)
-			if err != nil {
-				slog.Warn("chapter list: TOC auto-detection failed, falling back to book page",
-					"source", src.BookSourceName,
-					"error", err.Error(),
-				)
-				// Fall back to original chapters
-				chapters, _ = parser.ParseChapterList(fetchURL, src.BookSourceURL)
-			}
-		}
-	}
 	return chapters, nil
 }
 
-// looksLikeChapters validates whether extracted chapters look like actual chapter data.
-// Returns false if most URLs look like book detail pages instead of chapter pages.
-func looksLikeChapters(chapters []Chapter, bookURL string) bool {
-	if len(chapters) == 0 {
-		return false
-	}
-
-	// Count chapters with suspicious URLs (look like book detail pages)
-	suspiciousCount := 0
-	validChapterCount := 0
-
-	for _, ch := range chapters {
-		if ch.URL == "" {
-			continue // volume headers are OK
-		}
-
-		// Check if URL contains book URL patterns (suggesting it's a book page, not a chapter)
-		if strings.Contains(ch.URL, "/book/") || strings.Contains(ch.URL, "/shu/") || strings.Contains(ch.URL, "/info/") {
-			suspiciousCount++
-		}
-
-		// Check if URL looks like a valid chapter URL
-		if strings.Contains(ch.URL, "/chapter/") ||
-			strings.Contains(ch.URL, "/read/") ||
-			strings.Contains(ch.URL, "/content/") ||
-			strings.Contains(ch.URL, "/c/") ||
-			strings.Contains(ch.URL, "/ch/") {
-			validChapterCount++
-		}
-	}
-
-	// Count non-volume chapters
-	nonVolumeCount := 0
-	for _, ch := range chapters {
-		if ch.URL != "" && !ch.IsVolume {
-			nonVolumeCount++
-		}
-	}
-
-	if nonVolumeCount == 0 {
-		return false // all volumes, no actual chapters
-	}
-
-	// If more than 50% have book-like URLs, it's likely wrong
-	if float64(suspiciousCount)/float64(nonVolumeCount) >= 0.5 {
-		return false
-	}
-
-	// If we have at least some valid chapter URLs, it's probably correct
-	if validChapterCount > 0 && float64(validChapterCount)/float64(nonVolumeCount) >= 0.5 {
-		return true
-	}
-
-	// Default: assume correct if not obviously wrong
-	return true
-}
-
-// detectTOCPage scans the book detail page for links to a separate TOC page.
-// Returns the detected TOC URL or empty string if not found.
-func detectTOCPage(bookPageURL, sourceURL string, fetcher *fetcher.Client, headers map[string]string) string {
-	// Resolve book page URL to absolute URL
-	fullURL := resolveURL(bookPageURL, sourceURL)
-
-	resp, err := fetcher.Get(fullURL, headers)
-	if err != nil {
-		return ""
-	}
-
-	// Common TOC URL patterns (case-insensitive)
-	tocPatterns := []string{
-		`href="([^"]*(?:chapterlist|mulu|catalog|directory|chapter-list|目录)[^"]*)"`,
-		`href="([^"]*(?:/chapter/|/mulu/|/catalog/)[^"]*)"`,
-		`href="([^"]*(?:作品目录|章节目录|全部章节|目录)[^"]*)"`,
-		`>([^<]*(?:作品目录|章节目录|全部章节|目录)[^<]*)<`,
-	}
-
-	baseURL := resp.Body
-	for _, pattern := range tocPatterns {
-		re := regexp.MustCompile(`(?i)` + pattern)
-		matches := re.FindAllStringSubmatch(baseURL, -1)
-		for _, match := range matches {
-			if len(match) >= 2 {
-				candidate := match[1]
-				// Resolve relative URL
-				resolved := resolveURL(candidate, fullURL)
-				// Skip if it's the same as the book page
-				if resolved != fullURL && strings.HasPrefix(resolved, "http") {
-					return resolved
-				}
-			}
-		}
-	}
-
-	return ""
-}
-
-// GetChapterContent fetches and parses chapter content using ruleContent.
-// If the standard rule extraction returns empty content, it attempts to
-// find content embedded as JSON in <script> tags (common for Vue.js/React SPAs).
+// GetChapterContent keeps the legacy URL-only API for callers without stored context.
 func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL string) (string, string, error) {
+	return s.GetChapterContentForBook(src, nil, &Chapter{URL: chapterURL}, nil)
+}
+
+// GetChapterContentForBook fetches content with the complete book/current/next context.
+// Script JSON is considered only when the source declares no content rule.
+func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, current, next *Chapter) (string, string, error) {
+	if current == nil || current.URL == "" {
+		return "", "", fmt.Errorf("content: current chapter is required")
+	}
+	chapterURL := current.URL
 	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
 	defer cancel()
 
-	session := s.sessions.GetChapter(src.BookSourceURL, chapterURL)
+	var session *sourceexec.SourceSession
+	if b != nil && b.BookURL != "" {
+		session = s.sessions.GetOrCreateBook(src.BookSourceURL, b.BookURL)
+	} else {
+		session = s.sessions.GetChapter(src.BookSourceURL, chapterURL)
+	}
 	if session == nil {
 		session = sourceexec.NewSourceSession()
 	}
 	session.SetRequestHeaders(parseHeaderJSON(src.Header))
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
+	bookData := bookContext(b, src)
+	setExecutorContextWithBookData(executor, src, bookData, b, current, next, chapterURL)
 	spec, err := executor.BuildContext(ctx, chapterURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
@@ -766,14 +696,8 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	}
 
 	an := analyzer.New(response.Body, fullURL, s.jsVM, s.cache)
-	an.SetJSLib(src.JSLib)
-	an.SetSourceState(session)
 	an.SetContext(ctx)
-	// Bind chapter context for JS rules that reference chapter.url, chapter.baseUrl
-	an.SetChapterData(map[string]string{
-		"url":     fullURL,
-		"baseUrl": fullURL,
-	})
+	setAnalyzerContextWithBookData(an, src, session, bookData, b, current, next, fullURL)
 	rules := parseRuleJSON(src.RuleContent)
 	if rules == nil {
 		return mustString(an, "body@text"), "", nil
@@ -793,7 +717,7 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 		} else {
 			pageContent = mustString(pageAnalyzer, "body@text")
 		}
-		if pageContent == "" && strings.Contains(body, "<script") {
+		if pageContent == "" && contentRule == "" && strings.Contains(body, "<script") {
 			if extracted := extractContentFromScriptJSON(body); extracted != "" {
 				pageContent = extracted
 				slog.Debug("content: extracted from script tag JSON fallback",
@@ -809,64 +733,107 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 	}
 
 	content := extractPage(an, response.Body, fullURL)
-	visited := map[string]bool{fullURL: true}
-	for nextRule := rules["nextContentUrl"]; nextRule != ""; {
-		nextURLs, err := an.GetStringList(nextRule)
-		if err != nil || len(nextURLs) == 0 {
-			break
-		}
-		var nextURL string
-		for _, candidate := range nextURLs {
-			candidate = resolveURL(candidate, fullURL)
-			if candidate == "" || visited[candidate] {
+	nextRule := rules["nextContentUrl"]
+	scheduledRequests := map[string]bool{fullURL: true}
+	processedPages := map[string]bool{contentURLKey(fullURL): true}
+	pendingURLs := make([]string, 0, 1)
+	pagesFetched := 1
+
+	// Legado follows one next URL as a sequential chain. Multiple URLs are
+	// fetched once as a fixed page set; their pages do not recursively expand.
+	enqueueCandidates := func(candidates []string) bool {
+		for _, candidate := range candidates {
+			candidate = resolveURL(strings.TrimSpace(candidate), fullURL)
+			if candidate == "" || scheduledRequests[candidate] {
 				continue
 			}
 			// Legado stops when a content-page link reaches the next TOC
 			// chapter; otherwise a normal next-chapter link is mistaken for
 			// another page of the current chapter.
-			if s.sessions.IsChapter(src.BookSourceURL, candidate) {
-				break
+			if next != nil && sameChapterURL(candidate, next.URL, fullURL) {
+				return true
 			}
-			nextURL = candidate
-			break
+			if next == nil && s.sessions.IsChapter(src.BookSourceURL, contentURLKey(candidate)) {
+				return true
+			}
+			scheduledRequests[candidate] = true
+			pendingURLs = append(pendingURLs, candidate)
 		}
-		if nextURL == "" {
-			break
-		}
-		visited[nextURL] = true
+		return false
+	}
 
+	singleChain := false
+	if nextRule != "" {
+		nextURLs, err := an.GetStringList(nextRule)
+		if err != nil && !errors.Is(err, analyzer.ErrNoListValues) {
+			return "", "", newContentPaginationError("nextContentUrl", fullURL, fullURL, pagesFetched, err)
+		}
+		if err == nil {
+			singleChain = len(nextURLs) == 1
+			enqueueCandidates(nextURLs)
+		}
+	}
+
+	for len(pendingURLs) > 0 {
+		nextURL := pendingURLs[0]
+		pendingURLs = pendingURLs[1:]
 		nextSpec, err := executor.BuildContext(ctx, nextURL, "", 1, src.BookSourceURL)
 		if err != nil {
-			return "", "", fmt.Errorf("content: next page build: %w", err)
+			return "", "", newContentPaginationError("next page build", fullURL, nextURL, pagesFetched, err)
 		}
 		nextSpec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), nextSpec.Headers)
 		slog.Debug("content: fetching next page", "source", src.BookSourceName, "url", nextSpec.URL, "method", nextSpec.Method)
 		nextResponse, err := transport.Do(ctx, nextSpec)
 		if err != nil {
-			return "", "", fmt.Errorf("content: next page fetch: %w", err)
+			return "", "", newContentPaginationError("next page fetch", fullURL, nextURL, pagesFetched, err)
 		}
 		nextResponse, err = executor.TransformResponse(ctx, nextSpec, nextResponse)
 		if err != nil {
-			return "", "", fmt.Errorf("content: next page bodyJs: %w", err)
+			return "", "", newContentPaginationError("next page bodyJs", fullURL, nextURL, pagesFetched, err)
 		}
 		slog.Debug("content: next page response", "source", src.BookSourceName, "url", nextSpec.URL, "status", nextResponse.StatusCode, "finalURL", nextResponse.FinalURL)
 		if nextResponse.StatusCode < http.StatusOK || nextResponse.StatusCode >= http.StatusMultipleChoices {
-			return "", "", fmt.Errorf("content: next page status %d from %s", nextResponse.StatusCode, src.BookSourceName)
+			return "", "", newContentPaginationError("next page status", fullURL, nextURL, pagesFetched, fmt.Errorf("status %d from %s", nextResponse.StatusCode, src.BookSourceName))
 		}
 		nextFullURL := nextResponse.FinalURL
 		if nextFullURL == "" {
 			nextFullURL = nextSpec.URL
 		}
+		if next != nil && sameChapterURL(nextFullURL, next.URL, fullURL) {
+			// This queued request crossed the TOC boundary. Do not parse it,
+			// but continue draining other fixed-set content pages.
+			continue
+		}
+		resolvedKey := contentURLKey(nextFullURL)
+		requestedKey := contentURLKey(nextURL)
+		if processedPages[resolvedKey] && requestedKey != resolvedKey {
+			continue
+		}
+		processedPages[resolvedKey] = true
+		pagesFetched++
 		nextAnalyzer := analyzer.New(nextResponse.Body, nextFullURL, s.jsVM, s.cache)
-		nextAnalyzer.SetJSLib(src.JSLib)
-		nextAnalyzer.SetSourceState(session)
 		nextAnalyzer.SetContext(ctx)
-		nextAnalyzer.SetChapterData(map[string]string{"url": nextFullURL, "baseUrl": nextFullURL})
+		setAnalyzerContextWithBookData(nextAnalyzer, src, session, bookData, b, current, next, nextFullURL)
 		if pageContent := extractPage(nextAnalyzer, nextResponse.Body, nextFullURL); pageContent != "" {
 			content += "\n" + pageContent
 		}
 		an = nextAnalyzer
 		fullURL = nextFullURL
+
+		if !singleChain || nextRule == "" {
+			continue
+		}
+		nextURLs, err := an.GetStringList(nextRule)
+		if err != nil {
+			if errors.Is(err, analyzer.ErrNoListValues) {
+				break
+			}
+			return "", "", newContentPaginationError("nextContentUrl", fullURL, fullURL, pagesFetched, err)
+		}
+		if len(nextURLs) == 0 {
+			break
+		}
+		enqueueCandidates(nextURLs[:1])
 	}
 	return content, chapterTitle, nil
 }
@@ -948,18 +915,6 @@ func findStringInJSON(data interface{}, targetKeys []string, depth int) string {
 	}
 
 	return ""
-}
-
-func (s *Searcher) fetchAndAnalyze(urlStr, baseURL, headerJSON, jsLib string) *analyzer.Analyzer {
-	headers := parseHeaderJSON(headerJSON)
-	fullURL := resolveURL(urlStr, baseURL)
-	resp, err := s.fetcher.Get(fullURL, headers)
-	if err != nil {
-		return nil
-	}
-	an := analyzer.New(resp.Body, fullURL, s.jsVM, s.cache)
-	an.SetJSLib(jsLib)
-	return an
 }
 
 func mustString(a *analyzer.Analyzer, rule string) string {

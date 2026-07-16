@@ -2,28 +2,64 @@ package book
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/booksource"
 )
 
+// TOCPaginationError reports a failed paginated TOC while retaining enough
+// context to diagnose the discarded partial result.
+type TOCPaginationError struct {
+	PageURL         string
+	FailedURL       string
+	PagesFetched    int
+	ChaptersFetched int
+	Operation       string
+	Err             error
+}
+
+func (e *TOCPaginationError) Error() string {
+	if e == nil {
+		return "toc: pagination failed"
+	}
+	location := e.PageURL
+	if e.FailedURL != "" {
+		location = e.FailedURL
+	}
+	return fmt.Sprintf("toc: %s %s after %d pages (%d chapters): %v", e.Operation, location, e.PagesFetched, e.ChaptersFetched, e.Err)
+}
+
+func (e *TOCPaginationError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 // ChapterListParser handles the full legado-compatible TOC parsing pipeline.
 // Mirrors legado's BookChapterList.analyzeChapterList.
 type ChapterListParser struct {
-	src   booksource.BookSource
-	jsVM  *analyzer.JSVM
-	cache *analyzer.CacheManager
-	state analyzer.SourceState
-	ctx   context.Context
-	fetch func(urlStr string) (string, string, error) // returns (body, resolvedURL, error)
+	src      booksource.BookSource
+	jsVM     *analyzer.JSVM
+	cache    *analyzer.CacheManager
+	state    analyzer.SourceState
+	book     *Book
+	bookData map[string]interface{}
+	ctx      context.Context
+	fetch    func(urlStr string) (string, string, error) // returns (body, resolvedURL, error)
 }
 
 // ParseChapterList fetches and parses the complete chapter list, handling pagination.
 func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter, error) {
 	rules := parseRuleJSON(p.src.RuleToc)
+	if p.bookData == nil {
+		p.bookData = bookContext(p.book, p.src)
+	}
 	if rules == nil {
 		return nil, fmt.Errorf("toc: no rules for %s", p.src.BookSourceName)
 	}
@@ -45,63 +81,108 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 	}
 
 	var allChapters []Chapter
-	seen := make(map[string]bool) // dedup by URL+title
-	visitedNext := make(map[string]bool)
-	visitedNext[resolvedURL] = true
+	scheduledRequests := make(map[string]bool)
+	processedPages := make(map[string]bool)
+	initialPageKey := tocVisitKey(resolvedURL)
+	scheduledRequests[resolvedURL] = true
+	processedPages[initialPageKey] = true
+	pendingURLs := make([]string, 0, 1)
+	pageCount := 0
 
-	// Handle pagination via nextTocUrl
+	// Handle pagination via nextTocUrl.
 	nextRule := rules["nextTocUrl"]
 	for {
-		chapters, nextURL, err := p.parsePage(body, resolvedURL, listRule, rules)
+		pageCount++
+		chapters, _, err := p.parsePage(body, resolvedURL, listRule, rules)
 		if err != nil {
-			return nil, err
+			return nil, newTOCPaginationError("parse page", resolvedURL, resolvedURL, pageCount, allChapters, err)
 		}
-		for _, ch := range chapters {
-			key := ch.URL + "|" + ch.Title
-			if !seen[key] {
-				seen[key] = true
-				allChapters = append(allChapters, ch)
+		allChapters = append(allChapters, chapters...)
+
+		if nextRule != "" {
+			// Extract next page URL(s) from the current page. A missing URL is the
+			// normal terminal condition; rule evaluation failures are not.
+			an := analyzer.New(body, resolvedURL, p.jsVM, p.cache)
+			an.SetContext(p.ctx)
+			setAnalyzerContextMaps(an, p.src, p.state, p.bookData, nil, nil)
+			nextURLs, err := an.GetStringList(nextRule)
+			if err != nil && !errors.Is(err, analyzer.ErrNoListValues) {
+				return nil, newTOCPaginationError("nextTocUrl", resolvedURL, resolvedURL, pageCount, allChapters, err)
+			}
+			if err == nil {
+				for _, rawURL := range nextURLs {
+					rawURL = strings.TrimSpace(rawURL)
+					if rawURL == "" {
+						continue
+					}
+					nextURL := resolveURL(rawURL, resolvedURL)
+					if nextURL == "" {
+						continue
+					}
+					if scheduledRequests[nextURL] {
+						slog.Warn("toc: pagination skipped a scheduled next request",
+							"source", p.src.BookSourceName,
+							"page", resolvedURL,
+							"next", nextURL,
+							"pages", pageCount,
+							"chapters", uniqueChapterCount(allChapters),
+						)
+						continue
+					}
+					scheduledRequests[nextURL] = true
+					pendingURLs = append(pendingURLs, nextURL)
+				}
 			}
 		}
 
-		if nextRule == "" {
+		if len(pendingURLs) == 0 {
 			break
 		}
-
-		// Extract next page URL(s) from current page
-		an := analyzer.New(body, resolvedURL, p.jsVM, p.cache)
-		an.SetSourceState(p.state)
-		an.SetContext(p.ctx)
-		nextURLs, err := an.GetStringList(nextRule)
-		if err != nil || len(nextURLs) == 0 {
-			break
-		}
-
-		nextURL = nextURLs[0]
-		// Resolve before cycle detection so relative and absolute spellings cannot
-		// bypass the visited set.
-		nextURL = resolveURL(nextURL, resolvedURL)
-		if nextURL == "" || visitedNext[nextURL] {
-			break
-		}
-		visitedNext[nextURL] = true
-
-		body, resolvedURL, err = p.fetch(nextURL)
+		nextURL := pendingURLs[0]
+		pendingURLs = pendingURLs[1:]
+		pageURL := resolvedURL
+		nextBody, nextResolvedURL, err := p.fetch(nextURL)
 		if err != nil {
-			return nil, fmt.Errorf("toc: next page %s: %w", nextURL, err)
+			return nil, newTOCPaginationError("next page", pageURL, nextURL, pageCount, allChapters, err)
 		}
+		resolvedKey := tocVisitKey(nextResolvedURL)
+		requestedKey := tocVisitKey(nextURL)
+		if processedPages[resolvedKey] && requestedKey != resolvedKey {
+			slog.Warn("toc: pagination skipped a redirect to a processed page",
+				"source", p.src.BookSourceName,
+				"page", pageURL,
+				"next", nextURL,
+				"resolved", nextResolvedURL,
+				"pages", pageCount,
+				"chapters", uniqueChapterCount(allChapters),
+			)
+			continue
+		}
+		processedPages[resolvedKey] = true
+		body, resolvedURL = nextBody, nextResolvedURL
 	}
 
-	// Reverse if needed (legado: if not reverse, reverse; if reverse, keep order)
-	// legado logic: if !reverse { reverse() }; later: if !book.getReverseToc() { reverse() }
-	// The documented source rule contract reverses only when the rule starts with '-'.
-	if reverse {
-		for i, j := 0, len(allChapters)-1; i < j; i, j = i+1, j-1 {
-			allChapters[i], allChapters[j] = allChapters[j], allChapters[i]
-		}
+	// Legado reverses the accumulated pages before LinkedHashSet deduplication
+	// unless the rule starts with '-', then applies the user's default
+	// non-reversed TOC preference after deduplication. NovelReader has no
+	// persisted per-book reverse preference yet, so that final reversal is
+	// always applied.
+	if !reverse {
+		reverseChapters(allChapters)
 	}
+	seen := make(map[string]bool, len(allChapters))
+	unique := make([]Chapter, 0, len(allChapters))
+	for _, chapter := range allChapters {
+		if seen[chapter.URL] {
+			continue
+		}
+		seen[chapter.URL] = true
+		unique = append(unique, chapter)
+	}
+	reverseChapters(unique)
+	allChapters = unique
 
-	// Assign indices
+	// Assign indices after reversal and deduplication.
 	for i := range allChapters {
 		allChapters[i].Index = i
 	}
@@ -111,8 +192,8 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 
 func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[string]string) ([]Chapter, string, error) {
 	an := analyzer.New(body, pageURL, p.jsVM, p.cache)
-	an.SetSourceState(p.state)
 	an.SetContext(p.ctx)
+	setAnalyzerContextMaps(an, p.src, p.state, p.bookData, nil, nil)
 	elements, err := an.GetElements(listRule)
 	if err != nil {
 		return nil, "", fmt.Errorf("toc: get elements: %w", err)
@@ -121,50 +202,68 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 	nameRule := rules["chapterName"]
 	urlRule := rules["chapterUrl"]
 	vipRule := rules["isVip"]
+	payRule := rules["isPay"]
 	volumeRule := rules["isVolume"]
 	timeRule := rules["updateTime"]
 
 	var chapters []Chapter
-	for _, el := range elements {
+	for elementIndex, el := range elements {
+		current := &Chapter{}
+		elHTML := analyzer.ToString(el)
+		elAn := analyzer.New(elHTML, pageURL, p.jsVM, p.cache)
+		elAn.SetContext(p.ctx)
+		chapterData := chapterContext(p.book, current, pageURL)
+		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
+
 		title, titleIsField := jsElementField(el, nameRule)
-		chURL, urlIsField := jsElementField(el, urlRule)
-		if !titleIsField || !urlIsField {
-			elHTML := analyzer.ToString(el)
-			elAn := analyzer.New(elHTML, pageURL, p.jsVM, p.cache)
-			elAn.SetSourceState(p.state)
-			elAn.SetContext(p.ctx)
-			if !titleIsField {
-				title = mustString(elAn, nameRule)
-			}
-			if !urlIsField {
-				chURL = mustString(elAn, urlRule)
-			}
+		if !titleIsField {
+			title = mustString(elAn, nameRule)
 		}
 		if title == "" {
 			continue
 		}
+		// BookChapter is mutable in Legado: chapterUrl rules can use the title
+		// extracted immediately before them.
+		current.Title = title
+		chapterData["title"] = title
+		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
 
-		// Resolve chapter URL against the page it was found on
+		chURL, urlIsField := jsElementField(el, urlRule)
+		if !urlIsField {
+			chURL = mustString(elAn, urlRule)
+		}
+		// Resolve chapter URL against the page it was found on.
 		chURL = resolveURL(chURL, pageURL)
+		current.URL = chURL
+		chapterData["url"] = chURL
+		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
 
-		// Volume detection: empty URL or explicit isVolume rule
-		isVolume := elementRuleString(el, volumeRule, pageURL, p)
+		// Match Legado's mutable chapter lifecycle: update info, volume, URL
+		// fallback, then VIP/pay flags.
+		current.BaseURL = pageURL
+		chapterData["baseUrl"] = pageURL
+		if t := elementRuleString(el, timeRule, pageURL, p, current, p.bookData, chapterData); t != "" {
+			current.Tag = t
+			chapterData["tag"] = t
+		}
+		current.IsVolume = legadoTrue(elementRuleString(el, volumeRule, pageURL, p, current, p.bookData, chapterData))
 		if chURL == "" {
-			isVolume = "true" // infer volume from missing URL
+			if current.IsVolume {
+				chURL = title + strconv.Itoa(elementIndex)
+			} else {
+				chURL = pageURL
+			}
 		}
-
-		ch := Chapter{
-			Title:    title,
-			URL:      chURL,
-			IsVip:    elementRuleString(el, vipRule, pageURL, p) == "true",
-			IsVolume: isVolume == "true",
-		}
-
-		if t := elementRuleString(el, timeRule, pageURL, p); t != "" {
-			_ = t
-		}
-
-		chapters = append(chapters, ch)
+		current.URL = chURL
+		chapterData["url"] = chURL
+		chapterData["isVolume"] = current.IsVolume
+		current.IsVip = legadoTrue(elementRuleString(el, vipRule, pageURL, p, current, p.bookData, chapterData))
+		current.IsPay = legadoTrue(elementRuleString(el, payRule, pageURL, p, current, p.bookData, chapterData))
+		chapterData["isVolume"] = current.IsVolume
+		chapterData["isVip"] = current.IsVip
+		chapterData["isPay"] = current.IsPay
+		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
+		chapters = append(chapters, *current)
 	}
 
 	// Log warning when elements matched but no chapters had extractable titles.
@@ -183,6 +282,45 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 	}
 
 	return chapters, "", nil
+}
+
+func newTOCPaginationError(operation, pageURL, failedURL string, pages int, chapters []Chapter, err error) *TOCPaginationError {
+	return &TOCPaginationError{
+		PageURL:         pageURL,
+		FailedURL:       failedURL,
+		PagesFetched:    pages,
+		ChaptersFetched: uniqueChapterCount(chapters),
+		Operation:       operation,
+		Err:             err,
+	}
+}
+
+func uniqueChapterCount(chapters []Chapter) int {
+	seen := make(map[string]bool, len(chapters))
+	for _, chapter := range chapters {
+		seen[chapter.URL] = true
+	}
+	return len(seen)
+}
+
+func tocVisitKey(rawURL string) string {
+	return contentURLKey(rawURL)
+}
+
+func reverseChapters(chapters []Chapter) {
+	for i, j := 0, len(chapters)-1; i < j; i, j = i+1, j-1 {
+		chapters[i], chapters[j] = chapters[j], chapters[i]
+	}
+}
+
+func legadoTrue(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "", "false", "no", "not", "null", "0", "0.0":
+		return false
+	default:
+		return true
+	}
 }
 
 func jsElementField(value interface{}, rule string) (string, bool) {
@@ -205,30 +343,12 @@ func jsElementField(value interface{}, rule string) (string, bool) {
 	}
 }
 
-func elementRuleString(value interface{}, rule, pageURL string, parser *ChapterListParser) string {
+func elementRuleString(value interface{}, rule, pageURL string, parser *ChapterListParser, current *Chapter, bookData, chapterData map[string]interface{}) string {
 	if value, ok := jsElementField(value, rule); ok {
 		return value
 	}
 	an := analyzer.New(analyzer.ToString(value), pageURL, parser.jsVM, parser.cache)
-	an.SetSourceState(parser.state)
 	an.SetContext(parser.ctx)
+	setAnalyzerContextMaps(an, parser.src, parser.state, bookData, chapterData, nil)
 	return mustString(an, rule)
-}
-
-// GetNextContentURL fetches the next content URL if the chapter has a pagination rule.
-// Not yet implemented — most chapters are single-page.
-func (s *Searcher) GetNextContentURL(src booksource.BookSource, currentURL string) (string, error) {
-	rules := parseRuleJSON(src.RuleContent)
-	if rules == nil {
-		return "", nil
-	}
-	nextRule := rules["nextContentUrl"]
-	if nextRule == "" {
-		return "", nil
-	}
-	an := s.fetchAndAnalyze(currentURL, src.BookSourceURL, src.Header, src.JSLib)
-	if an == nil {
-		return "", nil
-	}
-	return mustString(an, nextRule), nil
 }

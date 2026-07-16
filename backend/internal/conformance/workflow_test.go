@@ -10,6 +10,66 @@ import (
 	"time"
 )
 
+func TestWorkflowChecksFirstMiddleLastChapters(t *testing.T) {
+	bookPage := `<div class="baseinfo"><img src="/cover.jpg"></div><div class="pt-info">分类</div><div class="pt-info">作者：Fixture</div><div class="pt-info"><a>玄幻</a></div><div class="intro">Fixture introduction</div><ul id="chapterlist"><li><a href="/chapter/1">第一章</a></li><li><a href="/chapter/2">第二章</a></li><li><a href="/chapter/3">第三章</a></li><li><a href="/chapter/4">第四章</a></li><li><a href="/chapter/5">第五章</a></li></ul>`
+	normal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(bookPage))
+	}))
+	defer normal.Close()
+
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			URL string `json:"url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		chapter := request.URL[strings.LastIndex(request.URL, "/")+1:]
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"version": 1, "statusCode": 200, "finalUrl": request.URL,
+			"body": `<div id="BookText">content ` + chapter + `</div>`,
+		})
+	}))
+	defer worker.Close()
+
+	source, err := json.Marshal([]map[string]interface{}{{
+		"bookSourceUrl": normal.URL, "bookSourceName": "桃桃书 matrix", "bookSourceType": 0,
+		"ruleBookInfo": map[string]string{
+			"author": "class.pt-info.1@text##作者：", "coverUrl": "class.baseinfo@img@src",
+			"intro": "class.intro@text", "kind": "class.pt-info.2@a@text", "tocUrl": "",
+		},
+		"ruleToc": map[string]string{
+			"chapterList": "id.chapterlist@li", "chapterName": "a@text",
+			"chapterUrl": "a@href##$##,{'webView': true}", "nextTocUrl": "text.下一页@href",
+		},
+		"ruleContent": map[string]string{"content": "id.BookText@html"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	record, err := RunWorkflowWithOptions(context.Background(), source, 0, normal.URL+"/book", Options{
+		Timeout: 2 * time.Second, WebViewEndpoint: worker.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.Classification != "success" || len(record.ChapterChecks) != 3 {
+		t.Fatalf("record=%+v", record)
+	}
+	for index, want := range []struct{ position, title, content string }{
+		{"first", "第一章", "content 1"},
+		{"middle", "第三章", "content 3"},
+		{"last", "第五章", "content 5"},
+	} {
+		check := record.ChapterChecks[index]
+		if check.Position != want.position || check.Chapter.Title != want.title || !strings.Contains(check.ContentSample, want.content) {
+			t.Fatalf("check[%d]=%+v, want %+v", index, check, want)
+		}
+	}
+}
+
 func TestWorkflowReplaysSource779WebViewContent(t *testing.T) {
 	bookPage := `<html>
 <div class="baseinfo"><img src="/cover.jpg"></div>
