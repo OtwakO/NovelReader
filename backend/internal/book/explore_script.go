@@ -13,20 +13,25 @@ import (
 
 const exploreInfoMapKey = "__novelreader_explore_info_map"
 
-func (s *Searcher) evaluateExploreScript(ctx context.Context, source booksource.BookSource, state *sourceexec.SourceSession, raw string) (output string, err error) {
-	if s.jsVM == nil {
-		return "", fmt.Errorf("JavaScript engine unavailable")
-	}
+func (s *Searcher) evaluateExploreScript(ctx context.Context, source booksource.BookSource, state *sourceexec.SourceSession, raw string) (string, error) {
 	script, err := unwrapExploreScript(raw)
 	if err != nil {
 		return "", err
+	}
+	value, err := s.evaluateExploreJavaScript(ctx, source, state, script)
+	return strings.TrimSpace(analyzer.ToString(value)), err
+}
+
+func (s *Searcher) evaluateExploreJavaScript(ctx context.Context, source booksource.BookSource, state *sourceexec.SourceSession, script string) (value interface{}, err error) {
+	if s.jsVM == nil {
+		return nil, fmt.Errorf("JavaScript engine unavailable")
 	}
 	scriptCtx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
 	defer cancel()
 	select {
 	case s.searchSlots <- struct{}{}:
 	case <-scriptCtx.Done():
-		return "", scriptCtx.Err()
+		return nil, scriptCtx.Err()
 	}
 	s.capacity.activeSourceFetches.Add(1)
 	s.capacity.totalSourceFetches.Add(1)
@@ -44,11 +49,7 @@ func (s *Searcher) evaluateExploreScript(ctx context.Context, source booksource.
 	urlContext := &analyzer.URLContext{JSLib: source.JSLib}
 	bindings := analyzer.URLBindings(urlContext, source.BookSourceURL, state)
 	bindings["infoMap"] = exploreInfoMap(state)
-	value, err := analyzer.EvalURLScript(scriptCtx, s.jsVM, script, "", source.BookSourceURL, urlContext, bindings)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(analyzer.ToString(value)), nil
+	return analyzer.EvalURLScript(scriptCtx, s.jsVM, script, "", source.BookSourceURL, urlContext, bindings)
 }
 
 func unwrapExploreScript(raw string) (string, error) {

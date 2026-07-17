@@ -17,6 +17,8 @@ type exploreSession struct {
 	source     booksource.BookSource
 	state      *sourceexec.SourceSession
 	categories map[string]exploreKind
+	entryIDs   []string
+	generation uint64
 	pages      map[string]*explorePageState
 }
 
@@ -55,15 +57,12 @@ func (r *exploreRegistry) create(source booksource.BookSource, kinds []exploreKi
 	if r == nil {
 		return "", nil, fmt.Errorf("explore sessions unavailable")
 	}
-	categories := make(map[string]exploreKind, len(kinds))
-	for index, kind := range kinds {
-		categories[fmt.Sprintf("entry-%d", index)] = kind
-	}
+	categories, entryIDs := exploreCategories(kinds, 0)
 	if state == nil {
 		state = sourceexec.NewSourceSession()
 	}
 	session := &exploreSession{
-		source: source, state: state, categories: categories,
+		source: source, state: state, categories: categories, entryIDs: entryIDs,
 		pages: make(map[string]*explorePageState),
 	}
 	now := time.Now()
@@ -85,6 +84,20 @@ func (r *exploreRegistry) create(source booksource.BookSource, kinds []exploreKi
 			return id, session, nil
 		}
 	}
+}
+
+func exploreCategories(kinds []exploreKind, generation uint64) (map[string]exploreKind, []string) {
+	categories := make(map[string]exploreKind, len(kinds))
+	entryIDs := make([]string, len(kinds))
+	for index, kind := range kinds {
+		id := fmt.Sprintf("entry-%d", index)
+		if generation > 0 {
+			id = fmt.Sprintf("entry-%d-%d", generation, index)
+		}
+		categories[id] = kind
+		entryIDs[index] = id
+	}
+	return categories, entryIDs
 }
 
 func (r *exploreRegistry) acquire(id string) (*exploreSession, func()) {

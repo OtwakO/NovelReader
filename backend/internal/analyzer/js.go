@@ -52,6 +52,8 @@ func NewJSVMWithPoolSize(poolSize int) *JSVM {
 
 // SourceState is the session surface exposed to Legado JavaScript bindings.
 // It is intentionally defined here so analyzer does not depend on sourceexec.
+const RefreshExploreMemoryKey = "__novelreader_refresh_explore"
+
 type SourceState interface {
 	GetCookie(rawURL, key string) string
 	CookieHeader(rawURL string) string
@@ -168,26 +170,27 @@ Map = function(a) {
 	_ = rt.Set("src", content) // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
 	_ = rt.Set("java", map[string]interface{}{
-		"get":          h.Get,
-		"put":          h.Put,
-		"post":         h.Post,
-		"ajax":         h.Ajax,
-		"connect":      h.Connect,
-		"md5Encode":    h.Md5Encode,
-		"md5Encode16":  h.Md5Encode16,
-		"base64Encode": h.Base64Encode,
-		"base64Decode": h.Base64Decode,
-		"encodeURI":    h.EncodeURI,
-		"randomUUID":   h.RandomUUID,
-		"timeFormat":   h.TimeFormat,
-		"androidId":    h.AndroidId,
-		"log":          h.Log,
-		"getString":    h.GetString,
-		"getElements":  h.GetElements,
-		"setContent":   h.SetContent,
-		"HMacHex":      h.HMacHex,
-		"decode":       h.Decode,
-		"login":        h.Login,
+		"get":            h.Get,
+		"put":            h.Put,
+		"post":           h.Post,
+		"ajax":           h.Ajax,
+		"connect":        h.Connect,
+		"md5Encode":      h.Md5Encode,
+		"md5Encode16":    h.Md5Encode16,
+		"base64Encode":   h.Base64Encode,
+		"base64Decode":   h.Base64Decode,
+		"encodeURI":      h.EncodeURI,
+		"randomUUID":     h.RandomUUID,
+		"timeFormat":     h.TimeFormat,
+		"androidId":      h.AndroidId,
+		"log":            h.Log,
+		"getString":      h.GetString,
+		"getElements":    h.GetElements,
+		"setContent":     h.SetContent,
+		"HMacHex":        h.HMacHex,
+		"decode":         h.Decode,
+		"login":          h.Login,
+		"refreshExplore": h.RefreshExplore,
 	})
 	_ = rt.Set("source", vm.makeSourceObj(baseURL, sourceState))
 	_ = rt.Set("cookie", vm.makeCookieObj(sourceState))
@@ -584,6 +587,12 @@ func (h *jsHelpers) Decode(str string) string {
 // Login is a stub for sources that require login.
 func (h *jsHelpers) Login(args ...interface{}) string {
 	return ""
+}
+
+func (h *jsHelpers) RefreshExplore() {
+	if h.state != nil {
+		h.state.PutMemory(RefreshExploreMemoryKey, true)
+	}
 }
 
 func (h *jsHelpers) GetString(rule string, args ...interface{}) string {

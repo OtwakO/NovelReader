@@ -3,7 +3,6 @@ package book
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/otwako/novelreader/internal/booksource"
@@ -123,24 +122,12 @@ func (s *Searcher) OpenExplore(ctx context.Context, sourceID string) (ExploreCat
 		return ExploreCatalog{}, newExploreError("category_cancelled", "category", "Explore category loading cancelled", true, ctx.Err())
 	default:
 	}
-	sessionID, _, err := s.explore.create(*source, kinds, state)
+	initializeExploreControls(kinds, state)
+	sessionID, session, err := s.explore.create(*source, kinds, state)
 	if err != nil {
 		return ExploreCatalog{}, newExploreError("session_create_failed", "session", "Could not start Explore session", true, err)
 	}
-	entries := make([]ExploreEntry, len(kinds))
-	for index, kind := range kinds {
-		options := make([]string, 0, len(kind.Chars))
-		for _, option := range kind.Chars {
-			if option != nil {
-				options = append(options, *option)
-			}
-		}
-		entries[index] = ExploreEntry{
-			ID: fmt.Sprintf("entry-%d", index), Title: kind.Title, Type: kind.Type,
-			Selectable: kind.Type == exploreKindURL && kind.URL != "", Value: kind.Default, Options: options,
-		}
-	}
-	return ExploreCatalog{Source: exploreSource(*source), SessionID: sessionID, Entries: entries}, nil
+	return exploreCatalog(sessionID, session), nil
 }
 
 func exploreSource(source booksource.BookSource) ExploreSource {

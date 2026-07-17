@@ -37,7 +37,7 @@ type exploreKind struct {
 	Type     string          `json:"type"`
 	Action   string          `json:"action"`
 	Chars    []*string       `json:"chars"`
-	Default  string          `json:"default"`
+	Default  *string         `json:"default"`
 	ViewName string          `json:"viewName"`
 	Style    json.RawMessage `json:"style"`
 }
