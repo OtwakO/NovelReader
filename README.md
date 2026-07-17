@@ -23,6 +23,8 @@ The 2-vCPU/4-GB HTTP-search gate sustained 48,000 deterministic source requests 
 
 The batched SSE API is `GET /api/search/stream?q=...&batchSize=50&concurrency=8&cursor=...`. It emits `start`, per-source `results` or `source_error`, and `done` events. `done.nextCursor` continues a completed batch; `retryCursor` repeats an interrupted batch; `stale` means the eligible source revision changed. Omitting `batchSize` preserves the legacy all-source stream contract. TOC/content/book-info upstream failures return HTTP 502 with a stable `code` and crawl diagnostics; missing books, chapters, and sources return 404, while storage failures return 500.
 
+Per-source Explore uses `GET /api/explore/sources` plus `POST /api/explore/catalog`, `/api/explore/control`, and `/api/explore/page`. Catalog and entry IDs are opaque and session-scoped; clients must replace the catalog after every control response. API responses expose typed entries, results, and safe diagnostics but never imported source URLs, rules, or actions.
+
 WebView sources are optional and run through the headless Patchright worker. Start it from `webview-worker/` and set `WEBVIEW_ENDPOINT=http://127.0.0.1:8787`; without this setting, WebView requests fail explicitly while normal HTTP sources continue to work.
 
 ## Tests

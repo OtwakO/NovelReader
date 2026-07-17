@@ -3,6 +3,7 @@ package book
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -74,6 +75,9 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 	}
 	spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(session.source.Header), spec.Headers)
 	response, err := transport.Do(pageCtx, spec)
+	if errors.Is(err, sourceexec.ErrWebViewTransportUnavailable) {
+		return ExplorePage{}, newExploreError("unsupported_capability", "transport", "Explore source requires WebView support", false, err)
+	}
 	if err != nil {
 		return ExplorePage{}, newExploreError("transport_failed", "transport", "Explore request failed", true, err)
 	}
@@ -118,9 +122,13 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 			unique = append(unique, result)
 		}
 	}
+	if unique == nil {
+		unique = []SearchResult{}
+	}
 	pageResult = ExplorePage{
 		SourceID: session.source.BookSourceURL, SessionID: request.SessionID, CategoryID: request.CategoryID,
 		Page: request.Page, NextPage: request.Page + 1, Books: unique, Exhausted: len(unique) == 0,
+		Diagnostics: []ExploreDiagnostic{},
 	}
 	state.next = pageResult.NextPage
 	state.last = &pageResult

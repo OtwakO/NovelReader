@@ -159,5 +159,5 @@ func exploreCatalog(sessionID string, session *exploreSession) ExploreCatalog {
 		}
 		entries = append(entries, entry)
 	}
-	return ExploreCatalog{Source: exploreSource(session.source), SessionID: sessionID, Entries: entries}
+	return ExploreCatalog{Source: exploreSource(session.source), SessionID: sessionID, Entries: entries, Diagnostics: []ExploreDiagnostic{}}
 }

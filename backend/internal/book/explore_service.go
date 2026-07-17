@@ -29,10 +29,19 @@ type ExploreEntry struct {
 	Options    []string `json:"options,omitempty"`
 }
 
+type ExploreDiagnostic struct {
+	Code      string `json:"code"`
+	Stage     string `json:"stage"`
+	Severity  string `json:"severity"`
+	Retryable bool   `json:"retryable"`
+	Message   string `json:"message"`
+}
+
 type ExploreCatalog struct {
-	Source    ExploreSource  `json:"source"`
-	SessionID string         `json:"sessionId"`
-	Entries   []ExploreEntry `json:"entries"`
+	Source      ExploreSource       `json:"source"`
+	SessionID   string              `json:"sessionId"`
+	Entries     []ExploreEntry      `json:"entries"`
+	Diagnostics []ExploreDiagnostic `json:"diagnostics"`
 }
 
 type ExplorePageRequest struct {
@@ -42,20 +51,21 @@ type ExplorePageRequest struct {
 }
 
 type ExplorePage struct {
-	SourceID   string         `json:"sourceId"`
-	SessionID  string         `json:"sessionId"`
-	CategoryID string         `json:"categoryId"`
-	Page       int            `json:"page"`
-	NextPage   int            `json:"nextPage"`
-	Books      []SearchResult `json:"books"`
-	Exhausted  bool           `json:"exhausted"`
+	SourceID    string              `json:"sourceId"`
+	SessionID   string              `json:"sessionId"`
+	CategoryID  string              `json:"categoryId"`
+	Page        int                 `json:"page"`
+	NextPage    int                 `json:"nextPage"`
+	Books       []SearchResult      `json:"books"`
+	Exhausted   bool                `json:"exhausted"`
+	Diagnostics []ExploreDiagnostic `json:"diagnostics"`
 }
 
 type ExploreError struct {
 	Code         string `json:"code"`
 	Stage        string `json:"stage"`
 	Retryable    bool   `json:"retryable"`
-	ExpectedPage int    `json:"expectedPage,omitempty"`
+	ExpectedPage int    `json:"nextPage,omitempty"`
 	Message      string `json:"message"`
 	cause        error
 }

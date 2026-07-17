@@ -3,8 +3,11 @@ package sourceexec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
+
+var ErrWebViewTransportUnavailable = errors.New("sourceexec: WebView transport unavailable")
 
 // RoutingTransport sends WebView requests to the browser transport and all others to HTTP.
 type RoutingTransport struct {
@@ -27,7 +30,7 @@ func (t *RoutingTransport) CloseIdleConnections() {
 func (t *RoutingTransport) Do(ctx context.Context, spec RequestSpec) (Response, error) {
 	if spec.WebView {
 		if t.webView == nil {
-			return Response{}, fmt.Errorf("sourceexec: WebView transport unavailable")
+			return Response{}, ErrWebViewTransportUnavailable
 		}
 		return t.webView.Do(ctx, spec)
 	}

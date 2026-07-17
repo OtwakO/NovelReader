@@ -108,6 +108,12 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/search", s.handleSearch)
 	s.mux.HandleFunc("GET /api/search/stream", s.handleSearchStream)
 
+	// Explore
+	s.mux.HandleFunc("GET /api/explore/sources", s.handleExploreSources)
+	s.mux.HandleFunc("POST /api/explore/catalog", s.handleExploreCatalog)
+	s.mux.HandleFunc("POST /api/explore/control", s.handleExploreControl)
+	s.mux.HandleFunc("POST /api/explore/page", s.handleExplorePage)
+
 	// Chapters
 	s.mux.HandleFunc("GET /api/books/{id}/chapters", s.handleGetChapters)
 	s.mux.HandleFunc("GET /api/books/{id}/chapters/{idx}/content", s.handleGetChapterContent)
