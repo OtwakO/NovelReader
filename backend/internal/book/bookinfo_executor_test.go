@@ -97,6 +97,26 @@ func TestGetBookInfoKeepsMutableBookContext(t *testing.T) {
 	}
 }
 
+func TestGetBookInfoKeepsURLScriptBookMutations(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<h1>URL Context Book</h1>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL,
+		RuleBookInfo:  `{"name":"h1@text","author":"<js>book.author</js>"}`,
+	}
+	book, err := s.GetBookInfo(src, `@js:book.author='URL Author'; baseUrl+'/book'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if book.Author != "URL Author" {
+		t.Fatalf("book=%+v, want URL-script author", book)
+	}
+}
+
 func TestGetBookInfoUsesDetailURLOptions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/book" {

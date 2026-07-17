@@ -9,9 +9,27 @@ import (
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/token"
+	"github.com/otwako/novelreader/internal/booksource"
 )
 
 const exploreKindURL = "url"
+
+func exploreResultRules(source booksource.BookSource) (string, bool, error) {
+	rules := parseRuleJSON(source.RuleExplore)
+	if rules == nil || rules["bookList"] == "" {
+		rules = parseRuleJSON(source.RuleSearch)
+	}
+	if rules == nil || rules["bookList"] == "" {
+		return "", false, fmt.Errorf("source has no Explore book-list rules")
+	}
+	list := rules["bookList"]
+	reverse := strings.HasPrefix(list, "-")
+	if reverse || strings.HasPrefix(list, "+") {
+		rules["bookList"] = strings.TrimSpace(list[1:])
+	}
+	data, err := json.Marshal(rules)
+	return string(data), reverse, err
+}
 
 type exploreKind struct {
 	Title    string          `json:"title"`

@@ -86,6 +86,7 @@ type Searcher struct {
 	sourceStore             sourceLister
 	bookStore               *Store
 	sessions                *sourceexec.SessionRegistry
+	explore                 *exploreRegistry
 	workflowTimeout         time.Duration
 	concurrentPerSearch     int
 	searchSlots             chan struct{}
@@ -141,6 +142,7 @@ func NewSearcherWithLimits(
 		sourceStore:         sourceStore,
 		bookStore:           bookStore,
 		sessions:            sourceexec.NewSessionRegistryWithLimits(limits.MaxSessions, limits.SessionTTL),
+		explore:             newExploreRegistry(limits.MaxSessions, limits.SessionTTL),
 		workflowTimeout:     limits.WorkflowTimeout,
 		concurrentPerSearch: limits.ConcurrentPerSearch,
 		searchSlots:         make(chan struct{}, limits.ConcurrentGlobal),
@@ -260,28 +262,31 @@ func (s *Searcher) searchCandidates() ([]booksource.BookSource, error) {
 	return candidates, nil
 }
 
-// rateLimitWait blocks until the per-source rate limit allows the next request.
-// legado's concurrentRate is in milliseconds between requests.
-func (s *Searcher) rateLimitWait(src booksource.BookSource) {
+// rateLimitWait blocks cancellation-safely until the source permits a request.
+func (s *Searcher) rateLimitWait(ctx context.Context, src booksource.BookSource) error {
 	if src.ConcurrentRate == "" {
-		return // no rate limit configured, use system default
+		return nil
 	}
-	// Parse the rate in milliseconds (e.g. "2000" = 2s between requests)
 	var rateMs int
 	if _, err := fmt.Sscanf(src.ConcurrentRate, "%d", &rateMs); err != nil || rateMs <= 0 {
-		return
+		return nil
 	}
 	s.rateMu.Lock()
 	last, ok := s.lastAccess[src.BookSourceURL]
 	now := time.Now()
 	s.lastAccess[src.BookSourceURL] = now
 	s.rateMu.Unlock()
-	if ok {
-		elapsed := now.Sub(last)
-		wait := time.Duration(rateMs)*time.Millisecond - elapsed
-		if wait > 0 {
-			time.Sleep(wait)
-		}
+	wait := time.Duration(rateMs)*time.Millisecond - now.Sub(last)
+	if !ok || wait <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -314,7 +319,9 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 		"url", spec.URL,
 		"charset", spec.Charset)
 
-	s.rateLimitWait(src)
+	if err := s.rateLimitWait(srcCtx, src); err != nil {
+		return nil, fmt.Errorf("rate limit: %w", err)
+	}
 	resp, err := transport.Do(srcCtx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("fetch: %w", err)
@@ -358,6 +365,10 @@ func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, sr
 }
 
 func (s *Searcher) parseSearchResultWithRuleStateContextAtURL(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState) ([]SearchResult, error) {
+	return s.parseSearchResultWithRuleStateContextAtURLLimit(ctx, src, html, ruleJSON, baseURL, state, maxResultsPerSource, false)
+}
+
+func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState, limit int, allowEmpty bool) ([]SearchResult, error) {
 	if baseURL == "" {
 		baseURL = src.BookSourceURL
 	}
@@ -376,12 +387,15 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURL(ctx context.Contex
 	an.SetContext(ctx)
 	elements, err := an.GetElements(bookListRule)
 	if err != nil {
+		if allowEmpty && errors.Is(err, analyzer.ErrNoElements) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("search: bookList: %w", err)
 	}
 
-	// Cap early — don't waste parse work on discarded elements
-	if len(elements) > maxResultsPerSource {
-		elements = elements[:maxResultsPerSource]
+	// Search caps early; source-native Explore pages deliberately pass no cap.
+	if limit > 0 && len(elements) > limit {
+		elements = elements[:limit]
 	}
 
 	// Pre-extract non-empty field rules to skip rule-string parsing per element
@@ -483,7 +497,8 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 		BookURL:   bookURL,
 		Origin:    src.BookSourceName,
 	}
-	setExecutorContext(executor, src, b, nil, nil, bookURL)
+	bookData := bookContext(b, src)
+	setExecutorContextWithBookData(executor, src, bookData, b, nil, nil, bookURL)
 	spec, err := executor.BuildContext(ctx, bookURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
@@ -507,65 +522,18 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	if baseURL == "" {
 		baseURL = spec.URL
 	}
-	an := analyzer.New(response.Body, baseURL, s.jsVM, s.cache)
-	an.SetContext(ctx)
-	bookData := bookContext(b, src)
-	setAnalyzerContextWithBookData(an, src, session, bookData, b, nil, nil, baseURL)
-
-	rules := parseRuleJSON(src.RuleBookInfo)
-	if initRule := strings.TrimSpace(rules["init"]); initRule != "" {
-		content, err := an.GetElement(initRule)
-		if err != nil {
-			return nil, fmt.Errorf("book info: init rule: %w", err)
-		}
-		if content == nil {
-			return nil, fmt.Errorf("book info: init rule returned null")
-		}
-		an.SetContent(content)
+	parsed, err := s.parseBookInfoResponse(ctx, src, response.Body, baseURL, b, bookData, session)
+	if err != nil {
+		return nil, err
 	}
-	if rules != nil {
-		readField := func(rule string) string {
-			// Legado exposes one mutable Book object; later fields may depend on
-			// values extracted by earlier fields or JS assignments.
-			setAnalyzerContextWithBookData(an, src, session, bookData, b, nil, nil, baseURL)
-			return mustString(an, rule)
-		}
-		b.Name = readField(rules["name"])
-		bookData["name"] = b.Name
-		syncBookFromContext(b, bookData)
-		b.Author = readField(rules["author"])
-		bookData["author"] = b.Author
-		syncBookFromContext(b, bookData)
-		b.Kind = readField(rules["kind"])
-		bookData["kind"] = b.Kind
-		b.WordCount = readField(rules["wordCount"])
-		bookData["wordCount"] = b.WordCount
-		b.LastChapter = readField(rules["lastChapter"])
-		bookData["lastChapter"] = b.LastChapter
-		bookData["latestChapterTitle"] = b.LastChapter
-		b.Intro = readField(rules["intro"])
-		bookData["intro"] = b.Intro
-		b.CoverURL = resolveURL(readField(rules["coverUrl"]), baseURL)
-		bookData["coverUrl"] = b.CoverURL
-		b.UpdateTime = readField(rules["updateTime"])
-		bookData["updateTime"] = b.UpdateTime
-
-		// resolve tocUrl against bookUrl, not source root
-		if tocURL := readField(rules["tocUrl"]); tocURL != "" {
-			b.TocURL = resolveURL(tocURL, baseURL)
-			bookData["tocUrl"] = b.TocURL
-		}
-		syncBookFromContext(b, bookData)
-	}
-
-	if b.TocURL == "" {
+	if parsed.TocURL == "" {
 		slog.Debug("book info: tocUrl not extracted from ruleBookInfo"+
 			" — chapter fetch will fallback to book detail page",
 			"source", src.BookSourceName,
-			"book", b.Name,
+			"book", parsed.Name,
 		)
 	}
-	return b, nil
+	return parsed, nil
 }
 
 // GetChapterList fetches and parses the declared TOC, using the book page when tocURL is empty.

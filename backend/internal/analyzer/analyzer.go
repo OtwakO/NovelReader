@@ -19,6 +19,9 @@ import (
 // it as a normal terminal condition when a list is optional.
 var ErrNoListValues = errors.New("analyzer: no list values matched")
 
+// ErrNoElements marks a selector that matched no elements.
+var ErrNoElements = errors.New("analyzer: no elements matched")
+
 // splitTopLevel splits a rule string on a separator (||, &&, %%) at top level,
 // respecting <js>...</js> blocks and {{...}} expressions.
 func splitTopLevel(s, sep string) []string {
@@ -344,20 +347,37 @@ func (a *Analyzer) GetElements(ruleStr string) ([]interface{}, error) {
 	// Handle && merge at top level
 	if andParts := splitTopLevel(ruleStr, "&&"); len(andParts) > 1 {
 		var all []interface{}
+		var firstErr error
+		valid := false
 		for _, part := range andParts {
 			part = strings.TrimSpace(part)
 			if part == "" {
 				continue
 			}
 			result, err := a.getElementsOR(part)
-			if err == nil && len(result) > 0 {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			if err == nil || errors.Is(err, ErrNoElements) {
+				valid = true
+			}
+			if err != nil && !errors.Is(err, ErrNoElements) && firstErr == nil {
+				firstErr = err
+			}
+			if len(result) > 0 {
 				all = append(all, result...)
 			}
+		}
+		if firstErr != nil {
+			return nil, firstErr
 		}
 		if len(all) > 0 {
 			return all, nil
 		}
-		return nil, fmt.Errorf("analyzer: no elements matched")
+		if valid {
+			return nil, ErrNoElements
+		}
+		return nil, fmt.Errorf("analyzer: empty element rule")
 	}
 	return a.getElementsOR(ruleStr)
 }
@@ -365,6 +385,8 @@ func (a *Analyzer) GetElements(ruleStr string) ([]interface{}, error) {
 // getElementsOR handles || (OR) semantics for element extraction.
 func (a *Analyzer) getElementsOR(ruleStr string) ([]interface{}, error) {
 	segments := splitTopLevel(ruleStr, "||")
+	var firstErr error
+	valid := false
 	for _, seg := range segments {
 		seg = strings.TrimSpace(seg)
 		if seg == "" {
@@ -372,14 +394,33 @@ func (a *Analyzer) getElementsOR(ruleStr string) ([]interface{}, error) {
 		}
 		rules, err := ParseRules(seg, a.isJSON)
 		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		result, err := a.evalElements(rules)
-		if err == nil && len(result) > 0 {
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		valid = true
+		if len(result) > 0 {
 			return result, nil
 		}
 	}
-	return nil, fmt.Errorf("analyzer: no elements matched")
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	if valid {
+		return nil, ErrNoElements
+	}
+	return nil, fmt.Errorf("analyzer: empty element rule")
 }
 
 // evalString evaluates a chain of rules returning a single string.
