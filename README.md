@@ -54,12 +54,11 @@ Deterministic response fixtures live in `testdata/booksource/`; their manifest t
 
 ## Headless WebView worker
 
-On Windows, start the worker in one Command Prompt, then start the app with its endpoint in another:
+On Windows, start the worker in one Command Prompt, then start the app in another. `run-local.bat` automatically uses the local worker endpoint:
 
 ```bat
 run-webview-worker.bat
 
-set WEBVIEW_ENDPOINT=http://127.0.0.1:8787
 run-local.bat
 ```
 
