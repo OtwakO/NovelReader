@@ -56,6 +56,12 @@ func nextSegment(s string) (string, string, error) {
 	inJS := false
 	for i := 0; i < len(s); i++ {
 		switch {
+		case i+3 < len(s) && strings.EqualFold(s[i:i+4], "@js:") && !inJS && depth == 0:
+			pre := strings.TrimSpace(s[:i])
+			if pre != "" {
+				return pre, s[i:], nil
+			}
+			return strings.TrimSpace(s), "", nil
 		case i+3 < len(s) && s[i:i+4] == "<js>":
 			if !inJS && depth == 0 {
 				// <js> acts as a segment boundary — return everything before it

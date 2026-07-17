@@ -403,80 +403,24 @@ func evalTemplateExpressionsContext(ctx context.Context, s string, jsVM *JSVM, b
 	if len(extra) > 0 {
 		bindings = extra[0]
 	}
-
-	var result strings.Builder
-	i := 0
-	for i < len(s) {
-		// Find next {{
-		start := strings.Index(s[i:], "{{")
-		if start == -1 {
-			result.WriteString(s[i:])
-			break
-		}
-		start += i
-		result.WriteString(s[i:start])
-		i = start + 2
-
-		// Find matching }} with brace-counting for nested {}
-		depth := 0
-		end := -1
-		for j := i; j < len(s); j++ {
-			if s[j] == '{' && j+1 < len(s) && s[j+1] == '{' {
-				// Nested {{ — shouldn't happen but handle safely
-				depth++
-				j++
-			} else if j+1 < len(s) && s[j] == '}' && s[j+1] == '}' {
-				if depth == 0 {
-					end = j
-					break
-				}
-				depth--
-				j++
-			} else if s[j] == '{' {
-				depth++
-			} else if s[j] == '}' {
-				depth--
-				if depth < 0 {
-					// Unbalanced — treat as literal
-					end = -1
-					break
-				}
-			}
-		}
-
-		if end == -1 {
-			// No matching }}, keep as literal
-			result.WriteString(s[start:i])
-			continue
-		}
-
-		inner := strings.TrimSpace(s[i:end])
-		if inner == "" {
-			result.WriteString(s[start : end+2])
-			i = end + 2
-			continue
-		}
-
-		var v interface{}
-		var err error
+	expanded, err := replaceTemplateExpressions(s, func(inner string) (string, error) {
 		script := inner
+		if jsLib, ok := bindings["__novelreader_jslib"].(string); ok && jsLib != "" {
+			script = jsLib + "\n" + script
+		}
+		var value interface{}
+		var err error
 		if bindings != nil {
-			if jsLib, ok := bindings["__novelreader_jslib"].(string); ok && jsLib != "" {
-				script = jsLib + "\n" + script
-			}
-			v, err = jsVM.EvalContext(ctx, script, "", baseURL, bindings)
+			value, err = jsVM.EvalContext(ctx, script, "", baseURL, bindings)
 		} else {
-			v, err = jsVM.EvalContext(ctx, script, "", baseURL)
+			value, err = jsVM.EvalContext(ctx, script, "", baseURL)
 		}
-		if err != nil {
-			slog.Warn("urlbuilder: template eval failed", "expr", inner[:min(len(inner), 60)], "err", err)
-			result.WriteString(s[start : end+2])
-		} else {
-			result.WriteString(ToString(v))
-		}
-		i = end + 2
+		return ToString(value), err
+	})
+	if err != nil {
+		slog.Warn("urlbuilder: template eval failed", "err", err)
 	}
-	return result.String()
+	return expanded
 }
 
 // EncodeParamValue URL-encodes a value in the specified charset.

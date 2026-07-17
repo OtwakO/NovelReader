@@ -177,7 +177,7 @@ func containsRuleGet(rule string) bool {
 	return strings.Contains(strings.ToLower(rule), "@get:{")
 }
 
-func (a *Analyzer) prepareRuleForEvaluation(rule Rule) (Rule, error) {
+func (a *Analyzer) prepareRuleForEvaluation(rule Rule, content interface{}) (Rule, error) {
 	for key, valueRule := range rule.PutRules {
 		value, err := a.GetString(valueRule)
 		if err != nil {
@@ -188,6 +188,16 @@ func (a *Analyzer) prepareRuleForEvaluation(rule Rule) (Rule, error) {
 	if rule.HasGet {
 		substituted := replaceRuleGets(rule.Template, a.getRuleVariable)
 		rule.Expression, rule.ReplaceRegex, rule.Replacement, rule.ReplaceFirst = extractReplaceSuffix(substituted)
+	}
+	if strings.Contains(rule.Expression, "{{") {
+		expanded, err := a.expandRuleTemplates(content, rule.Expression)
+		if err != nil {
+			return rule, err
+		}
+		rule.Expression = expanded
+		if rule.Mode != ModeJS {
+			rule.Literal = true
+		}
 	}
 	return rule, nil
 }

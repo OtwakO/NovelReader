@@ -481,7 +481,7 @@ func (a *Analyzer) evalElements(rules []Rule) ([]interface{}, error) {
 
 // applyRuleString runs a single rule against string content, returns string.
 func (a *Analyzer) applyRuleString(content interface{}, rule Rule) (string, error) {
-	rule, err := a.prepareRuleForEvaluation(rule)
+	rule, err := a.prepareRuleForEvaluation(rule, content)
 	if err != nil {
 		return "", err
 	}
@@ -508,7 +508,7 @@ func (a *Analyzer) applyRuleString(content interface{}, rule Rule) (string, erro
 
 // applyRuleStringList runs a single rule returning a string list.
 func (a *Analyzer) applyRuleStringList(content interface{}, rule Rule) ([]string, error) {
-	rule, err := a.prepareRuleForEvaluation(rule)
+	rule, err := a.prepareRuleForEvaluation(rule, content)
 	if err != nil {
 		return nil, err
 	}
@@ -535,7 +535,7 @@ func (a *Analyzer) applyRuleStringList(content interface{}, rule Rule) ([]string
 }
 
 func (a *Analyzer) applyRuleElement(content interface{}, rule Rule) (interface{}, error) {
-	rule, err := a.prepareRuleForEvaluation(rule)
+	rule, err := a.prepareRuleForEvaluation(rule, content)
 	if err != nil {
 		return nil, err
 	}
@@ -555,7 +555,7 @@ func (a *Analyzer) applyRuleElement(content interface{}, rule Rule) (interface{}
 }
 
 func (a *Analyzer) applyRuleElements(content interface{}, rule Rule) ([]interface{}, error) {
-	rule, err := a.prepareRuleForEvaluation(rule)
+	rule, err := a.prepareRuleForEvaluation(rule, content)
 	if err != nil {
 		return nil, err
 	}
