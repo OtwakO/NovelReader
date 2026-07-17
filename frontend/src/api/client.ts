@@ -1,14 +1,33 @@
 // API client for NovelReader backend.
 const BASE = '/api';
 
+export class ExploreApiError extends Error {
+  code: string;
+  stage: string;
+  severity: string;
+  retryable: boolean;
+  nextPage?: number;
+
+  constructor(body: ExploreErrorBody) {
+    super(body.message || 'Explore request failed');
+    this.name = 'ExploreApiError';
+    this.code = body.code || 'internal_error';
+    this.stage = body.stage || 'internal';
+    this.severity = body.severity || 'error';
+    this.retryable = Boolean(body.retryable);
+    this.nextPage = body.nextPage;
+  }
+}
+
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || res.statusText);
+    const err = await res.json().catch(() => ({ error: res.statusText })) as ExploreErrorBody;
+    if (err.code) throw new ExploreApiError(err);
+    throw new Error(err.error || err.message || res.statusText);
   }
   return res.json();
 }
@@ -65,6 +84,74 @@ export interface SearchResult {
   sourceName: string;
   score?: number;
   alternateSources?: AltSource[];
+}
+
+export interface ExploreDiagnostic {
+  code: string;
+  stage: string;
+  severity: string;
+  retryable: boolean;
+  message: string;
+}
+
+export interface ExploreErrorBody extends Partial<ExploreDiagnostic> {
+  error?: string;
+  nextPage?: number;
+}
+
+export interface ExploreSource {
+  id: string;
+  name: string;
+  group: string;
+}
+
+export interface ExploreEntry {
+  id: string;
+  title: string;
+  type: 'url' | 'text' | 'button' | 'toggle' | 'select' | string;
+  selectable: boolean;
+  value?: string;
+  options?: string[];
+}
+
+export interface ExploreCatalog {
+  source: ExploreSource;
+  sessionId: string;
+  entries: ExploreEntry[];
+  diagnostics: ExploreDiagnostic[];
+}
+
+export interface ExplorePageResult {
+  sourceId: string;
+  sessionId: string;
+  categoryId: string;
+  page: number;
+  nextPage: number;
+  books: SearchResult[];
+  exhausted: boolean;
+  diagnostics: ExploreDiagnostic[];
+}
+
+export function listExploreSources(signal?: AbortSignal) {
+  return req<ExploreSource[]>('/explore/sources', { signal });
+}
+
+export function openExplore(sourceId: string, signal?: AbortSignal) {
+  return req<ExploreCatalog>('/explore/catalog', {
+    method: 'POST', body: JSON.stringify({ sourceId }), signal,
+  });
+}
+
+export function updateExploreControl(sessionId: string, controlId: string, value: string | null, signal?: AbortSignal) {
+  return req<ExploreCatalog>('/explore/control', {
+    method: 'POST', body: JSON.stringify({ sessionId, controlId, value }), signal,
+  });
+}
+
+export function getExplorePage(sessionId: string, categoryId: string, page: number, signal?: AbortSignal) {
+  return req<ExplorePageResult>('/explore/page', {
+    method: 'POST', body: JSON.stringify({ sessionId, categoryId, page }), signal,
+  });
 }
 
 export function searchBooks(query: string) {
@@ -231,6 +318,23 @@ export function enrichBook(data: {
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+export async function addSearchResultToShelf(result: SearchResult) {
+  const id = crypto.randomUUID?.() ?? (Date.now().toString(36) + Math.random().toString(36).slice(2));
+  try {
+    return await enrichBook({
+      id, name: result.name, author: result.author || '', coverUrl: result.coverUrl || '',
+      intro: result.intro || '', sourceUrl: result.sourceUrl, bookUrl: result.bookUrl,
+      alternateSources: result.alternateSources,
+    });
+  } catch {
+    return addBook({
+      id, name: result.name, author: result.author, coverUrl: result.coverUrl,
+      intro: result.intro, kind: result.kind, sourceUrl: result.sourceUrl,
+      bookUrl: result.bookUrl, alternateSources: result.alternateSources,
+    });
+  }
 }
 
 export function deleteBook(id: string) {

@@ -3,6 +3,7 @@
   import Bookshelf from './lib/Bookshelf.svelte';
   import SourceList from './lib/SourceList.svelte';
   import SearchPage from './lib/SearchPage.svelte';
+  import ExplorePage from './lib/ExplorePage.svelte';
   import BookDetail from './lib/BookDetail.svelte';
   import Reader from './lib/Reader.svelte';
   import Settings from './lib/Settings.svelte';
@@ -42,19 +43,22 @@
 
 <div class="app">
   <header class="app-header">
-    <button class="back" onclick={goBack}>←</button>
-    <h1 onclick={() => go('shelf')} style="cursor:pointer">NovelReader</h1>
-    <nav>
-      <button class="nav-btn" class:active={route==='shelf'} onclick={() => go('shelf')} aria-label="Shelf">📖</button>
-      <button class="nav-btn" class:active={route==='search'} onclick={() => go('search')} aria-label="Search">🔍</button>
-      <button class="nav-btn" class:active={route==='sources'} onclick={() => go('sources')} aria-label="Sources">📚</button>
-      <button class="nav-btn" class:active={route==='settings'} onclick={() => go('settings')} aria-label="Settings">⚙️</button>
+    <button class="back" onclick={goBack} aria-label="Go back">←</button>
+    <h1><button class="brand" onclick={() => go('shelf')}>NovelReader</button></h1>
+    <nav aria-label="Primary">
+      <button class="nav-btn" class:active={route==='shelf'} aria-current={route==='shelf' ? 'page' : undefined} onclick={() => go('shelf')} aria-label="Shelf">📖</button>
+      <button class="nav-btn" class:active={route==='explore'} aria-current={route==='explore' ? 'page' : undefined} onclick={() => go('explore')} aria-label="Explore">🧭</button>
+      <button class="nav-btn" class:active={route==='search'} aria-current={route==='search' ? 'page' : undefined} onclick={() => go('search')} aria-label="Search">🔍</button>
+      <button class="nav-btn" class:active={route==='sources'} aria-current={route==='sources' ? 'page' : undefined} onclick={() => go('sources')} aria-label="Sources">📚</button>
+      <button class="nav-btn" class:active={route==='settings'} aria-current={route==='settings' ? 'page' : undefined} onclick={() => go('settings')} aria-label="Settings">⚙️</button>
     </nav>
   </header>
 
   <main class="app-main">
     {#if route === 'shelf'}
       <Bookshelf {go} />
+    {:else if route === 'explore'}
+      <ExplorePage {go} />
     {:else if route === 'search'}
       <SearchPage {go} />
     {:else if route === 'sources'}
@@ -96,14 +100,12 @@
     position: sticky; top: 0; z-index: 10;
   }
 
-  .app-header h1 {
-    font-size: 1.1rem; font-weight: 600; flex: 1;
+  .app-header h1 { font-size: 1.1rem; font-weight: 600; flex: 1; }
+  .brand, .back {
+    background: none; border: none; color: inherit; cursor: pointer;
   }
-
-  .back {
-    background: none; border: none; font-size: 1.2rem;
-    cursor: pointer; padding: 0.25rem;
-  }
+  .brand { font: inherit; font-weight: inherit; }
+  .back { font-size: 1.2rem; padding: 0.25rem; }
 
   nav { display: flex; gap: 0.25rem; }
 
@@ -113,6 +115,13 @@
   }
   .nav-btn:hover { background: var(--bg); }
   .nav-btn.active { background: var(--accent); color: white; }
+  .brand:focus-visible, .back:focus-visible, .nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .app-main { flex: 1; overflow-y: auto; }
+
+  @media (max-width: 360px) {
+    .app-header { padding-inline: 0.5rem; }
+    .app-header h1 { display: none; }
+    nav { margin-left: auto; }
+  }
 </style>

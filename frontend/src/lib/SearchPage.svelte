@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    searchBooksBatchStream, enrichBook, addBook, type SearchResult,
+    searchBooksBatchStream, addSearchResultToShelf, type SearchResult,
   } from '../api/client';
   import SearchControls from './SearchControls.svelte';
   import SearchResults from './SearchResults.svelte';
@@ -237,22 +237,8 @@
   async function addToShelf(result: SearchResult) {
     adding = result.bookUrl;
     try {
-      const id = crypto.randomUUID?.() ?? (Date.now().toString(36) + Math.random().toString(36).slice(2));
-      try {
-        await enrichBook({
-          id, name: result.name, author: result.author || '',
-          coverUrl: result.coverUrl || '', intro: result.intro || '',
-          sourceUrl: result.sourceUrl, bookUrl: result.bookUrl,
-          alternateSources: result.alternateSources,
-        });
-      } catch {
-        await addBook({
-          id, name: result.name, author: result.author, coverUrl: result.coverUrl,
-          intro: result.intro, kind: result.kind, sourceUrl: result.sourceUrl,
-          bookUrl: result.bookUrl, alternateSources: result.alternateSources,
-        });
-      }
-      go(`book?id=${id}`);
+      const book = await addSearchResultToShelf(result);
+      go(`book?id=${book.id}`);
     } catch (caught: unknown) {
       alert('Failed: ' + (caught as Error).message);
     }
