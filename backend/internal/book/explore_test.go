@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/otwako/novelreader/internal/booksource"
 )
 
 func TestParseExploreKindsAcceptsLenientJSONArray(t *testing.T) {
@@ -43,6 +45,18 @@ func TestParseExploreKindsRejectsExecutableArrayValues(t *testing.T) {
 }
 
 func TestParseExploreKindsLoadsPinnedRawLenientFixture(t *testing.T) {
+	source := pinnedExploreSource(t, 1)
+	kinds, err := parseExploreKinds(source.ExploreURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(kinds) != 15 || kinds[0].Title != "分类" || kinds[14].Title != "完本小说" {
+		t.Fatalf("raw fixture kinds=%d first=%q last=%q", len(kinds), kinds[0].Title, kinds[len(kinds)-1].Title)
+	}
+}
+
+func pinnedExploreSource(t *testing.T, rawIndex int) booksource.BookSource {
+	t.Helper()
 	_, testFile, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("cannot locate test file")
@@ -53,27 +67,22 @@ func TestParseExploreKindsLoadsPinnedRawLenientFixture(t *testing.T) {
 	}
 	var fixtures struct {
 		Fixtures []struct {
-			RawIndex int `json:"rawIndex"`
-			Source   struct {
-				ExploreURL string `json:"exploreUrl"`
-			} `json:"source"`
+			RawIndex int             `json:"rawIndex"`
+			Source   json.RawMessage `json:"source"`
 		} `json:"fixtures"`
 	}
 	if err := json.Unmarshal(data, &fixtures); err != nil {
 		t.Fatal(err)
 	}
 	for _, fixture := range fixtures.Fixtures {
-		if fixture.RawIndex != 1 {
-			continue
+		if fixture.RawIndex == rawIndex {
+			source, err := booksource.NewFromJSON(fixture.Source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return *source
 		}
-		kinds, err := parseExploreKinds(fixture.Source.ExploreURL)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(kinds) != 15 || kinds[0].Title != "分类" || kinds[14].Title != "完本小说" {
-			t.Fatalf("raw fixture kinds=%d first=%q last=%q", len(kinds), kinds[0].Title, kinds[len(kinds)-1].Title)
-		}
-		return
 	}
-	t.Fatal("raw fixture index 1 missing")
+	t.Fatalf("raw fixture index %d missing", rawIndex)
+	return booksource.BookSource{}
 }

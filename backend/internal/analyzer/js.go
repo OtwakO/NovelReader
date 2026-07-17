@@ -97,8 +97,24 @@ func (vm *JSVM) Eval(script string, content interface{}, baseURL string, extra .
 
 // EvalContext evaluates JavaScript while preserving the caller's cancellation context.
 func (vm *JSVM) EvalContext(ctx context.Context, script string, content interface{}, baseURL string, extra ...map[string]interface{}) (interface{}, error) {
-	rt := <-vm.pool
-	defer func() { vm.pool <- rt }()
+	var rt *goja.Runtime
+	select {
+	case rt = <-vm.pool:
+	case <-ctx.Done():
+		return "", fmt.Errorf("js eval: %w", ctx.Err())
+	}
+	interruptDone := make(chan struct{})
+	stopInterrupt := context.AfterFunc(ctx, func() {
+		rt.Interrupt(ctx.Err())
+		close(interruptDone)
+	})
+	defer func() {
+		if !stopInterrupt() {
+			<-interruptDone
+		}
+		rt.ClearInterrupt()
+		vm.pool <- rt
+	}()
 
 	// Bootstrap polyfills that legado's Rhino supports but goja doesn't.
 	// Map() — In Legado's Android Rhino, Map() is called as a function (not constructor)
@@ -203,6 +219,9 @@ Map = function(a) {
 
 	val, err := rt.RunString(wrapped)
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("js eval: %w", ctx.Err())
+		}
 		return "", fmt.Errorf("js eval: %w", err)
 	}
 	return val.Export(), nil
@@ -295,18 +314,20 @@ func (vm *JSVM) makeCookieObj(state SourceState) map[string]interface{} {
 }
 
 func (vm *JSVM) makeCacheObj(state SourceState) map[string]interface{} {
+	put := func(key string, value interface{}) {
+		if state != nil {
+			state.PutMemory(key, value)
+		}
+	}
+	get := func(key string) interface{} {
+		if state == nil {
+			return nil
+		}
+		return state.GetMemory(key)
+	}
 	return map[string]interface{}{
-		"putMemory": func(key string, value interface{}) {
-			if state != nil {
-				state.PutMemory(key, value)
-			}
-		},
-		"getFromMemory": func(key string) interface{} {
-			if state == nil {
-				return nil
-			}
-			return state.GetMemory(key)
-		},
+		"put": put, "get": get,
+		"putMemory": put, "getFromMemory": get,
 	}
 }
 

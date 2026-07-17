@@ -34,10 +34,11 @@ func TestJSVMBindsLegadoObjectsToSourceState(t *testing.T) {
 	if err != nil || value != "fixture" {
 		t.Fatalf("cookie binding = %v, err=%v", value, err)
 	}
-	if _, err := vm.Eval("source.putVariable('value'); source.put('saved', 'yes'); cache.putMemory('x', 'memory')", "", "https://example.test/", bindings); err != nil {
+	value, err = vm.Eval("source.putVariable('value'); source.put('saved', 'yes'); cache.putMemory('x', 'memory'); cache.put('legacy', 'cached'); cache.get('legacy')", "", "https://example.test/", bindings)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if state.vars["https://example.test/"] != "value" || state.memory["saved"] != "yes" || state.memory["x"] != "memory" {
-		t.Fatalf("session state was not updated: vars=%v memory=%v", state.vars, state.memory)
+	if value != "cached" || state.vars["https://example.test/"] != "value" || state.memory["saved"] != "yes" || state.memory["x"] != "memory" || state.memory["legacy"] != "cached" {
+		t.Fatalf("session state was not updated: value=%v vars=%v memory=%v", value, state.vars, state.memory)
 	}
 }

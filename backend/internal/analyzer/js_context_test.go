@@ -3,6 +3,7 @@ package analyzer
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +11,19 @@ import (
 
 	"github.com/otwako/novelreader/internal/fetcher"
 )
+
+func TestEvalContextInterruptsCPULoopAndReusesRuntime(t *testing.T) {
+	vm := NewJSVMWithPoolSize(1)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	if _, err := vm.EvalContext(ctx, `while (true) {}`, "", "https://fixture.test"); err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error=%v, want deadline", err)
+	}
+	value, err := vm.EvalContext(t.Context(), `1 + 1`, "", "https://fixture.test")
+	if err != nil || value != int64(2) {
+		t.Fatalf("runtime after interrupt: value=%v err=%v", value, err)
+	}
+}
 
 func TestEvalContextCancelsJavaAjax(t *testing.T) {
 	requestCanceled := make(chan struct{})
@@ -24,8 +38,8 @@ func TestEvalContextCancelsJavaAjax(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	_, err := vm.EvalContext(ctx, `java.ajax("`+server.URL+`")`, "", server.URL)
-	if err != nil {
-		t.Fatal(err)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error=%v, want deadline", err)
 	}
 	select {
 	case <-requestCanceled:

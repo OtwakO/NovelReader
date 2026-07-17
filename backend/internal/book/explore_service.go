@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
 type exploreSourceStore interface {
@@ -106,8 +107,12 @@ func (s *Searcher) OpenExplore(ctx context.Context, sourceID string) (ExploreCat
 		return ExploreCatalog{}, newExploreError("source_unavailable", "source", "Explore source is unavailable", false, nil)
 	}
 	raw := strings.TrimSpace(source.ExploreURL)
+	state := sourceexec.NewSourceSession()
 	if strings.HasPrefix(strings.ToLower(raw), "@js:") || strings.HasPrefix(strings.ToLower(raw), "<js>") {
-		return ExploreCatalog{}, newExploreError("unsupported_category_script", "category", "Script-generated Explore categories are not available yet", false, nil)
+		raw, err = s.evaluateExploreScript(ctx, *source, state, raw)
+		if err != nil {
+			return ExploreCatalog{}, newExploreError("category_script_failed", "category", "Could not generate Explore categories", true, err)
+		}
 	}
 	kinds, err := parseExploreKinds(raw)
 	if err != nil {
@@ -118,7 +123,7 @@ func (s *Searcher) OpenExplore(ctx context.Context, sourceID string) (ExploreCat
 		return ExploreCatalog{}, newExploreError("category_cancelled", "category", "Explore category loading cancelled", true, ctx.Err())
 	default:
 	}
-	sessionID, _, err := s.explore.create(*source, kinds)
+	sessionID, _, err := s.explore.create(*source, kinds, state)
 	if err != nil {
 		return ExploreCatalog{}, newExploreError("session_create_failed", "session", "Could not start Explore session", true, err)
 	}

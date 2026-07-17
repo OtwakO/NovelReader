@@ -51,7 +51,7 @@ func newExploreRegistry(max int, ttl time.Duration) *exploreRegistry {
 	}
 }
 
-func (r *exploreRegistry) create(source booksource.BookSource, kinds []exploreKind) (string, *exploreSession, error) {
+func (r *exploreRegistry) create(source booksource.BookSource, kinds []exploreKind, state *sourceexec.SourceSession) (string, *exploreSession, error) {
 	if r == nil {
 		return "", nil, fmt.Errorf("explore sessions unavailable")
 	}
@@ -59,8 +59,11 @@ func (r *exploreRegistry) create(source booksource.BookSource, kinds []exploreKi
 	for index, kind := range kinds {
 		categories[fmt.Sprintf("entry-%d", index)] = kind
 	}
+	if state == nil {
+		state = sourceexec.NewSourceSession()
+	}
 	session := &exploreSession{
-		source: source, state: sourceexec.NewSourceSession(), categories: categories,
+		source: source, state: state, categories: categories,
 		pages: make(map[string]*explorePageState),
 	}
 	now := time.Now()
