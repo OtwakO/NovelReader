@@ -36,7 +36,7 @@ The UI is not the cause. For `中文看书（优）`, the API returned one conca
 | 23 | 猫眼看书（优++） | error | valid JSON | Engine lacks JSON array-property projection used by `$.categoryNames.className` |
 | 53 | 中华诗词（优+） | 0 | 188 broad candidates | Engine does not implement the connector branch slice `a[8:]` correctly |
 | 72 | 米读小说（优+） | catalog error | — | Raw script has invalid unparenthesized destructuring arrow parameters |
-| 89 | 中文看书（优） | 1 concatenated | 23 | Source selector `.lis` is stale; Legado-compatible single-book fallback makes the stale rule appear as one concatenated item |
+| 89 | 中文看书（优） | 1 concatenated | 23 | Engine misroutes `.lis@li` as one collection instead of Default traversal |
 | 99 | 速读谷吧（优） | 1 fallback | 10 | Engine misclassifies standalone Default selector `class.item` as CSS |
 | 105 | 白浅小说（优） | 0 | 30 | Site moved from `178yhr.com` to `178xs.cc`; source URL pattern is stale |
 | 140 | 如漫画网（优+） | JSON error | WAF HTML | Upstream returned Parklogic/anti-bot HTML instead of the expected JSON |
@@ -66,7 +66,7 @@ The UI is not the cause. For `中文看书（优）`, the API returned one conca
 | 552 | 腐小说🎃 | 20 | — | Pass |
 | 561 | 八零小说 | 0 | 20 | Site moved from `80zw.la` to `80ge.info`; source URL pattern is stale |
 | 562 | 笔尖中文 | catalog error | — | Missing advanced bridge (`java.toast`, then Jsoup-style APIs) |
-| 576 | 得间·女生 | 0 | 23 | Engine tests relative URLs against an absolute `bookUrlPattern` before resolution |
+| 576 | 得间·女生 | 0 | 23 | Source pattern requires a trailing slash that the live absolute book URLs do not contain |
 | 587 | 红薯阅读 | 30 | — | Pass |
 | 596 | 笔趣阁🎃#45 | 30 | — | Pass |
 | 599 | 多看阅读🎃#2 | 0 | 0 | Legitimate upstream JSON: `items: []`, `more: false` |
@@ -83,11 +83,30 @@ The UI is not the cause. For `中文看书（优）`, the API returned one conca
 
 ## Ranked shared gaps
 
-1. **Resolve book URLs before `bookUrlPattern` filtering.** Directly explains raw 15 (`笔趣阁 · 常`), 370, and 576. This is a small shared ordering defect, not a source-specific exception.
-2. **Correct Default-mode detection.** Standalone `class.*`/`id.*` and CSS-shorthand traversal such as `#j@li` currently route incorrectly. This explains raw 99, 286, 418, 823, 897, and 909.
+1. **Resolve book URLs before `bookUrlPattern` filtering.** Directly explains raw 15 (`笔趣阁 · 常`) and 370. This is a small shared ordering defect, not a source-specific exception.
+2. **Correct Default-mode detection.** Standalone `class.*`/`id.*` and CSS-shorthand traversal such as `#j@li` currently route incorrectly. This explains raw 89, 99, 286, 418, 823, 897, and 909; raw 897 also has a separate exclusion-suffix gap.
 3. **Evaluate connector branches independently and support selector ranges.** Mixed Default/JSON rules and `a[8:]` must retain per-branch mode and slicing semantics (raw 53 and 193).
 4. **Close targeted JSON compatibility gaps.** Add array-property projection, JSONPath filters, and Legado value interpolation only from captured fixtures (raw 23, 150, 433, 529, 533).
-5. **Keep advanced bridge work separate.** `晋江文学` and `笔尖中文` require multiple stateful/UI/Jsoup-style Java APIs; implementing one no-op method would not make either source work. Preserve Legado's intentional single-book fallback; raw 89 needs a source-rule update, not a listing-page heuristic.
+5. **Keep advanced bridge work separate.** `晋江文学` and `笔尖中文` require multiple stateful/UI/Jsoup-style Java APIs; implementing one no-op method would not make either source work.
+
+## Priority-fix rerun — 2026-07-19
+
+The user approved gaps 1 and 2 only. Fixture-driven changes repaired eight sampled sources without source-specific exceptions:
+
+| Raw | Before | After |
+|---:|---:|---:|
+| 15 笔趣阁 · 常 | 0 | 50 |
+| 89 中文看书（优） | 1 concatenated | 20 distinct |
+| 99 速读谷吧（优） | 1 fallback | 10 distinct |
+| 286 👔 天式从横 | 0 | 20 |
+| 370 🎃腐小说🎃 | 0 | 20 |
+| 418 笔尚小说 | 1 concatenated | 50 distinct |
+| 823 🎃第一版主🎃#10 | 0 | 20 |
+| 909 😍轻写真 | 1 | 10 distinct |
+
+The stable non-empty baseline improved from **20/50 to 28/50**. The live rerun observed 29 non-empty sources because raw 869 recovered from its earlier upstream HTTP 503 and returned 30 books; it remains classified as an upstream availability result, not an engine repair. Raw 897 still returns zero because its `!0` exclusion suffix is a separate unapproved rule gap. Raw 576 also remains zero and was corrected to stale-source classification: its absolute pattern requires a trailing slash absent from current live book URLs.
+
+Fresh 390×844 Playwright verified `笔趣阁 · 常` at 50 books and `中文看书（优）` at 20, with no console warnings/errors. Full rerun output is recorded in [`explore-live-audit-priority-fix-rerun-2026-07-19.json`](explore-live-audit-priority-fix-rerun-2026-07-19.json).
 
 ## Recommended fix boundary
 

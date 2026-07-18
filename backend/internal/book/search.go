@@ -476,15 +476,13 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		}
 
 		if r.Name != "" && r.BookURL != "" {
+			r.BookURL = resolveURL(r.BookURL, baseURL)
+			r.CoverURL = resolveURL(r.CoverURL, baseURL)
 			if urlRe != nil && !urlRe.MatchString(r.BookURL) {
 				continue // bookUrl doesn't match source's urlPattern
 			}
 			results = append(results, r)
 		}
-	}
-	for i := range results {
-		results[i].BookURL = resolveURL(results[i].BookURL, baseURL)
-		results[i].CoverURL = resolveURL(results[i].CoverURL, baseURL)
 	}
 	return results, nil
 }

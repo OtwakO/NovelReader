@@ -289,7 +289,7 @@
         "durationMs": 963,
         "error": null
       },
-      "classification": "upstream_or_stale"
+      "classification": "engine_result"
     },
     {
       "rawIndex": 99,
@@ -1478,7 +1478,7 @@
         "durationMs": 364,
         "error": null
       },
-      "classification": "engine_result"
+      "classification": "upstream_or_stale"
     },
     {
       "rawIndex": 587,

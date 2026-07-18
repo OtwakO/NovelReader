@@ -249,6 +249,12 @@ func looksLikeDefault(expr string) bool {
 			}
 		}
 
+		// CSS shorthand followed by an element selector is Legado Default
+		// traversal (`#j@li`, `.book-list@a.0`), not a CSS attribute getter.
+		if (strings.HasPrefix(beforeAt, ".") || strings.HasPrefix(beforeAt, "#")) && isDefaultElementSelector(afterAt) {
+			return true
+		}
+
 		// If before @ has a Default type prefix (class., id., tag.)
 		firstDot := strings.Index(beforeAt, ".")
 		if firstDot > 0 {
@@ -286,14 +292,12 @@ func looksLikeDefault(expr string) bool {
 	// Check type prefix
 	typePrefix := dotSegments[0]
 	switch typePrefix {
-	case "class", "id", "tag", "text":
-		// tag.div.0@... (but without @, this could be CSS)
-		// tag.div → could be CSS (.div class on tag), or Default (find div)
-		// With 3+ segments it's always Default
-		// With 2 segments: if there's an @ somewhere, it's Default.
-		// A space-separated class list is also Legado Default syntax.
-		if len(dotSegments) >= 3 || strings.Contains(expr, "@") ||
-			(typePrefix == "class" && strings.ContainsAny(expr, " \t")) {
+	case "class", "id":
+		return len(dotSegments) >= 2
+	case "tag", "text":
+		// `tag.div` remains CSS-compatible because it is ambiguous with a
+		// literal <tag class="div"> selector; indexed forms are Default.
+		if len(dotSegments) >= 3 {
 			return true
 		}
 	case "children":
@@ -309,6 +313,15 @@ func looksLikeDefault(expr string) bool {
 }
 
 // isDefaultGetter returns true if s is a known Default-mode getter keyword.
+func isDefaultElementSelector(s string) bool {
+	name := strings.ToLower(strings.SplitN(s, ".", 2)[0])
+	switch name {
+	case "a", "article", "body", "dd", "div", "dl", "dt", "h1", "h2", "h3", "h4", "h5", "h6", "img", "li", "main", "ol", "p", "section", "span", "table", "tbody", "td", "th", "tr", "ul":
+		return true
+	}
+	return false
+}
+
 func isDefaultGetter(s string) bool {
 	switch s {
 	case "text", "textNodes", "ownText", "href", "src", "html", "all", "children":
