@@ -201,6 +201,47 @@ func (a *Analyzer) GetString(ruleStr string) (string, error) {
 }
 
 // getFirstOr evaluates a rule string handling || (try first non-empty).
+// GetStringStrict evaluates composite rules while propagating parser and script failures.
+func (a *Analyzer) GetStringStrict(ruleStr string) (string, error) {
+	if parts := splitTopLevel(ruleStr, "&&"); len(parts) > 1 {
+		values := make([]string, 0, len(parts))
+		for _, part := range parts {
+			value, err := a.getFirstOrStrict(strings.TrimSpace(part))
+			if err != nil && !errors.Is(err, ErrNoElements) {
+				return "", err
+			}
+			if value != "" {
+				values = append(values, value)
+			}
+		}
+		if len(values) == 0 {
+			return "", ErrNoElements
+		}
+		return strings.Join(values, " "), nil
+	}
+	return a.getFirstOrStrict(ruleStr)
+}
+
+func (a *Analyzer) getFirstOrStrict(ruleStr string) (string, error) {
+	for _, segment := range splitTopLevel(ruleStr, "||") {
+		rules, err := ParseRules(strings.TrimSpace(segment), a.isJSON)
+		if err != nil {
+			return "", err
+		}
+		value, err := a.evalString(rules)
+		if err != nil {
+			if errors.Is(err, ErrNoElements) {
+				continue
+			}
+			return "", err
+		}
+		if value != "" {
+			return value, nil
+		}
+	}
+	return "", ErrNoElements
+}
+
 func (a *Analyzer) getFirstOr(ruleStr string) (string, error) {
 	segments := splitTopLevel(ruleStr, "||")
 	for _, seg := range segments {

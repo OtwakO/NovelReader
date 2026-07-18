@@ -21,6 +21,35 @@ func (s *testSourceState) PutVariable(key, value string)           { s.vars[key]
 func (s *testSourceState) GetMemory(key string) interface{}        { return s.memory[key] }
 func (s *testSourceState) PutMemory(key string, value interface{}) { s.memory[key] = value }
 
+func TestJSVMPooledRuntimeDoesNotLeakSourceGlobals(t *testing.T) {
+	vm := NewJSVMWithPoolSize(1)
+	if _, err := vm.EvalContext(t.Context(), `leaked = 'source-a'; infoMap.secret = 'a'`, "", "https://a.test", map[string]interface{}{
+		"infoMap": map[string]interface{}{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	value, err := vm.EvalContext(t.Context(), `typeof leaked + ':' + typeof infoMap`, "", "https://b.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value != "undefined:undefined" {
+		t.Fatalf("pooled globals leaked: %v", value)
+	}
+}
+
+func TestJSVMLoadedLibrarySurvivesRuntimeReplacement(t *testing.T) {
+	vm := NewJSVMWithPoolSize(1)
+	if err := vm.LoadLib(`function libraryValue() { return 'loaded'; }`); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		value, err := vm.EvalContext(t.Context(), `libraryValue()`, "", "https://fixture.test")
+		if err != nil || value != "loaded" {
+			t.Fatalf("value=%v err=%v", value, err)
+		}
+	}
+}
+
 func TestJSVMBindsLegadoObjectsToSourceState(t *testing.T) {
 	state := &testSourceState{
 		cookies: map[string]string{"sid": "fixture"},

@@ -78,6 +78,7 @@ func (s *Searcher) UpdateExploreControl(ctx context.Context, request ExploreCont
 		nextGeneration := session.generation + 1
 		session.categories, session.entryIDs = exploreCategories(kinds, nextGeneration)
 		session.generation = nextGeneration
+		session.retainedBooks = 0
 		session.pages = make(map[string]*explorePageState)
 	}
 	return exploreCatalog(request.SessionID, session), nil

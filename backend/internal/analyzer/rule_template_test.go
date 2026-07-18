@@ -23,6 +23,19 @@ func TestTemplateScannerIgnoresQuotedBracesAndPreservesUnclosedInput(t *testing.
 	}
 }
 
+func TestGetStringStrictAllowsMissingFallbackButPropagatesCompositeScriptErrors(t *testing.T) {
+	an := New(`{"fallback":"value"}`, "https://fixture.test", NewJSVM(), nil)
+	value, err := an.GetStringStrict(`$.missing||$.fallback`)
+	if err != nil || value != "value" {
+		t.Fatalf("fallback value=%q err=%v", value, err)
+	}
+	for _, rule := range []string{`@js:throw new Error('broken')||$.fallback`, `$.fallback&&@js:throw new Error('broken')`} {
+		if _, err := an.GetStringStrict(rule); err == nil {
+			t.Fatalf("rule %q swallowed script error", rule)
+		}
+	}
+}
+
 func TestRuleTemplatesAndNewlineJavaScriptUseCurrentJSONValue(t *testing.T) {
 	an := New(`{"id":"42","fallback":"A"}`, "https://fixture.test", NewJSVM(), nil)
 	for _, test := range []struct {

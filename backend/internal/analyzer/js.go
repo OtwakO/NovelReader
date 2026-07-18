@@ -70,25 +70,37 @@ func (vm *JSVM) SetFetcher(hc fetcher.HTTPClient) {
 	vm.hc = hc
 }
 
-// LoadLib sets shared JavaScript library code, reloading into all pool runtimes.
+// LoadLib validates and sets shared JavaScript library code for every fresh runtime.
 func (vm *JSVM) LoadLib(code string) error {
 	if code == "" {
 		return nil
+	}
+	if _, err := goja.New().RunString(code); err != nil {
+		return fmt.Errorf("js: load lib: %w", err)
 	}
 	vm.mu.Lock()
 	vm.initCode = code
 	vm.mu.Unlock()
 
-	n := len(vm.pool)
-	for range n {
-		rt := <-vm.pool
-		if _, err := rt.RunString(code); err != nil {
-			vm.pool <- rt
-			return fmt.Errorf("js: load lib: %w", err)
-		}
-		vm.pool <- rt
+	available := len(vm.pool)
+	for range available {
+		<-vm.pool
+	}
+	for range available {
+		vm.pool <- vm.newRuntime()
 	}
 	return nil
+}
+
+func (vm *JSVM) newRuntime() *goja.Runtime {
+	rt := goja.New()
+	vm.mu.Lock()
+	code := vm.initCode
+	vm.mu.Unlock()
+	if code != "" {
+		_, _ = rt.RunString(code)
+	}
+	return rt
 }
 
 // Eval evaluates JS on a borrowed runtime with standard bindings.
@@ -115,7 +127,7 @@ func (vm *JSVM) EvalContext(ctx context.Context, script string, content interfac
 			<-interruptDone
 		}
 		rt.ClearInterrupt()
-		vm.pool <- rt
+		vm.pool <- vm.newRuntime()
 	}()
 
 	// Bootstrap polyfills that legado's Rhino supports but goja doesn't.

@@ -10,6 +10,8 @@ import (
 	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
+const maxExploreRetainedBooks = 2000
+
 // GetExplorePage executes the expected page or replays the last successful one.
 func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageRequest) (pageResult ExplorePage, err error) {
 	session, release := s.explore.acquire(request.SessionID)
@@ -96,7 +98,7 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 	if err != nil {
 		return ExplorePage{}, newExploreError("result_rule_failed", "result", "Explore result rules are invalid", false, err)
 	}
-	books, err := s.parseSearchResultWithRuleStateContextAtURLLimit(pageCtx, session.source, response.Body, ruleJSON, baseURL, session.state, 0, true)
+	books, err := s.parseSearchResultWithRuleStateContextAtURLLimit(pageCtx, session.source, response.Body, ruleJSON, baseURL, session.state, 0, true, true)
 	if err != nil {
 		return ExplorePage{}, newExploreError("result_rule_failed", "result", "Could not parse Explore results", false, err)
 	}
@@ -115,15 +117,9 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 			books[left], books[right] = books[right], books[left]
 		}
 	}
-	unique := books[:0]
-	for _, result := range books {
-		if !state.seen[result.BookURL] {
-			state.seen[result.BookURL] = true
-			unique = append(unique, result)
-		}
-	}
-	if unique == nil {
-		unique = []SearchResult{}
+	unique, err := retainExploreBooks(session, state, books)
+	if err != nil {
+		return ExplorePage{}, err
 	}
 	pageResult = ExplorePage{
 		SourceID: session.source.BookSourceURL, SessionID: request.SessionID, CategoryID: request.CategoryID,
@@ -133,6 +129,29 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 	state.next = pageResult.NextPage
 	state.last = &pageResult
 	return pageResult, nil
+}
+
+func retainExploreBooks(session *exploreSession, state *explorePageState, books []SearchResult) ([]SearchResult, error) {
+	unique := make([]SearchResult, 0, len(books))
+	pending := make(map[string]struct{}, len(books))
+	for _, result := range books {
+		if state.seen[result.BookURL] || result.BookURL == "" {
+			continue
+		}
+		if _, duplicate := pending[result.BookURL]; duplicate {
+			continue
+		}
+		pending[result.BookURL] = struct{}{}
+		unique = append(unique, result)
+	}
+	if session.retainedBooks+len(pending) > maxExploreRetainedBooks {
+		return nil, newExploreError("result_capacity_exceeded", "capacity", "Explore session retained-result limit reached", false, nil)
+	}
+	for bookURL := range pending {
+		state.seen[bookURL] = true
+	}
+	session.retainedBooks += len(pending)
+	return unique, nil
 }
 
 func searchResultFromBook(book *Book) SearchResult {

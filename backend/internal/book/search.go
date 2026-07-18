@@ -245,9 +245,6 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 }
 
 // searchCandidates returns enabled text-type sources with search capability.
-// ponytail: src.ConcurrentRate (1% coverage) is stored but not enforced yet.
-// Legado uses it as millis-between-requests throttle. Add per-source semaphore
-// when sources with explicit rate limits produce measurable failures.
 func (s *Searcher) searchCandidates() ([]booksource.BookSource, error) {
 	sources, err := s.sourceStore.ListEnabled()
 	if err != nil {
@@ -271,13 +268,20 @@ func (s *Searcher) rateLimitWait(ctx context.Context, src booksource.BookSource)
 	if _, err := fmt.Sscanf(src.ConcurrentRate, "%d", &rateMs); err != nil || rateMs <= 0 {
 		return nil
 	}
-	s.rateMu.Lock()
-	last, ok := s.lastAccess[src.BookSourceURL]
+	rate := time.Duration(rateMs) * time.Millisecond
 	now := time.Now()
-	s.lastAccess[src.BookSourceURL] = now
+	s.rateMu.Lock()
+	reserved := now
+	if previous, ok := s.lastAccess[src.BookSourceURL]; ok {
+		reserved = previous.Add(rate)
+		if reserved.Before(now) {
+			reserved = now
+		}
+	}
+	s.lastAccess[src.BookSourceURL] = reserved
 	s.rateMu.Unlock()
-	wait := time.Duration(rateMs)*time.Millisecond - now.Sub(last)
-	if !ok || wait <= 0 {
+	wait := time.Until(reserved)
+	if wait <= 0 {
 		return nil
 	}
 	timer := time.NewTimer(wait)
@@ -365,10 +369,10 @@ func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, sr
 }
 
 func (s *Searcher) parseSearchResultWithRuleStateContextAtURL(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState) ([]SearchResult, error) {
-	return s.parseSearchResultWithRuleStateContextAtURLLimit(ctx, src, html, ruleJSON, baseURL, state, maxResultsPerSource, false)
+	return s.parseSearchResultWithRuleStateContextAtURLLimit(ctx, src, html, ruleJSON, baseURL, state, maxResultsPerSource, false, false)
 }
 
-func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState, limit int, allowEmpty bool) ([]SearchResult, error) {
+func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState, limit int, allowEmpty, strictFields bool) ([]SearchResult, error) {
 	if baseURL == "" {
 		baseURL = src.BookSourceURL
 	}
@@ -434,23 +438,40 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		}
 
 		for _, f := range fieldRules {
-			if v := mustString(elAn, f.rule); v != "" {
-				switch f.key {
-				case "name":
-					r.Name = v
-				case "author":
-					r.Author = v
-				case "bookUrl":
-					r.BookURL = v
-				case "coverUrl":
-					r.CoverURL = v
-				case "intro":
-					r.Intro = v
-				case "kind":
-					r.Kind = v
-				case "lastChapter":
-					r.LastChapter = v
+			var value string
+			var fieldErr error
+			if strictFields {
+				value, fieldErr = elAn.GetStringStrict(f.rule)
+			} else {
+				value, fieldErr = elAn.GetString(f.rule)
+			}
+			if fieldErr != nil {
+				if errors.Is(fieldErr, analyzer.ErrNoElements) {
+					continue
 				}
+				if strictFields {
+					return nil, fmt.Errorf("search: %s: %w", f.key, fieldErr)
+				}
+				continue
+			}
+			if value == "" {
+				continue
+			}
+			switch f.key {
+			case "name":
+				r.Name = value
+			case "author":
+				r.Author = value
+			case "bookUrl":
+				r.BookURL = value
+			case "coverUrl":
+				r.CoverURL = value
+			case "intro":
+				r.Intro = value
+			case "kind":
+				r.Kind = value
+			case "lastChapter":
+				r.LastChapter = value
 			}
 		}
 

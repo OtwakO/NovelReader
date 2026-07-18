@@ -13,13 +13,14 @@ import (
 )
 
 type exploreSession struct {
-	mu         sync.Mutex
-	source     booksource.BookSource
-	state      *sourceexec.SourceSession
-	categories map[string]exploreKind
-	entryIDs   []string
-	generation uint64
-	pages      map[string]*explorePageState
+	mu            sync.Mutex
+	source        booksource.BookSource
+	state         *sourceexec.SourceSession
+	categories    map[string]exploreKind
+	entryIDs      []string
+	generation    uint64
+	retainedBooks int
+	pages         map[string]*explorePageState
 }
 
 type explorePageState struct {

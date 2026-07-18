@@ -132,6 +132,8 @@ func exploreHTTPStatus(code string) int {
 		return http.StatusUnprocessableEntity
 	case "unsupported_control_type", "unsupported_capability":
 		return http.StatusNotImplemented
+	case "result_capacity_exceeded":
+		return http.StatusInsufficientStorage
 	case "session_create_failed":
 		return http.StatusServiceUnavailable
 	case "category_cancelled", "rate_limit_cancelled", "capacity_cancelled":

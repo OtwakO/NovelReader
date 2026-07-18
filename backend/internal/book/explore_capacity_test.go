@@ -4,6 +4,7 @@ package book
 import (
 	"context"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -95,6 +96,42 @@ func TestExploreActiveSessionCannotBeEvicted(t *testing.T) {
 	}
 	if _, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1}); err != nil {
 		t.Fatalf("active session was evicted: %v", err)
+	}
+}
+
+func TestExploreRetainedBookCapacityFailsBeforeMutatingPageState(t *testing.T) {
+	session := &exploreSession{retainedBooks: maxExploreRetainedBooks}
+	state := &explorePageState{seen: map[string]bool{"https://fixture.test/old": true}}
+	_, err := retainExploreBooks(session, state, []SearchResult{{Name: "New", BookURL: "https://fixture.test/new"}})
+	if exploreErr, ok := err.(*ExploreError); !ok || exploreErr.Code != "result_capacity_exceeded" {
+		t.Fatalf("error=%T %v", err, err)
+	}
+	if state.seen["https://fixture.test/new"] || session.retainedBooks != maxExploreRetainedBooks {
+		t.Fatalf("capacity failure mutated state: seen=%v retained=%d", state.seen, session.retainedBooks)
+	}
+}
+
+func TestConcurrentSourceRateLimitsReserveSpacedRequests(t *testing.T) {
+	searcher := NewSearcher(nil, nil, nil, nil, nil)
+	source := booksource.BookSource{BookSourceURL: "https://spaced.test", ConcurrentRate: "30"}
+	start := make(chan struct{})
+	completed := make(chan time.Time, 3)
+	for range 3 {
+		go func() {
+			<-start
+			if err := searcher.rateLimitWait(t.Context(), source); err != nil {
+				t.Error(err)
+			}
+			completed <- time.Now()
+		}()
+	}
+	close(start)
+	times := []time.Time{<-completed, <-completed, <-completed}
+	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+	for index := 1; index < len(times); index++ {
+		if spacing := times[index].Sub(times[index-1]); spacing < 20*time.Millisecond {
+			t.Fatalf("requests %d and %d spaced by %v", index, index+1, spacing)
+		}
 	}
 }
 

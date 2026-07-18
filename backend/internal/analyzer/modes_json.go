@@ -90,11 +90,19 @@ func selectJSONValue(root interface{}, expr string) (interface{}, error) {
 		return value, nil
 	}
 	if strings.HasPrefix(expr, "$.") || strings.HasPrefix(expr, "$[") {
-		return nil, fmt.Errorf("json: %w", err)
+		return nil, classifyJSONPathError(err)
 	}
 	value, fallbackErr := jsonpath.Get("$."+expr, root)
 	if fallbackErr != nil {
-		return nil, fmt.Errorf("json: %w", fallbackErr)
+		return nil, classifyJSONPathError(fallbackErr)
 	}
 	return value, nil
+}
+
+func classifyJSONPathError(err error) error {
+	message := err.Error()
+	if strings.HasPrefix(message, "unknown key ") || strings.HasPrefix(message, "index ") && strings.HasSuffix(message, " out of bounds") {
+		return fmt.Errorf("%w: %s", ErrNoElements, message)
+	}
+	return fmt.Errorf("json: %w", err)
 }

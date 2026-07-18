@@ -110,6 +110,7 @@ func TestExploreAPIErrorMappingHidesCauses(t *testing.T) {
 		{"page_conflict", http.StatusConflict},
 		{"invalid_control_value", http.StatusUnprocessableEntity},
 		{"unsupported_control_type", http.StatusNotImplemented},
+		{"result_capacity_exceeded", http.StatusInsufficientStorage},
 		{"session_create_failed", http.StatusServiceUnavailable},
 		{"category_cancelled", http.StatusGatewayTimeout},
 		{"transport_failed", http.StatusBadGateway},
