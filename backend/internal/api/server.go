@@ -594,6 +594,8 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 	bookID := r.PathValue("id")
 	var req struct {
+		SourceURL    *string  `json:"sourceUrl"`
+		StateVersion *int64   `json:"stateVersion"`
 		ChapterIndex *int     `json:"chapterIndex"`
 		Position     *float64 `json:"position"`
 	}
@@ -609,8 +611,8 @@ func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "invalid progress request")
 		return
 	}
-	if req.ChapterIndex == nil || req.Position == nil || *req.ChapterIndex < 0 || math.IsNaN(*req.Position) || math.IsInf(*req.Position, 0) || *req.Position < 0 || *req.Position > 1 {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "chapterIndex and position are required and must be valid")
+	if req.SourceURL == nil || *req.SourceURL == "" || req.StateVersion == nil || *req.StateVersion < 0 || req.ChapterIndex == nil || req.Position == nil || *req.ChapterIndex < 0 || math.IsNaN(*req.Position) || math.IsInf(*req.Position, 0) || *req.Position < 0 || *req.Position > 1 {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "sourceUrl, stateVersion, chapterIndex, and position are required and must be valid")
 		return
 	}
 	chapterIndex, position := *req.ChapterIndex, *req.Position
@@ -621,6 +623,10 @@ func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	if storedBook == nil {
 		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+		return
+	}
+	if storedBook.SourceURL != *req.SourceURL || storedBook.StateVersion != *req.StateVersion {
+		writeErrorCode(w, http.StatusConflict, "state_changed", "book state changed before progress was saved")
 		return
 	}
 	chapters, err := s.bookStore.GetChapters(bookID)
@@ -639,15 +645,20 @@ func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "chapterIndex is not a readable chapter")
 		return
 	}
-	if err := s.bookStore.UpdateProgress(bookID, chapterIndex, position); err != nil {
+	stateVersion, err := s.bookStore.UpdateProgress(bookID, *req.SourceURL, *req.StateVersion, chapterIndex, position)
+	if err != nil {
 		if errors.Is(err, book.ErrBookNotFound) {
 			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+			return
+		}
+		if errors.Is(err, book.ErrBookStateChanged) {
+			writeErrorCode(w, http.StatusConflict, "state_changed", "book state changed before progress was saved")
 			return
 		}
 		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to save progress")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "saved", "stateVersion": stateVersion})
 }
 
 func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
@@ -655,34 +666,101 @@ func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		SourceURL  string `json:"sourceUrl"`
 		BookURL    string `json:"bookUrl"`
-		SourceName string `json:"sourceName,omitempty"`
+		SourceName string `json:"sourceName,omitempty"` // accepted for older clients; the imported source is authoritative
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	defer r.Body.Close()
-
-	if req.SourceURL == "" || req.BookURL == "" {
-		writeError(w, http.StatusBadRequest, "sourceUrl and bookUrl required")
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_source_switch", "invalid source switch request")
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF || req.SourceURL == "" || req.BookURL == "" {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_source_switch", "sourceUrl and bookUrl are required")
 		return
 	}
 
-	// Look up source name if not provided
-	sourceName := req.SourceName
-	if sourceName == "" {
-		if src, err := s.sourceStore.GetByID(req.SourceURL); err == nil && src != nil {
-			sourceName = src.BookSourceName
+	current, err := s.bookStore.GetBook(bookID)
+	if err != nil {
+		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load book")
+		return
+	}
+	if current == nil {
+		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+		return
+	}
+	isAlternate := false
+	for _, alternate := range current.AlternateSources {
+		if alternate.SourceURL == req.SourceURL && alternate.BookURL == req.BookURL {
+			isAlternate = true
+			break
+		}
+	}
+	if !isAlternate {
+		writeErrorCode(w, http.StatusBadRequest, "source_not_alternate", "source is not an alternate for this book")
+		return
+	}
+
+	currentChapters, err := s.bookStore.GetChapters(bookID)
+	if err != nil {
+		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load chapters")
+		return
+	}
+	currentTitle := ""
+	for _, chapter := range currentChapters {
+		if chapter.Index == current.DurChapterIndex && !chapter.IsVolume {
+			currentTitle = chapter.Title
+			break
 		}
 	}
 
-	if err := s.bookStore.SwitchSource(bookID, req.SourceURL, req.BookURL, sourceName); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	src, err := s.sourceStore.GetByID(req.SourceURL)
+	if err != nil {
+		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load source")
 		return
 	}
-
-	b, _ := s.bookStore.GetBook(bookID)
-	writeJSON(w, http.StatusOK, b)
+	if src == nil {
+		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
+		return
+	}
+	target, err := s.searcher.GetBookInfo(*src, req.BookURL)
+	if err != nil {
+		writeCrawlError(w, "book_info", err)
+		return
+	}
+	target.ID = bookID
+	target.SourceURL = req.SourceURL
+	target.BookURL = req.BookURL
+	target.Origin = src.BookSourceName
+	targetChapters, err := s.searcher.GetChapterListForBook(*src, target, target.TocURL)
+	if err != nil {
+		writeCrawlError(w, "toc", err)
+		return
+	}
+	chapterIndex, mapping := book.MigrateChapterIndex(targetChapters, currentTitle, current.DurChapterIndex)
+	if chapterIndex < 0 {
+		writeErrorCode(w, http.StatusBadGateway, "source_toc_empty", "target source has no readable chapters")
+		return
+	}
+	if err := s.bookStore.SwitchSource(bookID, current.StateVersion, *target, targetChapters, chapterIndex, current.DurChapterPos); err != nil {
+		if errors.Is(err, book.ErrBookStateChanged) {
+			writeErrorCode(w, http.StatusConflict, "state_changed", "reading position changed during source validation; try again")
+			return
+		}
+		if errors.Is(err, book.ErrSourceNotAlternate) {
+			writeErrorCode(w, http.StatusConflict, "source_changed", "book sources changed during switch")
+			return
+		}
+		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to switch source")
+		return
+	}
+	switched, err := s.bookStore.GetBook(bookID)
+	if err != nil {
+		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "source switched but reload failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"book": switched, "mapping": mapping})
 }
 
 // --- Fonts ---

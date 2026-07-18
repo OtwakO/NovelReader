@@ -281,10 +281,12 @@ export interface Book {
   kind: string;
   sourceUrl: string;
   bookUrl: string;
+  origin?: string;
   lastChapter: string;
   durChapterIndex: number;
   durChapterPos: number;
   totalChapterNum: number;
+  stateVersion: number;
   alternateSources?: AltSource[];
 }
 
@@ -373,23 +375,25 @@ export function getChapterContent(bookId: string, chapterIdx: number) {
 }
 
 // --- Progress ---
-export function switchBookSource(bookId: string, sourceUrl: string, bookUrl: string, sourceName?: string) {
-  return req<Book>(`/books/${encodeURIComponent(bookId)}/source`, {
+export function switchBookSource(bookId: string, sourceUrl: string, bookUrl: string) {
+  return req<{ book: Book; mapping: 'title' | 'index' }>(`/books/${encodeURIComponent(bookId)}/source`, {
     method: 'PUT',
-    body: JSON.stringify({ sourceUrl, bookUrl, sourceName }),
+    body: JSON.stringify({ sourceUrl, bookUrl }),
   });
 }
 
 export function saveProgress(
   bookId: string,
+  sourceUrl: string,
+  stateVersion: number,
   chapterIndex: number,
   position: number
 ) {
-  return req<{ status: string }>(
+  return req<{ status: string; stateVersion: number }>(
     `/books/${encodeURIComponent(bookId)}/progress`,
     {
       method: 'PUT',
-      body: JSON.stringify({ chapterIndex, position }),
+      body: JSON.stringify({ sourceUrl, stateVersion, chapterIndex, position }),
     }
   );
 }

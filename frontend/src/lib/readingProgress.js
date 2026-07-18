@@ -34,9 +34,9 @@ export function adjacentChapterIndex(chapters, currentIndex, direction) {
 export function createProgressQueue(write) {
   const pending = new Map();
   return {
-    write(bookId, chapterIndex, position) {
+    write(bookId, ...values) {
       const previous = pending.get(bookId) || Promise.resolve();
-      const operation = previous.catch(() => {}).then(() => write(bookId, chapterIndex, position));
+      const operation = previous.catch(() => {}).then(() => write(bookId, ...values));
       const barrier = operation.then(() => {}, () => {});
       pending.set(bookId, barrier);
       barrier.then(() => { if (pending.get(bookId) === barrier) pending.delete(bookId); });

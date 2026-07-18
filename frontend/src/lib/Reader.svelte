@@ -2,7 +2,7 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import { getBook, getChapterContent, getChapters, listFonts, getFontUrl, type Chapter, type ChapterContent } from '../api/client';
   import { adjacentChapterIndex, normalizedScroll, resolveChapterIndex, scrollTopForProgress } from './readingProgress.js';
-  import { queueProgressWrite, waitForProgressWrites } from './progressWriter';
+  import { queueProgressWrite, setProgressVersion, waitForProgressWrites } from './progressWriter';
   import ReaderSettings from './ReaderSettings.svelte';
 
   let { bookId, chapterIdx, go }: { bookId: string; chapterIdx?: number; go: (path: string) => void } = $props();
@@ -12,7 +12,7 @@
   let content = $state<ChapterContent | null>(null), chapters = $state<Chapter[]>([]);
   let currentIdx = $state(0), loading = $state(true), error = $state(''), progressError = $state('');
   let fonts = $state<{ id: string; name: string; url: string }[]>([]);
-  let root: HTMLElement, scrollHost: HTMLElement | null = null, loadedRoute = '';
+  let root: HTMLElement, scrollHost: HTMLElement | null = null, loadedRoute = '', sourceURL = '';
   let generation = 0, restoring = false, destroyed = false, lastPosition = 0;
   let progressTimer: ReturnType<typeof setTimeout> | undefined;
   let previousIdx = $derived(adjacentChapterIndex(chapters, currentIdx, -1));
@@ -49,6 +49,8 @@
       const [book, nextChapters] = await Promise.all([getBook(bookId), getChapters(bookId)]);
       if (request !== generation || route !== loadedRoute) return;
       chapters = nextChapters;
+      sourceURL = book.sourceUrl;
+      setProgressVersion(bookId, book.stateVersion);
       const index = resolveChapterIndex(nextChapters, chapterIdx, book.durChapterIndex);
       if (index === null) throw new Error('This book has no readable chapters');
       const position = index === book.durChapterIndex ? book.durChapterPos || 0 : 0;
@@ -91,7 +93,7 @@
   async function queueProgress(index: number, position: number) {
     const id = bookId;
     try {
-      await queueProgressWrite(id, index, position);
+      await queueProgressWrite(id, sourceURL, index, position);
       if (!destroyed && id === bookId) progressError = '';
     } catch {
       if (!destroyed && id === bookId) progressError = 'Progress could not be saved.';

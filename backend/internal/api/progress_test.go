@@ -34,7 +34,7 @@ func TestProgressAPIValidatesBookChapterAndPosition(t *testing.T) {
 	}
 	server := NewServer(nil, store, nil, nil, nil, nil, nil, processor.Config{}, t.TempDir(), db)
 
-	response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/progress", []byte(`{"chapterIndex":2,"position":0.6}`))
+	response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/progress", []byte(`{"sourceUrl":"source","stateVersion":0,"chapterIndex":2,"position":0.6}`))
 	if response.Code != http.StatusOK {
 		t.Fatalf("valid status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -48,11 +48,13 @@ func TestProgressAPIValidatesBookChapterAndPosition(t *testing.T) {
 		body   string
 		status int
 	}{
-		{"missing", `{"chapterIndex":0,"position":0}`, http.StatusNotFound},
-		{"book-1", `{"chapterIndex":-1,"position":0}`, http.StatusBadRequest},
-		{"book-1", `{"chapterIndex":1,"position":0}`, http.StatusBadRequest},
-		{"book-1", `{"chapterIndex":9,"position":0}`, http.StatusBadRequest},
-		{"book-1", `{"chapterIndex":0,"position":1.1}`, http.StatusBadRequest},
+		{"missing", `{"sourceUrl":"source","stateVersion":0,"chapterIndex":0,"position":0}`, http.StatusNotFound},
+		{"book-1", `{"sourceUrl":"old","stateVersion":1,"chapterIndex":0,"position":0}`, http.StatusConflict},
+		{"book-1", `{"sourceUrl":"source","stateVersion":0,"chapterIndex":0,"position":0}`, http.StatusConflict},
+		{"book-1", `{"sourceUrl":"source","stateVersion":1,"chapterIndex":-1,"position":0}`, http.StatusBadRequest},
+		{"book-1", `{"sourceUrl":"source","stateVersion":1,"chapterIndex":1,"position":0}`, http.StatusBadRequest},
+		{"book-1", `{"sourceUrl":"source","stateVersion":1,"chapterIndex":9,"position":0}`, http.StatusBadRequest},
+		{"book-1", `{"sourceUrl":"source","stateVersion":1,"chapterIndex":0,"position":1.1}`, http.StatusBadRequest},
 		{"book-1", `{}`, http.StatusBadRequest},
 		{"book-1", `{]`, http.StatusBadRequest},
 	} {
