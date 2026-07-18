@@ -1,0 +1,2008 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-07-18",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c",
+    "rawEntries": 939,
+    "exploreEligible": 722
+  },
+  "selection": {
+    "seed": "NovelReader-explore-audit-v1",
+    "count": 50,
+    "page": 1,
+    "categoryPolicy": "first selectable URL category",
+    "distinctSourceUrls": true
+  },
+  "entries": [
+    {
+      "rawIndex": 1,
+      "name": "八叉书库",
+      "sourceUrl": "https://bcshuku.com/",
+      "catalogClass": "lenient-array",
+      "resultModes": [
+        "XPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "//div[@class=\"one-row\"]/div[@class=\"col-md-3 col-sm-6 col-xs-6 home-truyendecu\"]",
+        "name": "//div[@class='caption']/a/@title",
+        "bookUrl": "//div[@class='caption']/a/@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "长篇",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://bcshuku.com/booklist1/0.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://bcshuku.com/booklist1/0.html",
+        "transport": "fingerprint",
+        "bytes": 77830,
+        "sha256": "d826262e0285dd82e0dd49624187270f08609afb3ca45d3c42c5c3a194053e53"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "durationMs": 1650,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 9,
+      "name": "夜伴书屋",
+      "sourceUrl": "http://www.ybsws.com/",
+      "catalogClass": "lenient-array",
+      "resultModes": [
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".row@.media",
+        "name": "h4@a@text",
+        "bookUrl": "h4@a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "奇幻·玄幻",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://www.ybsws.com/list/qihuan1.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://www.ybsws.com/list/qihuan1.html",
+        "transport": "fingerprint",
+        "bytes": 114,
+        "sha256": "6dc9c7fc93bb488bb0520a6c780a8d3c0fb5486a4711aca49b4c53fac7393023"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 224,
+        "error": null
+      },
+      "classification": "upstream_or_stale"
+    },
+    {
+      "rawIndex": 15,
+      "name": "笔趣阁",
+      "sourceUrl": "https://m.22biqu.com/",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".hot_sale",
+        "name": ".title@text##\\d+\\.",
+        "bookUrl": "a.0@href",
+        "bookUrlPattern": "https?://m.22biqu.com/biqu\\d+/"
+      },
+      "selectedCategory": "总排行榜",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://m.22biqu.com/rank/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://m.22biqu.com/rank/",
+        "transport": "fingerprint",
+        "bytes": 35953,
+        "sha256": "8c003ce04976b62083ad405f87664e1e49326d0895c5b2060edee9079cc45309"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 831,
+        "error": null
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 23,
+      "name": "猫眼看书（优++）",
+      "sourceUrl": "http://api.jmlldsc.com##@曦灵",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$.data[*]",
+        "name": "$.novelName",
+        "bookUrl": "/novel/{{$.novelId}}?isSearch=1",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "必读榜",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://api.jmlldsc.com/module/rank?type=1&channel=1&page=1",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://api.jmlldsc.com/module/rank?channel=1&page=1&type=1",
+        "transport": "fingerprint",
+        "bytes": 6641,
+        "sha256": "00fa1b3c9c1b91627146a987dd9b3b8e63a6d2b8c24f491f206740115166c0ce"
+      },
+      "engine": {
+        "outcome": "page_error",
+        "code": "result_rule_failed",
+        "stage": "result",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 278,
+        "error": "Could not parse Explore results: search: kind: json: could not select value, invalid key: expected number but got className (string)"
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 53,
+      "name": "中华诗词（优+）",
+      "sourceUrl": "https://m.zhonghuashici.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "JavaScript/template",
+        "XPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "ul li h2||ul li a[8:]",
+        "name": "a@text",
+        "bookUrl": "a@href",
+        "bookUrlPattern": "https://m.zhonghuashici.com/show-\\d+-\\d+.html"
+      },
+      "selectedCategory": "首页",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://m.zhonghuashici.com/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://m.zhonghuashici.com/",
+        "transport": "fingerprint",
+        "bytes": 27307,
+        "sha256": "65e8b483a46565e42bb3d8b0eab7134f98ffa003ef1d907803d9cdc64bed2d1a"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 650,
+        "error": null
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 72,
+      "name": "米读小说（优+）",
+      "sourceUrl": "https://api.midureader.com/#@遇知",
+      "catalogClass": "top-level-js",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$.data[*]",
+        "name": "$..title",
+        "bookUrl": "https://api.midureader.com/fiction/book/getDetail,{\n  \"method\": \"POST\",\n  \"body\": \"app=midu&book_id={{$..book_id}}\"\n}\n##(getBrief||getDetail)选用其中之一",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": null,
+      "expandedRequest": null,
+      "response": null,
+      "engine": {
+        "outcome": "catalog_error",
+        "code": "category_script_failed",
+        "stage": "category",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 0,
+        "error": "Could not generate Explore categories: js eval: SyntaxError: SyntaxError: (anonymous): Line 40:13 Malformed arrow function parameter list (and 3 more errors)"
+      },
+      "classification": "invalid_source_script"
+    },
+    {
+      "rawIndex": 89,
+      "name": "中文看书（优）",
+      "sourceUrl": "http://wap.zwkan.com",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "JavaScript/template",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".lis@li",
+        "name": "a@text",
+        "bookUrl": "a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "玄幻",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://wap.zwkan.com/xuanhuanqihuan/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://wap.zwkan.cc/xuanhuanqihuan/",
+        "transport": "fingerprint",
+        "bytes": 21947,
+        "sha256": "6c76862dd74f74cad44b2668a03a31e2f17af159f23233d058ce081870ca4dd0"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 1,
+        "distinctBookUrls": 1,
+        "exhausted": false,
+        "durationMs": 963,
+        "error": null
+      },
+      "classification": "upstream_or_stale"
+    },
+    {
+      "rawIndex": 99,
+      "name": "速读谷吧（优）",
+      "sourceUrl": "https://www.sudugu.org",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.item",
+        "name": "tag.h3@tag.a@text",
+        "bookUrl": "tag.h3@tag.a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "玄幻小说",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.sudugu.org/xuanhuan/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.sudugu.org/xuanhuan/",
+        "transport": "fingerprint",
+        "bytes": 12468,
+        "sha256": "ed11f76eb1f3d88f5a863ced2a31a2fb5f1a1fee8c5485988414e4ce59ecbaa3"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 1,
+        "distinctBookUrls": 1,
+        "exhausted": false,
+        "durationMs": 670,
+        "error": null
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 105,
+      "name": "白浅小说（优）",
+      "sourceUrl": "https://m.178yhr.com",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "JavaScript/template",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".bookbox",
+        "name": "h4@text",
+        "bookUrl": "a.0@href\n@js:\nvar go=/go/.test(result);\ngo?result.replace('go/',\"book_\"):result;",
+        "bookUrlPattern": "https?://www.178yhr.com/book_\\d+/"
+      },
+      "selectedCategory": "全部小说",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://m.178yhr.com/all.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.178xs.cc/all.html",
+        "transport": "fingerprint",
+        "bytes": 27309,
+        "sha256": "d9fbd26cb7d52052fe00c92e30f0a8c997d653361c4a0ffc26d64f6c695adc88"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 1030,
+        "error": null
+      },
+      "classification": "upstream_or_stale"
+    },
+    {
+      "rawIndex": 140,
+      "name": "如漫画网（优+）",
+      "sourceUrl": "http://m.rumanhua1.com/",
+      "catalogClass": "top-level-js",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$.data[*]",
+        "name": "$.name",
+        "bookUrl": "/{{$.id}}/",
+        "bookUrlPattern": "https?://m.rumanhua.com/\\w+/"
+      },
+      "selectedCategory": "冒险",
+      "expandedRequest": {
+        "method": "POST",
+        "url": "http://m.rumanhua1.com/data/sort",
+        "body": "s=1&p=1"
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://m.rumanhua1.com/data/sort",
+        "transport": "fingerprint",
+        "bytes": 4698,
+        "sha256": "f80b00b11ec0f4c8b69edcfdb8d2e183f54d36ab2a0160111f4231fc2daebd9b"
+      },
+      "engine": {
+        "outcome": "page_error",
+        "code": "result_rule_failed",
+        "stage": "result",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 367,
+        "error": "Could not parse Explore results: search: bookList: json: decode: invalid character '<' looking for beginning of value"
+      },
+      "classification": "upstream_or_stale"
+    },
+    {
+      "rawIndex": 150,
+      "name": "网络漫画（优）",
+      "sourceUrl": "https://mm.sfacg.com",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "JSONPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$.comics.*||$.data.*",
+        "name": "$.ComicName",
+        "bookUrl": "@json:/b/{$.FolderName}",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "更新",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://mm.sfacg.com/ajax/Common.ashx?op=getLatest&pageIndex=0&tid=-1",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://mm.sfacg.com/ajax/Common.ashx?op=getLatest&pageIndex=0&tid=-1",
+        "transport": "fingerprint",
+        "bytes": 2046,
+        "sha256": "443fe8191a7e6ead66e771132dbd08236fa847770a8b4a65c7ae6777741f9b33"
+      },
+      "engine": {
+        "outcome": "page_error",
+        "code": "result_rule_failed",
+        "stage": "result",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 224,
+        "error": "Could not parse Explore results: search: bookUrl: json: parsing error: $./b/{$.FolderName}\t:1:3 - 1:4 unexpected \"/\" while scanning JSON select expected Ident, \".\" or \"*\""
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 176,
+      "name": "优品文档（导+）",
+      "sourceUrl": "https://www.ypppt.com/",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.posts clear@li",
+        "name": "a.1@text",
+        "bookUrl": "a.1@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "简约模板",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.ypppt.com/moban/jianyue/list-2.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.ypppt.com/moban/jianyue/list-2.html",
+        "transport": "fingerprint",
+        "bytes": 15293,
+        "sha256": "5ae85e41069302167f4bdf2fa043be84246b8c517797d90285a9e730aa3b2fed"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "durationMs": 1329,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 182,
+      "name": "爱发电网（优）",
+      "sourceUrl": "https://afdian.com#",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$.data.list",
+        "name": "$.title",
+        "bookUrl": "/api/user/get-album-info?album_id={{$.album_id}}",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "兽屋之龙的作品集",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://afdian.com/api/user/get-album-list?user_id=63609ee2d7e211eabceb52540025c377&page=1",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://afdian.com/api/user/get-album-list?page=1&user_id=63609ee2d7e211eabceb52540025c377",
+        "transport": "fingerprint",
+        "bytes": 469,
+        "sha256": "97d99207387da093ffe9eb820996a1f2950f35355dce40ddb22cceea3d5ead2e"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 1,
+        "distinctBookUrls": 1,
+        "exhausted": false,
+        "durationMs": 166,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 184,
+      "name": "乐乎文章（优）",
+      "sourceUrl": "https://newsmiss.lofter.com",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "<js>result.replace(/null/g,'')</js>\n$.response.items[*]||$.response.posts[*]",
+        "name": "$.post.title||$.post.noticeLinkTitle||$.post.digest||$.post.blogInfo.blogId||$.post.blogPageUrl##</*\\w.*?>",
+        "bookUrl": "@js:url='{{$.post.blogId||$.post.blogPageUrl}}';\nid='{{$.post.id}}';\nmain=url.match(/_blogid_\\d+/)?url.match(/_blogid_(\\d+)/)[1]:url;\nbody=\"blogdomain=_blogid_\"+main+\".lofter.com&postid=\"+id;\nresult='https://api.lofter.com/oldapi/post/detail.api?product=lofter-android-7.4.4,{\"method\":\"POST\",\"body\":\"'+String(body)+'\"}';",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "金桐",
+      "expandedRequest": {
+        "method": "POST",
+        "url": "https://api.lofter.com/oldapi/tagPosts.api?product=lofter-android-6.13.0&method=newTagSearch&offset=0&limit=22&firstpermalink=null&tag=金桐&type=new",
+        "body": "null"
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://api.lofter.com/oldapi/tagPosts.api?firstpermalink=null&limit=22&method=newTagSearch&offset=0&product=lofter-android-6.13.0&tag=%E9%87%91%E6%A1%90&type=new",
+        "transport": "fingerprint",
+        "bytes": 27305,
+        "sha256": "c0700076dc21ef6efc4160372d5b28969e9c9755f8a4b0bcefc4ea128b67fa46"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 12,
+        "distinctBookUrls": 12,
+        "exhausted": false,
+        "durationMs": 381,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 193,
+      "name": "盒子游戏（优）",
+      "sourceUrl": "https://h.4399.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "id.list_box@li||$.data",
+        "name": "class.tit@text||$.title",
+        "bookUrl": "a@href||$.zzylink\n<js>\nif(!result.match(4399)){\n\tresult=book.origin+result\n\t}else{\n\t\tresult\n\t\t}\n</js>",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "网游",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://gprp.4399.com/cg/online/get_h5_new_ranking.php?method=special&value=291&devicesupport=3&page_size=20&page_num=1&cId=2",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://gprp.4399.com/cg/online/get_h5_new_ranking.php?cId=2&devicesupport=3&method=special&page_num=1&page_size=20&value=291",
+        "transport": "fingerprint",
+        "bytes": 10368,
+        "sha256": "365e0e5b95619670e309bca801e3aa44d5208694a50b6ec072ddaed487b9262c"
+      },
+      "engine": {
+        "outcome": "page_error",
+        "code": "result_rule_failed",
+        "stage": "result",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 138,
+        "error": "Could not parse Explore results: search: name: json: parsing error: $.class.tit@text\t:1:12 - 1:13 unexpected \"@\" while scanning operator"
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 212,
+      "name": "纵横中文",
+      "sourceUrl": "https://www.zongheng.com/##zhbyjm7783",
+      "catalogClass": "top-level-js",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "XPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "result.resultList||result.bookList",
+        "name": "bookName||name",
+        "bookUrl": "https://bookapi.zongheng.com/api/chapter/getChapterList,{\"method\":\"POST\",\"body\":\"bookId={{$.bookId}}\"}",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": null,
+      "expandedRequest": null,
+      "response": null,
+      "engine": {
+        "outcome": "catalog_error",
+        "code": "category_script_failed",
+        "stage": "category",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 0,
+        "error": "Could not generate Explore categories: js eval: SyntaxError: SyntaxError: (anonymous): Line 23:7 Malformed arrow function parameter list (and 3 more errors)"
+      },
+      "classification": "invalid_source_script"
+    },
+    {
+      "rawIndex": 216,
+      "name": "晋江文学",
+      "sourceUrl": "https://m.jjwxc.net/channel/",
+      "catalogClass": "top-level-js",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "<js>\nif(/incrementFavorite/.test(baseUrl)){\nlet order = Number(java.get(\"order\"));\nfunction sortBooks(data, order) {\n  let sortedData = JSON.parse(data).addData;\n  if (java.get(\"classid\") == \"0\") {\n    sortedData = sortedData.filter(book => book.classId === \"0\");\n  }\n  switch(order) {\n    case 1: \n      sortedData.sort((a, b) => {   \t\n        return Date.parse(b.chapterdateNewest.replace(/ /,'T')) - Date.parse(a.chapterdateNewest.replace(/ /,'T'));\n      });\n      break;   \n    case 2:\n      sortedData.sort((a, b) => {\n        return Number(b.favoriteDate) - Number(a.favoriteDate);\n      });\n      break;    \n    case 3:\n      sortedData.sort((a, b) => {\n        return Number(b.novelbefavoritedcount) - Number(a.novelbefavoritedcount);\n      });\n      break;    \n    case 4:   \n      sortedData.sort((a, b) => {\n        return Number(b.original_novelsize) - Number(a.original_novelsize);\n      });\n      break;    \n    default:\n      break;\n  }\n  return sortedData;\n}\nresult = JSON.stringify(sortBooks(src,order))\n\t}\n\t\nfunction transformNovelList(jsonData) {\n    const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;\n    Object.keys(data.novellist).forEach(categoryName => {\n        data.novellist[categoryName].forEach(novel => {\n            novel.cname = categoryName;\n        });\n    });\n    \n    return JSON.stringify(data)\n}\nif(/authorid=/.test(baseUrl))result=transformNovelList(result);\n\nif(baseUrl.includes(\"favObservationByDate\")){\n\tlet nb = String(Map(\"nb\")||\"1,2,3,4,8,9\");\n\tnb = nb.split(\",\");\n\tlet list= JSON.parse(result).data.list;\n\tlet l = [];\n\tlist.forEach((x,i)=>{\n\t\tx.p = \"第\"+(i+1)+\"名\";\n\t\tlet fz = x.fit_fenzhan;\n\t\tlet r = fz.filter(v=>nb.includes(v));\n\t\t  if(r.length==2)l.push(x);\n\t\t});\n\t\tresult = JSON.stringify(l);\n\t}\nresult\n</js>\n$..[?(@.novelName)]&&$..[?(@.novelname)]&&$.massage\n<js>\nresult = (baseUrl.match(/signin|getSearchForKeyWords/))?`{signIn:[${src}]}`:result;\n</js>\n$..[?(@.novelName)]&&$..[?(@.novelname)]&&$.signIn[*]",
+        "name": "$.novelName||$.novelname||$.message",
+        "bookUrl": "http://app-cdn.jjwxc.net/androidapi/novelbasicinfo?novelId={{$.novelid||$.novelId}}@put:{id:$.novelid||$.novelId}",
+        "bookUrlPattern": "https?://app-cdn.jjwxc.net/androidapi/novelbasicinfo\\?novelId=\\d+"
+      },
+      "selectedCategory": null,
+      "expandedRequest": null,
+      "response": null,
+      "engine": {
+        "outcome": "catalog_error",
+        "code": "category_script_failed",
+        "stage": "category",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 3,
+        "error": "Could not generate Explore categories: js eval: TypeError: Object has no member 'getLoginHeader' at getHeaderMap (<eval>:68:47(16))"
+      },
+      "classification": "engine_bridge"
+    },
+    {
+      "rawIndex": 242,
+      "name": "刺猬猫网",
+      "sourceUrl": "https://www.ciweimao.com/",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.rank-book-list@tag.li||class.book-list-table@tag.tr!0",
+        "name": "class.tit@tag.a.0@text||class.name@tag.a.0@text",
+        "bookUrl": "class.tit@tag.a.0@href||class.name@tag.a.0@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "点击榜",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.ciweimao.com/rank-index/no-vip-click-week/1",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.ciweimao.com/rank-index/no-vip-click-week/1",
+        "transport": "fingerprint",
+        "bytes": 89464,
+        "sha256": "fcb0ff18ac5bc4d79532b194eca13635d03f052c3f5785ad17c6c280cc87ebc0"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 10,
+        "distinctBookUrls": 10,
+        "exhausted": false,
+        "durationMs": 903,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 257,
+      "name": "爱漫客栈",
+      "sourceUrl": "https://www.mkzhan.com",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.cate-comic-list clearfix@class.common-comic-item",
+        "name": "class.comic__title@text",
+        "bookUrl": "class.cover@href",
+        "bookUrlPattern": "https://m.mkzhan.com/\\d+/"
+      },
+      "selectedCategory": "修真",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.mkzhan.com/category/?theme_id=2&page=1",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.mkzhan.com/category/?page=1&theme_id=2",
+        "transport": "fingerprint",
+        "bytes": 49906,
+        "sha256": "7e75f3027b8539d29416659c83f7d5747d0ed7fbfbb12a177ceab62ef6ad75e9"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 168,
+        "error": null
+      },
+      "classification": "upstream_or_stale"
+    },
+    {
+      "rawIndex": 285,
+      "name": "菜小说网",
+      "sourceUrl": "https://www.tatays.com/allbook",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.list-content@class.list-box@class.list-title clears@tag.li",
+        "name": "tag.h2@text",
+        "bookUrl": "tag.a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "玄幻奇幻",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.tatays.com/xuanhuan/p1.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.tatays.com/xuanhuan/p1.html",
+        "transport": "fingerprint",
+        "bytes": 32013,
+        "sha256": "3ffa7f6e99568ed76ba93757c25e4fc18ad4d46b47261617a8e2aababc828a64"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "durationMs": 1063,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 286,
+      "name": "👔 天式从横",
+      "sourceUrl": "https://m.po18wx.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "JavaScript/template",
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.common-bookele",
+        "name": "h3@text",
+        "bookUrl": "a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "都市",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://m.po18wx.com/wapsort/1_1.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://m.po18wx.com/wapsort/1_1.html",
+        "transport": "fingerprint",
+        "bytes": 25259,
+        "sha256": "afdeb0ff363ea89339226ecc917f87d264ca483a107d699d176e06b63c52f374"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 687,
+        "error": null
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 291,
+      "name": "PO18文学",
+      "sourceUrl": "https://wap.po18cx.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".newbook_list||.articlegeneral@li",
+        "name": ".newbook_title a@text||p.0@text",
+        "bookUrl": "a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "完本",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://wap.po18cx.com/full/1.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://wap.po18cx.com/full/1.html",
+        "transport": "fingerprint",
+        "bytes": 30010,
+        "sha256": "d9805b54dd9fc12e3d7ec3cdbf0c9303cd86a3926d336a01953903754b5aac5e"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "durationMs": 783,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 323,
+      "name": "🔰 BL小说",
+      "sourceUrl": "https://m.52blxs.com",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".list ul",
+        "name": "a.1@text",
+        "bookUrl": "a.1@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "总点击  ",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://m.52blxs.com/top/allvisit_1/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://m.52blxs.com/top/allvisit_1/",
+        "transport": "fingerprint",
+        "bytes": 15380,
+        "sha256": "10b2a5aff7c8dbf3b722dd4e6db9ef2f498a44caa2f8fa26f11726c472a58198"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "durationMs": 1196,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 370,
+      "name": "🎃腐小说🎃",
+      "sourceUrl": "http://www.fxshu.cc#🎃",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "JavaScript/template",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".list_article ul li",
+        "name": "a.0@text",
+        "bookUrl": "a.0@href",
+        "bookUrlPattern": "http://www.fxshu.cc/\\w+/\\d+.html"
+      },
+      "selectedCategory": "现代耽美",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://www.fxshu.cc/xiandai/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://www.fxshu.cc/xiandai/",
+        "transport": "fingerprint",
+        "bytes": 37394,
+        "sha256": "101cefe7b6e20d7114699e132dea7989b9e067219f7d7bed549286a32f81cba4"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 114,
+        "error": null
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 418,
+      "name": "笔尚小说",
+      "sourceUrl": "https://m.bsxiaoshuo.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "#j@li",
+        "name": "b@text",
+        "bookUrl": "a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "现代言情",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://m.bsxiaoshuo.com/xianyan_1",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://m.bsxiaoshuo.com/xianyan_1",
+        "transport": "http",
+        "bytes": 14756,
+        "sha256": "e9178f4eb940d15e71c7de6be1ee411208f3d39bb490bc6b55ac60be4fc8a324"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 1,
+        "distinctBookUrls": 1,
+        "exhausted": false,
+        "durationMs": 7931,
+        "error": null
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 433,
+      "name": "🎨 漫客栈🅰 #Haxc1107",
+      "sourceUrl": "http://comic.mkzhan.com#Haxc1107",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "XPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$.data.list.*",
+        "name": "$.title@put:{comic_id:$.comic_id}",
+        "bookUrl": "https://comic.mkzhan.com/comic/info/?comic_id={$.comic_id}",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "热门人气",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://comic.mkzcdn.com/search/filter/?order=1&page_num=1&page_size=12",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://comic.mkzcdn.com/search/filter/?order=1&page_num=1&page_size=12",
+        "transport": "fingerprint",
+        "bytes": 5243,
+        "sha256": "a7c6224bd69201543b59c188f33ed5f1a949d6d57036733f54e67f680a28d1fb"
+      },
+      "engine": {
+        "outcome": "page_error",
+        "code": "result_rule_failed",
+        "stage": "result",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 177,
+        "error": "Could not parse Explore results: search: bookUrl: json: parsing error: $.https://comic.mkzhan.com/comic/info/?comic_id={$.comic_id}\t:1:8 - 1:9 unexpected \":\" while scanning operator"
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 434,
+      "name": "繁星四月🎃",
+      "sourceUrl": "http://www.fuxs.top#🎃",
+      "catalogClass": "lenient-array",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".list_article ul li",
+        "name": "h2@a@title||.about3 strong@text||h2@text",
+        "bookUrl": "h2@a@href||class.about3@tag.a.-1@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "现代耽美",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://www.fuxs1.com/xiandai/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.fuxs1.com/xiandai/",
+        "transport": "http",
+        "bytes": 46988,
+        "sha256": "edf6e8e7c760e4109f962901453d8e0570f2c9c8d6cff1164423fa3e36dbc489"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "durationMs": 2011,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 441,
+      "name": "繁星四月",
+      "sourceUrl": "http://www.fuxs.top",
+      "catalogClass": "lenient-array",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".list_article ul li",
+        "name": "h2@a@title||.about3 strong@text||h2@text",
+        "bookUrl": "h2@a@href||class.about3@tag.a.-1@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "现代耽美",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://www.fuxs1.com/xiandai/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.fuxs1.com/xiandai/",
+        "transport": "http",
+        "bytes": 46988,
+        "sha256": "61e48a395abc5544d0941144eb27567eef33486319e55302f6368061ddd76f8e"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "durationMs": 1420,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 476,
+      "name": "晋江🎃",
+      "sourceUrl": "http://app.jjwxc.org#🎃",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "XPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$..data.*",
+        "name": "$.novelName",
+        "bookUrl": "http://app-cdn.jjwxc.net:80/androidapi/novelbasicinfo?novelId={{$.novelId}}",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "古言",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://app-cdn.jjwxc.net/bookstore/getFullPage?channel=gywx&version=3",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://app-cdn.jjwxc.net/bookstore/getFullPage?channel=gywx&version=3",
+        "transport": "fingerprint",
+        "bytes": 436808,
+        "sha256": "aaea51401ccae224c50706ff628723b42ef1fe5c8015a74f8fce079163b24d2a"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 238,
+        "distinctBookUrls": 238,
+        "exhausted": false,
+        "durationMs": 86,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 506,
+      "name": "我爱读者",
+      "sourceUrl": "https://www.52dzxy.com",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".magazine-grid .magazine-item",
+        "name": "a@text",
+        "bookUrl": "a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "百科知识",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.52dzxy.com/bkzs/all.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.52dzxy.com/bkzs/all.html",
+        "transport": "fingerprint",
+        "bytes": 7864,
+        "sha256": "866d1fe5a61d35e1e94d401578f24fecfcf6b97827b1e8980a12261196bbafdb"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "durationMs": 122,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 522,
+      "name": "火星小说🎃",
+      "sourceUrl": "https://mobile.iceread.com#🎃",
+      "catalogClass": "lenient-array",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "data.list",
+        "name": "name",
+        "bookUrl": "/story/{{$.id}}",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": null,
+      "expandedRequest": null,
+      "response": null,
+      "engine": {
+        "outcome": "catalog_error",
+        "code": "category_parse_failed",
+        "stage": "category",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 0,
+        "error": "Could not parse Explore categories: explore categories: explore: Line 5:86 Unexpected token ;"
+      },
+      "classification": "invalid_source_script"
+    },
+    {
+      "rawIndex": 529,
+      "name": "中文书城🎃",
+      "sourceUrl": "https://m.cread.com#🎃",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$.dataList",
+        "name": "$.newBookName",
+        "bookUrl": "https://readbook-service-freebook.cread.com/cx/bookDetailYS?bookid={{$.bookid}}",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "文学小说",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://cxb-pro.cread.com/cx/new/catelistnew?uid=110496550&cnid=10005&version=7.6.0&flid=3100&thirdCateId=0&sortType=1&bookStatus=0&pageSize=20&curpage=1",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://cxb-pro.cread.com/cx/new/catelistnew?bookStatus=0&cnid=10005&curpage=1&flid=3100&pageSize=20&sortType=1&thirdCateId=0&uid=110496550&version=7.6.0",
+        "transport": "fingerprint",
+        "bytes": 16552,
+        "sha256": "8f30ce01b82f7b90b3ec0c450ffd77290b5e38f275a72aab28389a85d7249c19"
+      },
+      "engine": {
+        "outcome": "page_error",
+        "code": "result_rule_failed",
+        "stage": "result",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 364,
+        "error": "Could not parse Explore results: search: kind: json: parsing error: $.{$.grade}分\t:1:3 - 1:4 unexpected \"{\" while scanning JSON select expected Ident, \".\" or \"*\""
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 533,
+      "name": "㊣ 豆瓣阅读 #一程",
+      "sourceUrl": "https://read.douban.com#一程",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "JSONPath",
+        "XPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$.[?(@.alias_id)]",
+        "name": "$.title",
+        "bookUrl": "https://read.douban.com/column/{$.alias_id}/",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "生活悬疑",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://read.douban.com/j/tag/生活悬疑?start=0&limit=10&sort=top",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://read.douban.com/j/tag/%E7%94%9F%E6%B4%BB%E6%82%AC%E7%96%91?limit=10&sort=top&start=0",
+        "transport": "fingerprint",
+        "bytes": 16494,
+        "sha256": "60fe6a3200089895de01452432d9204199712611032da053a913ee10df8f1e94"
+      },
+      "engine": {
+        "outcome": "page_error",
+        "code": "result_rule_failed",
+        "stage": "result",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 1063,
+        "error": "Could not parse Explore results: search: bookList: json: parsing error: $.[?(@.alias_id)]\t:1:3 - 1:4 unexpected \"[\" while scanning JSON select expected Ident, \".\" or \"*\""
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 552,
+      "name": "腐小说🎃",
+      "sourceUrl": "http://www.fuxsb.cc#🎃",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "JavaScript/template",
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.list_article@li",
+        "name": "h2@text",
+        "bookUrl": "tag.a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "现代耽美",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://www.fuxsb.cc/xiandai/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://www.fuxsb.cc/xiandai/",
+        "transport": "fingerprint",
+        "bytes": 45565,
+        "sha256": "ece4d7e893ef9e31876edcabb6b4b501c73c91a202af30be6b543f3f6ddd6d93"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "durationMs": 61,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 561,
+      "name": "八零小说",
+      "sourceUrl": "http://wap.80zw.la",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".line",
+        "name": "a@text",
+        "bookUrl": "a@href",
+        "bookUrlPattern": "http://wap.80zw.la/\\d+/"
+      },
+      "selectedCategory": "全本小说",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://wap.80zw.la/top/full-1.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://wap.80ge.info/top/full-1.html",
+        "transport": "fingerprint",
+        "bytes": 4621,
+        "sha256": "8822b5ecae778c925c546ca57d2cbc4a6e058072df2127ead0125d03da0fc6a8"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 1538,
+        "error": null
+      },
+      "classification": "upstream_or_stale"
+    },
+    {
+      "rawIndex": 562,
+      "name": "笔尖中文",
+      "sourceUrl": "http://m.badaoge.org",
+      "catalogClass": "top-level-js",
+      "resultModes": [
+        "JavaScript/template",
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "p.line",
+        "name": "text##\\[(.*?)\\](.*?)\\/(.*?)##$2###",
+        "bookUrl": "a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": null,
+      "expandedRequest": null,
+      "response": null,
+      "engine": {
+        "outcome": "catalog_error",
+        "code": "category_script_failed",
+        "stage": "category",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 0,
+        "error": "Could not generate Explore categories: js eval: TypeError: Object has no member 'toast' at <eval>:2:15(4)"
+      },
+      "classification": "engine_bridge"
+    },
+    {
+      "rawIndex": 576,
+      "name": "得间·女生",
+      "sourceUrl": "https://m.idejian.com/nvsheng",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "JavaScript/template",
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.rank_ullist@li||class.v_list@li",
+        "name": "class.rank_bkname@a@text||class.book_name@textNodes",
+        "bookUrl": "tag.a.0@href@js:'https://m.idejian.com'+result",
+        "bookUrlPattern": "https://m.idejian.com/book/\\d+/"
+      },
+      "selectedCategory": "今日必读",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://m.idejian.com/nvsheng",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://m.idejian.com/nvsheng",
+        "transport": "fingerprint",
+        "bytes": 38188,
+        "sha256": "c4a4c1187b1c2f87d7bec34e330fa8de75e00164b916815b3af34f72f982f860"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 364,
+        "error": null
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 587,
+      "name": "红薯阅读",
+      "sourceUrl": "https://androidv2.hongshu.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "XPath",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$..bookinfo[*]",
+        "name": "$.catename",
+        "bookUrl": "https://androidv2.hongshu.com/clientGetBookInfo?version=1.5.0&P27=5.1.3,{\n'method': 'POST',\n'body': 'bid={{$.bid}}'\n}",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "男生人气",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://m.hongshu.com/bookajax/search.do?method=search&sortby=lastweek_salenum&paegsize=20&sex_flag=nan&pagenum=1",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://m.hongshu.com/bookajax/search.do?method=search&paegsize=20&pagenum=1&sex_flag=nan&sortby=lastweek_salenum",
+        "transport": "fingerprint",
+        "bytes": 53934,
+        "sha256": "79503787fec118a0445de509f03a21e2f072ab7a20f99ab8362d2761b9520b49"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "durationMs": 781,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 596,
+      "name": "笔趣阁🎃#45",
+      "sourceUrl": "http://m.maifeizx.com#🎃",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "body > div.wrap > div.block > ul > li",
+        "name": "span.0@a@text",
+        "bookUrl": "span@a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "玄幻",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://m.maifeizx.com/xuanhuan/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://m.maifeizx.com/xuanhuan/",
+        "transport": "fingerprint",
+        "bytes": 14729,
+        "sha256": "561d7e9010aff5dd780d7091bf04b0bed547daa6e335cdd5062f5f069b557848"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "durationMs": 390,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 599,
+      "name": "多看阅读🎃#2",
+      "sourceUrl": "https://www.dkmi.com#🎃",
+      "catalogClass": "top-level-js",
+      "resultModes": [
+        "JavaScript/template",
+        "JSONPath",
+        "XPath",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "$.items[*]",
+        "name": "$.title",
+        "bookUrl": "$.fiction_id@js:\"https://www.duokan.com/hs/v0/android/fiction/book/\"+result",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "人气榜",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.duokan.com/store/v0/fiction/rank?r=40102&count=20&start=0&ad=1&owner=0%2C3&withid=1",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.duokan.com/store/v0/fiction/rank?ad=1&count=20&owner=0%2C3&r=40102&start=0&withid=1",
+        "transport": "fingerprint",
+        "bytes": 73,
+        "sha256": "d963bf37455c947acf135b16b720683b352a2d98e3ec89c648fb1603563cbc8f"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 1925,
+        "error": null
+      },
+      "classification": "legitimate_empty"
+    },
+    {
+      "rawIndex": 616,
+      "name": "蜘蛛小说网",
+      "sourceUrl": "https://www.zhizhuxs.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "JavaScript/template",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".CGsectionTwo-right-content-unit",
+        "name": "a.0@text",
+        "bookUrl": "a.0@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "全部小说",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.zhizhuxs.com/sort/0/1/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.zhizhuxs.com/sort/0/1/",
+        "transport": "fingerprint",
+        "bytes": 19856,
+        "sha256": "05f606c5aeb33188841a7fe9c092cb34549501f2a1881bdfae5841c39e1354ab"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 10,
+        "distinctBookUrls": 10,
+        "exhausted": false,
+        "durationMs": 960,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 704,
+      "name": "笔趣阁小说网",
+      "sourceUrl": "https://www.biqu5200.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.col-12 col-md-6@dl",
+        "name": "h3@text##\\[.*\\]",
+        "bookUrl": "dt.0@a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "玄幻",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.biqu5200.com/list1/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.biqu5200.com/list1/",
+        "transport": "fingerprint",
+        "bytes": 21207,
+        "sha256": "401363c01854fc697c7ba9ed32bff2de866ff4bba2a0ab03f2fb953d0e9d71ef"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "durationMs": 1070,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 722,
+      "name": "趣书网小说",
+      "sourceUrl": "https://www.qubook.org#",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".man_first ul li",
+        "name": "h1@text||a@text##\\(.*\\)",
+        "bookUrl": "h1@a@href||a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "🏅 热门排行 🏅",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.qubook.org/images/rph.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.qubook.org/images/rph.html",
+        "transport": "fingerprint",
+        "bytes": 19572,
+        "sha256": "b3874804c8356ddb0c3e49ee81515eb727da84bdca7d1ffc15f719068992cc1a"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 100,
+        "distinctBookUrls": 100,
+        "exhausted": false,
+        "durationMs": 1000,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 752,
+      "name": "🎒 夜伴书屋",
+      "sourceUrl": "https://www.ybswa.com",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".media",
+        "name": "h4@text",
+        "bookUrl": "a.1@href",
+        "bookUrlPattern": "https?://www.ybswa.com/book/\\w+/"
+      },
+      "selectedCategory": "奇幻·玄幻",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.ybswa.com/list/qihuan.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.yybsw.com/list/qihuan.html",
+        "transport": "fingerprint",
+        "bytes": 40836,
+        "sha256": "af3bfa691198b4efe83e95ff802b63fd877390d3c8126ccef030d09ba58a6267"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 2252,
+        "error": null
+      },
+      "classification": "upstream_or_stale"
+    },
+    {
+      "rawIndex": 823,
+      "name": "🎃第一版主🎃#10",
+      "sourceUrl": "http://i.12bz.net#🎃",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.line",
+        "name": "class.line@tag.a.1@text",
+        "bookUrl": "class.line@tag.a.1@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "最新入库",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://i.12bz.net/top/postdate_1/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://i.12bz.net/top/postdate_1/",
+        "transport": "fingerprint",
+        "bytes": 8033,
+        "sha256": "2cbef933bfdca5e1a7c702a8197ced127151f70271e9a6f39389950c11971275"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 870,
+        "error": null
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 869,
+      "name": "男友书屋",
+      "sourceUrl": "https://www.nanyou15.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "class.col-sm-index",
+        "name": "class.media-body@h4@text",
+        "bookUrl": "class.media-heading@a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "校园言情",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.nanyou15.com/list/1-1.html",
+        "body": null
+      },
+      "response": {
+        "status": null,
+        "finalUrl": null,
+        "transport": null,
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine": {
+        "outcome": "page_error",
+        "code": "transport_failed",
+        "stage": "transport",
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "durationMs": 20014,
+        "error": "Explore request failed: fetcher: failed after 1 attempts: fetch: Get \"https://www.nanyou15.com/list/1-1.html\": context deadline exceeded"
+      },
+      "classification": "upstream_or_stale"
+    },
+    {
+      "rawIndex": 897,
+      "name": "纪念读书",
+      "sourceUrl": "http://www.998ds.net",
+      "catalogClass": "legacy",
+      "resultModes": [
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "id.articlelist@ul!0",
+        "name": "span.1@text",
+        "bookUrl": "a.1@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "总收藏",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://www.998ds.net/top11-15-1.html",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://www.998ds.net/top11-15-1.html",
+        "transport": "fingerprint",
+        "bytes": 21650,
+        "sha256": "90758270c2016c52520c156b90e113e2b6507581ca1386417751b8c019ae0e2a"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "durationMs": 1483,
+        "error": null
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 902,
+      "name": "笔库小说",
+      "sourceUrl": "http://m.bikuxs.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "JavaScript/template",
+        "Regex",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".bd@li@a",
+        "name": "ownText##\\/.*",
+        "bookUrl": "href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "玄幻奇幻",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://m.bikuxs.com/xuanhuanqihuan?page=1",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "http://m.bikuxs.com/xuanhuanqihuan?page=1",
+        "transport": "fingerprint",
+        "bytes": 13640,
+        "sha256": "1d0f2d4315fb75b7068b850f2e57e9a88480f06ca34444cbb6aa6e35ab55f87b"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "durationMs": 452,
+        "error": null
+      },
+      "classification": "pass"
+    },
+    {
+      "rawIndex": 909,
+      "name": "😍轻写真",
+      "sourceUrl": "http://www.635k.com/##@Mengteen",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "JavaScript/template",
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": "#post_list_box@li",
+        "name": "h2@a@text",
+        "bookUrl": "h2@a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "首页",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "http://www.635k.com/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.635k.com/",
+        "transport": "http",
+        "bytes": 13892,
+        "sha256": "1f5db46f2b98ea4579621629a7ff10557a2148bdb56e69e96803f685e18e6777"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 1,
+        "distinctBookUrls": 1,
+        "exhausted": false,
+        "durationMs": 697,
+        "error": null
+      },
+      "classification": "engine_result"
+    },
+    {
+      "rawIndex": 928,
+      "name": "西瓜看书",
+      "sourceUrl": "https://www.xiguaks.com",
+      "catalogClass": "strict-json-array",
+      "resultModes": [
+        "Default/CSS"
+      ],
+      "rawRules": {
+        "bookList": ".grid > div, .bg-white.p-2.rounded-lg",
+        "name": "h3 a@text||p.text-lg a@text",
+        "bookUrl": "h3 a@href||p.text-lg a@href",
+        "bookUrlPattern": ""
+      },
+      "selectedCategory": "热门推荐",
+      "expandedRequest": {
+        "method": "GET",
+        "url": "https://www.xiguaks.com/",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "finalUrl": "https://www.xiguaks.com/",
+        "transport": "fingerprint",
+        "bytes": 54485,
+        "sha256": "8795852a5289f4c452df689f90f8eb940732b91e1f00d687804afc362230c7c5"
+      },
+      "engine": {
+        "outcome": "success",
+        "code": null,
+        "stage": null,
+        "books": 25,
+        "distinctBookUrls": 25,
+        "exhausted": false,
+        "durationMs": 1373,
+        "error": null
+      },
+      "classification": "pass"
+    }
+  ]
+}
