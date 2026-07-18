@@ -307,6 +307,14 @@ Tasks:
 
 Completion gate: frontend features consume stable domain APIs; no frontend code knows CSS/Default/JS source syntax.
 
+#### Reading-state execution order (2026-07-18)
+
+Priority is fixed as: (1) reliable chapter/scroll resume, (2) safe alternate-source switching, (3) bookmarks, and (4) server-side offline chapter cache. NovelReader remains single-user while authentication/profiles are out of scope.
+
+The resume slice reuses existing `books.dur_chapter_index`/`dur_chapter_pos` rather than adding schema: validate progress writes and missing books, expose both values through the typed client, continue from shelf/detail, restore normalized in-chapter position after content renders, debounce persistence, avoid stale chapter fetches, skip volume-only TOC rows, and keep progress display accurate. Completion requires store/API regressions plus desktop/mobile reader verification across reload and direct deep links.
+
+Source switching will preserve progress/bookmarks per source and attempt migration in this order: normalized chapter-title match, then clamped raw chapter index as a deliberately approximate fallback. The switch must prove the target source/TOC before committing and must remain reversible. Offline means processed chapter content persisted server-side under bounded retention so reading survives upstream outages; browser-disconnected PWA behavior remains out of scope.
+
 ### Phase 7 — Strict per-source Explore/Discover
 
 **Status:** complete on 2026-07-18; Phase 4's crawl-pipeline completion gate passed on 2026-07-16.
@@ -404,7 +412,7 @@ Every significant booksource-engine change must follow this loop:
 
 **In progress:** Phase 7 is complete. On 2026-07-18 at `07:55:32+08:00`, a fresh server imported all 939 entries from raw SHA-256 `23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c`. Playwright selected raw index 1, `https://bcshuku.com/` (`fe69c1a83eed3cffea1354cb8bb93378a650d272aefc47f870267269767cc24c`), opened the `长篇` category, and executed `GET https://bcshuku.com/booklist1/0.html` through normal transport after direct curl returned HTTP 200 with 11,507 bytes. Its pinned XPath/field rules produced 20 visible books; adding the first result loaded live detail, a 6-chapter TOC, and readable first-chapter Chinese content with a clean console. The deterministic local source separately verified control refresh, duplicate-only exhaustion, mobile/desktop layout, and the same detail/TOC/content handoff. Current environment had no Patchright installation, so raw WebView Explore was not rerun; deterministic selected-WebView API/transport coverage passes, unavailable WebView returns explicit 501, and the earlier raw-index-213 Patchright evidence remains recorded above. A 200-request, concurrency-16 imported-source catalog run had 0 failures, 1.282 ms median, 2.396 ms p95, and 3.644 ms max localhost latency. Final review found and fixed pooled JS global leakage, concurrent-rate reservation collapse, swallowed strict result-rule errors, retained-result growth, and loaded-library loss; full and race suites pass. Broad aesthetic polish and formal accessibility auditing remain deferred as requested. The unrelated local `AGENTS.md` modification remains uncommitted and untouched.
 
-**Next action:** Choose the next Phase 6 slice: source debug/health, source editor/import validation, or reading-state features; keep frontend aesthetic polish as a dedicated later pass.
+**Next action:** Implement the first reading-state slice: compatibility guards and validated progress persistence, then chapter/scroll resume across shelf, detail, reader reload, and deep links. Source switching, bookmarks, and server-side offline cache follow in that order; frontend aesthetic polish remains a dedicated later pass.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
