@@ -2,10 +2,16 @@ package analyzer
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/PaesslerAG/jsonpath"
+)
+
+var (
+	errInvalidJSONInput = errors.New("json: invalid input")
+	errInvalidJSONPath  = errors.New("json: invalid path")
 )
 
 // jsonQueryElement evaluates JSONPath without flattening objects or arrays.
@@ -23,6 +29,9 @@ func jsonQuery(content, expr string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if value, matched, interpolationErr := interpolateJSON(root, expr); matched || interpolationErr != nil {
+		return value, interpolationErr
+	}
 	value, err := selectJSONValue(root, expr)
 	if err != nil {
 		return "", err
@@ -35,6 +44,12 @@ func jsonQueryList(content, expr string) ([]string, error) {
 	root, err := parseJSONValue(content)
 	if err != nil {
 		return nil, err
+	}
+	if value, matched, interpolationErr := interpolateJSON(root, expr); matched || interpolationErr != nil {
+		if interpolationErr != nil {
+			return nil, interpolationErr
+		}
+		return []string{value}, nil
 	}
 	value, err := selectJSONValue(root, expr)
 	if err != nil {
@@ -79,9 +94,42 @@ func jsonQueryElements(content, expr string) ([]interface{}, error) {
 func parseJSONValue(content string) (interface{}, error) {
 	var root interface{}
 	if err := json.Unmarshal([]byte(content), &root); err != nil {
-		return nil, fmt.Errorf("json: decode: %w", err)
+		return nil, fmt.Errorf("%w: %v", errInvalidJSONInput, err)
 	}
 	return root, nil
+}
+
+func interpolateJSON(root interface{}, expression string) (string, bool, error) {
+	var output strings.Builder
+	matched := false
+	for offset := 0; offset < len(expression); {
+		start := strings.Index(expression[offset:], "{$")
+		if start < 0 {
+			output.WriteString(expression[offset:])
+			break
+		}
+		start += offset
+		if start > 0 && expression[start-1] == '{' {
+			output.WriteString(expression[offset : start+2])
+			offset = start + 2
+			continue
+		}
+		end := strings.IndexByte(expression[start+2:], '}')
+		if end < 0 {
+			output.WriteString(expression[offset:])
+			break
+		}
+		end += start + 2
+		output.WriteString(expression[offset:start])
+		value, err := selectJSONValue(root, expression[start+1:end])
+		if err != nil {
+			return "", true, err
+		}
+		output.WriteString(ToString(value))
+		matched = true
+		offset = end + 1
+	}
+	return output.String(), matched, nil
 }
 
 func selectJSONValue(root interface{}, expr string) (interface{}, error) {
@@ -104,5 +152,5 @@ func classifyJSONPathError(err error) error {
 	if strings.HasPrefix(message, "unknown key ") || strings.HasPrefix(message, "index ") && strings.HasSuffix(message, " out of bounds") {
 		return fmt.Errorf("%w: %s", ErrNoElements, message)
 	}
-	return fmt.Errorf("json: %w", err)
+	return fmt.Errorf("%w: %v", errInvalidJSONPath, err)
 }

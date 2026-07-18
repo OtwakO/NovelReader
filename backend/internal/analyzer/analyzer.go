@@ -32,6 +32,9 @@ func splitTopLevel(s, sep string) []string {
 	start := 0
 	for i := 0; i < len(s); i++ {
 		switch {
+		case i+3 < len(s) && strings.EqualFold(s[i:i+4], "@js:") && !inJS:
+			inJS = true
+			i += 3
 		case i+3 < len(s) && s[i:i+4] == "<js>":
 			inJS = true
 			i += 3
@@ -206,7 +209,11 @@ func (a *Analyzer) GetStringStrict(ruleStr string) (string, error) {
 	if parts := splitTopLevel(ruleStr, "&&"); len(parts) > 1 {
 		values := make([]string, 0, len(parts))
 		for _, part := range parts {
-			value, err := a.getFirstOrStrict(strings.TrimSpace(part))
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			value, err := a.getFirstOrStrict(part)
 			if err != nil && !errors.Is(err, ErrNoElements) {
 				return "", err
 			}
@@ -223,14 +230,28 @@ func (a *Analyzer) GetStringStrict(ruleStr string) (string, error) {
 }
 
 func (a *Analyzer) getFirstOrStrict(ruleStr string) (string, error) {
+	var firstCompatibilityErr error
 	for _, segment := range splitTopLevel(ruleStr, "||") {
-		rules, err := ParseRules(strings.TrimSpace(segment), a.isJSON)
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			continue
+		}
+		rules, err := ParseRules(segment, a.isJSON)
 		if err != nil {
 			return "", err
 		}
 		value, err := a.evalString(rules)
 		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return "", err
+			}
 			if errors.Is(err, ErrNoElements) {
+				continue
+			}
+			if errors.Is(err, errInvalidJSONInput) || errors.Is(err, errInvalidJSONPath) {
+				if firstCompatibilityErr == nil {
+					firstCompatibilityErr = err
+				}
 				continue
 			}
 			return "", err
@@ -238,6 +259,9 @@ func (a *Analyzer) getFirstOrStrict(ruleStr string) (string, error) {
 		if value != "" {
 			return value, nil
 		}
+	}
+	if firstCompatibilityErr != nil {
+		return "", firstCompatibilityErr
 	}
 	return "", ErrNoElements
 }
@@ -467,10 +491,14 @@ func (a *Analyzer) getElementsOR(ruleStr string) ([]interface{}, error) {
 // evalString evaluates a chain of rules returning a single string.
 func (a *Analyzer) evalString(rules []Rule) (string, error) {
 	current := a.content
-	for _, rule := range rules {
+	for index, rule := range rules {
 		var err error
 		current, err = a.applyRuleString(current, rule)
 		if err != nil {
+			if errors.Is(err, errInvalidJSONInput) && rule.Mode == ModeJSON && index+1 < len(rules) && rules[index+1].Mode == ModeJS {
+				current = ""
+				continue
+			}
 			return "", err
 		}
 	}

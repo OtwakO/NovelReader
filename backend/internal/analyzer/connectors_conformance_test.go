@@ -23,6 +23,22 @@ func TestGetStringListCombinesAndInterleavesLegadoRules(t *testing.T) {
 	}
 }
 
+func TestStrictConnectorsSkipIncompatibleAndBlankBranches(t *testing.T) {
+	an := New(`{"name":"fallback"}`, "https://example.test/", NewJSVM(), nil)
+
+	value, err := an.GetStringStrict(`a.0@text||name`)
+	if err != nil || value != "fallback" {
+		t.Fatalf("incompatible fallback value=%q err=%v", value, err)
+	}
+	value, err = an.GetStringStrict(`name&&`)
+	if err != nil || value != "fallback" {
+		t.Fatalf("trailing && value=%q err=%v", value, err)
+	}
+	if _, err := an.GetStringStrict(`@js:throw new Error('broken')||name`); err == nil {
+		t.Fatal("JavaScript failure was incorrectly treated as a fallback miss")
+	}
+}
+
 func join(values []string) string {
 	result := ""
 	for i, value := range values {

@@ -36,6 +36,33 @@ func TestGetStringStrictAllowsMissingFallbackButPropagatesCompositeScriptErrors(
 	}
 }
 
+func TestSingleBraceJSONInterpolationUsesCurrentValue(t *testing.T) {
+	an := New(`{"grade":"9.2","crazy_rating":"8.7"}`, "https://fixture.test", NewJSVM(), nil)
+
+	for rule, want := range map[string]string{
+		`{$.grade}分`:                      "9.2分",
+		`评分 {$.grade} / {$.crazy_rating}`: "评分 9.2 / 8.7",
+		`{$.grade}分##分## points`:          "9.2 points",
+	} {
+		value, err := an.GetStringStrict(rule)
+		if err != nil || value != want {
+			t.Errorf("rule %q value=%q err=%v, want %q", rule, value, err, want)
+		}
+	}
+}
+
+func TestOptionalJSONPathCanFeedJavaScriptDefault(t *testing.T) {
+	an := New(`<article class="articlegeneral">book</article>`, "https://fixture.test", NewJSVM(), nil)
+
+	value, err := an.GetStringStrict("$.thumbnail\n@js:result || 'fallback.jpg'")
+	if err != nil || value != "fallback.jpg" {
+		t.Fatalf("pipeline value=%q err=%v", value, err)
+	}
+	if _, err := an.GetStringStrict(`$.thumbnail`); err == nil {
+		t.Fatal("terminal JSONPath against HTML did not fail")
+	}
+}
+
 func TestRuleTemplatesAndNewlineJavaScriptUseCurrentJSONValue(t *testing.T) {
 	an := New(`{"id":"42","fallback":"A"}`, "https://fixture.test", NewJSVM(), nil)
 	for _, test := range []struct {
