@@ -123,8 +123,11 @@ func (s *Server) registerRoutes() {
 	// Progress
 	s.mux.HandleFunc("PUT /api/books/{id}/progress", s.handleUpdateProgress)
 
-	// Source switching
+	// Source switching and bookmarks
 	s.mux.HandleFunc("PUT /api/books/{id}/source", s.handleSwitchSource)
+	s.mux.HandleFunc("GET /api/books/{id}/bookmarks", s.handleListBookmarks)
+	s.mux.HandleFunc("POST /api/books/{id}/bookmarks", s.handleAddBookmark)
+	s.mux.HandleFunc("DELETE /api/books/{id}/bookmarks/{bookmarkID}", s.handleDeleteBookmark)
 
 	// Fonts — IDs are simple UUIDs/timestamps, path-safe
 	s.mux.HandleFunc("GET /api/fonts", s.handleListFonts)

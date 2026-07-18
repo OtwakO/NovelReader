@@ -382,6 +382,33 @@ export function switchBookSource(bookId: string, sourceUrl: string, bookUrl: str
   });
 }
 
+export interface Bookmark {
+  id: string;
+  bookId: string;
+  chapterIndex: number;
+  chapterTitle: string;
+  position: number;
+  note: string;
+  orphaned: boolean;
+  createdAt: number;
+}
+
+export function listBookmarks(bookId: string) {
+  return req<Bookmark[]>(`/books/${encodeURIComponent(bookId)}/bookmarks`);
+}
+
+export function addBookmark(bookId: string, bookmark: {
+  id: string; sourceUrl: string; stateVersion: number; chapterIndex: number; position: number; note: string;
+}) {
+  return req<Bookmark>(`/books/${encodeURIComponent(bookId)}/bookmarks`, {
+    method: 'POST', body: JSON.stringify(bookmark),
+  });
+}
+
+export function deleteBookmark(bookId: string, bookmarkId: string) {
+  return req<{ status: string }>(`/books/${encodeURIComponent(bookId)}/bookmarks/${encodeURIComponent(bookmarkId)}`, { method: 'DELETE' });
+}
+
 export function saveProgress(
   bookId: string,
   sourceUrl: string,

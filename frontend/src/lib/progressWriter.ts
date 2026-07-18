@@ -14,6 +14,10 @@ export function setProgressVersion(bookId: string, stateVersion: number) {
   versions.set(bookId, stateVersion);
 }
 
+export function getProgressVersion(bookId: string): number | undefined {
+  return versions.get(bookId);
+}
+
 export function queueProgressWrite(bookId: string, sourceUrl: string, chapterIndex: number, position: number): Promise<void> {
   return progressQueue.write(bookId, sourceUrl, chapterIndex, position);
 }

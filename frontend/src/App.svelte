@@ -66,7 +66,8 @@
     {:else if route === 'book'}
       <BookDetail bookId={params.id || ''} {go} />
     {:else if route === 'read'}
-      <Reader bookId={params.id || ''} chapterIdx={params.chapter === undefined ? undefined : parseInt(params.chapter)} {go} />
+      <Reader bookId={params.id || ''} chapterIdx={params.chapter === undefined ? undefined : parseInt(params.chapter)}
+        locationPos={params.position === undefined ? undefined : parseFloat(params.position)} {go} />
     {:else if route === 'settings'}
       <Settings />
     {:else}

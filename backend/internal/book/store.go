@@ -134,6 +134,17 @@ func (s *Store) Init() error {
 			FOREIGN KEY (book_id) REFERENCES books(id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_chapters_book_id ON chapters(book_id)`,
+		`CREATE TABLE IF NOT EXISTS bookmarks (
+			id TEXT PRIMARY KEY,
+			book_id TEXT NOT NULL,
+			chapter_index INTEGER NOT NULL,
+			chapter_title TEXT NOT NULL,
+			position REAL NOT NULL,
+			note TEXT DEFAULT '',
+			orphaned INTEGER DEFAULT 0,
+			created_at INTEGER NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_bookmarks_book_id ON bookmarks(book_id, created_at DESC)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := s.db.Exec(stmt); err != nil {
@@ -202,12 +213,21 @@ func (s *Store) AddBook(b *Book) error {
 
 // DeleteBook removes a book from the shelf.
 func (s *Store) DeleteBook(id string) error {
-	_, err := s.db.Exec(`DELETE FROM chapters WHERE book_id = ?`, id)
+	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`DELETE FROM books WHERE id = ?`, id)
-	return err
+	defer tx.Rollback() //nolint:errcheck
+	if _, err := tx.Exec(`DELETE FROM bookmarks WHERE book_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM chapters WHERE book_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM books WHERE id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ListBooks returns all books on the shelf.

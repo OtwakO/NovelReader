@@ -1,25 +1,28 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import { getBook, getChapterContent, getChapters, listFonts, getFontUrl, type Chapter, type ChapterContent } from '../api/client';
-  import { adjacentChapterIndex, normalizedScroll, resolveChapterIndex, scrollTopForProgress } from './readingProgress.js';
-  import { queueProgressWrite, setProgressVersion, waitForProgressWrites } from './progressWriter';
+  import { adjacentChapterIndex, clampProgress, normalizedScroll, resolveChapterIndex, scrollTopForProgress } from './readingProgress.js';
+  import { getProgressVersion, queueProgressWrite, setProgressVersion, waitForProgressWrites } from './progressWriter';
+  import ReaderBookmarks from './ReaderBookmarks.svelte';
   import ReaderSettings from './ReaderSettings.svelte';
 
-  let { bookId, chapterIdx, go }: { bookId: string; chapterIdx?: number; go: (path: string) => void } = $props();
+  let { bookId, chapterIdx, locationPos, go }: { bookId: string; chapterIdx?: number; locationPos?: number; go: (path: string) => void } = $props();
   let fontSize = $state(18), lineHeight = $state(1.8), fontWeight = $state(400);
   let bgColor = $state('#f5f0eb'), textColor = $state('#3a3a3a');
   let fontFamily = $state("'Georgia', 'Noto Serif SC', serif"), showSettings = $state(false);
   let content = $state<ChapterContent | null>(null), chapters = $state<Chapter[]>([]);
   let currentIdx = $state(0), loading = $state(true), error = $state(''), progressError = $state('');
+  let showBookmarks = $state(false);
   let fonts = $state<{ id: string; name: string; url: string }[]>([]);
-  let root: HTMLElement, scrollHost: HTMLElement | null = null, loadedRoute = '', sourceURL = '';
+  let root: HTMLElement, scrollHost: HTMLElement | null = null, loadedRoute = '';
+  let sourceURL = $state('');
   let generation = 0, restoring = false, destroyed = false, lastPosition = 0;
   let progressTimer: ReturnType<typeof setTimeout> | undefined;
   let previousIdx = $derived(adjacentChapterIndex(chapters, currentIdx, -1));
   let nextIdx = $derived(adjacentChapterIndex(chapters, currentIdx, 1));
 
   $effect(() => {
-    const route = `${bookId}:${chapterIdx === undefined ? 'resume' : chapterIdx}`;
+    const route = `${bookId}:${chapterIdx === undefined ? 'resume' : chapterIdx}:${Number.isFinite(locationPos) ? locationPos : ''}`;
     if (route !== loadedRoute) {
       loadedRoute = route;
       void load(route);
@@ -53,7 +56,7 @@
       setProgressVersion(bookId, book.stateVersion);
       const index = resolveChapterIndex(nextChapters, chapterIdx, book.durChapterIndex);
       if (index === null) throw new Error('This book has no readable chapters');
-      const position = index === book.durChapterIndex ? book.durChapterPos || 0 : 0;
+      const position = Number.isFinite(locationPos) ? clampProgress(locationPos) : index === book.durChapterIndex ? book.durChapterPos || 0 : 0;
       lastPosition = position;
       const nextContent = await getChapterContent(bookId, index);
       if (request !== generation || route !== loadedRoute) return;
@@ -100,6 +103,16 @@
     }
   }
 
+  async function captureBookmark() {
+    if (!content || !scrollHost) throw new Error('Reading position is not ready');
+    lastPosition = normalizedScroll(scrollHost.scrollTop, scrollHost.scrollHeight, scrollHost.clientHeight);
+    if (progressTimer) clearTimeout(progressTimer);
+    await persistProgress();
+    const stateVersion = getProgressVersion(bookId);
+    if (stateVersion === undefined) throw new Error('Reading state is not ready');
+    return { position: lastPosition, stateVersion };
+  }
+
   async function navigateChapter(index: number | null) {
     if (index === null) return;
     if (progressTimer) clearTimeout(progressTimer);
@@ -119,6 +132,8 @@
 <div bind:this={root} class="reader-container" style="background: {bgColor}; color: {textColor};">
   <ReaderSettings bind:show={showSettings} bind:fontSize bind:lineHeight bind:fontWeight
     bind:bgColor bind:textColor bind:fontFamily {fonts} />
+  <ReaderBookmarks bind:show={showBookmarks} {bookId} sourceUrl={sourceURL} chapterIndex={currentIdx}
+    capture={captureBookmark} open={(index, position) => go(`read?id=${bookId}&chapter=${index}&position=${position}`)} />
 
   <!-- Reader content -->
   <div
@@ -144,6 +159,8 @@
     <button class="ctrl-btn settings-btn" onclick={() => showSettings = !showSettings} aria-label="Typography settings">
       {showSettings ? '✕' : 'Aa'}
     </button>
+
+    <button class="ctrl-btn settings-btn" onclick={() => showBookmarks = !showBookmarks} aria-label="Bookmarks">🔖</button>
 
     <button class="ctrl-btn" onclick={() => navigateChapter(nextIdx)} disabled={nextIdx === null}>Next →</button>
   </div>
