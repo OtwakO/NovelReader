@@ -145,6 +145,19 @@ func (s *Store) Init() error {
 			created_at INTEGER NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_bookmarks_book_id ON bookmarks(book_id, created_at DESC)`,
+		`CREATE TABLE IF NOT EXISTS chapter_cache (
+			book_id TEXT NOT NULL,
+			source_url TEXT NOT NULL,
+			chapter_index INTEGER NOT NULL,
+			chapter_url TEXT NOT NULL,
+			title TEXT NOT NULL,
+			paragraphs TEXT NOT NULL,
+			cached_at INTEGER NOT NULL,
+			last_accessed INTEGER NOT NULL,
+			PRIMARY KEY (book_id, source_url, chapter_index)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_chapter_cache_lru ON chapter_cache(last_accessed)`,
+		`CREATE INDEX IF NOT EXISTS idx_chapter_cache_book_lru ON chapter_cache(book_id, last_accessed)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := s.db.Exec(stmt); err != nil {
@@ -219,6 +232,9 @@ func (s *Store) DeleteBook(id string) error {
 	}
 	defer tx.Rollback() //nolint:errcheck
 	if _, err := tx.Exec(`DELETE FROM bookmarks WHERE book_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM chapter_cache WHERE book_id = ?`, id); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM chapters WHERE book_id = ?`, id); err != nil {

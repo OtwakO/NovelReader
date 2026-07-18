@@ -560,10 +560,16 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 
 	src, err := s.sourceStore.GetByID(b.SourceURL)
 	if err != nil {
+		if s.writeChapterCacheFallback(w, b, ch) {
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "load source failed")
 		return
 	}
 	if src == nil {
+		if s.writeChapterCacheFallback(w, b, ch) {
+			return
+		}
 		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
 		return
 	}
@@ -576,7 +582,13 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	rawContent, contentTitle, err := s.searcher.GetChapterContentForBook(*src, b, ch, next)
+	if err == nil && strings.TrimSpace(rawContent) == "" {
+		err = errors.New("content: empty extraction")
+	}
 	if err != nil {
+		if s.writeChapterCacheFallback(w, b, ch) {
+			return
+		}
 		writeCrawlError(w, "content", err)
 		return
 	}
@@ -588,8 +600,9 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 
 	proc := processor.New(s.processorCfg)
 	result := proc.Process(displayTitle, rawContent)
+	s.saveChapterCache(b, ch, result)
 
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, chapterContentResponse{Title: result.Title, Paragraphs: result.Paragraphs})
 }
 
 // --- Progress ---

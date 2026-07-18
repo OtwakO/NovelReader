@@ -145,6 +145,9 @@
     {:else if error}
       <p class="reader-error" role="alert">{error}</p>
     {:else if content}
+      {#if content.offlineCopy}
+        <p class="offline-copy" role="status">Offline copy — the source is currently unavailable.</p>
+      {/if}
       {#each content.paragraphs as p}
         <p class="paragraph">{p}</p>
       {/each}
@@ -196,6 +199,7 @@
   }
   .loading { opacity: 0.5; }
   .reader-error, .progress-error { color: #b42318; }
+  .offline-copy { margin-bottom: 1rem; padding: 0.6rem; border: 1px solid #b7791f; border-radius: 6px; color: #7a4f12; font-size: 0.85rem; }
   .progress-error { margin: 0; padding: 0.35rem 1rem; text-align: center; font-size: 0.8rem; }
 
   .reader-footer {

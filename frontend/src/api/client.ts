@@ -359,6 +359,7 @@ export interface Chapter {
 export interface ChapterContent {
   title: string;
   paragraphs: string[];
+  offlineCopy: boolean;
 }
 
 export function getChapters(bookId: string) {
@@ -370,7 +371,8 @@ export function getChapterContent(bookId: string, chapterIdx: number) {
     `/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content`
   ).then(data => ({
     title: data.title || data.Title || '',
-    paragraphs: data.paragraphs || data.Paragraphs || []
+    paragraphs: data.paragraphs || data.Paragraphs || [],
+    offlineCopy: Boolean(data.offlineCopy)
   }));
 }
 
