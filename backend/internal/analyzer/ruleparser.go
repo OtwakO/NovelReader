@@ -286,6 +286,12 @@ func looksLikeDefault(expr string) bool {
 		return false
 	}
 
+	// A terminal !index is Legado exclusion syntax even when the selector
+	// before it is otherwise valid CSS (`#articlelist li!0`).
+	if _, _, ok := cutDefaultExclusion(strings.TrimSpace(expr)); ok {
+		return true
+	}
+
 	// No @: check for Default patterns (multi-segment with type prefix, or numeric index)
 	dotSegments := strings.Split(expr, ".")
 
@@ -314,8 +320,16 @@ func looksLikeDefault(expr string) bool {
 
 // isDefaultGetter returns true if s is a known Default-mode getter keyword.
 func isDefaultElementSelector(s string) bool {
+	if base, _, ok := cutDefaultExclusion(strings.TrimSpace(s)); ok {
+		s = base
+	}
+	if strings.HasPrefix(s, ".") || strings.HasPrefix(s, "#") {
+		return true
+	}
 	name := strings.ToLower(strings.SplitN(s, ".", 2)[0])
 	switch name {
+	case "class", "id", "tag", "children":
+		return true
 	case "a", "article", "body", "dd", "div", "dl", "dt", "h1", "h2", "h3", "h4", "h5", "h6", "img", "li", "main", "ol", "p", "section", "span", "table", "tbody", "td", "th", "tr", "ul":
 		return true
 	}

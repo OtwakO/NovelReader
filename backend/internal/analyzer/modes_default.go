@@ -146,7 +146,7 @@ func parseDefault(expr string) ([]defaultSegment, string, error) {
 		}
 		// A single explicit Default selector such as
 		// `class.foo bar` is still a selector, not CSS.
-		if seg, parseErr := parseDefaultSegment(parts[0]); parseErr == nil && seg.selType != "css" {
+		if seg, parseErr := parseDefaultSegment(parts[0]); parseErr == nil && (seg.selType != "css" || len(seg.exclude) > 0) {
 			return []defaultSegment{seg}, "", nil
 		}
 		return []defaultSegment{{selType: "css", selVal: expr, noIndex: true}}, "", nil
@@ -182,6 +182,15 @@ func parseDefaultSegment(seg string) (defaultSegment, error) {
 	seg = strings.TrimSpace(seg)
 	if seg == "" {
 		return defaultSegment{}, fmt.Errorf("empty segment")
+	}
+	if base, index, ok := cutDefaultExclusion(seg); ok {
+		parsed, err := parseDefaultSegment(base)
+		if err != nil {
+			return defaultSegment{}, err
+		}
+		parsed.noIndex = true
+		parsed.exclude = []int{index}
+		return parsed, nil
 	}
 
 	// Check for <js> or @js: inline — passthrough as CSS (handled by caller)
@@ -301,71 +310,85 @@ func parseIntOrZero(s string) int {
 	return n
 }
 
-// applyDefaultSegment applies one segment to a goquery selection.
-func applyDefaultSegment(sel *goquery.Selection, seg defaultSegment) *goquery.Selection {
+var defaultExclusion = regexp.MustCompile(`^(.*)!(-?[0-9]+)$`)
+
+func cutDefaultExclusion(segment string) (string, int, bool) {
+	match := defaultExclusion.FindStringSubmatch(segment)
+	if len(match) != 3 || strings.TrimSpace(match[1]) == "" {
+		return segment, 0, false
+	}
+	index, err := strconv.Atoi(match[2])
+	return strings.TrimSpace(match[1]), index, err == nil
+}
+
+// applyDefaultSegment traverses each current parent independently so positional
+// selectors retain one match per book/card container, as Legado does.
+func applyDefaultSegment(parents *goquery.Selection, seg defaultSegment) *goquery.Selection {
+	result := parents.Slice(0, 0)
+	parents.Each(func(_ int, parent *goquery.Selection) {
+		selected := selectDefaultDescendants(parent, seg)
+		selected = applyDefaultPosition(selected, seg)
+		result = result.AddSelection(selected)
+	})
+	return result
+}
+
+func selectDefaultDescendants(sel *goquery.Selection, seg defaultSegment) *goquery.Selection {
 	switch seg.selType {
 	case "children":
 		return sel.Children()
 	case "class":
-		if seg.selVal != "" {
-			// Legado accepts space-separated class names as one element
-			// selector, not descendant traversal.
-			classes := strings.Fields(seg.selVal)
-			selector := "." + strings.Join(classes, ".")
-			sel = sel.Find(selector)
+		classes := strings.Fields(seg.selVal)
+		if len(classes) > 0 {
+			return sel.Find("." + strings.Join(classes, "."))
 		}
 	case "id":
 		if seg.selVal != "" {
-			sel = sel.Find("#" + seg.selVal)
+			return sel.Find("#" + seg.selVal)
 		}
 	case "tag":
 		if seg.selVal != "" {
-			sel = sel.Find(seg.selVal)
+			return sel.Find(seg.selVal)
 		}
 	case "text":
 		if seg.selVal != "" {
-			sel = sel.Find(":contains('" + seg.selVal + "')")
+			return sel.Find(":contains('" + seg.selVal + "')")
 		}
 	case "css":
-		sel = applyDefaultCSS(sel, seg.selVal)
+		return applyDefaultCSS(sel, seg.selVal)
 	}
+	return sel.Slice(0, 0)
+}
 
+func applyDefaultPosition(sel *goquery.Selection, seg defaultSegment) *goquery.Selection {
 	if sel.Length() == 0 {
 		return sel
 	}
-
-	// Apply index/exclude
 	if !seg.noIndex && len(seg.exclude) == 0 {
-		// Resolve negative indices (e.g. -1 = last, -2 = second-to-last)
-		idx := seg.index
-		if idx < 0 {
-			idx = sel.Length() + idx
+		index := resolveDefaultIndex(seg.index, sel.Length())
+		if index >= 0 && index < sel.Length() {
+			return sel.Eq(index)
 		}
-		if idx >= 0 && idx < sel.Length() {
-			return sel.Eq(idx)
-		}
-		return sel
+		return sel.Slice(0, 0)
 	}
-
-	// Apply exclusions
 	if len(seg.exclude) > 0 {
-		excludeSet := make(map[int]bool)
-		for _, e := range seg.exclude {
-			excludeSet[e] = true
-		}
-		var filtered []int
-		for i := 0; i < sel.Length(); i++ {
-			if !excludeSet[i] {
-				filtered = append(filtered, i)
+		excluded := make(map[int]bool, len(seg.exclude))
+		for _, index := range seg.exclude {
+			resolved := resolveDefaultIndex(index, sel.Length())
+			if resolved >= 0 && resolved < sel.Length() {
+				excluded[resolved] = true
 			}
 		}
-		if len(filtered) == 0 {
-			return sel
-		}
-		return sel.Eq(filtered[0])
+		return sel.FilterFunction(func(index int, _ *goquery.Selection) bool { return !excluded[index] })
 	}
-
 	return sel
+}
+
+func resolveDefaultIndex(index, length int) int {
+	if index < 0 {
+		return length + index
+	}
+	return index
 }
 
 var defaultEqSelector = regexp.MustCompile(`^(.*):eq\((-?[0-9]+)\)(.*)$`)
