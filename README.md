@@ -1,6 +1,6 @@
 # NovelReader
 
-NovelReader is a web-first novel reader with a Legado-compatible booksource engine. It imports raw Legado source JSON, supports source-native Explore catalogs alongside cross-source search, executes regular and JavaScript sources through a shared request/session pipeline, and routes browser-backed sources through an optional WebView worker.
+NovelReader is a web-first novel reader with a Legado-compatible booksource engine. It imports raw Legado source JSON, supports source-native Explore catalogs alongside cross-source search, saves chapter and in-chapter reading progress, executes regular and JavaScript sources through a shared request/session pipeline, and routes browser-backed sources through an optional WebView worker.
 
 ## Local setup
 

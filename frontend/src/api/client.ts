@@ -283,6 +283,7 @@ export interface Book {
   bookUrl: string;
   lastChapter: string;
   durChapterIndex: number;
+  durChapterPos: number;
   totalChapterNum: number;
   alternateSources?: AltSource[];
 }
@@ -350,6 +351,7 @@ export interface Chapter {
   index: number;
   title: string;
   url: string;
+  isVolume: boolean;
 }
 
 export interface ChapterContent {

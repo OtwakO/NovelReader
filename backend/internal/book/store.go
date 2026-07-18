@@ -4,8 +4,15 @@ package book
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"time"
+)
+
+var (
+	ErrBookNotFound    = errors.New("book: not found")
+	ErrInvalidProgress = errors.New("book: invalid progress")
 )
 
 // AltSource is a secondary source for the same book.
@@ -129,6 +136,9 @@ func (s *Store) Init() error {
 		if _, err := s.db.Exec(stmt); err != nil {
 			return fmt.Errorf("book: init: %w", err)
 		}
+	}
+	if err := ensureColumn(s.db, "books", "alternate_sources", "TEXT DEFAULT '[]'"); err != nil {
+		return fmt.Errorf("book: init column alternate_sources: %w", err)
 	}
 	for _, column := range []struct{ name, definition string }{
 		{"is_pay", "INTEGER DEFAULT 0"},
@@ -255,9 +265,22 @@ func (s *Store) GetChapters(bookID string) ([]Chapter, error) {
 
 // UpdateProgress saves reading progress and total chapter count for a book.
 func (s *Store) UpdateProgress(bookID string, chapterIndex int, position float64) error {
-	_, err := s.db.Exec(`UPDATE books SET dur_chapter_index = ?, dur_chapter_pos = ?, updated_at = ? WHERE id = ?`,
+	if chapterIndex < 0 || math.IsNaN(position) || math.IsInf(position, 0) || position < 0 || position > 1 {
+		return ErrInvalidProgress
+	}
+	result, err := s.db.Exec(`UPDATE books SET dur_chapter_index = ?, dur_chapter_pos = ?, updated_at = ? WHERE id = ?`,
 		chapterIndex, position, time.Now().UnixMilli(), bookID)
-	return err
+	if err != nil {
+		return err
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		return ErrBookNotFound
+	}
+	return nil
 }
 
 // UpdateTotalChapters updates the total chapter count for a book.

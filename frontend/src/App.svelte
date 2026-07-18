@@ -66,7 +66,7 @@
     {:else if route === 'book'}
       <BookDetail bookId={params.id || ''} {go} />
     {:else if route === 'read'}
-      <Reader bookId={params.id || ''} chapterIdx={parseInt(params.chapter || '0')} {go} />
+      <Reader bookId={params.id || ''} chapterIdx={params.chapter === undefined ? undefined : parseInt(params.chapter)} {go} />
     {:else if route === 'settings'}
       <Settings />
     {:else}
@@ -90,7 +90,7 @@
   :global(img) { max-width: 100%; }
 
   .app {
-    min-height: 100dvh; display: flex; flex-direction: column;
+    height: 100dvh; overflow: hidden; display: flex; flex-direction: column;
   }
 
   .app-header {

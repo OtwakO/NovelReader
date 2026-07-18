@@ -1,5 +1,6 @@
 <script lang="ts">
   import { listBooks, type Book } from '../api/client';
+  import { chapterProgressPercent } from './readingProgress.js';
 
   let { go }: { go: (path: string) => void } = $props();
 
@@ -40,7 +41,8 @@
   {:else}
     <div class="book-list">
       {#each books as b (b.id)}
-        <button class="book-card" onclick={() => go(`book?id=${b.id}`)}>
+        <div class="book-card">
+          <a class="book-open" href={`#/book?id=${b.id}`} aria-label={`Open details for ${b.name}`}>
           {#if b.coverUrl && !brokenCovers.has(b.id)}
             <img src={b.coverUrl} alt={b.name} class="cover" loading="lazy" onerror={() => coverFailed(b.id)} />
           {:else}
@@ -58,12 +60,16 @@
               </span>
               {#if b.totalChapterNum > 0}
                 <div class="prog-bar">
-                  <div class="prog-fill" style="width: {Math.min(100, (b.durChapterIndex / b.totalChapterNum) * 100)}%"></div>
+                  <div class="prog-fill" style={`width: ${chapterProgressPercent(b.durChapterIndex, b.totalChapterNum)}%`}></div>
                 </div>
               {/if}
             </div>
           </div>
-        </button>
+          </a>
+          {#if b.totalChapterNum > 0}
+            <a class="resume" href={`#/read?id=${b.id}`}>Continue</a>
+          {/if}
+        </div>
       {/each}
     </div>
   {/if}
@@ -85,13 +91,19 @@
   .book-list { display: flex; flex-direction: column; gap: 0.75rem; }
 
   .book-card {
-    display: flex; gap: 0.75rem; padding: 0.75rem;
-    background: var(--card-bg); border: 1px solid var(--border);
-    border-radius: 12px; cursor: pointer; text-align: left;
-    width: 100%; transition: border-color 0.15s;
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
   }
   .book-card:hover { border-color: var(--accent); }
-  .book-card:active { transform: scale(0.99); }
+  .book-open {
+    display: flex; flex: 1; min-width: 0; gap: 0.75rem; padding: 0;
+    background: none; border: 0; color: inherit; cursor: pointer; text-align: left; text-decoration: none;
+  }
+  .resume {
+    min-height: 2.5rem; padding: 0.45rem 0.65rem; border: 1px solid var(--accent);
+    border-radius: 8px; background: none; color: var(--accent); cursor: pointer; text-decoration: none;
+    display: inline-flex; align-items: center;
+  }
 
   .cover {
     width: 64px; height: 88px; object-fit: cover; border-radius: 6px;

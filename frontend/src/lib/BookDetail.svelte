@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { listBooks, getChapters, type Book, type Chapter } from '../api/client';
+  import { getBook, getChapters, type Book, type Chapter } from '../api/client';
+  import { resolveChapterIndex } from './readingProgress.js';
 
   let { bookId, go }: { bookId: string; go: (path: string) => void } = $props();
 
@@ -9,6 +10,7 @@
   let error = $state('');
   let loadedBookId = '';
   let requestGeneration = 0;
+  let continueIndex = $derived(book ? resolveChapterIndex(chapters, undefined, book.durChapterIndex) : null);
 
   $effect(() => {
     const id = bookId;
@@ -32,10 +34,9 @@
     loading = true;
     error = '';
     try {
-      const books = await listBooks();
+      const nextBook = await getBook(id);
       if (generation !== requestGeneration) return;
-      const nextBook = books.find(b => b.id === id) || null;
-      const nextChapters = nextBook ? await getChapters(id) : [];
+      const nextChapters = await getChapters(id);
       if (generation !== requestGeneration) return;
       book = nextBook;
       chapters = nextChapters;
@@ -72,16 +73,26 @@
     {#if book.intro}
       <p class="intro">{book.intro}</p>
     {/if}
+    {#if continueIndex !== null}
+      <button class="continue" onclick={() => go(`read?id=${bookId}&chapter=${continueIndex}`)}>
+        {book.durChapterIndex > 0 || book.durChapterPos > 0 ? 'Continue reading' : 'Start reading'}
+      </button>
+    {/if}
 
-    <h3 class="ch-title">Chapters ({chapters.length})</h3>
+    <h3 class="ch-title">Chapters ({chapters.filter(chapter => !chapter.isVolume).length})</h3>
     <div class="chapter-list">
       {#each chapters as ch}
-        <button
-          class="chapter-item"
-          onclick={() => go(`read?id=${bookId}&chapter=${ch.index}`)}
-        >
-          {ch.title}
-        </button>
+        {#if ch.isVolume}
+          <h4 class="volume-title">{ch.title}</h4>
+        {:else}
+          <button
+            class="chapter-item"
+            class:current={ch.index === book.durChapterIndex}
+            onclick={() => go(`read?id=${bookId}&chapter=${ch.index}`)}
+          >
+            {ch.title}
+          </button>
+        {/if}
       {/each}
     </div>
   {/if}
@@ -97,8 +108,14 @@
   .kind { font-size: 0.8rem; color: var(--accent); }
   .last { font-size: 0.8rem; color: #999; margin-top: 0.25rem; }
   .intro { font-size: 0.85rem; color: #666; line-height: 1.5; margin-bottom: 1rem; }
+  .continue {
+    width: 100%; margin-bottom: 1rem; padding: 0.65rem; border: 1px solid var(--accent);
+    border-radius: 8px; background: var(--accent); color: white; cursor: pointer;
+  }
   .ch-title { font-size: 1rem; margin-bottom: 0.5rem; }
   .chapter-list { display: flex; flex-direction: column; gap: 0.25rem; }
+  .volume-title { margin: 0.65rem 0 0.2rem; font-size: 0.85rem; color: #666; }
+  .chapter-item.current { border-color: var(--accent); }
   .chapter-item {
     text-align: left; padding: 0.6rem 0.8rem; background: var(--card-bg);
     border: 1px solid var(--border); border-radius: 8px;

@@ -5,10 +5,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -592,17 +594,57 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 	bookID := r.PathValue("id")
 	var req struct {
-		ChapterIndex int     `json:"chapterIndex"`
-		Position     float64 `json:"position"`
+		ChapterIndex *int     `json:"chapterIndex"`
+		Position     *float64 `json:"position"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	defer r.Body.Close()
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "invalid progress request")
 		return
 	}
-	defer r.Body.Close()
-
-	if err := s.bookStore.UpdateProgress(bookID, req.ChapterIndex, req.Position); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "invalid progress request")
+		return
+	}
+	if req.ChapterIndex == nil || req.Position == nil || *req.ChapterIndex < 0 || math.IsNaN(*req.Position) || math.IsInf(*req.Position, 0) || *req.Position < 0 || *req.Position > 1 {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "chapterIndex and position are required and must be valid")
+		return
+	}
+	chapterIndex, position := *req.ChapterIndex, *req.Position
+	storedBook, err := s.bookStore.GetBook(bookID)
+	if err != nil {
+		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load book")
+		return
+	}
+	if storedBook == nil {
+		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+		return
+	}
+	chapters, err := s.bookStore.GetChapters(bookID)
+	if err != nil {
+		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load chapters")
+		return
+	}
+	validChapter := false
+	for _, chapter := range chapters {
+		if chapter.Index == chapterIndex && !chapter.IsVolume {
+			validChapter = true
+			break
+		}
+	}
+	if !validChapter {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "chapterIndex is not a readable chapter")
+		return
+	}
+	if err := s.bookStore.UpdateProgress(bookID, chapterIndex, position); err != nil {
+		if errors.Is(err, book.ErrBookNotFound) {
+			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+			return
+		}
+		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to save progress")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
