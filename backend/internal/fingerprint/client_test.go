@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -117,6 +118,31 @@ func TestFingerprintClientExecutesHead(t *testing.T) {
 	}
 	if response.StatusCode != http.StatusNoContent {
 		t.Fatalf("status=%d", response.StatusCode)
+	}
+}
+
+func TestFingerprintClientRetriesNonSuccessThroughFallback(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if requests.Add(1) == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte("retried"))
+	}))
+	defer server.Close()
+
+	fallback := fetcher.NewInsecure(5 * time.Second)
+	client, err := New(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true}, fallback)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.GetContext(t.Context(), server.URL, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Body != "retried" || requests.Load() != 2 {
+		t.Fatalf("body=%q requests=%d", response.Body, requests.Load())
 	}
 }
 

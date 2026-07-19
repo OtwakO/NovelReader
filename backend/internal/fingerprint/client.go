@@ -226,6 +226,9 @@ func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string,
 	}
 	result.RedirectChain = append([]string(nil), redirectChain...)
 	c.syncSession(result, rawURL)
+	if retry > 0 && (result.StatusCode < http.StatusOK || result.StatusCode >= http.StatusMultipleChoices) && c.fallback != nil {
+		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, retry, responseCharset, fmt.Errorf("fingerprint status %d", result.StatusCode))
+	}
 	if shouldFallback(result.StatusCode) && c.fallback != nil {
 		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, retry, responseCharset, fmt.Errorf("fingerprint status %d", result.StatusCode))
 	}
