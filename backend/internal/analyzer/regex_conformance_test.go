@@ -3,6 +3,30 @@ package analyzer
 
 import "testing"
 
+func TestJavaRegexEscapesWorkThroughAnalyzer(t *testing.T) {
+	for _, test := range []struct {
+		content string
+		rule    string
+		want    string
+	}{
+		{content: "章\u00a012:30\n下一章", rule: `##\h[\d:]+\d\n##▪`, want: "章▪下一章"},
+		{content: "X\t \u00a0\u1680\u180e\u2000\u200a\u202f\u205f\u3000X", rule: `##\h##`, want: "XX"},
+		{content: "word space", rule: `##[^\h]+##`, want: " "},
+		{content: `《剑来》 作者：烽火`, rule: `##\《|\》|作者.*|\s##`, want: "剑来"},
+	} {
+		analyzer := New(test.content, "https://example.test/", NewJSVM(), nil)
+		value, err := analyzer.GetStringStrict(test.rule)
+		if err != nil || value != test.want {
+			t.Errorf("rule %q value=%q err=%v, want %q", test.rule, value, err, test.want)
+		}
+	}
+
+	analyzer := New("text", "https://example.test/", NewJSVM(), nil)
+	if _, err := analyzer.GetStringStrict(`##\q##`); err == nil {
+		t.Fatal("unsupported alphabetic escape was accepted")
+	}
+}
+
 func TestStandaloneRegexRuleUsesReplacementAndFirstMatchMarker(t *testing.T) {
 	analyzer := New(`<meta author="忘语">`, "https://example.test/", NewJSVM(), nil)
 	value, err := analyzer.GetString(`##author="([^"]+)"##$1###`)

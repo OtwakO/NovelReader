@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // regexQuery applies a regex pattern and returns the first match.
@@ -39,7 +41,7 @@ func regexQuery(content, expr string) (string, error) {
 
 // regexQueryList returns all matches from a regex.
 func regexQueryList(content, expr string) ([]string, error) {
-	re, err := regexp.Compile(expr)
+	re, err := compileJavaRegex(expr)
 	if err != nil {
 		return nil, fmt.Errorf("regex: compile: %w", err)
 	}
@@ -60,7 +62,7 @@ func regexQueryElement(content, expr string) (interface{}, error) {
 	patterns := strings.Split(expr, "&&")
 	current := content
 	for index, pattern := range patterns {
-		re, err := regexp.Compile(strings.TrimSpace(pattern))
+		re, err := compileJavaRegex(strings.TrimSpace(pattern))
 		if err != nil {
 			return nil, fmt.Errorf("regex: compile: %w", err)
 		}
@@ -86,7 +88,7 @@ func regexQueryElement(content, expr string) (interface{}, error) {
 
 // regexQueryElements returns capture groups as interface{}.
 func regexQueryElements(content, expr string) ([]interface{}, error) {
-	re, err := regexp.Compile(expr)
+	re, err := compileJavaRegex(expr)
 	if err != nil {
 		return nil, fmt.Errorf("regex: compile: %w", err)
 	}
@@ -109,7 +111,7 @@ func applyRegex(content, expr string) (string, error) {
 	parts := strings.Split(expr, "##")
 	pattern := parts[0]
 
-	re, err := regexp.Compile(pattern)
+	re, err := compileJavaRegex(pattern)
 	if err != nil {
 		return "", fmt.Errorf("regex: compile: %w", err)
 	}
@@ -136,6 +138,53 @@ func applyRegex(content, expr string) (string, error) {
 	return "", nil
 }
 
+func compileJavaRegex(pattern string) (*regexp.Regexp, error) {
+	return regexp.Compile(normalizeJavaRegex(pattern))
+}
+
+func normalizeJavaRegex(pattern string) string {
+	const horizontal = `\t \x{00A0}\x{1680}\x{180E}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}`
+	var normalized strings.Builder
+	inClass := false
+	for offset := 0; offset < len(pattern); {
+		r, size := utf8.DecodeRuneInString(pattern[offset:])
+		if r != '\\' || offset+size >= len(pattern) {
+			normalized.WriteRune(r)
+			if r == '[' {
+				inClass = true
+			} else if r == ']' {
+				inClass = false
+			}
+			offset += size
+			continue
+		}
+
+		next, nextSize := utf8.DecodeRuneInString(pattern[offset+size:])
+		switch {
+		case next == 'h':
+			if inClass {
+				normalized.WriteString(horizontal)
+			} else {
+				normalized.WriteString("[" + horizontal + "]")
+			}
+		case isJavaIdentityEscape(next):
+			normalized.WriteRune(next)
+		default:
+			normalized.WriteRune('\\')
+			normalized.WriteRune(next)
+		}
+		offset += size + nextSize
+	}
+	return normalized.String()
+}
+
+func isJavaIdentityEscape(r rune) bool {
+	if unicode.IsLetter(r) || unicode.IsDigit(r) {
+		return false
+	}
+	return !strings.ContainsRune(`\\.+*?()|[]{}^$-`, r)
+}
+
 // applyReplaceFromExpr handles ##pattern##replacement expressions.
 func applyReplaceFromExpr(content, expr string) (string, error) {
 	// Remove leading ##
@@ -156,7 +205,7 @@ func applyReplaceFromExpr(content, expr string) (string, error) {
 
 // applyReplace applies a regex replacement.
 func applyReplace(content, pattern, replacement string, first bool) (string, error) {
-	re, err := regexp.Compile(pattern)
+	re, err := compileJavaRegex(pattern)
 	if err != nil {
 		return content, fmt.Errorf("regex: replace compile: %w", err)
 	}
