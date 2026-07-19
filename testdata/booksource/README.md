@@ -14,4 +14,6 @@ Every required category has one response file and a named rule mode:
 - pagination: multi-page TOC/content continuation
 - WebView option: capability classification without browser execution
 
+The dated `explore-live-audit-*.json` files are evidence snapshots, not test fixtures. `explore-live-shared-fixes-rerun-2026-07-19.json` records the targeted and full-manifest verification for the approved shared parser fixes; live counts may change, while the reduced fixtures above remain the regression gate.
+
 Add a deterministic test when changing a fixture. Do not replace a fixture with a live URL.
