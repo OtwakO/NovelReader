@@ -297,8 +297,9 @@ func looksLikeDefault(expr string) bool {
 		// shorthand CSS parents (`#j@li`) are Default, while `div@id` remains
 		// a CSS attribute getter.
 		shorthandParent := strings.HasPrefix(beforeAt, ".") || strings.HasPrefix(beforeAt, "#")
+		explicitChild := strings.HasPrefix(afterAt, "tag.") || strings.Contains(afterAt, "!") || hasNumericSelectorSuffix(afterAt)
 		if isDefaultElementSelector(afterAt) && (shorthandParent ||
-			(isDefaultElementSelector(beforeAt) && strings.HasPrefix(afterAt, "tag."))) {
+			(isDefaultElementSelector(beforeAt) && explicitChild)) {
 			return true
 		}
 
@@ -366,6 +367,23 @@ func looksLikeDefault(expr string) bool {
 }
 
 // isDefaultGetter returns true if s is a known Default-mode getter keyword.
+func hasNumericSelectorSuffix(expr string) bool {
+	dot := strings.LastIndex(expr, ".")
+	if dot < 0 || dot == len(expr)-1 {
+		return false
+	}
+	suffix := strings.TrimPrefix(expr[dot+1:], "-")
+	if suffix == "" {
+		return false
+	}
+	for _, r := range suffix {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func isDefaultElementSelector(s string) bool {
 	if base, _, ok := cutDefaultExclusion(strings.TrimSpace(s)); ok {
 		s = base

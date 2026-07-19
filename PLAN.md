@@ -1455,3 +1455,8 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Added red regressions for each contract, narrowed Default routing to explicit `tag.*`, made embedded missing values empty, adapted raw HTML fragments with table-aware contexts, and surfaced hard bridge errors.
 - **Affected**: `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/template.go`, `backend/internal/analyzer/js.go`, their conformance tests, `backend/internal/book/explore_capacity_test.go`, `PLAN.md`.
 - **Watch out**: Continue testing public Analyzer behavior rather than parser internals; wrapper elements must never replace the selected fragment’s own attributes.
+### [2026-07-19] CSS getter guard initially excluded positioned bare traversal
+- **Problem**: Narrowing bare Default routing to preserve `div@id`/`div@class` also routed `tbody@tr!0` back to CSS, collapsing raw 215’s list before `java.getElement` ran.
+- **Fix**: Recognize exclusion and numeric-position suffixes as unambiguous Default child traversal while retaining CSS attribute getters, with a per-parent `tbody@tr!0` regression.
+- **Affected**: `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/default_live_compat_test.go`, `PLAN.md`.
+- **Watch out**: Bare child names without an explicit `tag.`, exclusion, or numeric position remain ambiguous and must not override CSS getters.

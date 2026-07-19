@@ -1,6 +1,9 @@
 package analyzer
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestLiveDefaultListRuleShapes(t *testing.T) {
 	html := `<div id="j"><li>one</li><li>two</li></div>
@@ -33,7 +36,7 @@ func TestLiveDefaultListRuleShapes(t *testing.T) {
 }
 
 func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
-	html := `<table><tbody><tr>A</tr></tbody><tbody><tr>B</tr><tr>C</tr></tbody></table><div id="identity" class="kind">Text</div>`
+	html := `<table><tbody><tr><td>A</td></tr></tbody><tbody><tr><td>B</td></tr><tr><td>C</td></tr></tbody></table><div id="identity" class="kind">Text</div>`
 	an := New(html, "https://example.com/", NewJSVM(), NewCacheManager())
 
 	elements, err := an.GetElements(`tbody@tag.tr||class.list-group-item`)
@@ -42,6 +45,10 @@ func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
 	}
 	if len(elements) != 3 {
 		t.Fatalf("elements = %d, want all 3 rows across tbody parents", len(elements))
+	}
+	elements, err = an.GetElements(`tbody@tr!0`)
+	if err != nil || len(elements) != 1 || !strings.Contains(ToString(elements[0]), ">C<") {
+		t.Fatalf("excluded bare traversal=%#v err=%v, want row C", elements, err)
 	}
 	for rule, want := range map[string]string{"div@id": "identity", "div@class": "kind"} {
 		value, err := an.GetStringStrict(rule)
