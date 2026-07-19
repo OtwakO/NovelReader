@@ -73,6 +73,14 @@ func TestSingleBraceJSONInterpolationUsesCurrentValue(t *testing.T) {
 	}
 }
 
+func TestDoubleAtPrefixForcesDefaultModeOnJSON(t *testing.T) {
+	an := New(`{"kind":"fantasy"}`, "https://fixture.test", NewJSVM(), nil)
+	value, err := an.GetStringStrict(`{{@@class.tag@text}},{{$.kind}}`)
+	if err != nil || value != ",fantasy" {
+		t.Fatalf("forced Default template value=%q err=%v", value, err)
+	}
+}
+
 func TestOptionalJSONPathCanFeedJavaScriptDefault(t *testing.T) {
 	an := New(`<article class="articlegeneral">book</article>`, "https://fixture.test", NewJSVM(), nil)
 

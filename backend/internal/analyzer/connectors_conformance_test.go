@@ -34,8 +34,26 @@ func TestStrictConnectorsSkipIncompatibleAndBlankBranches(t *testing.T) {
 	if err != nil || value != "fallback" {
 		t.Fatalf("trailing && value=%q err=%v", value, err)
 	}
+	value, err = an.GetStringStrict(`.book-extra@text&&name`)
+	if err != nil || value != "fallback" {
+		t.Fatalf("mixed-mode AND value=%q err=%v", value, err)
+	}
 	if _, err := an.GetStringStrict(`@js:throw new Error('broken')||name`); err == nil {
 		t.Fatal("JavaScript failure was incorrectly treated as a fallback miss")
+	}
+}
+
+func TestElementFallbacksReuseJavaScriptPrefixResult(t *testing.T) {
+	an := New(`{"featured":true}`, "https://example.test/", NewJSVM(), nil)
+	rule := `<js>JSON.stringify({data:{items:[{name:'A'},{name:'B'}]}})</js>
+class.item||$.data.items[*]`
+
+	elements, err := an.GetElements(rule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(elements) != 2 {
+		t.Fatalf("elements=%#v, want transformed JSON fallback", elements)
 	}
 }
 

@@ -451,6 +451,9 @@ func (a *Analyzer) GetElements(ruleStr string) ([]interface{}, error) {
 // getElementsOR handles || (OR) semantics for element extraction.
 func (a *Analyzer) getElementsOR(ruleStr string) ([]interface{}, error) {
 	segments := splitTopLevel(ruleStr, "||")
+	if result, handled, err := a.getElementsWithSharedPrefix(segments); handled {
+		return result, err
+	}
 	var firstErr error
 	valid := false
 	for _, seg := range segments {
@@ -487,6 +490,30 @@ func (a *Analyzer) getElementsOR(ruleStr string) ([]interface{}, error) {
 		return nil, ErrNoElements
 	}
 	return nil, fmt.Errorf("analyzer: empty element rule")
+}
+
+func (a *Analyzer) getElementsWithSharedPrefix(segments []string) ([]interface{}, bool, error) {
+	if len(segments) < 2 {
+		return nil, false, nil
+	}
+	firstRules, err := ParseRules(strings.TrimSpace(segments[0]), a.isJSON)
+	if err != nil || len(firstRules) < 2 || firstRules[0].Mode != ModeJS {
+		return nil, false, nil
+	}
+	current := a.content
+	for _, rule := range firstRules[:len(firstRules)-1] {
+		current, err = a.applyRuleElement(current, rule)
+		if err != nil {
+			return nil, true, err
+		}
+	}
+	transformed := *a
+	transformed.SetContent(current)
+	branches := make([]string, 0, len(segments))
+	branches = append(branches, firstRules[len(firstRules)-1].Template)
+	branches = append(branches, segments[1:]...)
+	result, err := transformed.getElementsOR(strings.Join(branches, "||"))
+	return result, true, err
 }
 
 // evalString evaluates a chain of rules returning a single string.
@@ -827,6 +854,9 @@ func stripModePrefix(mode Mode, expr string) string {
 		return expr
 	}
 	upper := strings.ToUpper(expr)
+	if mode == ModeDefault && strings.HasPrefix(expr, "@@") {
+		return strings.TrimSpace(expr[2:])
+	}
 	prefix := ""
 	switch mode {
 	case ModeCSS:

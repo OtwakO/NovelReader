@@ -82,6 +82,15 @@ func TestJavaAjaxExecutesLegadoRequestOptions(t *testing.T) {
 	}
 }
 
+func TestJSoupSelectionForInEnumeratesOnlyElements(t *testing.T) {
+	vm := NewJSVM()
+	script := `var links=org.jsoup.Jsoup.parse(result).select('.list a'); var names=[]; for (var i in links) names.push(links[i].text()); names.join('|')`
+	value, err := vm.Eval(script, `<div class="list"><a>One</a><a>Two</a></div>`, "https://example.test/")
+	if err != nil || ToString(value) != "One|Two" {
+		t.Fatalf("JSoup for-in value=%q err=%v", ToString(value), err)
+	}
+}
+
 func TestJavaHelpersReevaluateCurrentAnalyzer(t *testing.T) {
 	analyzer := New(`<div class="book">First</div><div class="book">Second</div>`, "https://example.test/", NewJSVM(), nil)
 
@@ -96,6 +105,12 @@ func TestJavaHelpersReevaluateCurrentAnalyzer(t *testing.T) {
 	}
 	if values, ok := value.([]interface{}); !ok || len(values) != 2 {
 		t.Fatalf("java.getElements = %#v, want two elements", value)
+	}
+
+	analyzer.SetContent(map[string]interface{}{"ids": []interface{}{"1", "2", "3"}})
+	value, err = analyzer.jsEval(`java.getString('$.ids[*]')`, "")
+	if err != nil || ToString(value) != "1\n2\n3" {
+		t.Fatalf("JSON list getString = %q, err=%v", ToString(value), err)
 	}
 
 	if _, err := analyzer.jsEval(`java.setContent('<p>updated</p>'); java.getString('@css:p@text')`, ""); err != nil {

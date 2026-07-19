@@ -36,6 +36,13 @@ func jsonQuery(content, expr string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if values, ok := value.([]interface{}); ok {
+		result := make([]string, len(values))
+		for index, item := range values {
+			result[index] = ToString(item)
+		}
+		return strings.Join(result, "\n"), nil
+	}
 	return fmt.Sprintf("%v", value), nil
 }
 

@@ -212,6 +212,9 @@ func detectMode(expr string, isJSON bool) Mode {
 	}
 
 	// Explicit prefixes
+	if strings.HasPrefix(expr, "@@") {
+		return ModeDefault
+	}
 	upper := strings.ToUpper(expr)
 	if strings.HasPrefix(upper, "@CSS:") {
 		return ModeCSS
@@ -233,8 +236,12 @@ func detectMode(expr string, isJSON bool) Mode {
 		return ModeXPath
 	}
 
-	// If content is JSON, default to JSON mode
+	// Explicit structured Default selectors remain selectors even when the
+	// current value is JSON; this lets HTML-first fallback branches miss cleanly.
 	if isJSON {
+		if !isDefaultGetter(expr) && !strings.HasPrefix(expr, "@") && looksLikeDefault(expr) {
+			return ModeDefault
+		}
 		return ModeJSON
 	}
 

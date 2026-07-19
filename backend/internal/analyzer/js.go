@@ -242,6 +242,12 @@ Map = function(a) {
 		}
 		return "", fmt.Errorf("js eval: %w", err)
 	}
+	if object, ok := val.(*goja.Object); ok {
+		html := object.Get("__html")
+		if html != nil && !goja.IsUndefined(html) && !goja.IsNull(html) {
+			return map[string]interface{}{"__html": html.String()}, nil
+		}
+	}
 	return val.Export(), nil
 }
 
@@ -990,15 +996,15 @@ func newJSoupBridge(rt *goja.Runtime, baseURL string) map[string]interface{} {
 				"parse": func(html string) map[string]interface{} {
 					doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 					if err != nil {
-						return map[string]interface{}{"select": func(string) map[string]interface{} { return emptyJSoupSelection() }}
+						return map[string]interface{}{"select": func(string) *goja.Object { return emptyJSoupSelection(rt) }}
 					}
 					return map[string]interface{}{
-						"select": func(css string) map[string]interface{} {
+						"select": func(css string) *goja.Object {
 							var elements []map[string]interface{}
 							doc.Find(css).Each(func(_ int, s *goquery.Selection) {
-								elements = append(elements, makeJSoupElement(s))
+								elements = append(elements, makeJSoupElement(rt, s))
 							})
-							return makeJSoupSelection(elements)
+							return makeJSoupSelection(rt, elements)
 						},
 					}
 				},
@@ -1007,7 +1013,7 @@ func newJSoupBridge(rt *goja.Runtime, baseURL string) map[string]interface{} {
 	}
 }
 
-func makeJSoupElement(s *goquery.Selection) map[string]interface{} {
+func makeJSoupElement(rt *goja.Runtime, s *goquery.Selection) map[string]interface{} {
 	outerHTML, _ := goquery.OuterHtml(s)
 	return map[string]interface{}{
 		"__html":    outerHTML,
@@ -1018,60 +1024,65 @@ func makeJSoupElement(s *goquery.Selection) map[string]interface{} {
 		"attr":      func(name string) string { v, _ := s.Attr(name); return v },
 		"val":       func() string { v, _ := s.Attr("value"); return v },
 		"data":      func(name string) string { v, _ := s.Attr("data-" + name); return v },
-		"select":    func(css string) map[string]interface{} { return makeJSoupSelectionFromGoquery(s.Find(css)) },
-		"first":     func() interface{} { return makeJSoupElement(s.First()) },
-		"last":      func() interface{} { return makeJSoupElement(s.Last()) },
+		"select":    func(css string) *goja.Object { return makeJSoupSelectionFromGoquery(rt, s.Find(css)) },
+		"first":     func() interface{} { return makeJSoupElement(rt, s.First()) },
+		"last":      func() interface{} { return makeJSoupElement(rt, s.Last()) },
 		"size":      1,
 	}
 }
 
-func emptyJSoupSelection() map[string]interface{} { return makeJSoupSelection(nil) }
+func emptyJSoupSelection(rt *goja.Runtime) *goja.Object { return makeJSoupSelection(rt, nil) }
 
-func makeJSoupSelectionFromGoquery(selection *goquery.Selection) map[string]interface{} {
+func makeJSoupSelectionFromGoquery(rt *goja.Runtime, selection *goquery.Selection) *goja.Object {
 	var elements []map[string]interface{}
-	selection.Each(func(_ int, s *goquery.Selection) { elements = append(elements, makeJSoupElement(s)) })
-	return makeJSoupSelection(elements)
+	selection.Each(func(_ int, s *goquery.Selection) { elements = append(elements, makeJSoupElement(rt, s)) })
+	return makeJSoupSelection(rt, elements)
 }
 
-func makeJSoupSelection(elements []map[string]interface{}) map[string]interface{} {
+func makeJSoupSelection(rt *goja.Runtime, elements []map[string]interface{}) *goja.Object {
+	selection := rt.NewArray()
 	fragments := make([]interface{}, 0, len(elements))
-	for _, element := range elements {
+	for index, element := range elements {
 		fragments = append(fragments, element["__html"])
+		_ = selection.Set(strconv.Itoa(index), element)
 	}
-	selection := map[string]interface{}{"__html": serializeHTMLSelection(fragments), "size": len(elements)}
-	for i, element := range elements {
-		selection[strconv.Itoa(i)] = element
+	properties := map[string]interface{}{
+		"__html": serializeHTMLSelection(fragments),
+		"size":   len(elements),
+		"first": func() interface{} {
+			if len(elements) == 0 {
+				return nil
+			}
+			return elements[0]
+		},
+		"last": func() interface{} {
+			if len(elements) == 0 {
+				return nil
+			}
+			return elements[len(elements)-1]
+		},
+		"attr": func(name string) string {
+			if len(elements) == 0 {
+				return ""
+			}
+			return elements[0]["attr"].(func(string) string)(name)
+		},
+		"text": func() string {
+			var result []string
+			for _, element := range elements {
+				result = append(result, element["text"].(func() string)())
+			}
+			return strings.Join(result, "")
+		},
+		"select": func(css string) *goja.Object {
+			if len(elements) == 0 {
+				return emptyJSoupSelection(rt)
+			}
+			return elements[0]["select"].(func(string) *goja.Object)(css)
+		},
 	}
-	selection["first"] = func() interface{} {
-		if len(elements) == 0 {
-			return nil
-		}
-		return elements[0]
-	}
-	selection["last"] = func() interface{} {
-		if len(elements) == 0 {
-			return nil
-		}
-		return elements[len(elements)-1]
-	}
-	selection["attr"] = func(name string) string {
-		if len(elements) == 0 {
-			return ""
-		}
-		return elements[0]["attr"].(func(string) string)(name)
-	}
-	selection["text"] = func() string {
-		var result []string
-		for _, element := range elements {
-			result = append(result, element["text"].(func() string)())
-		}
-		return strings.Join(result, "")
-	}
-	selection["select"] = func(css string) map[string]interface{} {
-		if len(elements) == 0 {
-			return emptyJSoupSelection()
-		}
-		return elements[0]["select"].(func(string) map[string]interface{})(css)
+	for name, value := range properties {
+		_ = selection.DefineDataProperty(name, rt.ToValue(value), goja.FLAG_TRUE, goja.FLAG_TRUE, goja.FLAG_FALSE)
 	}
 	return selection
 }
