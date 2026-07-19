@@ -200,6 +200,7 @@ Map = function(a) {
 		"androidId":      h.AndroidId,
 		"log":            h.Log,
 		"getString":      h.GetString,
+		"getElement":     h.GetElement,
 		"getElements":    h.GetElements,
 		"setContent":     h.SetContent,
 		"HMacHex":        h.HMacHex,
@@ -751,6 +752,21 @@ func (h *jsHelpers) GetString(rule string, args ...interface{}) string {
 	return value
 }
 
+func (h *jsHelpers) GetElement(rule string, args ...interface{}) interface{} {
+	if h.analyzer == nil {
+		return nil
+	}
+	value, err := h.analyzer.GetElement(rule)
+	if err != nil {
+		return nil
+	}
+	html := strings.TrimSpace(ToString(value))
+	if strings.HasPrefix(html, "<") {
+		return makeJSoupSelectionFromHTML(h.rt, html)
+	}
+	return value
+}
+
 func (h *jsHelpers) GetElements(rule string, args ...interface{}) []interface{} {
 	if h.analyzer == nil {
 		return nil
@@ -1093,6 +1109,14 @@ func makeJSoupElement(rt *goja.Runtime, s *goquery.Selection) map[string]interfa
 }
 
 func emptyJSoupSelection(rt *goja.Runtime) *goja.Object { return makeJSoupSelection(rt, nil) }
+
+func makeJSoupSelectionFromHTML(rt *goja.Runtime, html string) *goja.Object {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+	if err != nil {
+		return emptyJSoupSelection(rt)
+	}
+	return makeJSoupSelectionFromGoquery(rt, doc.Find("body").Children())
+}
 
 func makeJSoupSelectionFromGoquery(rt *goja.Runtime, selection *goquery.Selection) *goja.Object {
 	var elements []map[string]interface{}

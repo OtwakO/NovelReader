@@ -112,7 +112,7 @@ func TestJSoupSelectionForInEnumeratesOnlyElements(t *testing.T) {
 }
 
 func TestJavaHelpersReevaluateCurrentAnalyzer(t *testing.T) {
-	analyzer := New(`<div class="book">First</div><div class="book">Second</div>`, "https://example.test/", NewJSVM(), nil)
+	analyzer := New(`<div class="book"><a href="/first">First</a></div><div class="book"><a href="/second">Second</a></div>`, "https://example.test/", NewJSVM(), nil)
 
 	value, err := analyzer.jsEval(`java.getString('@css:.book@text')`, "")
 	if err != nil || ToString(value) != "FirstSecond" {
@@ -127,6 +127,11 @@ func TestJavaHelpersReevaluateCurrentAnalyzer(t *testing.T) {
 		t.Fatalf("java.getElements = %#v, want two elements", value)
 	}
 
+	value, err = analyzer.jsEval(`java.getElement('@@tag.a.0').text() + '|' + java.getElement('@@tag.a.1').attr('href')`, "")
+	if err != nil || ToString(value) != "First|/second" {
+		t.Fatalf("java.getElement = %q, err=%v", ToString(value), err)
+	}
+
 	analyzer.SetContent(map[string]interface{}{"ids": []interface{}{"1", "2", "3"}})
 	value, err = analyzer.jsEval(`java.getString('$.ids[*]')`, "")
 	if err != nil || ToString(value) != "1\n2\n3" {
@@ -139,6 +144,10 @@ func TestJavaHelpersReevaluateCurrentAnalyzer(t *testing.T) {
 	value, err = analyzer.jsEval(`java.getString('@css:p@text')`, "")
 	if err != nil || ToString(value) != "updated" {
 		t.Fatalf("setContent result = %q, err=%v", ToString(value), err)
+	}
+	value, err = analyzer.jsEval(`java.setContent('<a href="/updated">Updated</a>'); java.getElement('@@tag.a.0').attr('href')`, "")
+	if err != nil || ToString(value) != "/updated" {
+		t.Fatalf("getElement after setContent = %q, err=%v", ToString(value), err)
 	}
 
 	if _, err := analyzer.jsEval(`java.setContent({payload:{name:'structured'}})`, ""); err != nil {
