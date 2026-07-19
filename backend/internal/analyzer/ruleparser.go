@@ -293,9 +293,9 @@ func looksLikeDefault(expr string) bool {
 			}
 		}
 
-		// CSS shorthand followed by an element selector is Legado Default
-		// traversal (`#j@li`, `.book-list@a.0`), not a CSS attribute getter.
-		if (strings.HasPrefix(beforeAt, ".") || strings.HasPrefix(beforeAt, "#")) && isDefaultElementSelector(afterAt) {
+		// Two element selectors form Legado Default traversal (`tbody@tag.tr`,
+		// `#j@li`), not a CSS attribute getter such as `a@href`.
+		if isDefaultElementSelector(beforeAt) && isDefaultElementSelector(afterAt) {
 			return true
 		}
 
