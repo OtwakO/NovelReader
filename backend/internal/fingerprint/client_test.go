@@ -89,12 +89,34 @@ func TestClientDecodesExplicitResponseCharset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := client.doWithCharset(t.Context(), http.MethodGet, server.URL, "", nil, true, "gbk")
+	response, err := client.doWithCharset(t.Context(), http.MethodGet, server.URL, "", nil, true, 0, "gbk")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if response.Body != "搜索结果" {
 		t.Fatalf("body=%q", response.Body)
+	}
+}
+
+func TestFingerprintClientExecutesHead(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodHead {
+			t.Errorf("method=%q", r.Method)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	client, err := New(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.HeadContextWithCharset(t.Context(), server.URL, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("status=%d", response.StatusCode)
 	}
 }
 

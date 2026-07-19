@@ -127,8 +127,20 @@ func (c *Client) Get(rawURL string, headers map[string]string) (*fetcher.Respons
 	return c.GetContext(context.Background(), rawURL, headers)
 }
 
-func (c *Client) GetContext(ctx context.Context, rawURL string, headers map[string]string, _ ...int) (*fetcher.Response, error) {
-	return c.do(ctx, http.MethodGet, rawURL, "", headers, true)
+func (c *Client) GetContext(ctx context.Context, rawURL string, headers map[string]string, retries ...int) (*fetcher.Response, error) {
+	retry := 0
+	if len(retries) > 0 {
+		retry = retries[0]
+	}
+	return c.doWithCharset(ctx, http.MethodGet, rawURL, "", headers, true, retry, "")
+}
+
+func (c *Client) GetContextWithCharset(ctx context.Context, rawURL string, headers map[string]string, retry int, responseCharset string) (*fetcher.Response, error) {
+	return c.doWithCharset(ctx, http.MethodGet, rawURL, "", headers, true, retry, responseCharset)
+}
+
+func (c *Client) HeadContextWithCharset(ctx context.Context, rawURL string, headers map[string]string, retry int) (*fetcher.Response, error) {
+	return c.doWithCharset(ctx, http.MethodHead, rawURL, "", headers, true, retry, "")
 }
 
 func (c *Client) Post(rawURL, contentType, body string, headers map[string]string) (*fetcher.Response, error) {
@@ -141,25 +153,25 @@ func (c *Client) Post(rawURL, contentType, body string, headers map[string]strin
 	return c.PostContext(context.Background(), rawURL, body, headers, 0)
 }
 
-func (c *Client) PostContext(ctx context.Context, rawURL, body string, headers map[string]string, _ int) (*fetcher.Response, error) {
+func (c *Client) PostContext(ctx context.Context, rawURL, body string, headers map[string]string, retry int) (*fetcher.Response, error) {
+	return c.PostContextWithCharset(ctx, rawURL, body, headers, retry, "")
+}
+
+func (c *Client) PostContextWithCharset(ctx context.Context, rawURL, body string, headers map[string]string, retry int, responseCharset string) (*fetcher.Response, error) {
 	if headers == nil {
 		headers = map[string]string{}
 	}
-	if _, ok := headers["Content-Type"]; !ok {
+	if !hasHeader(headers, "Content-Type") {
 		headers["Content-Type"] = "application/x-www-form-urlencoded"
 	}
-	return c.do(ctx, http.MethodPost, rawURL, body, headers, true)
+	return c.doWithCharset(ctx, http.MethodPost, rawURL, body, headers, true, retry, responseCharset)
 }
 
 func (c *Client) GetContextNoRedirect(ctx context.Context, rawURL string, headers map[string]string) (*fetcher.Response, error) {
-	return c.do(ctx, http.MethodGet, rawURL, "", headers, false)
+	return c.doWithCharset(ctx, http.MethodGet, rawURL, "", headers, false, 0, "")
 }
 
-func (c *Client) do(ctx context.Context, method, rawURL, body string, headers map[string]string, followRedirect bool) (*fetcher.Response, error) {
-	return c.doWithCharset(ctx, method, rawURL, body, headers, followRedirect, "")
-}
-
-func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string, headers map[string]string, followRedirect bool, responseCharset string) (*fetcher.Response, error) {
+func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string, headers map[string]string, followRedirect bool, retry int, responseCharset string) (*fetcher.Response, error) {
 	reqBody := io.Reader(nil)
 	if body != "" {
 		reqBody = bytes.NewBufferString(body)
@@ -195,32 +207,32 @@ func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string,
 		})
 		tracedClient, traceErr := tlsclient.NewHttpClient(tlsclient.NewNoopLogger(), tracedOptions...)
 		if traceErr != nil {
-			return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, fmt.Errorf("fingerprint: create traced client: %w", traceErr))
+			return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, retry, responseCharset, fmt.Errorf("fingerprint: create traced client: %w", traceErr))
 		}
 		client = tracedClient
 	}
 	req, err := fhttp.NewRequestWithContext(ctx, method, normalizedURL, reqBody)
 	if err != nil {
-		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, err)
+		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, retry, responseCharset, err)
 	}
 	req.Header = makeHeaders(effectiveHeaders)
 	resp, err := client.Do(req)
 	if err != nil {
-		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, err)
+		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, retry, responseCharset, err)
 	}
 	result, err := responseWithCharset(resp, responseCharset)
 	if err != nil {
-		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, err)
+		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, retry, responseCharset, err)
 	}
 	result.RedirectChain = append([]string(nil), redirectChain...)
 	c.syncSession(result, rawURL)
 	if shouldFallback(result.StatusCode) && c.fallback != nil {
-		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, fmt.Errorf("fingerprint status %d", result.StatusCode))
+		return c.fallbackRequest(ctx, method, rawURL, body, effectiveHeaders, followRedirect, retry, responseCharset, fmt.Errorf("fingerprint status %d", result.StatusCode))
 	}
 	return result, nil
 }
 
-func (c *Client) fallbackRequest(ctx context.Context, method, rawURL, body string, headers map[string]string, followRedirect bool, cause error) (*fetcher.Response, error) {
+func (c *Client) fallbackRequest(ctx context.Context, method, rawURL, body string, headers map[string]string, followRedirect bool, retry int, responseCharset string, cause error) (*fetcher.Response, error) {
 	if c.fallback == nil {
 		return nil, cause
 	}
@@ -228,10 +240,25 @@ func (c *Client) fallbackRequest(ctx context.Context, method, rawURL, body strin
 		return c.fallback.GetContextNoRedirect(ctx, rawURL, headers)
 	}
 	if method == http.MethodGet {
+		if responseCharset != "" {
+			if client, ok := c.fallback.(interface {
+				GetContextWithCharset(context.Context, string, map[string]string, int, string) (*fetcher.Response, error)
+			}); ok {
+				return client.GetContextWithCharset(ctx, rawURL, headers, retry, responseCharset)
+			}
+		}
 		if client, ok := c.fallback.(fetcher.ContextHTTPClient); ok {
-			return client.GetContext(ctx, rawURL, headers)
+			return client.GetContext(ctx, rawURL, headers, retry)
 		}
 		return c.fallback.Get(rawURL, headers)
+	}
+	if method == http.MethodHead {
+		if client, ok := c.fallback.(interface {
+			HeadContextWithCharset(context.Context, string, map[string]string, int) (*fetcher.Response, error)
+		}); ok {
+			return client.HeadContextWithCharset(ctx, rawURL, headers, retry)
+		}
+		return nil, cause
 	}
 	contentType := "application/x-www-form-urlencoded"
 	for key, value := range headers {
@@ -240,8 +267,15 @@ func (c *Client) fallbackRequest(ctx context.Context, method, rawURL, body strin
 			break
 		}
 	}
+	if responseCharset != "" {
+		if client, ok := c.fallback.(interface {
+			PostContextWithCharset(context.Context, string, string, map[string]string, int, string) (*fetcher.Response, error)
+		}); ok {
+			return client.PostContextWithCharset(ctx, rawURL, body, headers, retry, responseCharset)
+		}
+	}
 	if client, ok := c.fallback.(fetcher.ContextHTTPClient); ok {
-		return client.PostContext(ctx, rawURL, body, headers, 0)
+		return client.PostContext(ctx, rawURL, body, headers, retry)
 	}
 	return c.fallback.Post(rawURL, contentType, body, headers)
 }
