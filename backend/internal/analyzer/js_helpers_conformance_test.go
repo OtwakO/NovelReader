@@ -4,6 +4,7 @@ package analyzer
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -42,11 +43,14 @@ func TestJavaAjaxExecutesLegadoRequestOptions(t *testing.T) {
 	type request struct {
 		method, path, body, header, contentType string
 	}
-	requests := make(chan request, 2)
+	requests := make(chan request, 4)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]interface{}
-		_ = json.NewDecoder(r.Body).Decode(&body)
-		encoded, _ := json.Marshal(body)
+		encoded, _ := io.ReadAll(r.Body)
+		if json.Valid(encoded) {
+			var body map[string]interface{}
+			_ = json.Unmarshal(encoded, &body)
+			encoded, _ = json.Marshal(body)
+		}
 		requests <- request{r.Method, r.URL.Path, string(encoded), r.Header.Get("X-Source"), r.Header.Get("Content-Type")}
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
@@ -79,6 +83,22 @@ func TestJavaAjaxExecutesLegadoRequestOptions(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("list ajax request was not received")
+	}
+
+	value, err = vm.Eval(`java.ajax(`+fmt.Sprintf("%q", server.URL+`/head,{"method":"HEAD","retry":1}`)+`)`, "", server.URL)
+	if err != nil || ToString(value) != "" {
+		t.Fatalf("HEAD ajax value=%q err=%v", ToString(value), err)
+	}
+	if got := <-requests; got.method != http.MethodHead || got.path != "/head" {
+		t.Fatalf("HEAD request=%+v", got)
+	}
+
+	value, err = vm.Eval(`java.ajax(`+fmt.Sprintf("%q", server.URL+`/form,{"method":"POST","charset":"gbk","body":"q=中文"}`)+`)`, "", server.URL)
+	if err != nil || ToString(value) != `{"ok":true}` {
+		t.Fatalf("charset ajax value=%q err=%v", ToString(value), err)
+	}
+	if got := <-requests; got.body != "q=%D6%D0%CE%C4" || got.contentType != "application/x-www-form-urlencoded" {
+		t.Fatalf("charset request=%+v", got)
 	}
 }
 

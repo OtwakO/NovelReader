@@ -383,8 +383,19 @@ func (h *jsHelpers) get(rawURL string, headers map[string]string) (*fetcher.Resp
 }
 
 func (h *jsHelpers) getContext(ctx context.Context, rawURL string, headers map[string]string) (*fetcher.Response, error) {
+	return h.getContextOptions(ctx, rawURL, headers, 0, "")
+}
+
+func (h *jsHelpers) getContextOptions(ctx context.Context, rawURL string, headers map[string]string, retry int, charset string) (*fetcher.Response, error) {
+	if charset != "" {
+		if client, ok := h.hc.(interface {
+			GetContextWithCharset(context.Context, string, map[string]string, int, string) (*fetcher.Response, error)
+		}); ok {
+			return client.GetContextWithCharset(ctx, rawURL, headers, retry, charset)
+		}
+	}
 	if client, ok := h.hc.(fetcher.ContextHTTPClient); ok {
-		return client.GetContext(ctx, rawURL, headers)
+		return client.GetContext(ctx, rawURL, headers, retry)
 	}
 	return h.hc.Get(rawURL, headers)
 }
@@ -401,14 +412,35 @@ func (h *jsHelpers) post(rawURL, body string, headers map[string]string) (*fetch
 }
 
 func (h *jsHelpers) postContext(ctx context.Context, rawURL, body string, headers map[string]string) (*fetcher.Response, error) {
+	return h.postContextOptions(ctx, rawURL, body, headers, 0, "")
+}
+
+func (h *jsHelpers) postContextOptions(ctx context.Context, rawURL, body string, headers map[string]string, retry int, charset string) (*fetcher.Response, error) {
+	if charset != "" {
+		if client, ok := h.hc.(interface {
+			PostContextWithCharset(context.Context, string, string, map[string]string, int, string) (*fetcher.Response, error)
+		}); ok {
+			return client.PostContextWithCharset(ctx, rawURL, body, headers, retry, charset)
+		}
+	}
 	if client, ok := h.hc.(fetcher.ContextHTTPClient); ok {
-		return client.PostContext(ctx, rawURL, body, headers, 0)
+		return client.PostContext(ctx, rawURL, body, headers, retry)
 	}
 	contentType := ajaxHeader(headers, "Content-Type")
 	if contentType == "" {
 		contentType = "application/x-www-form-urlencoded"
 	}
 	return h.hc.Post(rawURL, contentType, body, headers)
+}
+
+func (h *jsHelpers) headContext(ctx context.Context, rawURL string, headers map[string]string, retry int) (*fetcher.Response, error) {
+	client, ok := h.hc.(interface {
+		HeadContextWithCharset(context.Context, string, map[string]string, int) (*fetcher.Response, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("js ajax: HEAD is not supported by the configured client")
+	}
+	return client.HeadContextWithCharset(ctx, rawURL, headers, retry)
 }
 
 func jsDuration(value interface{}) time.Duration {
@@ -754,8 +786,8 @@ func (h *jsHelpers) Ajax(value interface{}, args ...interface{}) string {
 		return ""
 	}
 	meta.URL = resolved
-	if strings.EqualFold(meta.Method, http.MethodPost) && ajaxHeader(meta.Headers, "Content-Type") == "" && json.Valid([]byte(meta.Body)) {
-		meta.Headers["Content-Type"] = "application/json"
+	if strings.EqualFold(meta.Method, http.MethodPost) {
+		prepareAjaxBody(meta)
 	}
 	requestCtx := h.ctx
 	if len(args) > 0 {
@@ -766,10 +798,16 @@ func (h *jsHelpers) Ajax(value interface{}, args ...interface{}) string {
 		}
 	}
 	var response *fetcher.Response
-	if strings.EqualFold(meta.Method, http.MethodPost) {
-		response, err = h.postContext(requestCtx, meta.URL, meta.Body, meta.Headers)
-	} else {
-		response, err = h.getContext(requestCtx, meta.URL, meta.Headers)
+	switch strings.ToUpper(meta.Method) {
+	case http.MethodGet:
+		response, err = h.getContextOptions(requestCtx, meta.URL, meta.Headers, meta.Retry, meta.Charset)
+	case http.MethodPost:
+		response, err = h.postContextOptions(requestCtx, meta.URL, meta.Body, meta.Headers, meta.Retry, meta.Charset)
+	case http.MethodHead:
+		response, err = h.headContext(requestCtx, meta.URL, meta.Headers, meta.Retry)
+	default:
+		slog.Warn("js:ajax unsupported method", "method", meta.Method)
+		return ""
 	}
 	if err != nil {
 		return ""
@@ -792,6 +830,29 @@ func firstAjaxURL(value interface{}) string {
 		return fmt.Sprint(value)
 	}
 	return ""
+}
+
+func prepareAjaxBody(meta *URLMeta) {
+	contentType := ajaxHeader(meta.Headers, "Content-Type")
+	if contentType == "" {
+		if json.Valid([]byte(meta.Body)) {
+			contentType = "application/json"
+		} else {
+			contentType = "application/x-www-form-urlencoded"
+		}
+		meta.Headers["Content-Type"] = contentType
+	}
+	if meta.Charset == "" || !strings.EqualFold(strings.TrimSpace(strings.SplitN(contentType, ";", 2)[0]), "application/x-www-form-urlencoded") {
+		return
+	}
+	pairs := strings.Split(meta.Body, "&")
+	for index, pair := range pairs {
+		separator := strings.IndexByte(pair, '=')
+		if separator >= 0 {
+			pairs[index] = pair[:separator+1] + EncodeParamValue(pair[separator+1:], meta.Charset)
+		}
+	}
+	meta.Body = strings.Join(pairs, "&")
 }
 
 func ajaxHeader(headers map[string]string, name string) string {

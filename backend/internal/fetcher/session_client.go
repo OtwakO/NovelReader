@@ -3,6 +3,7 @@ package fetcher
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -33,6 +34,42 @@ func (c *SessionHTTPClient) GetContext(ctx context.Context, rawURL string, heade
 	} else {
 		response, err = c.base.Get(rawURL, headers)
 	}
+	if err == nil {
+		err = c.syncCookies(rawURL, response)
+	}
+	return response, err
+}
+
+func (c *SessionHTTPClient) GetContextWithCharset(ctx context.Context, rawURL string, headers map[string]string, retry int, responseCharset string) (*Response, error) {
+	headers = c.requestHeaders(rawURL, headers)
+	var (
+		response *Response
+		err      error
+	)
+	if client, ok := c.base.(interface {
+		GetContextWithCharset(context.Context, string, map[string]string, int, string) (*Response, error)
+	}); ok {
+		response, err = client.GetContextWithCharset(ctx, rawURL, headers, retry, responseCharset)
+	} else if client, ok := c.base.(ContextHTTPClient); ok {
+		response, err = client.GetContext(ctx, rawURL, headers, retry)
+	} else {
+		response, err = c.base.Get(rawURL, headers)
+	}
+	if err == nil {
+		err = c.syncCookies(rawURL, response)
+	}
+	return response, err
+}
+
+func (c *SessionHTTPClient) HeadContextWithCharset(ctx context.Context, rawURL string, headers map[string]string, retry int) (*Response, error) {
+	headers = c.requestHeaders(rawURL, headers)
+	client, ok := c.base.(interface {
+		HeadContextWithCharset(context.Context, string, map[string]string, int) (*Response, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("fetcher: HEAD is not supported by the wrapped client")
+	}
+	response, err := client.HeadContextWithCharset(ctx, rawURL, headers, retry)
 	if err == nil {
 		err = c.syncCookies(rawURL, response)
 	}
@@ -78,6 +115,30 @@ func (c *SessionHTTPClient) PostContext(ctx context.Context, rawURL, body string
 		err      error
 	)
 	if client, ok := c.base.(ContextHTTPClient); ok {
+		response, err = client.PostContext(ctx, rawURL, body, headers, retry)
+	} else {
+		response, err = c.base.Post(rawURL, "application/x-www-form-urlencoded", body, headers)
+	}
+	if err == nil {
+		err = c.syncCookies(rawURL, response)
+	}
+	return response, err
+}
+
+func (c *SessionHTTPClient) PostContextWithCharset(ctx context.Context, rawURL, body string, headers map[string]string, retry int, responseCharset string) (*Response, error) {
+	headers = c.requestHeaders(rawURL, headers)
+	if !hasSessionHeader(headers, "Content-Type") {
+		headers["Content-Type"] = "application/x-www-form-urlencoded"
+	}
+	var (
+		response *Response
+		err      error
+	)
+	if client, ok := c.base.(interface {
+		PostContextWithCharset(context.Context, string, string, map[string]string, int, string) (*Response, error)
+	}); ok {
+		response, err = client.PostContextWithCharset(ctx, rawURL, body, headers, retry, responseCharset)
+	} else if client, ok := c.base.(ContextHTTPClient); ok {
 		response, err = client.PostContext(ctx, rawURL, body, headers, retry)
 	} else {
 		response, err = c.base.Post(rawURL, "application/x-www-form-urlencoded", body, headers)
