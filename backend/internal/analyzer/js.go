@@ -1120,17 +1120,7 @@ func makeJSoupElement(rt *goja.Runtime, s *goquery.Selection) map[string]interfa
 func emptyJSoupSelection(rt *goja.Runtime) *goja.Object { return makeJSoupSelection(rt, nil) }
 
 func makeJSoupSelectionFromHTML(rt *goja.Runtime, html string) (*goja.Object, error) {
-	selector := "body > *"
-	switch lower := strings.ToLower(strings.TrimSpace(html)); {
-	case strings.HasPrefix(lower, "<tr"):
-		html, selector = "<table><tbody>"+html+"</tbody></table>", "tbody > tr"
-	case strings.HasPrefix(lower, "<td"), strings.HasPrefix(lower, "<th"):
-		html, selector = "<table><tbody><tr>"+html+"</tr></tbody></table>", "tr > td, tr > th"
-	case strings.HasPrefix(lower, "<thead"), strings.HasPrefix(lower, "<tbody"), strings.HasPrefix(lower, "<tfoot"), strings.HasPrefix(lower, "<caption"), strings.HasPrefix(lower, "<colgroup"):
-		html, selector = "<table>"+html+"</table>", "table > *"
-	case strings.HasPrefix(lower, "<option"), strings.HasPrefix(lower, "<optgroup"):
-		html, selector = "<select>"+html+"</select>", "select > *"
-	}
+	html, selector := contextualizeHTMLSelection(html)
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
 		return nil, fmt.Errorf("java.getElement: parse selection: %w", err)

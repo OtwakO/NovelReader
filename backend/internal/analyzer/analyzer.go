@@ -712,20 +712,8 @@ func serializeHTMLSelection(values []interface{}) string {
 	for _, value := range values {
 		joined.WriteString(ToString(value))
 	}
-	content := joined.String()
-	lower := strings.ToLower(strings.TrimSpace(content))
-	switch {
-	case strings.HasPrefix(lower, "<tr"):
-		return "<table><tbody>" + content + "</tbody></table>"
-	case strings.HasPrefix(lower, "<td"), strings.HasPrefix(lower, "<th"):
-		return "<table><tbody><tr>" + content + "</tr></tbody></table>"
-	case strings.HasPrefix(lower, "<thead"), strings.HasPrefix(lower, "<tbody"), strings.HasPrefix(lower, "<tfoot"), strings.HasPrefix(lower, "<caption"), strings.HasPrefix(lower, "<colgroup"):
-		return "<table>" + content + "</table>"
-	case strings.HasPrefix(lower, "<option"), strings.HasPrefix(lower, "<optgroup"):
-		return "<select>" + content + "</select>"
-	default:
-		return content
-	}
+	content, _ := contextualizeHTMLSelection(joined.String())
+	return content
 }
 
 // dispatch routes to the correct parser mode and returns a single result.
