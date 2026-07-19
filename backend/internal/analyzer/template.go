@@ -1,7 +1,10 @@
 // Rule and URL templates share one brace-aware interpolation scanner.
 package analyzer
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 func (a *Analyzer) expandRuleTemplates(content interface{}, input string) (string, error) {
 	return replaceTemplateExpressions(input, func(expression string) (string, error) {
@@ -9,7 +12,11 @@ func (a *Analyzer) expandRuleTemplates(content interface{}, input string) (strin
 			current := *a
 			current.content = content
 			current.isJSON = looksLikeJSON(ToString(content))
-			return current.GetString(expression)
+			value, err := current.GetString(expression)
+			if isEmbeddedJSONRule(expression) && errors.Is(err, errInvalidJSONInput) {
+				return "", nil
+			}
+			return value, err
 		}
 		value, err := a.jsEval(expression, content)
 		return ToString(value), err
@@ -18,8 +25,12 @@ func (a *Analyzer) expandRuleTemplates(content interface{}, input string) (strin
 
 func isEmbeddedRule(expression string) bool {
 	expression = strings.TrimSpace(expression)
-	return strings.HasPrefix(expression, "@") || strings.HasPrefix(expression, "$.") ||
-		strings.HasPrefix(expression, "$[") || strings.HasPrefix(expression, "//")
+	return strings.HasPrefix(expression, "@") || isEmbeddedJSONRule(expression) || strings.HasPrefix(expression, "//")
+}
+
+func isEmbeddedJSONRule(expression string) bool {
+	expression = strings.TrimSpace(expression)
+	return strings.HasPrefix(expression, "$.") || strings.HasPrefix(expression, "$[")
 }
 
 func replaceTemplateExpressions(input string, evaluate func(string) (string, error)) (string, error) {

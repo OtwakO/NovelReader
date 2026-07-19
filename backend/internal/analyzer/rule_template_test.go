@@ -81,6 +81,21 @@ func TestDoubleAtPrefixForcesDefaultModeOnJSON(t *testing.T) {
 	}
 }
 
+func TestEmbeddedJSONPathAgainstHTMLKeepsLiteralFallback(t *testing.T) {
+	an := New(`<td class="cover"></td>`, "https://fixture.test", NewJSVM(), nil)
+
+	value, err := an.GetStringStrict(`{{$.coverUrl}}http://u3v.cn/5zBiW8`)
+	if err != nil || value != "http://u3v.cn/5zBiW8" {
+		t.Fatalf("template value=%q err=%v", value, err)
+	}
+	if _, err := an.GetStringStrict(`$.coverUrl`); err == nil {
+		t.Fatal("terminal JSONPath against HTML did not fail")
+	}
+	if _, err := an.GetStringStrict(`{{throw new Error('broken')}}fallback`); err == nil {
+		t.Fatal("template JavaScript error was swallowed")
+	}
+}
+
 func TestOptionalJSONPathCanFeedJavaScriptDefault(t *testing.T) {
 	an := New(`<article class="articlegeneral">book</article>`, "https://fixture.test", NewJSVM(), nil)
 
