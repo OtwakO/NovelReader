@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "verificationDate": "2026-07-19",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"
+  },
+  "method": "Fresh isolated database and current production transport; first selectable Explore category, page 1. Playwright independently counted the live rows selected by each raw rule. Live responses are time-sensitive.",
+  "results": [
+    {
+      "rawIndex": 737,
+      "engine": { "status": 200, "books": 10, "distinctBookUrls": 10 },
+      "playwright": { "url": "https://www.xiangtxsw.com/", "selector": "tbody tr", "rows": 10 },
+      "outcome": "repaired"
+    },
+    {
+      "rawIndex": 788,
+      "engine": { "attempts": ["HTTP 200 with an upstream-empty body", "HTTP 502 transport_failed"] },
+      "playwright": { "url": "https://www.wanwx.com/xuanhuan/?page=1", "selector": ".mytable tr excluding header", "rows": 20 },
+      "deterministicRegression": "TestEmbeddedJSONPathAgainstHTMLKeepsLiteralFallback",
+      "outcome": "implementation verified; live production transport blocked by variable upstream responses"
+    },
+    {
+      "rawIndex": 462,
+      "engine": { "status": 200, "books": 20, "distinctBookUrls": 20 },
+      "playwright": { "url": "https://api.wanshu.com/novel/libraryList?page=1&pageSize=20&order=mouth_view_count", "jsonItems": 20 },
+      "outcome": "repaired"
+    },
+    {
+      "rawIndex": 305,
+      "engine": { "status": 200, "books": 16, "distinctBookUrls": 16, "note": "A preceding request received an upstream-empty body; isolated rerun matched the browser." },
+      "playwright": { "url": "http://www.tzy2.com/yanqing/1.html", "selector": ".sort_list", "rows": 16 },
+      "outcome": "repaired"
+    },
+    {
+      "rawIndex": 215,
+      "engine": { "status": 200, "books": 100, "distinctBookUrls": 100 },
+      "playwright": { "selector": "tbody tr excluding header", "rows": 100 },
+      "outcome": "repaired"
+    },
+    {
+      "rawIndex": 726,
+      "engine": {
+        "status": 200,
+        "books": 2000,
+        "distinctBookUrls": 2000,
+        "exhausted": true,
+        "diagnostic": { "code": "result_truncated", "stage": "capacity", "severity": "warning", "retryable": false }
+      },
+      "playwright": { "url": "https://www.liyuxiangall.com/xiandai/", "selector": ".m-list-top ul li", "rows": 2432 },
+      "outcome": "repaired with bounded prefix"
+    }
+  ]
+}
