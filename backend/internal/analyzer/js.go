@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -177,7 +178,7 @@ Map = function(a) {
 			sourceState.PutMemory(clientMemoryKey, hc)
 		}
 	}
-	h := &jsHelpers{vm: vm, rt: rt, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState}
+	h := &jsHelpers{vm: vm, rt: rt, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState, baseURL: baseURL}
 	_ = rt.Set("result", content)
 	_ = rt.Set("src", content) // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
@@ -194,6 +195,8 @@ Map = function(a) {
 		"encodeURI":      h.EncodeURI,
 		"randomUUID":     h.RandomUUID,
 		"timeFormat":     h.TimeFormat,
+		"toNumChapter":   h.ToNumChapter,
+		"toast":          h.Toast,
 		"androidId":      h.AndroidId,
 		"log":            h.Log,
 		"getString":      h.GetString,
@@ -355,6 +358,7 @@ type jsHelpers struct {
 	ctx      context.Context
 	analyzer *Analyzer
 	state    SourceState
+	baseURL  string
 }
 
 type responseCookieState interface {
@@ -387,10 +391,18 @@ func (h *jsHelpers) getNoRedirect(rawURL string, headers map[string]string) (*fe
 }
 
 func (h *jsHelpers) post(rawURL, body string, headers map[string]string) (*fetcher.Response, error) {
+	return h.postContext(h.ctx, rawURL, body, headers)
+}
+
+func (h *jsHelpers) postContext(ctx context.Context, rawURL, body string, headers map[string]string) (*fetcher.Response, error) {
 	if client, ok := h.hc.(fetcher.ContextHTTPClient); ok {
-		return client.PostContext(h.ctx, rawURL, body, headers, 0)
+		return client.PostContext(ctx, rawURL, body, headers, 0)
 	}
-	return h.hc.Post(rawURL, "application/x-www-form-urlencoded", body, headers)
+	contentType := ajaxHeader(headers, "Content-Type")
+	if contentType == "" {
+		contentType = "application/x-www-form-urlencoded"
+	}
+	return h.hc.Post(rawURL, contentType, body, headers)
 }
 
 func jsDuration(value interface{}) time.Duration {
@@ -565,6 +577,89 @@ func (h *jsHelpers) Log(msg interface{}) interface{} {
 	return msg
 }
 
+var chapterNumberPattern = regexp.MustCompile(`第(.+?)章`)
+
+func (h *jsHelpers) ToNumChapter(value interface{}) interface{} {
+	if value == nil {
+		return nil
+	}
+	title := fmt.Sprint(value)
+	match := chapterNumberPattern.FindStringSubmatch(title)
+	if len(match) != 2 {
+		return title
+	}
+	return fmt.Sprintf("第%d章", chapterNumber(match[1]))
+}
+
+func (h *jsHelpers) Toast(msg interface{}) {
+	slog.Info("js:toast", "message", fmt.Sprint(msg))
+}
+
+func chapterNumber(value string) int32 {
+	var normalized strings.Builder
+	for _, char := range value {
+		switch {
+		case char == '　':
+			normalized.WriteByte(' ')
+		case char >= '！' && char <= '～':
+			normalized.WriteRune(char - 65248)
+		default:
+			normalized.WriteRune(char)
+		}
+	}
+	compact := strings.Join(strings.Fields(normalized.String()), "")
+	if number, err := strconv.ParseInt(compact, 10, 32); err == nil {
+		return int32(number)
+	}
+	return chineseChapterNumber(compact)
+}
+
+var chineseChapterDigits = map[rune]int32{
+	'〇': 0, '零': 0, '一': 1, '壹': 1, '二': 2, '贰': 2, '两': 2,
+	'三': 3, '叁': 3, '四': 4, '肆': 4, '五': 5, '伍': 5, '六': 6,
+	'陆': 6, '七': 7, '柒': 7, '八': 8, '捌': 8, '九': 9, '玖': 9,
+	'十': 10, '拾': 10, '百': 100, '佰': 100, '千': 1000, '仟': 1000,
+	'万': 10000, '亿': 100000000,
+}
+
+func chineseChapterNumber(value string) int32 {
+	chars := []rune(value)
+	var result, pending, billion int32
+	for index, char := range chars {
+		number, ok := chineseChapterDigits[char]
+		if !ok {
+			return -1
+		}
+		switch {
+		case number == 100000000:
+			result += pending
+			result *= number
+			billion = billion*number + result
+			result, pending = 0, 0
+		case number == 10000:
+			result += pending
+			result *= number
+			pending = 0
+		case number >= 10:
+			if pending == 0 {
+				pending = 1
+			}
+			result += number * pending
+			pending = 0
+		default:
+			if index >= 2 && index == len(chars)-1 {
+				previous := chineseChapterDigits[chars[index-1]]
+				if previous > 10 {
+					pending = number * previous / 10
+					continue
+				}
+			}
+			pending = pending*10 + number
+		}
+	}
+	return result + pending + billion
+}
+
 // HMacHex computes HMAC hex digest: java.HMacHex(data, algorithm, key)
 // Legado supports "HmacMD5", "HmacSHA1", "HmacSHA256"
 func (h *jsHelpers) HMacHex(data, algorithm, key string) string {
@@ -635,13 +730,27 @@ func (h *jsHelpers) SetContent(content interface{}) {
 	}
 }
 
-// ajax is like get but simpler: java.ajax(url)
-func (h *jsHelpers) Ajax(urlStr interface{}, args ...interface{}) string {
-	s := fmt.Sprint(urlStr)
-	if h.hc == nil {
+// Ajax executes a Legado URL, including its optional method/body/header suffix.
+func (h *jsHelpers) Ajax(value interface{}, args ...interface{}) string {
+	rawURL := firstAjaxURL(value)
+	if h.hc == nil || rawURL == "" {
 		return ""
 	}
-	headers := make(map[string]string)
+	meta := &URLMeta{Method: http.MethodGet, Headers: make(map[string]string)}
+	if before, option, ok := extractJSONOption(rawURL); ok {
+		rawURL = before
+		if _, err := applyURLJSONOption(meta, option); err != nil {
+			return ""
+		}
+	}
+	resolved, err := resolveAjaxURL(rawURL, h.baseURL)
+	if err != nil {
+		return ""
+	}
+	meta.URL = resolved
+	if strings.EqualFold(meta.Method, http.MethodPost) && ajaxHeader(meta.Headers, "Content-Type") == "" && json.Valid([]byte(meta.Body)) {
+		meta.Headers["Content-Type"] = "application/json"
+	}
 	requestCtx := h.ctx
 	if len(args) > 0 {
 		if timeout := jsDuration(args[0]); timeout > 0 {
@@ -650,12 +759,57 @@ func (h *jsHelpers) Ajax(urlStr interface{}, args ...interface{}) string {
 			defer cancel()
 		}
 	}
-	resp, err := h.getContext(requestCtx, s, headers)
+	var response *fetcher.Response
+	if strings.EqualFold(meta.Method, http.MethodPost) {
+		response, err = h.postContext(requestCtx, meta.URL, meta.Body, meta.Headers)
+	} else {
+		response, err = h.getContext(requestCtx, meta.URL, meta.Headers)
+	}
 	if err != nil {
 		return ""
 	}
-	h.syncResponseCookies(responseURL(resp, s), resp.Headers)
-	return resp.Body
+	h.syncResponseCookies(responseURL(response, meta.URL), response.Headers)
+	return response.Body
+}
+
+func firstAjaxURL(value interface{}) string {
+	switch values := value.(type) {
+	case []interface{}:
+		if len(values) > 0 {
+			return fmt.Sprint(values[0])
+		}
+	case []string:
+		if len(values) > 0 {
+			return values[0]
+		}
+	default:
+		return fmt.Sprint(value)
+	}
+	return ""
+}
+
+func ajaxHeader(headers map[string]string, name string) string {
+	for key, value := range headers {
+		if strings.EqualFold(key, name) {
+			return value
+		}
+	}
+	return ""
+}
+
+func resolveAjaxURL(rawURL, baseURL string) (string, error) {
+	reference, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return "", err
+	}
+	if reference.IsAbs() {
+		return reference.String(), nil
+	}
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	return base.ResolveReference(reference).String(), nil
 }
 
 // put stores a value: java.put(key, value)

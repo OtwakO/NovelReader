@@ -93,6 +93,12 @@ func nextSegment(s string) (string, string, error) {
 
 // buildRule creates a Rule from a single segment, determining mode and extracting ## suffix.
 func buildRule(seg string, isJSON bool) Rule {
+	trimmed := strings.TrimSpace(seg)
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "<js>##") && strings.HasSuffix(lower, "</js>") {
+		expression := strings.TrimSpace(trimmed[len("<js>") : len(trimmed)-len("</js>")])
+		return Rule{Mode: ModeRegex, Expression: expression, Template: expression}
+	}
 	template, putRules := extractPutRules(seg)
 	expression, replaceRegex, replacement, replaceFirst := extractReplaceSuffix(template)
 	mode := detectMode(expression, isJSON)
@@ -120,8 +126,9 @@ func buildRule(seg string, isJSON bool) Rule {
 //	selector##regex##replacement###  — replace first
 //	selector##regex##               — replace with empty
 func extractReplaceSuffix(seg string) (expression, regex, replacement string, replaceFirst bool) {
-	// Must contain at least one ##
-	idx := strings.Index(seg, "##")
+	// Replacement suffixes only apply at rule level. Template expressions may
+	// contain their own ## replacement without terminating the outer rule.
+	idx := indexTopLevelRuleToken(seg, "##")
 	if idx == -1 {
 		return seg, "", "", false
 	}
@@ -161,6 +168,36 @@ func extractReplaceSuffix(seg string) (expression, regex, replacement string, re
 	}
 
 	return expression, regex, replacement, replaceFirst
+}
+
+func indexTopLevelRuleToken(input, token string) int {
+	depth := 0
+	inJS := false
+	for index := 0; index+len(token) <= len(input); index++ {
+		switch {
+		case index+3 < len(input) && input[index:index+4] == "<js>":
+			inJS = true
+			index += 3
+		case index+4 < len(input) && input[index:index+5] == "</js>":
+			inJS = false
+			index += 4
+		case input[index] == '{' && !inJS:
+			depth++
+			if index+1 < len(input) && input[index+1] == '{' {
+				index++
+			}
+		case input[index] == '}' && !inJS:
+			if index+1 < len(input) && input[index+1] == '}' {
+				index++
+			}
+			if depth > 0 {
+				depth--
+			}
+		case depth == 0 && !inJS && input[index:index+len(token)] == token:
+			return index
+		}
+	}
+	return -1
 }
 
 // detectMode determines the parsing mode from a rule expression prefix/content.

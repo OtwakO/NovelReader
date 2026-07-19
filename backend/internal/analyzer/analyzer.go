@@ -45,6 +45,7 @@ func splitTopLevel(s, sep string) []string {
 			depth++
 			if i+1 < len(s) && s[i+1] == '{' {
 				doubleBrace = true
+				i++
 			}
 		case s[i] == '}' && !inJS:
 			if doubleBrace && i+1 < len(s) && s[i+1] == '}' {

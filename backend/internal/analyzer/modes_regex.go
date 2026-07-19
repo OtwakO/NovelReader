@@ -142,11 +142,11 @@ func applyReplaceFromExpr(content, expr string) (string, error) {
 	inner := expr[2:]
 	// Split on ## to get pattern and replacement
 	parts := strings.SplitN(inner, "##", 2)
-	if len(parts) < 2 {
-		return content, nil
-	}
 	pattern := parts[0]
-	replacement := parts[1]
+	replacement := ""
+	if len(parts) == 2 {
+		replacement = parts[1]
+	}
 	first := strings.HasSuffix(replacement, "###")
 	if first {
 		replacement = strings.TrimSuffix(replacement, "###")

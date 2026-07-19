@@ -36,10 +36,32 @@ func TestGetStringStrictAllowsMissingFallbackButPropagatesCompositeScriptErrors(
 	}
 }
 
+func TestTemplateConnectorsRemainTopLevel(t *testing.T) {
+	an := New(`{"a":"left","b":"right","grade":"9.2"}`, "https://fixture.test", NewJSVM(), nil)
+
+	value, err := an.GetStringStrict(`{{$.missing}}||$.grade`)
+	if err != nil || value != "9.2" {
+		t.Fatalf("template OR value=%q err=%v", value, err)
+	}
+	value, err = an.GetStringStrict(`{{$.missing||$.grade}}`)
+	if err != nil || value != "9.2" {
+		t.Fatalf("inner template OR value=%q err=%v", value, err)
+	}
+	value, err = an.GetStringStrict(`{{$.missing||$.grade##9\.2##rated}}`)
+	if err != nil || value != "rated" {
+		t.Fatalf("inner template replacement value=%q err=%v", value, err)
+	}
+	value, err = an.GetStringStrict(`{{$.a}}&&{{$.b}}`)
+	if err != nil || value != "left right" {
+		t.Fatalf("template AND value=%q err=%v", value, err)
+	}
+}
+
 func TestSingleBraceJSONInterpolationUsesCurrentValue(t *testing.T) {
 	an := New(`{"grade":"9.2","crazy_rating":"8.7"}`, "https://fixture.test", NewJSVM(), nil)
 
 	for rule, want := range map[string]string{
+		`{$.grade} / {{$.grade}}`:         "9.2 / 9.2",
 		`{$.grade}分`:                      "9.2分",
 		`评分 {$.grade} / {$.crazy_rating}`: "评分 9.2 / 8.7",
 		`{$.grade}分##分## points`:          "9.2 points",
@@ -60,6 +82,14 @@ func TestOptionalJSONPathCanFeedJavaScriptDefault(t *testing.T) {
 	}
 	if _, err := an.GetStringStrict(`$.thumbnail`); err == nil {
 		t.Fatal("terminal JSONPath against HTML did not fail")
+	}
+}
+
+func TestWrappedRegexRemovesMatchesWithImplicitEmptyReplacement(t *testing.T) {
+	an := New("alpha|\nbeta|", "https://fixture.test", NewJSVM(), nil)
+	value, err := an.GetStringStrict(`<js>##(?m)\|$</js>`)
+	if err != nil || value != "alpha\nbeta" {
+		t.Fatalf("wrapped regex value=%q err=%v", value, err)
 	}
 }
 

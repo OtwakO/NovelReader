@@ -196,7 +196,7 @@ func (a *Analyzer) prepareRuleForEvaluation(rule Rule, content interface{}) (Rul
 		}
 		rule.Expression = expanded
 		if rule.Mode != ModeJS {
-			rule.Literal = true
+			rule.Literal = !strings.Contains(expanded, "{$")
 		}
 	}
 	return rule, nil

@@ -140,59 +140,11 @@ func BuildURLWithContextData(ctx context.Context, template, key string, page int
 		if before, option, ok := extractJSONOption(urlStr); ok {
 			urlStr = before
 
-			var opt urlOption
-			if err := json.Unmarshal([]byte(option), &opt); err != nil {
+			var err error
+			optJs, err = applyURLJSONOption(meta, option)
+			if err != nil {
 				slog.Warn("urlbuilder: failed to parse URL JSON option",
 					"option", option[:min(len(option), 100)], "err", err)
-			} else {
-				if opt.Method != "" {
-					meta.Method = strings.ToUpper(opt.Method)
-				}
-				meta.Body = optionBodyString(opt.Body)
-				meta.Charset = opt.Charset
-
-				// Tolerant webView: accepts "true" (string), true (bool), "1", 1
-				if len(opt.WebView) > 0 {
-					var s string
-					if err := json.Unmarshal(opt.WebView, &s); err == nil {
-						meta.WebView = s == "true" || s == "1"
-					} else {
-						var b bool
-						if err := json.Unmarshal(opt.WebView, &b); err == nil {
-							meta.WebView = b
-						}
-					}
-				}
-
-				// Tolerant headers: accepts JSON string ("{\"UA\":\"...\"}") or map
-				if len(opt.Headers) > 0 {
-					if err := json.Unmarshal(opt.Headers, &meta.Headers); err != nil {
-						var s string
-						if err2 := json.Unmarshal(opt.Headers, &s); err2 == nil && s != "" {
-							json.Unmarshal([]byte(s), &meta.Headers)
-						}
-					}
-				}
-
-				// Tolerant retry: accepts 2 (number) or "2" (string)
-				if len(opt.Retry) > 0 {
-					json.Unmarshal(opt.Retry, &meta.Retry)
-					if meta.Retry == 0 {
-						var s string
-						if json.Unmarshal(opt.Retry, &s) == nil {
-							fmt.Sscanf(s, "%d", &meta.Retry)
-						}
-					}
-				}
-
-				meta.WebJS = opt.WebJs
-				meta.WebViewDelayMS = parseOptionInt(opt.WebViewDelayTime)
-				meta.BodyJS = opt.BodyJs
-				meta.DNSIP = opt.DnsIp
-				meta.Origin = opt.Origin
-				meta.Type = opt.Type
-
-				optJs = opt.Js // stored for post-resolution eval
 			}
 		}
 	}
@@ -346,6 +298,50 @@ func parseOptionInt(raw json.RawMessage) int {
 		fmt.Sscanf(text, "%d", &value)
 	}
 	return value
+}
+
+func applyURLJSONOption(meta *URLMeta, option string) (string, error) {
+	var opt urlOption
+	if err := json.Unmarshal([]byte(option), &opt); err != nil {
+		return "", err
+	}
+	if opt.Method != "" {
+		meta.Method = strings.ToUpper(opt.Method)
+	}
+	meta.Body = optionBodyString(opt.Body)
+	meta.Charset = opt.Charset
+	if len(opt.WebView) > 0 {
+		var text string
+		if json.Unmarshal(opt.WebView, &text) == nil {
+			meta.WebView = text == "true" || text == "1"
+		} else {
+			_ = json.Unmarshal(opt.WebView, &meta.WebView)
+		}
+	}
+	if len(opt.Headers) > 0 {
+		if err := json.Unmarshal(opt.Headers, &meta.Headers); err != nil {
+			var text string
+			if json.Unmarshal(opt.Headers, &text) == nil && text != "" {
+				_ = json.Unmarshal([]byte(text), &meta.Headers)
+			}
+		}
+	}
+	if len(opt.Retry) > 0 {
+		_ = json.Unmarshal(opt.Retry, &meta.Retry)
+		if meta.Retry == 0 {
+			var text string
+			if json.Unmarshal(opt.Retry, &text) == nil {
+				_, _ = fmt.Sscanf(text, "%d", &meta.Retry)
+			}
+		}
+	}
+	meta.WebJS = opt.WebJs
+	meta.WebViewDelayMS = parseOptionInt(opt.WebViewDelayTime)
+	meta.BodyJS = opt.BodyJs
+	meta.DNSIP = opt.DnsIp
+	meta.Origin = opt.Origin
+	meta.Type = opt.Type
+	return opt.Js, nil
 }
 
 func optionBodyString(raw json.RawMessage) string {
