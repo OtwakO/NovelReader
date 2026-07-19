@@ -4,7 +4,11 @@ package book
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sort"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -99,15 +103,50 @@ func TestExploreActiveSessionCannotBeEvicted(t *testing.T) {
 	}
 }
 
-func TestExploreRetainedBookCapacityFailsBeforeMutatingPageState(t *testing.T) {
-	session := &exploreSession{retainedBooks: maxExploreRetainedBooks}
-	state := &explorePageState{seen: map[string]bool{"https://fixture.test/old": true}}
-	_, err := retainExploreBooks(session, state, []SearchResult{{Name: "New", BookURL: "https://fixture.test/new"}})
-	if exploreErr, ok := err.(*ExploreError); !ok || exploreErr.Code != "result_capacity_exceeded" {
-		t.Fatalf("error=%T %v", err, err)
+func TestExploreRetainedBookCapacityReturnsBoundedPageAndWarning(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		if r.URL.Query().Get("page") == "1" {
+			_, _ = fmt.Fprint(w, `<a class="book" href="/book/prior">Prior</a>`)
+			return
+		}
+		for index := range maxExploreRetainedBooks + 1 {
+			_, _ = fmt.Fprintf(w, `<a class="book" href="/book/%d">Book %d</a>`, index, index)
+		}
+	}))
+	defer server.Close()
+
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "Capacity", EnabledExplore: true,
+		ExploreURL: "Books::" + server.URL + "/books?page={{page}}", BookURLPattern: `/book/`,
+		RuleExplore: `{"bookList":".book","name":"text","bookUrl":"href"}`,
 	}
-	if state.seen["https://fixture.test/new"] || session.retainedBooks != maxExploreRetainedBooks {
-		t.Fatalf("capacity failure mutated state: seen=%v retained=%d", state.seen, session.retainedBooks)
+	searcher := NewSearcher(nil, nil, nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1}); err != nil {
+		t.Fatal(err)
+	}
+	page, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Books) != maxExploreRetainedBooks-1 || page.Books[0].BookURL != server.URL+"/book/0" || page.Books[len(page.Books)-1].BookURL != server.URL+"/book/1998" {
+		t.Fatalf("books=%d first=%q last=%q", len(page.Books), page.Books[0].BookURL, page.Books[len(page.Books)-1].BookURL)
+	}
+	if !page.Exhausted || len(page.Diagnostics) != 1 {
+		t.Fatalf("page exhausted=%v diagnostics=%+v", page.Exhausted, page.Diagnostics)
+	}
+	diagnostic := page.Diagnostics[0]
+	if diagnostic.Code != "result_truncated" || diagnostic.Stage != "capacity" || diagnostic.Severity != "warning" || diagnostic.Retryable {
+		t.Fatalf("diagnostic=%+v", diagnostic)
+	}
+	replayed, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 2})
+	if err != nil || len(replayed.Books) != len(page.Books) || requests.Load() != 2 {
+		t.Fatalf("replayed books=%d err=%v requests=%d", len(replayed.Books), err, requests.Load())
 	}
 }
 

@@ -117,41 +117,42 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 			books[left], books[right] = books[right], books[left]
 		}
 	}
-	unique, err := retainExploreBooks(session, state, books)
-	if err != nil {
-		return ExplorePage{}, err
+	unique, truncated := retainExploreBooks(session, state, books)
+	diagnostics := []ExploreDiagnostic{}
+	if truncated {
+		diagnostics = append(diagnostics, ExploreDiagnostic{
+			Code: "result_truncated", Stage: "capacity", Severity: "warning", Retryable: false,
+			Message: "Explore results were truncated at the session retained-result limit",
+		})
 	}
 	pageResult = ExplorePage{
 		SourceID: session.source.BookSourceURL, SessionID: request.SessionID, CategoryID: request.CategoryID,
-		Page: request.Page, NextPage: request.Page + 1, Books: unique, Exhausted: len(unique) == 0,
-		Diagnostics: []ExploreDiagnostic{},
+		Page: request.Page, NextPage: request.Page + 1, Books: unique, Exhausted: truncated || len(unique) == 0,
+		Diagnostics: diagnostics,
 	}
 	state.next = pageResult.NextPage
 	state.last = &pageResult
 	return pageResult, nil
 }
 
-func retainExploreBooks(session *exploreSession, state *explorePageState, books []SearchResult) ([]SearchResult, error) {
-	unique := make([]SearchResult, 0, len(books))
-	pending := make(map[string]struct{}, len(books))
+func retainExploreBooks(session *exploreSession, state *explorePageState, books []SearchResult) ([]SearchResult, bool) {
+	remaining := maxExploreRetainedBooks - session.retainedBooks
+	if remaining < 0 {
+		remaining = 0
+	}
+	unique := make([]SearchResult, 0, min(len(books), remaining))
 	for _, result := range books {
-		if state.seen[result.BookURL] || result.BookURL == "" {
+		if result.BookURL == "" || state.seen[result.BookURL] {
 			continue
 		}
-		if _, duplicate := pending[result.BookURL]; duplicate {
-			continue
+		if len(unique) == remaining {
+			return unique, true
 		}
-		pending[result.BookURL] = struct{}{}
+		state.seen[result.BookURL] = true
+		session.retainedBooks++
 		unique = append(unique, result)
 	}
-	if session.retainedBooks+len(pending) > maxExploreRetainedBooks {
-		return nil, newExploreError("result_capacity_exceeded", "capacity", "Explore session retained-result limit reached", false, nil)
-	}
-	for bookURL := range pending {
-		state.seen[bookURL] = true
-	}
-	session.retainedBooks += len(pending)
-	return unique, nil
+	return unique, false
 }
 
 func searchResultFromBook(book *Book) SearchResult {
