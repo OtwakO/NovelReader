@@ -108,11 +108,16 @@ func TestExploreRetainedBookCapacityReturnsBoundedPageAndWarning(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		if r.URL.Query().Get("page") == "1" {
-			_, _ = fmt.Fprint(w, `<a class="book" href="/book/prior">Prior</a>`)
+			if _, err := fmt.Fprint(w, `<a class="book" href="/book/prior">Prior</a>`); err != nil {
+				t.Error(err)
+			}
 			return
 		}
 		for index := range maxExploreRetainedBooks + 1 {
-			_, _ = fmt.Fprintf(w, `<a class="book" href="/book/%d">Book %d</a>`, index, index)
+			if _, err := fmt.Fprintf(w, `<a class="book" href="/book/%d">Book %d</a>`, index, index); err != nil {
+				t.Error(err)
+				return
+			}
 		}
 	}))
 	defer server.Close()

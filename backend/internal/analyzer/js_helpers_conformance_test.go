@@ -131,6 +131,14 @@ func TestJavaHelpersReevaluateCurrentAnalyzer(t *testing.T) {
 	if err != nil || ToString(value) != "First|/second" {
 		t.Fatalf("java.getElement = %q, err=%v", ToString(value), err)
 	}
+	if _, err := analyzer.jsEval(`java.getElement('$[')`, ""); err == nil {
+		t.Fatal("java.getElement swallowed an invalid rule")
+	}
+	analyzer.SetContent(`<table><tbody><tr id="row"><td data-cell="name">Cell</td></tr></tbody></table>`)
+	value, err = analyzer.jsEval(`java.getElement('@@tag.tr.0').attr('id') + '|' + java.getElement('@@tag.td.0').attr('data-cell')`, "")
+	if err != nil || ToString(value) != "row|name" {
+		t.Fatalf("table getElement = %q, err=%v", ToString(value), err)
+	}
 
 	analyzer.SetContent(map[string]interface{}{"ids": []interface{}{"1", "2", "3"}})
 	value, err = analyzer.jsEval(`java.getString('$.ids[*]')`, "")

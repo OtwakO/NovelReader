@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash"
 	"log/slog"
@@ -752,19 +753,27 @@ func (h *jsHelpers) GetString(rule string, args ...interface{}) string {
 	return value
 }
 
-func (h *jsHelpers) GetElement(rule string, args ...interface{}) interface{} {
+// GetElement evaluates a rule against current content and preserves element methods in JavaScript.
+func (h *jsHelpers) GetElement(rule string, args ...interface{}) (interface{}, error) {
 	if h.analyzer == nil {
-		return nil
+		return nil, fmt.Errorf("java.getElement: analyzer unavailable")
 	}
-	value, err := h.analyzer.GetElement(rule)
+	values, err := h.analyzer.GetElements(rule)
+	if errors.Is(err, ErrNoElements) {
+		return nil, nil
+	}
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("java.getElement %q: %w", rule, err)
 	}
-	html := strings.TrimSpace(ToString(value))
-	if strings.HasPrefix(html, "<") {
-		return makeJSoupSelectionFromHTML(h.rt, html)
+	var html strings.Builder
+	for _, value := range values {
+		fragment := strings.TrimSpace(ToString(value))
+		if !strings.HasPrefix(fragment, "<") {
+			return collapseElementValues(values), nil
+		}
+		html.WriteString(fragment)
 	}
-	return value
+	return makeJSoupSelectionFromHTML(h.rt, html.String())
 }
 
 func (h *jsHelpers) GetElements(rule string, args ...interface{}) []interface{} {
@@ -1110,12 +1119,23 @@ func makeJSoupElement(rt *goja.Runtime, s *goquery.Selection) map[string]interfa
 
 func emptyJSoupSelection(rt *goja.Runtime) *goja.Object { return makeJSoupSelection(rt, nil) }
 
-func makeJSoupSelectionFromHTML(rt *goja.Runtime, html string) *goja.Object {
+func makeJSoupSelectionFromHTML(rt *goja.Runtime, html string) (*goja.Object, error) {
+	selector := "body > *"
+	switch lower := strings.ToLower(strings.TrimSpace(html)); {
+	case strings.HasPrefix(lower, "<tr"):
+		html, selector = "<table><tbody>"+html+"</tbody></table>", "tbody > tr"
+	case strings.HasPrefix(lower, "<td"), strings.HasPrefix(lower, "<th"):
+		html, selector = "<table><tbody><tr>"+html+"</tr></tbody></table>", "tr > td, tr > th"
+	case strings.HasPrefix(lower, "<thead"), strings.HasPrefix(lower, "<tbody"), strings.HasPrefix(lower, "<tfoot"), strings.HasPrefix(lower, "<caption"), strings.HasPrefix(lower, "<colgroup"):
+		html, selector = "<table>"+html+"</table>", "table > *"
+	case strings.HasPrefix(lower, "<option"), strings.HasPrefix(lower, "<optgroup"):
+		html, selector = "<select>"+html+"</select>", "select > *"
+	}
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
-		return emptyJSoupSelection(rt)
+		return nil, fmt.Errorf("java.getElement: parse selection: %w", err)
 	}
-	return makeJSoupSelectionFromGoquery(rt, doc.Find("body").Children())
+	return makeJSoupSelectionFromGoquery(rt, doc.Find(selector)), nil
 }
 
 func makeJSoupSelectionFromGoquery(rt *goja.Runtime, selection *goquery.Selection) *goja.Object {

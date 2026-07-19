@@ -1420,33 +1420,38 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Installed the exact Rollup binary without changing package metadata, restored the user's generated dist state after verification, and reran Docker E2E with temporary writable Buildx/Docker configs and no credential helper.
 - **Affected**: Local ignored `node_modules`, temporary Docker config only; no committed production files.
 - **Watch out**: In this sandbox use writable temporary `DOCKER_CONFIG`/`BUILDX_CONFIG`; never delete or overwrite the user's pre-existing generated frontend changes to work around host tooling.
-### [2026-07-19] Explore retention overflow discarded the whole valid page
-- **Problem**: A page crossing the 2,000 session retention ceiling returned HTTP 507 and zero books after fully extracting a valid large list.
-- **Fix**: Retain only the remaining distinct ordered prefix, return a successful page with `result_truncated` warning, mark it exhausted, and cache it for idempotent replay without exceeding the ceiling.
-- **Affected**: `backend/internal/book/explore_page.go`, `backend/internal/book/explore_capacity_test.go`, `PLAN.md`.
-- **Watch out**: Truncation occurs after final source ordering; only retained URLs enter `seen`, and the 2,000 session limit must remain unchanged.
-### [2026-07-19] JavaScript bridge lacked element-shaped getElement
-- **Problem**: Raw 215 called `java.getElement(...).text()` and `.attr()`, but the bridge exposed only string/list helpers and failed before extracting any row fields.
-- **Fix**: Bound `java.getElement` to the active Analyzer and adapted returned HTML through the existing JSoup selection object, including reevaluation after `setContent`.
-- **Affected**: `backend/internal/analyzer/js.go`, `backend/internal/analyzer/js_helpers_conformance_test.go`, `PLAN.md`.
-- **Watch out**: Keep one JSoup wrapper model; non-HTML structured Analyzer results must remain structured rather than being reparsed as markup.
-### [2026-07-19] Java regex escapes failed at the Go compile boundary
-- **Problem**: Go RE2 rejected Java `\h` and identity-escaped punctuation used by raw 462 and 305 before field replacement could run.
-- **Fix**: Added one class-aware Java-to-RE2 normalizer at every analyzer regex compilation path, covering Java’s horizontal whitespace set while unknown alphabetic escapes still fail.
-- **Affected**: `backend/internal/analyzer/modes_regex.go`, `backend/internal/analyzer/regex_conformance_test.go`, `PLAN.md`.
-- **Watch out**: Preserve meaningful escaped metacharacters and unsupported alphabetic failures; do not broaden this into a second regex engine.
-### [2026-07-19] Embedded JSONPath aborted an HTML template fallback
-- **Problem**: A JSONPath expression inside `{{...}}` propagated invalid-JSON errors when the current item was HTML, so raw 788 never reached its literal cover fallback.
-- **Fix**: Treat invalid JSON input as empty only for embedded JSONPath templates; terminal JSONPath and template JavaScript errors remain failures.
-- **Affected**: `backend/internal/analyzer/template.go`, `backend/internal/analyzer/rule_template_test.go`, `PLAN.md`.
-- **Watch out**: Do not make JSONPath globally lenient or suppress malformed paths, scripts, or cancellation.
-### [2026-07-19] Bare element chain was misrouted as CSS
-- **Problem**: `tbody@tag.tr` was classified as CSS because Default detection only recognized shorthand parents beginning with `.` or `#`, collapsing raw 737 across multiple `tbody` parents.
-- **Fix**: Route two recognized element-selector segments to the existing Default traversal and add a public Analyzer regression over three rows in two parents.
-- **Affected**: `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/default_live_compat_test.go`, `PLAN.md`.
-- **Watch out**: Keep CSS attribute getters such as `a@href` in CSS mode; only two element selectors imply traversal.
 ### [2026-07-19] Third random Explore sample finds six shared gaps
 - **Problem**: A disjoint random 50-source live sample produced six failures from shared engine behavior: multi-parent Default traversal, Java-regex incompatibility, fatal mixed HTML/JSON template fallback, a whole-page failure above the retained-result ceiling, and missing `java.getElement` support.
 - **Fix**: Captured all engine outcomes, reran the one transient failure, independently reproduced every empty/error and suspicious single result with Playwright/direct DOM evidence, and separated 25 passes, 6 engine gaps, 14 external/stale failures, 4 invalid raw contracts, and 1 legitimate empty response without changing production behavior.
 - **Affected**: `testdata/booksource/explore-live-audit-v3-2026-07-19.json`, `testdata/booksource/explore-live-audit-v3-2026-07-19.md`, `PLAN.md`.
 - **Watch out**: The 2,432-row raw 726 page is real rather than parser multiplication; preserve a bounded safety policy while avoiding all-or-nothing failure. Do not patch named sources or interpret live 25/50 as a deterministic regression rate.
+### [2026-07-19] Bare element chain was misrouted as CSS
+- **Problem**: `tbody@tag.tr` was classified as CSS because Default detection only recognized shorthand parents beginning with `.` or `#`, collapsing raw 737 across multiple `tbody` parents.
+- **Fix**: Route explicit `tag.*` chains to the existing Default traversal and add a public Analyzer regression over three rows in two parents while preserving CSS `id`/`class` getters.
+- **Affected**: `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/default_live_compat_test.go`, `PLAN.md`.
+- **Watch out**: Keep CSS attribute getters such as `a@href`, `div@id`, and `div@class` in CSS mode.
+### [2026-07-19] Embedded JSONPath aborted an HTML template fallback
+- **Problem**: An incompatible or missing JSONPath expression inside `{{...}}` aborted template expansion, so raw 788 never reached its literal cover fallback.
+- **Fix**: Treat invalid JSON input and missing values as empty only for embedded JSONPath templates; terminal JSONPath and template JavaScript errors remain failures.
+- **Affected**: `backend/internal/analyzer/template.go`, `backend/internal/analyzer/rule_template_test.go`, `PLAN.md`.
+- **Watch out**: Do not make JSONPath globally lenient or suppress malformed paths, scripts, or cancellation.
+### [2026-07-19] Java regex escapes failed at the Go compile boundary
+- **Problem**: Go RE2 rejected Java `\h` and identity-escaped punctuation used by raw 462 and 305 before field replacement could run.
+- **Fix**: Added one class-aware Java-to-RE2 normalizer at every analyzer regex compilation path, covering Java’s horizontal whitespace set while unknown alphabetic escapes still fail.
+- **Affected**: `backend/internal/analyzer/modes_regex.go`, `backend/internal/analyzer/regex_conformance_test.go`, `PLAN.md`.
+- **Watch out**: Preserve meaningful escaped metacharacters and unsupported alphabetic failures; do not broaden this into a second regex engine.
+### [2026-07-19] JavaScript bridge lacked element-shaped getElement
+- **Problem**: Raw 215 called `java.getElement(...).text()` and `.attr()`, but the bridge exposed only string/list helpers and failed before extracting any row fields.
+- **Fix**: Bound `java.getElement` to the active Analyzer and adapted raw selected fragments through the existing JSoup selection object, preserving table-row/cell attributes, current `setContent`, and hard errors.
+- **Affected**: `backend/internal/analyzer/js.go`, `backend/internal/analyzer/js_helpers_conformance_test.go`, `PLAN.md`.
+- **Watch out**: Keep one JSoup wrapper model; non-HTML structured Analyzer results must remain structured rather than being reparsed as markup.
+### [2026-07-19] Explore retention overflow discarded the whole valid page
+- **Problem**: A page crossing the 2,000 session retention ceiling returned HTTP 507 and zero books after fully extracting a valid large list.
+- **Fix**: Retain only the remaining distinct ordered prefix, return a successful page with `result_truncated` warning, mark it exhausted, and cache it for idempotent replay without exceeding the ceiling.
+- **Affected**: `backend/internal/book/explore_page.go`, `backend/internal/book/explore_capacity_test.go`, `PLAN.md`.
+- **Watch out**: Truncation occurs after final source ordering; only retained URLs enter `seen`, and the 2,000 session limit must remain unchanged.
+### [2026-07-19] Review found compatibility boundaries were too broad
+- **Problem**: Initial fixes still failed missing embedded JSONPath values, reclassified CSS `id`/`class` getters, wrapped table fragments before `java.getElement().attr()`, and swallowed new bridge errors.
+- **Fix**: Added red regressions for each contract, narrowed Default routing to explicit `tag.*`, made embedded missing values empty, adapted raw HTML fragments with table-aware contexts, and surfaced hard bridge errors.
+- **Affected**: `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/template.go`, `backend/internal/analyzer/js.go`, their conformance tests, `backend/internal/book/explore_capacity_test.go`, `PLAN.md`.
+- **Watch out**: Continue testing public Analyzer behavior rather than parser internals; wrapper elements must never replace the selected fragment’s own attributes.

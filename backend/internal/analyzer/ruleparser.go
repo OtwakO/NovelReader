@@ -293,9 +293,12 @@ func looksLikeDefault(expr string) bool {
 			}
 		}
 
-		// Two element selectors form Legado Default traversal (`tbody@tag.tr`,
-		// `#j@li`), not a CSS attribute getter such as `a@href`.
-		if isDefaultElementSelector(beforeAt) && isDefaultElementSelector(afterAt) {
+		// Explicit tag traversal after a bare element (`tbody@tag.tr`) and
+		// shorthand CSS parents (`#j@li`) are Default, while `div@id` remains
+		// a CSS attribute getter.
+		shorthandParent := strings.HasPrefix(beforeAt, ".") || strings.HasPrefix(beforeAt, "#")
+		if isDefaultElementSelector(afterAt) && (shorthandParent ||
+			(isDefaultElementSelector(beforeAt) && strings.HasPrefix(afterAt, "tag."))) {
 			return true
 		}
 

@@ -13,7 +13,7 @@ func (a *Analyzer) expandRuleTemplates(content interface{}, input string) (strin
 			current.content = content
 			current.isJSON = looksLikeJSON(ToString(content))
 			value, err := current.GetString(expression)
-			if isEmbeddedJSONRule(expression) && errors.Is(err, errInvalidJSONInput) {
+			if isEmbeddedJSONRule(expression) && (errors.Is(err, errInvalidJSONInput) || errors.Is(err, ErrNoElements)) {
 				return "", nil
 			}
 			return value, err

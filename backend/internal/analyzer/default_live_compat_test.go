@@ -33,7 +33,7 @@ func TestLiveDefaultListRuleShapes(t *testing.T) {
 }
 
 func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
-	html := `<table><tbody><tr>A</tr></tbody><tbody><tr>B</tr><tr>C</tr></tbody></table>`
+	html := `<table><tbody><tr>A</tr></tbody><tbody><tr>B</tr><tr>C</tr></tbody></table><div id="identity" class="kind">Text</div>`
 	an := New(html, "https://example.com/", NewJSVM(), NewCacheManager())
 
 	elements, err := an.GetElements(`tbody@tag.tr||class.list-group-item`)
@@ -42,6 +42,12 @@ func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
 	}
 	if len(elements) != 3 {
 		t.Fatalf("elements = %d, want all 3 rows across tbody parents", len(elements))
+	}
+	for rule, want := range map[string]string{"div@id": "identity", "div@class": "kind"} {
+		value, err := an.GetStringStrict(rule)
+		if err != nil || value != want {
+			t.Errorf("CSS getter %q = %q, err=%v, want %q", rule, value, err, want)
+		}
 	}
 }
 

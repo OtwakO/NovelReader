@@ -88,6 +88,12 @@ func TestEmbeddedJSONPathAgainstHTMLKeepsLiteralFallback(t *testing.T) {
 	if err != nil || value != "http://u3v.cn/5zBiW8" {
 		t.Fatalf("template value=%q err=%v", value, err)
 	}
+	an.SetContent(map[string]interface{}{"name": "present"})
+	value, err = an.GetStringStrict(`{{$.missing}}fallback`)
+	if err != nil || value != "fallback" {
+		t.Fatalf("missing template value=%q err=%v", value, err)
+	}
+	an.SetContent(`<td class="cover"></td>`)
 	if _, err := an.GetStringStrict(`$.coverUrl`); err == nil {
 		t.Fatal("terminal JSONPath against HTML did not fail")
 	}
