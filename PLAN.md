@@ -390,6 +390,18 @@ Run a deterministic random 50-source sample of unique Explore-capable URLs, excl
 
 This cycle remains audit-only. Preserve exact engine outcomes, identify transient rerun results explicitly, and separate generic engine gaps from malformed raw rules, source drift, authentication/WAF, and legitimate empty APIs before proposing fixes.
 
+#### Approved v3 compatibility fixes (2026-07-19)
+
+The user approved all five generic gaps and selected bounded large-page success: retain the first 2,000 distinct books in final source order, return a non-retryable `result_truncated` warning diagnostic, mark the page exhausted, and preserve replay without weakening the session memory ceiling. Implement as five vertical TDD slices through the public Analyzer and Explore service contracts:
+
+1. Route bare-element chains such as `tbody@tag.tr` into the existing per-parent Default traversal without reclassifying CSS attribute getters.
+2. Treat incompatible/missing JSONPath expressions as empty only when embedded inside `{{...}}` templates, preserving terminal JSONPath, JavaScript, and cancellation errors.
+3. Normalize focused Java-regex syntax at the shared compile boundary: Java `\h` and identity-escaped punctuation, while unsupported alphabetic escapes remain errors.
+4. Expose `java.getElement` through the existing Analyzer and JSoup selection adapter; do not add a parallel element model.
+5. Replace all-or-nothing Explore retention overflow with an ordered bounded prefix, warning diagnostic, exhaustion, and idempotent replay.
+
+Each slice requires red → green focused tests and an atomic green commit. Final verification is the full backend and race suites, frontend tests/build, Docker E2E, and fresh Playwright/direct checks for raw 737, 788, 305, 462, 215, and 726. Raw BookSource rules and audit snapshots remain immutable.
+
 #### Approved shared compatibility fixes (2026-07-19)
 
 The user approved generic fixes for the recurring v2 gaps. Implement in four green, atomic phases using reduced captured fixtures and raw-rule shapes before production edits:
@@ -441,7 +453,7 @@ Every significant booksource-engine change must follow this loop:
 
 **In progress:** The approved shared Explore compatibility implementation and verification are complete. Generic fixes cover Default traversal/exclusion, connector and interpolation semantics, optional mixed-mode fallback, exact focused Java helpers, URL-option AJAX with GET/POST/HEAD, retry, response charset, and form-body charset handling, transformed element fallbacks, JSON-list extraction, `@@` Default forcing, and JSoup numeric enumeration. Targeted live reruns repaired 13 engine identities: raw 76, 82, 204, 209, 342, 410, 429, 471, 516, 614, 816, 897, and 920 now return distinct books. The third, fully random disjoint 50-source audit is complete: 25 credible passes, 6 shared engine gaps, 14 stale/unavailable/blocked/auth-dependent sources, 4 invalid or incomplete raw Explore contracts, and 1 legitimate empty API response. Confirmed shared families are multi-parent Default traversal, Java-regex parity, mixed HTML/JSON template fallback, bounded handling for valid pages above 2,000 results, and `java.getElement`. No production parser or raw source was changed during this audit. Evidence is in `testdata/booksource/explore-live-audit-v3-2026-07-19.{json,md}`. The user's pre-existing generated frontend/package-lock changes remain unstaged.
 
-**Next action:** Report the third audit and await explicit approval before implementing its five ranked shared compatibility families; do not rewrite stale raw sources.
+**Next action:** Begin v3 slice 1 with a failing public Analyzer regression for bare-element multi-parent Default traversal, then implement only the shared mode-routing correction. The five-slice contract is recorded above; raw source rewrites remain prohibited.
 
 **Environment notes:** `reference/legado` is the local upstream reference. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
