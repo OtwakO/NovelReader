@@ -159,7 +159,8 @@ func parseDefault(expr string) ([]defaultSegment, string, error) {
 	last := strings.TrimSpace(parts[len(parts)-1])
 	segParts := parts
 	getter := ""
-	if isDefaultGetter(last) || (len(parts) == 2 && (strings.TrimSpace(parts[0]) == "" || hasNumericSelectorSuffix(strings.TrimSpace(parts[0])))) {
+	if isDefaultGetter(last) || (len(parts) == 2 && (strings.TrimSpace(parts[0]) == "" ||
+		(hasNumericSelectorSuffix(strings.TrimSpace(parts[0])) && !isDefaultElementSelector(last)))) {
 		getter = last
 		segParts = parts[:len(parts)-1]
 	}

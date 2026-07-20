@@ -1485,3 +1485,8 @@ var su=...` as a URL → `net/url: invalid control character`.
 - **Fix**: Ran full backend and race suites, frontend 13/13 tests, an isolated production build, and fresh production-transport reruns. Raw 615 now returns 30 distinct books; raw 830's table fields pass the public Analyzer regression but its unchanged numeric-only `bookUrlPattern` rejects the live site's alphanumeric IDs.
 - **Affected**: `testdata/booksource/explore-live-v4-fixes-rerun-2026-07-21.json`, `testdata/booksource/README.md`, `PLAN.md`.
 - **Watch out**: Do not weaken shared URL-pattern filtering to make raw 830 pass; updating that stale imported source contract is separate work.
+### [2026-07-21] Review caught positioned-selector ambiguity
+- **Problem**: The first positioned-attribute fix could reinterpret `li.0@a` child traversal as an attribute getter and no longer recognized dotted `!0` exclusion suffixes in Default classification.
+- **Fix**: Keep known element names as traversal segments, accept `!` alongside signed numeric suffixes, and pin both behaviors through public Analyzer regressions.
+- **Affected**: `backend/internal/analyzer/modes_default.go`, `backend/internal/analyzer/ruleparser.go`, `backend/internal/analyzer/default_live_compat_test.go`, `PLAN.md`.
+- **Watch out**: Positioned custom attributes are getters only when the trailing token is not a known element selector.

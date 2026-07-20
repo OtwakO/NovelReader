@@ -85,6 +85,24 @@ func TestDefaultPositionedElementReadsAttribute(t *testing.T) {
 	}
 }
 
+func TestPositionedParentStillTraversesBareChild(t *testing.T) {
+	an := New(`<ol><li>Prefix <a href="/first">First</a></li><li><a href="/second">Second</a></li></ol>`, "https://example.com/", NewJSVM(), NewCacheManager())
+
+	value, err := an.GetStringStrict(`li.0@a`)
+	if err != nil || value != "First" {
+		t.Fatalf("GetStringStrict() = %q, err=%v, want First", value, err)
+	}
+}
+
+func TestDottedDefaultExclusionStillRoutesToDefault(t *testing.T) {
+	an := New(`<div class="items">skip</div><div class="items">keep</div>`, "https://example.com/", NewJSVM(), NewCacheManager())
+
+	values, err := an.GetStringList(`class.items.!0@text`)
+	if err != nil || len(values) != 1 || values[0] != "keep" {
+		t.Fatalf("GetStringList() = %#v, err=%v, want keep", values, err)
+	}
+}
+
 func TestDefaultIndexAppliesPerParent(t *testing.T) {
 	html := `<div class="group"><a>first A</a><a>second A</a></div>
 <div class="group"><a>first B</a><a>second B</a></div>`

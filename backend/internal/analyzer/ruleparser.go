@@ -368,7 +368,13 @@ func hasNumericSelectorSuffix(expr string) bool {
 	if dot < 0 || dot == len(expr)-1 {
 		return false
 	}
-	suffix := strings.TrimPrefix(expr[dot+1:], "-")
+	suffix := expr[dot+1:]
+	if suffix == "" {
+		return false
+	}
+	if suffix[0] == '-' || suffix[0] == '!' {
+		suffix = suffix[1:]
+	}
 	if suffix == "" {
 		return false
 	}
