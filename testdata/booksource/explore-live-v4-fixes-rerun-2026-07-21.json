@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "verificationDate": "2026-07-21",
+  "parentManifest": "testdata/booksource/explore-live-audit-v4-2026-07-21.json",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"
+  },
+  "method": "Fresh isolated database and current production transport; first selectable Explore category, page 1. Deterministic public Analyzer regressions cover the exact live rule shapes.",
+  "results": [
+    {
+      "rawIndex": 615,
+      "engine": {
+        "status": 200,
+        "books": 30,
+        "distinctBookUrls": 30
+      },
+      "previous": {
+        "status": 200,
+        "books": 0
+      },
+      "outcome": "repaired"
+    },
+    {
+      "rawIndex": 830,
+      "engine": {
+        "status": 200,
+        "books": 0
+      },
+      "analyzerRegression": "TestSelectedTableRowKeepsContextForFieldRules",
+      "remainingSourceContract": "Live table-field extraction is repaired, but the imported bookUrlPattern requires numeric /fu/ IDs while the live site emits identifiers such as /fu/bLtGEd; valid parsed books are therefore filtered by the unchanged source contract.",
+      "outcome": "engine gap repaired; live source remains stale"
+    }
+  ]
+}
