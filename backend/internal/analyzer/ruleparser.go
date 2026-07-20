@@ -313,13 +313,9 @@ func looksLikeDefault(expr string) bool {
 			}
 		}
 
-		// If before @ has multiple dots with a numeric end, it's Default
-		if n >= 2 {
-			segments := strings.Split(beforeAt, ".")
-			last := segments[len(segments)-1]
-			if isAllDigits(last) || last == "-1" || (strings.HasPrefix(last, "!") && len(last) > 1 && isAllDigits(last[1:])) {
-				return true
-			}
+		// A positioned bare element before an attribute getter is Default.
+		if hasNumericSelectorSuffix(beforeAt) {
+			return true
 		}
 
 		// Legacy class/index selectors such as .directoryArea:eq(1)@p@a

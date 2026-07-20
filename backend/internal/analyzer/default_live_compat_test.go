@@ -58,6 +58,33 @@ func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
 	}
 }
 
+func TestSelectedTableRowKeepsContextForFieldRules(t *testing.T) {
+	an := New(`<table><tbody><tr data-row="book"><td>kind</td><td><a href="/book">Book</a></td></tr></tbody></table>`, "https://example.com/", NewJSVM(), NewCacheManager())
+
+	elements, err := an.GetElements(`tbody@tag.tr`)
+	if err != nil || len(elements) != 1 {
+		t.Fatalf("GetElements() = %#v, err=%v", elements, err)
+	}
+	row := New(ToString(elements[0]), "https://example.com/", NewJSVM(), NewCacheManager())
+	value, err := row.GetStringStrict(`td.1@a@text`)
+	if err != nil || value != "Book" {
+		t.Fatalf("GetStringStrict() = %q, err=%v, want Book", value, err)
+	}
+	value, err = row.GetStringStrict(`@data-row`)
+	if err != nil || value != "book" {
+		t.Fatalf("current row attribute = %q, err=%v, want book", value, err)
+	}
+}
+
+func TestDefaultPositionedElementReadsAttribute(t *testing.T) {
+	an := New(`<li><a><img title="First"><img title="Second"></a></li>`, "https://example.com/", NewJSVM(), NewCacheManager())
+
+	value, err := an.GetStringStrict(`img.0@title`)
+	if err != nil || value != "First" {
+		t.Fatalf("GetStringStrict() = %q, err=%v, want First", value, err)
+	}
+}
+
 func TestDefaultIndexAppliesPerParent(t *testing.T) {
 	html := `<div class="group"><a>first A</a><a>second A</a></div>
 <div class="group"><a>first B</a><a>second B</a></div>`

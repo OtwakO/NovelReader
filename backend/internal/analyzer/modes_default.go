@@ -31,6 +31,7 @@ func defaultQuery(html, expr string) (string, error) {
 		return "", err
 	}
 
+	html, rootSelector := contextualizeHTMLSelection(html)
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
 		return "", fmt.Errorf("default: parse: %w", err)
@@ -47,7 +48,7 @@ func defaultQuery(html, expr string) (string, error) {
 	// When no selector segments, apply getter to first real element (body's first child),
 	// not the document root — so @href on <a href="/ch">text</a> returns "/ch".
 	if len(parts) == 0 && getter != "" {
-		sel = doc.Find("body").Children().First()
+		sel = doc.Find(rootSelector).First()
 		if sel.Length() == 0 {
 			// Fallback: use the first non-html element
 			sel = doc.Selection.Children().First()
@@ -64,6 +65,7 @@ func defaultQueryList(html, expr string) ([]string, error) {
 		return nil, err
 	}
 
+	html, _ = contextualizeHTMLSelection(html)
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
 		return nil, fmt.Errorf("default: parse: %w", err)
@@ -96,6 +98,7 @@ func defaultQueryElements(html, expr string) ([]interface{}, error) {
 		return nil, err
 	}
 
+	html, _ = contextualizeHTMLSelection(html)
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
 		return nil, fmt.Errorf("default: parse: %w", err)
@@ -156,7 +159,7 @@ func parseDefault(expr string) ([]defaultSegment, string, error) {
 	last := strings.TrimSpace(parts[len(parts)-1])
 	segParts := parts
 	getter := ""
-	if isDefaultGetter(last) {
+	if isDefaultGetter(last) || (len(parts) == 2 && (strings.TrimSpace(parts[0]) == "" || hasNumericSelectorSuffix(strings.TrimSpace(parts[0])))) {
 		getter = last
 		segParts = parts[:len(parts)-1]
 	}
