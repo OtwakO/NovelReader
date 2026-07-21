@@ -298,8 +298,7 @@ func looksLikeDefault(expr string) bool {
 		// a CSS attribute getter.
 		shorthandParent := strings.HasPrefix(beforeAt, ".") || strings.HasPrefix(beforeAt, "#")
 		explicitChild := strings.HasPrefix(afterAt, "tag.") || strings.Contains(afterAt, "!") || hasNumericSelectorSuffix(afterAt)
-		if isDefaultElementSelector(afterAt) && (shorthandParent ||
-			(isDefaultElementSelector(beforeAt) && explicitChild)) {
+		if isDefaultElementSelector(afterAt) && (shorthandParent || explicitChild || isUnambiguousBareChild(beforeAt, afterAt)) {
 			return true
 		}
 
@@ -399,6 +398,24 @@ func isDefaultElementSelector(s string) bool {
 		return true
 	case "a", "article", "body", "dd", "div", "dl", "dt", "h1", "h2", "h3", "h4", "h5", "h6", "img", "li", "main", "ol", "p", "section", "span", "table", "tbody", "td", "th", "tr", "ul":
 		return true
+	}
+	return false
+}
+
+func isUnambiguousBareChild(parent, child string) bool {
+	parent = strings.ToLower(strings.TrimSpace(parent))
+	child = strings.ToLower(strings.TrimSpace(child))
+	switch parent {
+	case "table":
+		return child == "tbody" || child == "tr"
+	case "tbody", "thead", "tfoot":
+		return child == "tr"
+	case "tr":
+		return child == "td" || child == "th"
+	case "ul", "ol":
+		return child == "li"
+	case "dl":
+		return child == "dt" || child == "dd"
 	}
 	return false
 }

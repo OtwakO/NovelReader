@@ -197,6 +197,7 @@ Map = function(a) {
 		"randomUUID":     h.RandomUUID,
 		"timeFormat":     h.TimeFormat,
 		"toNumChapter":   h.ToNumChapter,
+		"t2s":            h.T2S,
 		"toast":          h.Toast,
 		"androidId":      h.AndroidId,
 		"log":            h.Log,

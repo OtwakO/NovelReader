@@ -9,6 +9,7 @@ require (
 	github.com/bogdanfinn/fhttp v0.6.8
 	github.com/bogdanfinn/tls-client v1.15.2-0.20260702071810-b790a311273f
 	github.com/dop251/goja v0.0.0-20260701091749-b07b74453ea9
+	github.com/longbridge/opencc v0.3.14-0.20241210034039-839f616e7a29
 	golang.org/x/net v0.56.0
 	golang.org/x/text v0.38.0
 	modernc.org/sqlite v1.53.0
@@ -31,6 +32,8 @@ require (
 	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect
+	github.com/liuzl/cedar-go v0.0.0-20170805034717-80a9c64b256d // indirect
+	github.com/liuzl/da v0.0.0-20180704015230-14771aad5b1d // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect

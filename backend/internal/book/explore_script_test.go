@@ -56,6 +56,38 @@ func TestOpenExploreJavaScriptUsesSourceHeadersAndSessionCache(t *testing.T) {
 	}
 }
 
+func TestOpenExploreJavaScriptConvertsTraditionalChinese(t *testing.T) {
+	source := booksource.BookSource{
+		BookSourceURL: "https://t2s.test", EnabledExplore: true,
+		ExploreURL: `@js:JSON.stringify([{title:java.t2s('熱門小說'),url:'/books'}])`,
+	}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Entries) != 1 || catalog.Entries[0].Title != "热门小说" {
+		t.Fatalf("catalog=%+v", catalog)
+	}
+}
+
+func TestOpenExploreJavaScriptLeavesSimplifiedChineseUnchanged(t *testing.T) {
+	source := booksource.BookSource{
+		BookSourceURL: "https://t2s-identity.test", EnabledExplore: true,
+		ExploreURL: `@js:JSON.stringify([{title:java.t2s('热门小说'),url:'/books'}])`,
+	}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Entries) != 1 || catalog.Entries[0].Title != "热门小说" {
+		t.Fatalf("catalog=%+v", catalog)
+	}
+}
+
 func TestOpenExploreExecutesTaggedJavaScript(t *testing.T) {
 	source := booksource.BookSource{
 		BookSourceURL: "https://tagged.test", EnabledExplore: true,

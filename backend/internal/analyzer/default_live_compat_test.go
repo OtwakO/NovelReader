@@ -58,6 +58,23 @@ func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
 	}
 }
 
+func TestUnpositionedBareElementTraversesChild(t *testing.T) {
+	an := New(`<table><tbody><tr><td>A</td></tr><tr><td>B</td></tr></tbody></table><div id="identity" class="kind" data-role="card">Text</div>`, "https://example.com/", NewJSVM(), NewCacheManager())
+
+	for rule, want := range map[string]int{"tbody@tr": 2, "tr@td": 2} {
+		elements, err := an.GetElements(rule)
+		if err != nil || len(elements) != want {
+			t.Errorf("GetElements(%q) = %#v, err=%v, want %d elements", rule, elements, err, want)
+		}
+	}
+	for rule, want := range map[string]string{"div@id": "identity", "div@class": "kind", "div@data-role": "card"} {
+		value, err := an.GetStringStrict(rule)
+		if err != nil || value != want {
+			t.Errorf("CSS getter %q = %q, err=%v, want %q", rule, value, err, want)
+		}
+	}
+}
+
 func TestSelectedTableRowKeepsContextForFieldRules(t *testing.T) {
 	an := New(`<table><tbody><tr data-row="book"><td>kind</td><td><a href="/book">Book</a></td></tr></tbody></table>`, "https://example.com/", NewJSVM(), NewCacheManager())
 
