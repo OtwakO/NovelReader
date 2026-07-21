@@ -11,6 +11,17 @@ func TestJsoupBridgeSupportsJavaCollectionMethods(t *testing.T) {
 	}
 }
 
+func TestJsoupBridgeEqMatchesJsoupBounds(t *testing.T) {
+	vm := NewJSVM()
+	value, err := vm.Eval(`var rows=org.jsoup.Jsoup.parse(result).select('.row'); rows.eq(9).size()`, `<p class="row">One</p>`, "https://example.test/")
+	if err != nil || ToString(value) != "0" {
+		t.Fatalf("positive out-of-range=%q err=%v", ToString(value), err)
+	}
+	if _, err := vm.Eval(`org.jsoup.Jsoup.parse(result).select('.row').eq(-1)`, `<p class="row">One</p>`, "https://example.test/"); err == nil {
+		t.Fatal("negative eq index did not fail")
+	}
+}
+
 func TestJsoupBridgeCollectionMethodsStayOutOfForIn(t *testing.T) {
 	vm := NewJSVM()
 	value, err := vm.Eval(`var rows=org.jsoup.Jsoup.parse(result).select('.row'); var keys=[]; for (var key in rows) keys.push(key); keys.join('|')`, `<p class="row">One</p><p class="row">Two</p>`, "https://example.test/")

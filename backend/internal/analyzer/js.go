@@ -1148,9 +1148,9 @@ func makeJSoupSelection(rt *goja.Runtime, elements []map[string]interface{}) *go
 		"size":   func() int { return len(elements) },
 		"eq": func(index int) *goja.Object {
 			if index < 0 {
-				index += len(elements)
+				panic(rt.NewTypeError("Index must be greater than or equal to zero"))
 			}
-			if index < 0 || index >= len(elements) {
+			if index >= len(elements) {
 				return emptyJSoupSelection(rt)
 			}
 			return makeJSoupSelection(rt, elements[index:index+1])

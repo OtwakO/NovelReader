@@ -156,7 +156,8 @@ func selectJSONValue(root interface{}, expr string) (interface{}, error) {
 
 func classifyJSONPathError(err error) error {
 	message := err.Error()
-	if strings.HasPrefix(message, "unknown key ") || strings.HasPrefix(message, "index ") && strings.HasSuffix(message, " out of bounds") {
+	if strings.HasPrefix(message, "unknown key ") || strings.HasPrefix(message, "index ") && strings.HasSuffix(message, " out of bounds") ||
+		strings.Contains(message, "unsupported value type <nil> for select") {
 		return fmt.Errorf("%w: %s", ErrNoElements, message)
 	}
 	return fmt.Errorf("%w: %v", errInvalidJSONPath, err)

@@ -90,6 +90,27 @@ func TestExplorePageAllowsOptionalFieldRuleFailure(t *testing.T) {
 	}
 }
 
+func TestExplorePageSurfacesOptionalFieldScriptFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `<a class="book" href="/book/1">Book</a>`)
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "Broken optional field", EnabledExplore: true,
+		ExploreURL:  "Books::" + server.URL,
+		RuleExplore: `{"bookList":".book","name":"text","bookUrl":"href","lastChapter":"@js:throw new Error('broken optional')"}`,
+	}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if exploreErr, ok := err.(*ExploreError); !ok || exploreErr.Code != "result_rule_failed" {
+		t.Fatalf("error=%T %v", err, err)
+	}
+}
+
 func TestExplorePageSurfacesRequiredFieldRuleFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, `<a class="book" href="/book/1">Book</a>`)
