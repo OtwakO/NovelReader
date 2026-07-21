@@ -298,7 +298,8 @@ func looksLikeDefault(expr string) bool {
 		// a CSS attribute getter.
 		shorthandParent := strings.HasPrefix(beforeAt, ".") || strings.HasPrefix(beforeAt, "#")
 		explicitChild := strings.HasPrefix(afterAt, "tag.") || strings.Contains(afterAt, "!") || hasNumericSelectorSuffix(afterAt)
-		if isDefaultElementSelector(afterAt) && (shorthandParent || explicitChild || isUnambiguousBareChild(beforeAt, afterAt)) {
+		if isDefaultElementSelector(afterAt) && (shorthandParent ||
+			(isDefaultElementSelector(beforeAt) && explicitChild) || isUnambiguousBareChild(beforeAt, afterAt)) {
 			return true
 		}
 
