@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "verificationDate": "2026-07-21",
+  "parentManifest": "testdata/booksource/explore-live-audit-v5-2026-07-21.json",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"
+  },
+  "method": "Fresh isolated database and production transport for raw 84; production Explore catalog API plus individual production-runtime script replay for every corpus identity containing java.t2s.",
+  "results": [
+    {
+      "rawIndex": 84,
+      "previous": { "books": 1, "distinctBookUrls": 1 },
+      "current": { "status": 200, "books": 18, "distinctBookUrls": 18 },
+      "note": "The live page contained 20 rows; two current rows used non-numeric book slugs rejected by the unchanged imported bookUrlPattern.",
+      "outcome": "repaired"
+    },
+    {
+      "rawIndex": 565,
+      "previous": { "catalogStatus": 502, "diagnosticCode": "category_script_failed" },
+      "current": { "status": 200, "entries": 470, "selectableEntries": 458 },
+      "outcome": "repaired"
+    }
+  ],
+  "t2sCorpus": [
+    { "rawIndex": 21, "t2sMissing": false, "outcome": "later missing java.normalizeUrl" },
+    { "rawIndex": 41, "t2sMissing": false, "categories": 103, "outcome": "pass" },
+    { "rawIndex": 133, "t2sMissing": false, "outcome": "Explore value is not a generated catalog script" },
+    { "rawIndex": 134, "t2sMissing": false, "outcome": "later missing java.getFromCacheObject" },
+    { "rawIndex": 145, "t2sMissing": false, "outcome": "Explore value is not a generated catalog script" },
+    { "rawIndex": 152, "t2sMissing": false, "categories": 26, "outcome": "pass" },
+    { "rawIndex": 563, "t2sMissing": false, "categories": 470, "outcome": "pass" },
+    { "rawIndex": 565, "t2sMissing": false, "categories": 470, "outcome": "pass" },
+    { "rawIndex": 925, "t2sMissing": false, "outcome": "Explore value is not a generated catalog script" }
+  ]
+}
