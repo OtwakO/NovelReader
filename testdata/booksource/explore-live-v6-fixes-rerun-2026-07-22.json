@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "verificationDate": "2026-07-22",
+  "parentManifest": "testdata/booksource/explore-live-audit-v6-2026-07-21.json",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"
+  },
+  "method": "Fresh isolated production server/database, unmodified 939-source import, first selectable category/page 1 for all six v6 engine-gap identities; individual production-runtime catalog replay for every corpus identity using source.setVariable, Jsoup eq(), or Jsoup size().",
+  "results": [
+    {"rawIndex":112,"previous":{"pageStatus":502,"code":"http_status"},"current":{"pageStatus":200,"books":10,"distinctBookUrls":10},"outcome":"repaired"},
+    {"rawIndex":311,"previous":{"pageStatus":502,"code":"http_status"},"current":{"pageStatus":200,"books":10,"distinctBookUrls":10},"outcome":"repaired"},
+    {"rawIndex":933,"previous":{"catalogStatus":502,"code":"category_script_failed"},"current":{"catalogStatus":200,"catalogEntries":26,"pageStatus":200},"outcome":"catalog_repaired_live_page_empty"},
+    {"rawIndex":749,"previous":{"catalogStatus":422},"current":{"catalogStatus":200,"catalogEntries":22,"pageStatus":200,"books":20,"distinctBookUrls":20},"outcome":"repaired"},
+    {"rawIndex":301,"previous":{"catalogStatus":422},"current":{"catalogStatus":200,"catalogEntries":11,"pageStatus":200},"outcome":"catalog_repaired_live_page_empty"},
+    {"rawIndex":757,"previous":{"pageStatus":422},"current":{"catalogStatus":200,"pageStatus":200,"books":8,"distinctBookUrls":8},"outcome":"repaired"}
+  ],
+  "adjacentCatalogReplay": {
+    "rawIndices": [4,21,37,67,134,177,194,216,300,301,540,562,575,666,749,761,813,907,913,915,933],
+    "validCatalogs": [4,67,177,194,300,301,540,562,575,666,749,761,813,913,915,933],
+    "unrelatedExistingBoundaries": [21,37,134,216,907],
+    "notes": "No replay failed because source.setVariable, Jsoup size(), or Jsoup eq() was missing. Existing unrelated boundaries were not claimed repaired."
+  }
+}
