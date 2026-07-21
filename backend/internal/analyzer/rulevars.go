@@ -103,14 +103,10 @@ func parseLenientRuleMap(raw string) (map[string]string, bool) {
 			return nil, false
 		}
 		values[key] = value
-		index = skipRuleSpace(body, next)
-		if index >= len(body) {
-			return values, true
+		index = next
+		if index < len(body) && body[index] == ',' {
+			index++
 		}
-		if body[index] != ',' {
-			return nil, false
-		}
-		index++
 	}
 }
 
