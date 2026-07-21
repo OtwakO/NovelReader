@@ -56,6 +56,22 @@ func TestOpenExploreJavaScriptUsesSourceHeadersAndSessionCache(t *testing.T) {
 	}
 }
 
+func TestOpenExploreJavaScriptSupportsSourceSetVariable(t *testing.T) {
+	source := booksource.BookSource{
+		BookSourceURL: "https://source-state.test", EnabledExplore: true,
+		ExploreURL: `@js:source.setVariable('ready'); JSON.stringify([{title:source.getVariable(),url:'/books'}])`,
+	}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Entries) != 1 || catalog.Entries[0].Title != "ready" {
+		t.Fatalf("catalog=%+v", catalog)
+	}
+}
+
 func TestOpenExploreJavaScriptConvertsTraditionalChinese(t *testing.T) {
 	source := booksource.BookSource{
 		BookSourceURL: "https://t2s.test", EnabledExplore: true,

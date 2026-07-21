@@ -38,6 +38,30 @@ func TestExplorePageReversesTheCompleteUncappedResultList(t *testing.T) {
 	}
 }
 
+func TestExplorePageAllowsOptionalFieldRuleFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `{"data":[{"title":"Book","id":1,"optional":null}]}`)
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "Optional field", EnabledExplore: true,
+		ExploreURL:  "Books::" + server.URL,
+		RuleExplore: `{"bookList":"$.data","name":"$.title","bookUrl":"<js>'/book/'+java.getString('$.id')</js>","lastChapter":"$.optional.value"}`,
+	}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Books) != 1 || page.Books[0].Name != "Book" || page.Books[0].LastChapter != "" {
+		t.Fatalf("page=%+v", page)
+	}
+}
+
 func TestExplorePageSurfacesRequiredFieldRuleFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, `<a class="book" href="/book/1">Book</a>`)

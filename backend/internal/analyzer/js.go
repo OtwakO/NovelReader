@@ -300,6 +300,7 @@ func (vm *JSVM) makeSourceObj(baseURL string, state SourceState) map[string]inte
 		"getKey":      func() string { return baseURL },
 		"getVariable": func() string { return src.GetVariable() },
 		"putVariable": func(v string) { src.PutVariable(v) },
+		"setVariable": func(v string) { src.PutVariable(v) },
 		"get":         func(k string) string { return src.Get(k) },
 		"put":         func(k, v string) string { return src.Put(k, v) },
 	}
@@ -1144,7 +1145,16 @@ func makeJSoupSelection(rt *goja.Runtime, elements []map[string]interface{}) *go
 	}
 	properties := map[string]interface{}{
 		"__html": serializeHTMLSelection(fragments),
-		"size":   len(elements),
+		"size":   func() int { return len(elements) },
+		"eq": func(index int) *goja.Object {
+			if index < 0 {
+				index += len(elements)
+			}
+			if index < 0 || index >= len(elements) {
+				return emptyJSoupSelection(rt)
+			}
+			return makeJSoupSelection(rt, elements[index:index+1])
+		},
 		"first": func() interface{} {
 			if len(elements) == 0 {
 				return nil

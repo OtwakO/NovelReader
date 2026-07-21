@@ -440,7 +440,8 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		for _, f := range fieldRules {
 			var value string
 			var fieldErr error
-			if strictFields {
+			required := f.key == "name" || f.key == "bookUrl"
+			if strictFields && required {
 				value, fieldErr = elAn.GetStringStrict(f.rule)
 			} else {
 				value, fieldErr = elAn.GetString(f.rule)
@@ -449,7 +450,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 				if errors.Is(fieldErr, analyzer.ErrNoElements) {
 					continue
 				}
-				if strictFields {
+				if strictFields && required {
 					return nil, fmt.Errorf("search: %s: %w", f.key, fieldErr)
 				}
 				continue
