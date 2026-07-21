@@ -38,6 +38,34 @@ func TestExplorePageReversesTheCompleteUncappedResultList(t *testing.T) {
 	}
 }
 
+func TestExplorePageUsesLenientSourceHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Source") != "explore" {
+			http.Error(w, "missing source header", http.StatusForbidden)
+			return
+		}
+		_, _ = fmt.Fprint(w, `<a class="book" href="/book/1">Book</a>`)
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "Lenient headers", EnabledExplore: true,
+		Header: `{'X-Source':'explore'}`, ExploreURL: "Books::" + server.URL,
+		RuleExplore: `{"bookList":".book","name":"text","bookUrl":"href"}`,
+	}
+	searcher := NewSearcher(nil, nil, nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Books) != 1 || page.Books[0].Name != "Book" {
+		t.Fatalf("page=%+v", page)
+	}
+}
+
 func TestExplorePageAllowsOptionalFieldRuleFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, `{"data":[{"title":"Book","id":1,"optional":null}]}`)

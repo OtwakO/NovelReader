@@ -11,6 +11,14 @@ func TestJsoupBridgeSupportsJavaCollectionMethods(t *testing.T) {
 	}
 }
 
+func TestJsoupBridgeCollectionMethodsStayOutOfForIn(t *testing.T) {
+	vm := NewJSVM()
+	value, err := vm.Eval(`var rows=org.jsoup.Jsoup.parse(result).select('.row'); var keys=[]; for (var key in rows) keys.push(key); keys.join('|')`, `<p class="row">One</p><p class="row">Two</p>`, "https://example.test/")
+	if err != nil || ToString(value) != "0|1" {
+		t.Fatalf("collection keys=%q err=%v", ToString(value), err)
+	}
+}
+
 func TestJsoupBridgeSupportsChainedSelectionAttribute(t *testing.T) {
 	a := New(`<input name="_token" value="abc">`, "https://example.test", NewJSVM(), NewCacheManager())
 	value, err := a.jsEval(`org.jsoup.Jsoup.parse('<form><input name="_token" value="abc"></form>').select('form').select('input[name=_token]').attr('value')`, "")

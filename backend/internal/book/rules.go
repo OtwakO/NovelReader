@@ -3,6 +3,8 @@ package book
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/otwako/novelreader/internal/analyzer"
 )
 
 // parseRuleJSON parses a JSON rule object into a flat map of field → selector.
@@ -67,9 +69,10 @@ func parseHeaderJSON(headerJSON string) map[string]string {
 		return nil
 	}
 	var obj map[string]string
-	if err := json.Unmarshal([]byte(headerJSON), &obj); err != nil {
-		return nil
+	if json.Unmarshal([]byte(headerJSON), &obj) == nil {
+		return obj
 	}
+	obj, _ = analyzer.ParseLenientStringMap(headerJSON)
 	return obj
 }
 
