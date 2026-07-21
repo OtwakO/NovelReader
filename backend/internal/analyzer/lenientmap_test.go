@@ -3,8 +3,14 @@ package analyzer
 
 import "testing"
 
-func TestParseLenientStringMapRejectsMissingComma(t *testing.T) {
-	if value, ok := ParseLenientStringMap(`{'A':'x' 'B':'y'}`); ok || value != nil {
-		t.Fatalf("value=%v ok=%v", value, ok)
+func TestParseLenientStringMapRejectsMalformedEntries(t *testing.T) {
+	for _, raw := range []string{
+		`{'A':'x' 'B':'y'}`,
+		`{'A':'x',,'B':'y'}`,
+		`{'A':,'B':'y'}`,
+	} {
+		if value, ok := ParseLenientStringMap(raw); ok || value != nil {
+			t.Errorf("ParseLenientStringMap(%q)=%v, %v", raw, value, ok)
+		}
 	}
 }
