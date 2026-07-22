@@ -110,6 +110,9 @@ func filterObjectWildcard(content, expr string) ([]interface{}, bool, error) {
 	if key == "" || strings.ContainsAny(key, " []()?!@$") {
 		return nil, false, nil
 	}
+	if !json.Valid([]byte(content)) {
+		return nil, true, fmt.Errorf("%w: malformed document", errInvalidJSONInput)
+	}
 	decoder := json.NewDecoder(strings.NewReader(content))
 	token, err := decoder.Token()
 	if err != nil {

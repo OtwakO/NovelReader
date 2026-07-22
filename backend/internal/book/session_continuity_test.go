@@ -12,6 +12,54 @@ import (
 	"github.com/otwako/novelreader/internal/fetcher"
 )
 
+func TestBookWorkflowEvaluatesSourceHeadersForEveryRequest(t *testing.T) {
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Source") != "fixture" {
+			http.Error(w, "missing source header", http.StatusForbidden)
+			return
+		}
+		paths = append(paths, r.URL.Path)
+		switch r.URL.Path {
+		case "/book":
+			_, _ = w.Write([]byte(`<h1 class="name">Book</h1><a class="toc" href="/toc">TOC</a>`))
+		case "/toc":
+			_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">One</a>`))
+		case "/chapter/1":
+			_, _ = w.Write([]byte(`<div class="content">Page one</div><a class="next" href="/chapter/2">Next</a>`))
+		case "/chapter/2":
+			_, _ = w.Write([]byte(`<div class="content">Page two</div>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "fixture",
+		Header:       `@js:JSON.stringify({'X-Source':'fixture'})`,
+		RuleBookInfo: `{"name":"@css:.name@text","tocUrl":"@css:.toc@href"}`,
+		RuleToc:      `{"chapterList":"@css:.chapter","chapterName":"text","chapterUrl":"@href"}`,
+		RuleContent:  `{"content":"@css:.content@text","nextContentUrl":"@css:.next@href"}`,
+	}
+	book, err := s.GetBookInfo(src, server.URL+"/book")
+	if err != nil {
+		t.Fatal(err)
+	}
+	chapters, err := s.GetChapterListForBook(src, book, book.TocURL)
+	if err != nil || len(chapters) != 1 {
+		t.Fatalf("chapters=%+v err=%v", chapters, err)
+	}
+	content, _, err := s.GetChapterContentForBook(src, book, &chapters[0], nil)
+	if err != nil || content != "Page one\nPage two" {
+		t.Fatalf("content=%q err=%v", content, err)
+	}
+	if len(paths) != 4 {
+		t.Fatalf("paths=%v", paths)
+	}
+}
+
 func TestBookWorkflowCarriesCookiesFromDetailToTOCAndContent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/book" {

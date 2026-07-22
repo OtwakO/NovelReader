@@ -72,6 +72,18 @@ func TestJSONWildcardFilterSelectsObjectValues(t *testing.T) {
 	}
 }
 
+func TestJSONWildcardFilterRejectsMalformedInput(t *testing.T) {
+	for _, content := range []string{
+		`{"first":[{"novelName":"A"}]`,
+		`{"first":[{"novelName":"A"}]} trailing`,
+	} {
+		an := New(content, "https://example.com/", NewJSVM(), NewCacheManager())
+		if _, err := an.GetElements(`@Json:$.*[?(@.novelName)]`); err == nil {
+			t.Errorf("content %q did not fail", content)
+		}
+	}
+}
+
 func TestUnpositionedBareElementTraversesChild(t *testing.T) {
 	an := New(`<table><tbody><tr><td>A</td></tr><tr><td>B</td></tr></tbody></table><div id="identity" class="kind" data-role="card">Text</div>`, "https://example.com/", NewJSVM(), NewCacheManager())
 

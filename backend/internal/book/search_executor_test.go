@@ -5,10 +5,33 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/fetcher"
 )
+
+func TestSearchSourceEvaluatesJavaScriptHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Source") != "search" {
+			http.Error(w, "missing source header", http.StatusForbidden)
+			return
+		}
+		_, _ = w.Write([]byte(`<a class="book" href="/book/1">Book</a>`))
+	}))
+	defer server.Close()
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL, SearchURL: server.URL + "/search", Enabled: true,
+		Header:     `@js:JSON.stringify({'X-Source':'search'})`,
+		RuleSearch: `{"bookList":".book","name":"text","bookUrl":"href"}`,
+	}
+	results, err := s.searchSource(t.Context(), src, "fixture")
+	if err != nil || len(results) != 1 {
+		t.Fatalf("results=%+v err=%v", results, err)
+	}
+}
 
 func TestSearchSourceUsesSessionBackedURLTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
