@@ -1131,13 +1131,18 @@ func makeJSoupElement(rt *goja.Runtime, s *goquery.Selection) map[string]interfa
 }
 
 func ownText(selection *goquery.Selection) string {
-	var result strings.Builder
+	var parts []string
 	selection.Contents().Each(func(_ int, child *goquery.Selection) {
-		if goquery.NodeName(child) == "#text" {
-			result.WriteString(child.Text())
+		switch goquery.NodeName(child) {
+		case "#text":
+			if value := strings.Join(strings.Fields(child.Text()), " "); value != "" {
+				parts = append(parts, value)
+			}
+		case "br":
+			parts = append(parts, "")
 		}
 	})
-	return result.String()
+	return strings.Join(strings.Fields(strings.Join(parts, " ")), " ")
 }
 
 func emptyJSoupSelection(rt *goja.Runtime) *goja.Object { return makeJSoupSelection(rt, nil) }

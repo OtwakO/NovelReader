@@ -38,6 +38,36 @@ func TestExplorePageReversesTheCompleteUncappedResultList(t *testing.T) {
 	}
 }
 
+func TestExplorePageExpandsEncodedCategoryPageSelector(t *testing.T) {
+	var offsets []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		offsets = append(offsets, r.URL.Query().Get("offset"))
+		_, _ = fmt.Fprintf(w, `{"data":[{"title":"Book %s","id":"%s"}]}`, r.URL.Query().Get("offset"), r.URL.Query().Get("offset"))
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "Encoded paging", EnabledExplore: true,
+		ExploreURL:  "Books::" + server.URL + `/books?offset=%3C0%2C150%2C300%3E`,
+		RuleExplore: `{"bookList":"$.data[*]","name":"$.title","bookUrl":"$.id"}`,
+	}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(offsets) != "[0 150]" || first.Books[0].Name != "Book 0" || second.Books[0].Name != "Book 150" {
+		t.Fatalf("offsets=%v first=%+v second=%+v", offsets, first, second)
+	}
+}
+
 func TestExplorePageFieldJavaScriptCanReadEarlierBookFields(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, `{"data":[{"title":"Book","groupID":"resource_42"}]}`)

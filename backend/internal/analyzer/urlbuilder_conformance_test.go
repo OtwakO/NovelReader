@@ -39,6 +39,16 @@ func TestBuildURLExpandsEncodedPageSelector(t *testing.T) {
 	}
 }
 
+func TestBuildURLPreservesEncodedPageSelectorValues(t *testing.T) {
+	meta, err := BuildURL(`https://example.test/list?body=%3Cfirst%2Bvalue%2Csecond%26value%2Cthird%3Dvalue%3E`, "", 2, "https://example.test/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.URL != `https://example.test/list?body=second%26value` {
+		t.Fatalf("url=%q", meta.URL)
+	}
+}
+
 func TestBuildURLResolvesRootRelativePathAgainstHost(t *testing.T) {
 	meta, err := BuildURL(`/search?q={{key}}`, "x", 1, "https://example.test/novels/book-1", nil)
 	if err != nil {

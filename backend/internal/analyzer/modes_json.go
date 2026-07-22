@@ -79,12 +79,12 @@ func jsonQueryList(content, expr string) ([]string, error) {
 
 // jsonQueryElements returns all JSONPath elements without truncating long TOCs.
 func jsonQueryElements(content, expr string) ([]interface{}, error) {
+	if values, matched, err := filterObjectWildcard(content, expr); matched || err != nil {
+		return values, err
+	}
 	root, err := parseJSONValue(content)
 	if err != nil {
 		return nil, err
-	}
-	if values, matched := filterObjectWildcard(root, expr); matched {
-		return values, nil
 	}
 	value, err := selectJSONValue(root, expr)
 	if err != nil {
@@ -101,21 +101,36 @@ func jsonQueryElements(content, expr string) ([]interface{}, error) {
 	}
 }
 
-func filterObjectWildcard(root interface{}, expr string) ([]interface{}, bool) {
+func filterObjectWildcard(content, expr string) ([]interface{}, bool, error) {
 	const prefix = "$.*[?(@."
 	if !strings.HasPrefix(expr, prefix) || !strings.HasSuffix(expr, ")]") {
-		return nil, false
+		return nil, false, nil
 	}
 	key := strings.TrimSuffix(strings.TrimPrefix(expr, prefix), ")]")
 	if key == "" || strings.ContainsAny(key, " []()?!@$") {
-		return nil, false
+		return nil, false, nil
 	}
-	object, ok := root.(map[string]interface{})
-	if !ok {
-		return nil, false
+	decoder := json.NewDecoder(strings.NewReader(content))
+	token, err := decoder.Token()
+	if err != nil {
+		return nil, true, fmt.Errorf("%w: %v", errInvalidJSONInput, err)
 	}
-	values := make([]interface{}, 0, len(object))
-	for _, item := range object {
+	if delimiter, ok := token.(json.Delim); !ok || delimiter != '{' {
+		return nil, false, nil
+	}
+	var values []interface{}
+	for decoder.More() {
+		if _, err := decoder.Token(); err != nil {
+			return nil, true, fmt.Errorf("%w: %v", errInvalidJSONInput, err)
+		}
+		var raw json.RawMessage
+		if err := decoder.Decode(&raw); err != nil {
+			return nil, true, fmt.Errorf("%w: %v", errInvalidJSONInput, err)
+		}
+		var item interface{}
+		if err := json.Unmarshal(raw, &item); err != nil {
+			return nil, true, fmt.Errorf("%w: %v", errInvalidJSONInput, err)
+		}
 		switch child := item.(type) {
 		case map[string]interface{}:
 			if hasJSONFilterValue(child, key) {
@@ -129,7 +144,7 @@ func filterObjectWildcard(root interface{}, expr string) ([]interface{}, bool) {
 			}
 		}
 	}
-	return values, true
+	return values, true, nil
 }
 
 func hasJSONFilterValue(object map[string]interface{}, key string) bool {

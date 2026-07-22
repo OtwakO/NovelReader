@@ -302,7 +302,11 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	// Search owns one session/client pair so cookies and source variables cannot leak
 	// between concurrent sources while remaining available to multi-stage rules.
 	session := sourceexec.NewSourceSession()
-	session.SetRequestHeaders(parseHeaderJSON(src.Header))
+	sourceHeaders, err := evaluateSourceHeaders(srcCtx, s.jsVM, src, session)
+	if err != nil {
+		return nil, fmt.Errorf("source headers: %w", err)
+	}
+	session.SetRequestHeaders(sourceHeaders)
 	transport := s.newTransport(s.workflowClient(), session)
 	defer transport.CloseIdleConnections()
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
@@ -315,7 +319,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	}
 
 	// Merge source-level headers first, then URL-option headers overlay.
-	spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
+	spec.Headers = sourceexec.MergeHeaders(sourceHeaders, spec.Headers)
 
 	slog.Debug("search: fetching source",
 		"source", src.BookSourceName,
@@ -514,7 +518,11 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
-	session.SetRequestHeaders(parseHeaderJSON(src.Header))
+	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
+	if err != nil {
+		return nil, fmt.Errorf("book info: source headers: %w", err)
+	}
+	session.SetRequestHeaders(sourceHeaders)
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	b := &Book{
@@ -531,7 +539,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 		}
 		return nil, fmt.Errorf("book info: build URL: %w", err)
 	}
-	spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
+	spec.Headers = sourceexec.MergeHeaders(sourceHeaders, spec.Headers)
 	response, err := transport.Do(ctx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("book info: fetch: %w", err)
@@ -584,7 +592,11 @@ func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, toc
 	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
-	session.SetRequestHeaders(parseHeaderJSON(src.Header))
+	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
+	if err != nil {
+		return nil, fmt.Errorf("chapter list: source headers: %w", err)
+	}
+	session.SetRequestHeaders(sourceHeaders)
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	bookData := bookContext(b, src)
@@ -602,7 +614,7 @@ func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, toc
 			if err != nil {
 				return "", "", err
 			}
-			spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
+			spec.Headers = sourceexec.MergeHeaders(sourceHeaders, spec.Headers)
 			response, err := transport.Do(ctx, spec)
 			if err != nil {
 				return "", "", err
@@ -659,7 +671,11 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 	if session == nil {
 		session = sourceexec.NewSourceSession()
 	}
-	session.SetRequestHeaders(parseHeaderJSON(src.Header))
+	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
+	if err != nil {
+		return "", "", fmt.Errorf("content: source headers: %w", err)
+	}
+	session.SetRequestHeaders(sourceHeaders)
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	bookData := bookContext(b, src)
@@ -671,7 +687,7 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 		}
 		return "", "", fmt.Errorf("content: build URL: %w", err)
 	}
-	spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), spec.Headers)
+	spec.Headers = sourceexec.MergeHeaders(sourceHeaders, spec.Headers)
 	response, err := transport.Do(ctx, spec)
 	if err != nil {
 		return "", "", fmt.Errorf("content: fetch: %w", err)
@@ -774,7 +790,7 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 		if err != nil {
 			return "", "", newContentPaginationError("next page build", fullURL, nextURL, pagesFetched, err)
 		}
-		nextSpec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(src.Header), nextSpec.Headers)
+		nextSpec.Headers = sourceexec.MergeHeaders(sourceHeaders, nextSpec.Headers)
 		slog.Debug("content: fetching next page", "source", src.BookSourceName, "url", nextSpec.URL, "method", nextSpec.Method)
 		nextResponse, err := transport.Do(ctx, nextSpec)
 		if err != nil {

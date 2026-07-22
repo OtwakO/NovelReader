@@ -59,14 +59,16 @@ func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
 }
 
 func TestJSONWildcardFilterSelectsObjectValues(t *testing.T) {
-	an := New(`{"ranking":[{"novelName":"A","novelId":1},{"other":"x"}]}`, "https://example.com/", NewJSVM(), NewCacheManager())
-	elements, err := an.GetElements(`@Json:$.*[?(@.novelName)]&&$.*[?(@.novelname)]`)
-	if err != nil || len(elements) != 1 {
+	an := New(`{"first":[{"novelName":"A","novelId":1}],"second":[{"novelName":"B","novelId":2}]}`, "https://example.com/", NewJSVM(), NewCacheManager())
+	elements, err := an.GetElements(`@Json:$.*[?(@.novelName)]`)
+	if err != nil || len(elements) != 2 {
 		t.Fatalf("GetElements()=%#v err=%v", elements, err)
 	}
-	value, err := New(ToString(elements[0]), "https://example.com/", NewJSVM(), nil).GetString(`$.novelName`)
-	if err != nil || value != "A" {
-		t.Fatalf("novelName=%q err=%v", value, err)
+	for index, want := range []string{"A", "B"} {
+		value, err := New(ToString(elements[index]), "https://example.com/", NewJSVM(), nil).GetString(`$.novelName`)
+		if err != nil || value != want {
+			t.Fatalf("index=%d novelName=%q err=%v", index, value, err)
+		}
 	}
 }
 

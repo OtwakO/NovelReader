@@ -24,8 +24,9 @@ func TestJsoupBridgeEqMatchesJsoupBounds(t *testing.T) {
 
 func TestJsoupBridgeSupportsOwnTextMethod(t *testing.T) {
 	vm := NewJSVM()
-	value, err := vm.Eval(`org.jsoup.Jsoup.parse(result).select('.item').first().ownText().trim()`, `<a class="item">Direct <span>Child</span></a>`, "https://example.test/")
-	if err != nil || ToString(value) != "Direct" {
+	value, err := vm.Eval(`org.jsoup.Jsoup.parse(result).select('.item').first().ownText()`, `<a class="item">  Direct
+ text <span>Child</span><br> tail  </a>`, "https://example.test/")
+	if err != nil || ToString(value) != "Direct text tail" {
 		t.Fatalf("ownText()=%q err=%v", ToString(value), err)
 	}
 }

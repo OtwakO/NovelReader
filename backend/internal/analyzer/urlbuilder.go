@@ -396,11 +396,19 @@ func expandPageSelector(input string, page int) string {
 	input = plainSelector.ReplaceAllStringFunc(input, selectPart)
 	encodedSelector := regexp.MustCompile(`(?i)%3c(?:%[0-9a-f]{2}|[^%&])*%3e`)
 	return encodedSelector.ReplaceAllStringFunc(input, func(match string) string {
-		decoded, err := url.PathUnescape(match)
-		if err != nil || !strings.Contains(decoded, ",") {
+		inner := match[len("%3C") : len(match)-len("%3E")]
+		parts := regexp.MustCompile(`(?i)%2c`).Split(inner, -1)
+		if len(parts) < 2 {
 			return match
 		}
-		return url.PathEscape(selectPart(decoded))
+		index := page - 1
+		if index < 0 {
+			index = 0
+		}
+		if index >= len(parts) {
+			index = len(parts) - 1
+		}
+		return parts[index]
 	})
 }
 

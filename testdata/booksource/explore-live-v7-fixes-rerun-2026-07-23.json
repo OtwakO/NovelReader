@@ -11,7 +11,7 @@
     {"rawIndex":288,"previous":{"catalogStatus":502,"code":"category_script_failed"},"current":{"catalogStatus":200,"catalogEntries":118,"pageStatus":200,"books":30,"distinctBookUrls":30},"outcome":"repaired"}
   ],
   "adjacentCorpusInventory": {
-    "sourceMetadataRawIndices": [5,19,21,24,37,52,67,134,175,177,206,218,245,422,467,509,575,591,596,597,603,627,755,907,922,923,926],
+    "sourceMetadataRawIndices": [5,19,21,24,37,52,67,134,175,177,206,218,245,281,422,467,509,575,591,596,597,603,627,755,907,922,923,926],
     "javascriptHeaderRawIndices": [5,41,88,133,152,206,216,365,372,411,864,878,907,924],
     "jsonWildcardFilterRawIndices": [378,380,394,490,497,503,526,581],
     "ownTextMethodRawIndices": [41,288],
