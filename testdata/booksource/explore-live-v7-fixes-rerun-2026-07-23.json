@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "verificationDate": "2026-07-23",
+  "parentManifest": "testdata/booksource/explore-live-audit-v7-2026-07-22.json",
+  "corpus": {"path":"test_booksource4.json","sha256":"23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"},
+  "method": "Fresh isolated production server/database, unmodified corpus import, first selectable category/page 1 for all four v7 engine-gap identities; deterministic public regressions and adjacent corpus inventory for affected syntax families.",
+  "results": [
+    {"rawIndex":177,"previous":{"pageStatus":502,"code":"result_rule_failed"},"current":{"catalogStatus":200,"pageStatus":200,"books":1,"distinctBookUrls":1},"outcome":"repaired"},
+    {"rawIndex":5,"previous":{"pageStatus":502,"code":"result_rule_failed"},"current":{"catalogStatus":200,"pageStatus":200,"books":21,"distinctBookUrls":21},"outcome":"repaired"},
+    {"rawIndex":503,"previous":{"pageStatus":200,"books":0},"current":{"catalogStatus":200,"pageStatus":200,"books":150,"distinctBookUrls":150},"outcome":"repaired"},
+    {"rawIndex":288,"previous":{"catalogStatus":502,"code":"category_script_failed"},"current":{"catalogStatus":200,"catalogEntries":118,"pageStatus":200,"books":30,"distinctBookUrls":30},"outcome":"repaired"}
+  ],
+  "adjacentCorpusInventory": {
+    "sourceMetadataRawIndices": [5,19,21,24,37,52,67,134,175,177,206,218,245,422,467,509,575,591,596,597,603,627,755,907,922,923,926],
+    "javascriptHeaderRawIndices": [5,41,88,133,152,206,216,365,372,411,864,878,907,924],
+    "jsonWildcardFilterRawIndices": [378,380,394,490,497,503,526,581],
+    "ownTextMethodRawIndices": [41,288],
+    "mutableBookContextRawIndices": [5,52,177,195,206,621,637,756],
+    "notes": "Deterministic regressions cover source helper precedence and pooled isolation, explicit @js-only header evaluation plus fail-closed literals, root object wildcard filters over direct objects and one-level arrays, Jsoup ownText() direct-text semantics and collection enumeration, encoded page selectors, and per-result mutable book context. Live replay claims only the four audited identities."
+  }
+}

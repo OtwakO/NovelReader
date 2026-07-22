@@ -75,7 +75,8 @@ func parseHeaderJSON(headerJSON string) map[string]string {
 func evaluateSourceHeaders(ctx context.Context, vm *analyzer.JSVM, source booksource.BookSource, state analyzer.SourceState) (map[string]string, error) {
 	header := strings.TrimSpace(source.Header)
 	if !strings.HasPrefix(strings.ToLower(header), "@js:") {
-		return parseLiteralHeaders(header)
+		headers, _ := parseLiteralHeaders(header)
+		return headers, nil
 	}
 	if vm == nil {
 		return nil, fmt.Errorf("source header JavaScript engine unavailable")
