@@ -64,7 +64,11 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 		}
 	}()
 
-	session.state.SetRequestHeaders(parseHeaderJSON(session.source.Header))
+	sourceHeaders, err := evaluateSourceHeaders(pageCtx, s.jsVM, session.source, session.state)
+	if err != nil {
+		return ExplorePage{}, newExploreError("request_build_failed", "request", "Could not build Explore source headers", false, err)
+	}
+	session.state.SetRequestHeaders(sourceHeaders)
 	transport := s.newTransport(s.workflowClient(), session.state)
 	defer transport.CloseIdleConnections()
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session.state)
@@ -75,7 +79,7 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 		}
 		return ExplorePage{}, newExploreError("request_build_failed", "request", "Could not build Explore request", false, err)
 	}
-	spec.Headers = sourceexec.MergeHeaders(parseHeaderJSON(session.source.Header), spec.Headers)
+	spec.Headers = sourceexec.MergeHeaders(sourceHeaders, spec.Headers)
 	response, err := transport.Do(pageCtx, spec)
 	if errors.Is(err, sourceexec.ErrWebViewTransportUnavailable) {
 		return ExplorePage{}, newExploreError("unsupported_capability", "transport", "Explore source requires WebView support", false, err)

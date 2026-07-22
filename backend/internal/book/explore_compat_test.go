@@ -62,6 +62,34 @@ func TestExplorePageJavaScriptCanReadSourceMetadata(t *testing.T) {
 	}
 }
 
+func TestExplorePageEvaluatesJavaScriptSourceHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Referer") != r.Host+"/from-source" {
+			http.Error(w, "missing evaluated header", http.StatusForbidden)
+			return
+		}
+		_, _ = fmt.Fprint(w, `<a class="book" href="/book/1">Book</a>`)
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "JavaScript headers", EnabledExplore: true,
+		Header: `@js:JSON.stringify({Referer:source.bookSourceUrl.replace(/^https?:\/\//,'')+'/from-source'})`, ExploreURL: "Books::" + server.URL,
+		RuleExplore: `{"bookList":".book","name":"text","bookUrl":"href"}`,
+	}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Books) != 1 {
+		t.Fatalf("page=%+v", page)
+	}
+}
+
 func TestExplorePageUsesLenientSourceHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Source") != "explore" {

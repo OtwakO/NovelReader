@@ -45,7 +45,11 @@ func (s *Searcher) evaluateExploreJavaScript(ctx context.Context, source booksou
 		}
 	}()
 
-	state.SetRequestHeaders(parseHeaderJSON(source.Header))
+	sourceHeaders, err := evaluateSourceHeaders(scriptCtx, s.jsVM, source, state)
+	if err != nil {
+		return nil, err
+	}
+	state.SetRequestHeaders(sourceHeaders)
 	urlContext := &analyzer.URLContext{JSLib: source.JSLib}
 	bindings := analyzer.URLBindings(urlContext, source.BookSourceURL, state)
 	bindings["source"] = sourceContext(source)
