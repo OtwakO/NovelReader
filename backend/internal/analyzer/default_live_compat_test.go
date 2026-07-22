@@ -58,6 +58,18 @@ func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
 	}
 }
 
+func TestJSONWildcardFilterSelectsObjectValues(t *testing.T) {
+	an := New(`{"0":{"novelName":"A","novelId":1},"1":{"other":"x"}}`, "https://example.com/", NewJSVM(), NewCacheManager())
+	elements, err := an.GetElements(`@Json:$.*[?(@.novelName)]&&$.*[?(@.novelname)]`)
+	if err != nil || len(elements) != 1 {
+		t.Fatalf("GetElements()=%#v err=%v", elements, err)
+	}
+	value, err := New(ToString(elements[0]), "https://example.com/", NewJSVM(), nil).GetString(`$.novelName`)
+	if err != nil || value != "A" {
+		t.Fatalf("novelName=%q err=%v", value, err)
+	}
+}
+
 func TestUnpositionedBareElementTraversesChild(t *testing.T) {
 	an := New(`<table><tbody><tr><td>A</td></tr><tr><td>B</td></tr></tbody></table><div id="identity" class="kind" data-role="card">Text</div>`, "https://example.com/", NewJSVM(), NewCacheManager())
 

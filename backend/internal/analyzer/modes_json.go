@@ -83,6 +83,9 @@ func jsonQueryElements(content, expr string) ([]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	if values, matched := filterObjectWildcard(root, expr); matched {
+		return values, nil
+	}
 	value, err := selectJSONValue(root, expr)
 	if err != nil {
 		return nil, err
@@ -96,6 +99,30 @@ func jsonQueryElements(content, expr string) ([]interface{}, error) {
 	default:
 		return []interface{}{typed}, nil
 	}
+}
+
+func filterObjectWildcard(root interface{}, expr string) ([]interface{}, bool) {
+	const prefix = "$.*[?(@."
+	if !strings.HasPrefix(expr, prefix) || !strings.HasSuffix(expr, ")]") {
+		return nil, false
+	}
+	key := strings.TrimSuffix(strings.TrimPrefix(expr, prefix), ")]")
+	if key == "" || strings.ContainsAny(key, " []()?!@$") {
+		return nil, false
+	}
+	object, ok := root.(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+	values := make([]interface{}, 0, len(object))
+	for _, item := range object {
+		if child, ok := item.(map[string]interface{}); ok {
+			if value, exists := child[key]; exists && value != nil && value != false && value != "" {
+				values = append(values, item)
+			}
+		}
+	}
+	return values, true
 }
 
 func parseJSONValue(content string) (interface{}, error) {
