@@ -110,6 +110,7 @@ type Analyzer struct {
 	nextChapter map[string]interface{} // the exact next TOC chapter, when known
 	ruleVars    map[string]string
 	sourceState SourceState
+	sourceData  map[string]interface{}
 	ctx         context.Context
 }
 
@@ -159,6 +160,9 @@ func (a *Analyzer) SetNextChapterDataValues(c map[string]interface{}) { a.nextCh
 
 // SetSourceState binds the source session used by cookie, source, and cache JS objects.
 func (a *Analyzer) SetSourceState(state SourceState) { a.sourceState = state }
+
+// SetSourceData exposes the imported source metadata to rule JavaScript.
+func (a *Analyzer) SetSourceData(data map[string]interface{}) { a.sourceData = data }
 
 // SetContext binds cancellation to JavaScript HTTP helpers used by this analyzer.
 func (a *Analyzer) SetContext(ctx context.Context) {
@@ -806,6 +810,9 @@ func (a *Analyzer) jsBindings() map[string]interface{} {
 	}
 	if a.sourceState != nil {
 		b["sourceState"] = a.sourceState
+	}
+	if a.sourceData != nil {
+		b["source"] = a.sourceData
 	}
 	b["analyzer"] = a
 	return b

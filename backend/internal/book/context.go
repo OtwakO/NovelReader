@@ -33,6 +33,7 @@ func setAnalyzerContextWithBookData(an *analyzer.Analyzer, src booksource.BookSo
 func setAnalyzerContextMaps(an *analyzer.Analyzer, src booksource.BookSource, state analyzer.SourceState, bookData, chapterData, nextData map[string]interface{}) {
 	an.SetJSLib(src.JSLib)
 	an.SetSourceState(state)
+	an.SetSourceData(sourceContext(src))
 	an.SetBookDataValues(bookData)
 	if chapterData != nil {
 		an.SetChapterDataValues(chapterData)
@@ -74,6 +75,13 @@ func syncBookFromContext(b *Book, values map[string]interface{}) {
 	if value := stringValue("wordCount"); value != "" {
 		b.WordCount = value
 	}
+}
+
+func sourceContext(src booksource.BookSource) map[string]interface{} {
+	body, _ := json.Marshal(src)
+	var values map[string]interface{}
+	_ = json.Unmarshal(body, &values)
+	return values
 }
 
 func bookContext(b *Book, src booksource.BookSource) map[string]interface{} {

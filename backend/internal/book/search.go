@@ -388,6 +388,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 	an := analyzer.New(html, baseURL, s.jsVM, s.cache)
 	an.SetJSLib(src.JSLib)
 	an.SetSourceState(state)
+	an.SetSourceData(sourceContext(src))
 	an.SetContext(ctx)
 	elements, err := an.GetElements(bookListRule)
 	if err != nil {
@@ -430,6 +431,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		elAn := analyzer.New(elHTML, baseURL, s.jsVM, s.cache)
 		elAn.SetJSLib(src.JSLib)
 		elAn.SetSourceState(state)
+		elAn.SetSourceData(sourceContext(src))
 		elAn.SetContext(ctx)
 
 		r := SearchResult{

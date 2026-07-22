@@ -38,6 +38,30 @@ func TestExplorePageReversesTheCompleteUncappedResultList(t *testing.T) {
 	}
 }
 
+func TestExplorePageJavaScriptCanReadSourceMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `<a class="book" href="/book/1">Book</a>`)
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "Metadata", BookSourceComment: ".book", EnabledExplore: true,
+		ExploreURL:  "Books::" + server.URL,
+		RuleExplore: `{"bookList":"@js:java.getElements(source.bookSourceComment)","name":"text","bookUrl":"href"}`,
+	}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Books) != 1 || page.Books[0].Name != "Book" {
+		t.Fatalf("page=%+v", page)
+	}
+}
+
 func TestExplorePageUsesLenientSourceHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Source") != "explore" {

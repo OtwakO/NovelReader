@@ -210,14 +210,22 @@ Map = function(a) {
 		"login":          h.Login,
 		"refreshExplore": h.RefreshExplore,
 	})
-	_ = rt.Set("source", vm.makeSourceObj(baseURL, sourceState))
+	sourceObj := vm.makeSourceObj(baseURL, sourceState)
+	if len(extra) > 0 {
+		if metadata, ok := extra[0]["source"].(map[string]interface{}); ok {
+			for key, value := range metadata {
+				sourceObj[key] = value
+			}
+		}
+	}
+	_ = rt.Set("source", sourceObj)
 	_ = rt.Set("cookie", vm.makeCookieObj(sourceState))
 	_ = rt.Set("cache", vm.makeCacheObj(sourceState))
 
 	// Set extra bindings (key, page, book, chapter, etc.)
 	if len(extra) > 0 {
 		for k, v := range extra[0] {
-			if k == "analyzer" {
+			if k == "analyzer" || k == "source" {
 				continue
 			}
 			_ = rt.Set(k, v)
