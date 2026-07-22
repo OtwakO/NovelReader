@@ -210,13 +210,16 @@ Map = function(a) {
 		"login":          h.Login,
 		"refreshExplore": h.RefreshExplore,
 	})
-	sourceObj := vm.makeSourceObj(baseURL, sourceState)
+	sourceObj := make(map[string]interface{})
 	if len(extra) > 0 {
 		if metadata, ok := extra[0]["source"].(map[string]interface{}); ok {
 			for key, value := range metadata {
 				sourceObj[key] = value
 			}
 		}
+	}
+	for key, value := range vm.makeSourceObj(baseURL, sourceState) {
+		sourceObj[key] = value
 	}
 	_ = rt.Set("source", sourceObj)
 	_ = rt.Set("cookie", vm.makeCookieObj(sourceState))

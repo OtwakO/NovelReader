@@ -50,6 +50,21 @@ func TestJSVMLoadedLibrarySurvivesRuntimeReplacement(t *testing.T) {
 	}
 }
 
+func TestJSVMSourceHelpersOverrideImportedMetadata(t *testing.T) {
+	state := &testSourceState{vars: map[string]string{"https://example.test/": "saved"}, memory: map[string]interface{}{}}
+	vm := NewJSVM()
+	value, err := vm.Eval(`source.bookSourceComment + '|' + source.getVariable()`, "", "https://example.test/", map[string]interface{}{
+		"sourceState": state,
+		"source": map[string]interface{}{
+			"bookSourceComment": "metadata",
+			"getVariable":       "shadowed",
+		},
+	})
+	if err != nil || value != "metadata|saved" {
+		t.Fatalf("value=%v err=%v", value, err)
+	}
+}
+
 func TestJSVMBindsLegadoObjectsToSourceState(t *testing.T) {
 	state := &testSourceState{
 		cookies: map[string]string{"sid": "fixture"},
