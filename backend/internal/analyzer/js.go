@@ -1114,7 +1114,7 @@ func makeJSoupElement(rt *goja.Runtime, s *goquery.Selection) map[string]interfa
 	return map[string]interface{}{
 		"__html":    outerHTML,
 		"text":      func() string { return s.Text() },
-		"ownText":   s.Contents().Not("script").Not("style").Text(),
+		"ownText":   func() string { return ownText(s) },
 		"html":      func() string { h, _ := s.Html(); return h },
 		"outerHtml": func() string { h, _ := goquery.OuterHtml(s); return h },
 		"attr":      func(name string) string { v, _ := s.Attr(name); return v },
@@ -1125,6 +1125,16 @@ func makeJSoupElement(rt *goja.Runtime, s *goquery.Selection) map[string]interfa
 		"last":      func() interface{} { return makeJSoupElement(rt, s.Last()) },
 		"size":      1,
 	}
+}
+
+func ownText(selection *goquery.Selection) string {
+	var result strings.Builder
+	selection.Contents().Each(func(_ int, child *goquery.Selection) {
+		if goquery.NodeName(child) == "#text" {
+			result.WriteString(child.Text())
+		}
+	})
+	return result.String()
 }
 
 func emptyJSoupSelection(rt *goja.Runtime) *goja.Object { return makeJSoupSelection(rt, nil) }

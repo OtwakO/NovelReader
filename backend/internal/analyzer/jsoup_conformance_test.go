@@ -22,6 +22,14 @@ func TestJsoupBridgeEqMatchesJsoupBounds(t *testing.T) {
 	}
 }
 
+func TestJsoupBridgeSupportsOwnTextMethod(t *testing.T) {
+	vm := NewJSVM()
+	value, err := vm.Eval(`org.jsoup.Jsoup.parse(result).select('.item').first().ownText().trim()`, `<a class="item">Direct <span>Child</span></a>`, "https://example.test/")
+	if err != nil || ToString(value) != "Direct" {
+		t.Fatalf("ownText()=%q err=%v", ToString(value), err)
+	}
+}
+
 func TestJsoupBridgeCollectionMethodsStayOutOfForIn(t *testing.T) {
 	vm := NewJSVM()
 	value, err := vm.Eval(`var rows=org.jsoup.Jsoup.parse(result).select('.row'); var keys=[]; for (var key in rows) keys.push(key); keys.join('|')`, `<p class="row">One</p><p class="row">Two</p>`, "https://example.test/")
