@@ -1,0 +1,2813 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-07-22T20:08:00Z",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c",
+    "entries": 939
+  },
+  "selection": {
+    "size": 50,
+    "eligibleRemainingBeforeSelection": 373,
+    "excludedIdentityCount": 350,
+    "priorManifests": [
+      "explore-live-audit-2026-07-18.json",
+      "explore-live-audit-v2-2026-07-19.json",
+      "explore-live-audit-v3-2026-07-19.json",
+      "explore-live-audit-v4-2026-07-21.json",
+      "explore-live-audit-v5-2026-07-21.json",
+      "explore-live-audit-v6-2026-07-21.json",
+      "explore-live-audit-v7-2026-07-22.json",
+      "explore-live-audit-v8-2026-07-22.json"
+    ],
+    "ranking": "SHA-256(seed + NUL + rawIndex + NUL + bookSourceUrl)",
+    "unrestricted": true,
+    "rawIndices": [
+      66,
+      926,
+      250,
+      792,
+      349,
+      340,
+      777,
+      858,
+      435,
+      811,
+      70,
+      279,
+      886,
+      160,
+      347,
+      837,
+      256,
+      42,
+      333,
+      258,
+      887,
+      310,
+      773,
+      693,
+      753,
+      554,
+      631,
+      686,
+      588,
+      918,
+      600,
+      19,
+      782,
+      566,
+      619,
+      122,
+      57,
+      880,
+      581,
+      259,
+      131,
+      159,
+      501,
+      606,
+      593,
+      824,
+      810,
+      582,
+      632,
+      672
+    ],
+    "identities": [
+      {
+        "rawIndex": 66,
+        "sourceUrl": "https://www.dtxsw.com",
+        "name": "大唐小说（优+）",
+        "rank": "0006d4b11f2becb5be705b2c4fff876db9672119ede32997a6e814a1b2d62a8c"
+      },
+      {
+        "rawIndex": 926,
+        "sourceUrl": "https://www.blxsw.cc",
+        "name": "耽美小说网",
+        "rank": "00d2a960ce31b58de632e34d9fba6b3dc29d29d8c25d56b19286278dc867690c"
+      },
+      {
+        "rawIndex": 250,
+        "sourceUrl": "http://m.kuaikanmanhua.com#未月十八发现",
+        "name": "快看漫画",
+        "rank": "01274c04e2ea03a730bd7170fcc3eb87bf31d693d6b6088b00a50c268f180a42"
+      },
+      {
+        "rawIndex": 792,
+        "sourceUrl": "https://www.jile1.com",
+        "name": "🚬 PO18文学",
+        "rank": "01c58ed3b8a2ea81949c01db8ee9962c0f0925ef3aa2caa64625b63b13b926dd"
+      },
+      {
+        "rawIndex": 349,
+        "sourceUrl": "https://api.langge.cf#小说",
+        "name": "🍅大灰狼小说4.0(兼容版)千阅，读不舍手，源阅读",
+        "rank": "01fc9e8e2f9984f183f96dfffe1ba2fbdc03b96008fb42f862b6d1edcaf15622"
+      },
+      {
+        "rawIndex": 340,
+        "sourceUrl": "https://xn--vcsx64d.alicesw2.sbs",
+        "name": "爱丽丝书屋",
+        "rank": "01febe17bbb2e7a6ce401d984fecdf58a522d4e20723265ab67e9eff42ac7742"
+      },
+      {
+        "rawIndex": 777,
+        "sourceUrl": "https://book.zri.moe/zhbyjm",
+        "name": "炎上书屋",
+        "rank": "04087fc366de7549fae80e9652b554fad31683468695662eb0206604e02203cd"
+      },
+      {
+        "rawIndex": 858,
+        "sourceUrl": "http://www.83xsw.com",
+        "name": "🌟83小说网",
+        "rank": "04cc0a3556bf5c445f1053cb7f83e09833db99d824006f75f5882b0968e26c48"
+      },
+      {
+        "rawIndex": 435,
+        "sourceUrl": "https://www.iqiyi.com/manhua#Haxc1107",
+        "name": "💰爱奇艺漫画",
+        "rank": "05ed486e606f7cb4822b8682cbc1bb928fc3c6e3a4d9ae28a95284b05a17edef"
+      },
+      {
+        "rawIndex": 811,
+        "sourceUrl": "https://m.rourouwu2.com/#🚀",
+        "name": "肉肉屋②",
+        "rank": "0696780a7296d1537b65ace1b2866a1aa4f146ffc76515ff763c3a4a118e7352"
+      },
+      {
+        "rawIndex": 70,
+        "sourceUrl": "http://www.xbotaodz.com",
+        "name": "快眼看书（优+）",
+        "rank": "07974e0de123766812518d66d10158d7e626bb6b6221a1441708ee8b705ef620"
+      },
+      {
+        "rawIndex": 279,
+        "sourceUrl": "https://www.dcrbk.com",
+        "name": "稻草人书屋",
+        "rank": "07d161208f7423f825c74f019fbd2926e3ca248c4ca602372dd54d4b8ed1b166"
+      },
+      {
+        "rawIndex": 886,
+        "sourceUrl": "http://www.guowx.com",
+        "name": "果文学网@游客",
+        "rank": "07ecce27d12b5805601efc988e4cab258e3c2a3992d33807cd6925855970c62d"
+      },
+      {
+        "rawIndex": 160,
+        "sourceUrl": "https://www.missevan.com#乃星",
+        "name": "猫耳听书（优+）",
+        "rank": "0916d2cc0bd9aa773f55620040554ec75ad0d0f12691fe4825c0ebb9f9a3e18d"
+      },
+      {
+        "rawIndex": 347,
+        "sourceUrl": "http://www.zuowenjing.com",
+        "name": "笔趣阁",
+        "rank": "0a14c6131a6116b3e6b7c9cece6ed86ba4a0a096188010cc4c8d9cfe4821d10d"
+      },
+      {
+        "rawIndex": 837,
+        "sourceUrl": "https://www.jjjjxs.com",
+        "name": "久久小说",
+        "rank": "0ae60cdd8d956e858227171b2bd833f2ab77c601eac3bf68510892239240a7e8"
+      },
+      {
+        "rawIndex": 256,
+        "sourceUrl": "https://mm.sfacg.com/",
+        "name": "收费漫画",
+        "rank": "0c326fa7ea025e01fd99a8eea9dc6b3ffbad1bbf6a98f24a8d42159835235c79"
+      },
+      {
+        "rawIndex": 42,
+        "sourceUrl": "http://m.suixkan.com",
+        "name": "阅友小说（优+）",
+        "rank": "0cd538719a315e79f5f2e92cdc40191758952e816e599fd2239f75073c7e8718"
+      },
+      {
+        "rawIndex": 333,
+        "sourceUrl": "http://www.86dushu.com",
+        "name": "🔖86读书",
+        "rank": "0ce97e59163e81e98c2c071671d18ab7bed79869679dee69be2cb89241c805bf"
+      },
+      {
+        "rawIndex": 258,
+        "sourceUrl": "https://www.mkzhan.com#yc1101",
+        "name": "爱漫客栈",
+        "rank": "0d006632c704474ecc73d896014d5cc3fd1975a8fbd2f928a6e2693efdca838d"
+      },
+      {
+        "rawIndex": 887,
+        "sourceUrl": "https://wap.jhssd.com",
+        "name": "精华书阁",
+        "rank": "0d09e2384fc12d5a0ffcb0fc27e0ed75655b64472522ae98da72f1b0c8ab9aeb"
+      },
+      {
+        "rawIndex": 310,
+        "sourceUrl": "https://www.wxscs.com#",
+        "name": "万象书城",
+        "rank": "0dc9f3da28b99f47eafb988c40cc0c3ac915a0c05c2c37cfe55232d3109362da"
+      },
+      {
+        "rawIndex": 773,
+        "sourceUrl": "https://www.qubook.org#🎃",
+        "name": "趣书网说",
+        "rank": "0f0b9e9c3b0bc3803e1d87bfb928bbb0984a67401252ed8127e62208eb770ddc"
+      },
+      {
+        "rawIndex": 693,
+        "sourceUrl": "https://qubook.org/##@遇知",
+        "name": "趣书网",
+        "rank": "0f14ef31e2916cd5a2512803bf5021bc5ffd61da37fb630e2ff98eeae4a6e356"
+      },
+      {
+        "rawIndex": 753,
+        "sourceUrl": "https://www.powenxue3.com/#🚀",
+        "name": "肉文NP①",
+        "rank": "10aae126c201ac93e407f4e1f352c3d9e34baad4aa75324675c722182c4eff2e"
+      },
+      {
+        "rawIndex": 554,
+        "sourceUrl": "http://wap.shukuge.com",
+        "name": "6",
+        "rank": "10c3911bb30f91789aacb067f79f133453773a1974200edd4c7925a8c6100bab"
+      },
+      {
+        "rawIndex": 631,
+        "sourceUrl": "https://www.yehanshu.com#🎃",
+        "name": "️夜寒🎃",
+        "rank": "127a71808bbc9c187ed94dbaaf19d572c1c289e63d8e7d06b3c8cb579993bde4"
+      },
+      {
+        "rawIndex": 686,
+        "sourceUrl": "http://www.qudushu.org",
+        "name": "去读书",
+        "rank": "12b0140bc78b3e1a01e65ce4d6fa695e8b01d2c91850cf2eeae099af28de13a7"
+      },
+      {
+        "rawIndex": 588,
+        "sourceUrl": "http://m.zhanvxs.cc#🎃",
+        "name": "渣女小说🎃",
+        "rank": "12f057f9f30d2e8c146dadecb61f868f94304f324a0eb31e3e450cab2350a510"
+      },
+      {
+        "rawIndex": 918,
+        "sourceUrl": "https://www.deqixs.co",
+        "name": "得奇小说网",
+        "rank": "13b5bba28dc4d90045fca40b0af49d9e69ef1b493294c4f4612389f4e6742ca1"
+      },
+      {
+        "rawIndex": 600,
+        "sourceUrl": "https://www.wtzw.com#yc1101",
+        "name": "㊣梧桐中文 1201",
+        "rank": "13ea17998b0f8942de77346e7facb09eef3ba566cc027fd0d81a2b4abc01aeaf"
+      },
+      {
+        "rawIndex": 19,
+        "sourceUrl": "https://cn.ttkan.co/##@遇知",
+        "name": "天天看书（优+++）",
+        "rank": "14a648816baac98a54dbf4b57626a6071b93e9f1805a973a33e581b36602896b"
+      },
+      {
+        "rawIndex": 782,
+        "sourceUrl": "https://www.isex.work",
+        "name": "夜书吧『移动屏蔽』",
+        "rank": "150da7ee55f31c4d7eb5f26116bd9a3b75062966c8a5d5ae6ff6beb38846877a"
+      },
+      {
+        "rawIndex": 566,
+        "sourceUrl": "http://www.txt86w.com",
+        "name": "86小说",
+        "rank": "15d25b8c045052da429be2b56bd803047376307cc70997f57def10e582b747f9"
+      },
+      {
+        "rawIndex": 619,
+        "sourceUrl": "https://www.56zw.com#",
+        "name": "五六中文",
+        "rank": "15e5ee120917c2d53d98b9af1ebfac2a77f1e2b41477db21b1b478b38c22058e"
+      },
+      {
+        "rawIndex": 122,
+        "sourceUrl": "https://kgbook.com",
+        "name": "苦瓜书盘（导）",
+        "rank": "16123bc3855ff959f69a9ba9daba02d52b47febe8fb7fa1cb9d3913cef3fdb75"
+      },
+      {
+        "rawIndex": 57,
+        "sourceUrl": "https://www.zggdwx.com/",
+        "name": "古典文学（优+）",
+        "rank": "167956e343facb08db7a549cde264306cc400046c5f467fe0b6cfd2ceca2c052"
+      },
+      {
+        "rawIndex": 880,
+        "sourceUrl": "https://www.esjzone.one",
+        "name": "ESJ Zone@zone",
+        "rank": "16b1df65e6becad6d0c6239706eea6a2a76bf19d142a75356e6859d2a5e1fb35"
+      },
+      {
+        "rawIndex": 581,
+        "sourceUrl": "http://android.jjwxc.net",
+        "name": "晋江文学",
+        "rank": "16deae124ef8d448ce4740083f7e03553f175f3723f7d1aefc446bb21f8ee94d"
+      },
+      {
+        "rawIndex": 259,
+        "sourceUrl": "https://www.kuimh.com#♤Haxc",
+        "name": "酷爱漫画",
+        "rank": "17122ef6f3758126105e7a9d64c49cba8380d2afa650d4b12d57622994f5d3db"
+      },
+      {
+        "rawIndex": 131,
+        "sourceUrl": "http://m.enread.com#",
+        "name": "英语阅读（英）",
+        "rank": "174d751199eb58b9ff9ec03f25fc9d10ab7c6bd6e1f51446944392ae13847a3d"
+      },
+      {
+        "rawIndex": 159,
+        "sourceUrl": "https://www.ximalaya.com",
+        "name": "喜马拉雅（优+）",
+        "rank": "17fe7f6a5467c7efc62fd5e63bc68af38912d52e4042b3c4d947ea7efa17464c"
+      },
+      {
+        "rawIndex": 501,
+        "sourceUrl": "https://www.idejian.com/nvsheng",
+        "name": "得间女生",
+        "rank": "1849a50d9025b39e4f8ed942137684c1c1a3c735f9cbccd711cf2c1ff9587813"
+      },
+      {
+        "rawIndex": 606,
+        "sourceUrl": "http://www.kk169.net#",
+        "name": "穿越小说",
+        "rank": "18be9c416a9e273f8cfe5934f5fb88dd9fc64e5dc4845da5644c892125a805ec"
+      },
+      {
+        "rawIndex": 593,
+        "sourceUrl": "https://yiduzkk.com",
+        "name": "易读_yiduzkk.com",
+        "rank": "193577ab32292d16c4172cf6f94ef9d682265938c41b0c99f3d80aa027c3064c"
+      },
+      {
+        "rawIndex": 824,
+        "sourceUrl": "https://m.roushuwu.com#♤yc",
+        "name": " 肉书屋 #一程",
+        "rank": "1a7cc279475fca66a2fb389a8a383b49c0744f10a250b573614bd4c31f31f044"
+      },
+      {
+        "rawIndex": 810,
+        "sourceUrl": "https://www.boluobook.com",
+        "name": "菠萝小说网",
+        "rank": "1bc72e7b3f807d1e8130a12da3b654a1a748d897e7681a4e7e9ade3fed473001"
+      },
+      {
+        "rawIndex": 582,
+        "sourceUrl": "https://sesebooks.com/#",
+        "name": "🔞涩涩小说",
+        "rank": "1c1612c19da088c7665bc6f34527cf2619276f183508c784d6132d5082191647"
+      },
+      {
+        "rawIndex": 632,
+        "sourceUrl": "https://www.56zw.com/#♤pb",
+        "name": "⚡️五六中文网",
+        "rank": "1c60a2d08440fbb8a1c8b0ae1221085311ba7fb096324453d57d79485b16587f"
+      },
+      {
+        "rawIndex": 672,
+        "sourceUrl": "https://api.wanshu.com#♤yc",
+        "name": "㊣ 绾书文学 ",
+        "rank": "1c70dd38fa719528835f7896a88754d8fa6ee28d337e599f2c00ce3144a6ffb9"
+      }
+    ]
+  },
+  "execution": {
+    "method": "Fresh isolated SQLite database; unmodified corpus imported through production API; catalog then first selectable URL category page 1.",
+    "initialConcurrency": 4,
+    "timeoutSeconds": 90,
+    "sequentialConfirmation": "Every non-pass rerun sequentially against the same fresh environment.",
+    "sourceOrParserChanges": false
+  },
+  "summary": {
+    "sampleSize": 50,
+    "totalDistinctBooks": 932,
+    "counts": {
+      "engine_gap": 3,
+      "stale_source_contract": 7,
+      "credible_nonempty": 33,
+      "upstream_dns": 1,
+      "upstream_http": 3,
+      "blocked_or_auth": 2,
+      "source_incomplete_or_invalid": 1
+    },
+    "sharedEngineGaps": [
+      {
+        "family": "Java Unicode escape regex compatibility",
+        "rawIndices": [
+          66
+        ]
+      },
+      {
+        "family": "Multi-parent Default shorthand traversal",
+        "rawIndices": [
+          66
+        ]
+      },
+      {
+        "family": "Dotted JSON array wildcard compatibility",
+        "rawIndices": [
+          57
+        ]
+      },
+      {
+        "family": "Root-array wildcard predicate compatibility",
+        "rawIndices": [
+          581
+        ]
+      }
+    ]
+  },
+  "entries": [
+    {
+      "rawIndex": 66,
+      "sourceUrl": "https://www.dtxsw.com",
+      "name": "大唐小说（优+）",
+      "rank": "0006d4b11f2becb5be705b2c4fff876db9672119ede32997a6e814a1b2d62a8c",
+      "catalog": {
+        "status": 200,
+        "durationMs": 74,
+        "entryCount": 45,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "玄幻"
+      },
+      "page": {
+        "status": 502,
+        "durationMs": 1184,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [],
+        "error": {
+          "code": "result_rule_failed",
+          "stage": "result",
+          "severity": "error",
+          "retryable": false,
+          "message": "Could not parse Explore results"
+        }
+      },
+      "sequential": {
+        "rawIndex": 66,
+        "name": "大唐小说（优+）",
+        "sourceUrl": "https://www.dtxsw.com",
+        "catalog": {
+          "status": 200,
+          "durationMs": 50,
+          "entryCount": 45,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "玄幻"
+        },
+        "page": {
+          "status": 502,
+          "durationMs": 1053,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": false,
+          "diagnostics": [],
+          "samples": [],
+          "error": {
+            "code": "result_rule_failed",
+            "stage": "result",
+            "severity": "error",
+            "retryable": false,
+            "message": "Could not parse Explore results"
+          }
+        }
+      },
+      "classification": "engine_gap",
+      "evidence": "Live HTTP 200 contains 20 valid cards. Reduced production probes show `.row@.col-12` retains only header descendants while explicit `.row.1@.col-12` exposes the cards; valid Java regex `\\u4e00-\\u9fa5` is also rejected as an invalid escape."
+    },
+    {
+      "rawIndex": 926,
+      "sourceUrl": "https://www.blxsw.cc",
+      "name": "耽美小说网",
+      "rank": "00d2a960ce31b58de632e34d9fba6b3dc29d29d8c25d56b19286278dc867690c",
+      "catalog": {
+        "status": 200,
+        "durationMs": 28,
+        "entryCount": 12,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "现代都市"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 792,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "diagnostics": [],
+        "samples": [],
+        "error": null
+      },
+      "sequential": {
+        "rawIndex": 926,
+        "name": "耽美小说网",
+        "sourceUrl": "https://www.blxsw.cc",
+        "catalog": {
+          "status": 200,
+          "durationMs": 3,
+          "entryCount": 12,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "现代都市"
+        },
+        "page": {
+          "status": 200,
+          "durationMs": 532,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": true,
+          "diagnostics": [],
+          "samples": [],
+          "error": null
+        }
+      },
+      "classification": "stale_source_contract",
+      "evidence": "Live selectors find 60 links, but current `www.blxsw.cc` URLs all fail the imported `m.blxsw.foreverx.cn` bookUrlPattern."
+    },
+    {
+      "rawIndex": 250,
+      "sourceUrl": "http://m.kuaikanmanhua.com#未月十八发现",
+      "name": "快看漫画",
+      "rank": "01274c04e2ea03a730bd7170fcc3eb87bf31d693d6b6088b00a50c268f180a42",
+      "catalog": {
+        "status": 200,
+        "durationMs": 31,
+        "entryCount": 45,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "国漫榜"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 658,
+        "books": 24,
+        "distinctBookUrls": 24,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "错撩",
+            "author": "",
+            "bookUrl": "https://m.kuaikanmanhua.com/mini/v1/comic/mkuaikan/21881",
+            "kind": "恋爱\n总裁"
+          },
+          {
+            "name": "完美敌人",
+            "author": "",
+            "bookUrl": "https://m.kuaikanmanhua.com/mini/v1/comic/mkuaikan/27734",
+            "kind": "复仇\n都市"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 792,
+      "sourceUrl": "https://www.jile1.com",
+      "name": "🚬 PO18文学",
+      "rank": "01c58ed3b8a2ea81949c01db8ee9962c0f0925ef3aa2caa64625b63b13b926dd",
+      "catalog": {
+        "status": 200,
+        "durationMs": 29,
+        "entryCount": 18,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "全部小说"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 706,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "直播综艺：隐世月老美人有点钓",
+            "author": "作者: 佚名",
+            "bookUrl": "https://www.jile1.com/216/216344.html",
+            "kind": ""
+          },
+          {
+            "name": "英雄的我流落街头，被魔王包养了",
+            "author": "作者: 饿死的龟",
+            "bookUrl": "https://www.jile1.com/193/193030.html",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 349,
+      "sourceUrl": "https://api.langge.cf#小说",
+      "name": "🍅大灰狼小说4.0(兼容版)千阅，读不舍手，源阅读",
+      "rank": "01fc9e8e2f9984f183f96dfffe1ba2fbdc03b96008fb42f862b6d1edcaf15622",
+      "catalog": {
+        "status": 200,
+        "durationMs": 4,
+        "entryCount": 347,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "推荐榜"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 2276,
+        "books": 100,
+        "distinctBookUrls": 100,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "天命神算",
+            "author": "寿比南山",
+            "bookUrl": "https://api.langge.cf/detail?book_id=NzEyNDk5MDkxNTM5MDczNzQ0NQ&source=番茄",
+            "kind": "悬疑灵异"
+          },
+          {
+            "name": "地府叫我小先生",
+            "author": "界玉",
+            "bookUrl": "https://api.langge.cf/detail?book_id=NzAyNDkwMzEwMjMwMTk5ODExMQ&source=番茄",
+            "kind": "悬疑灵异"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 340,
+      "sourceUrl": "https://xn--vcsx64d.alicesw2.sbs",
+      "name": "爱丽丝书屋",
+      "rank": "01febe17bbb2e7a6ce401d984fecdf58a522d4e20723265ab67e9eff42ac7742",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 39,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "校园"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 944,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "diagnostics": [],
+        "samples": [],
+        "error": null
+      },
+      "sequential": {
+        "rawIndex": 340,
+        "name": "爱丽丝书屋",
+        "sourceUrl": "https://xn--vcsx64d.alicesw2.sbs",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 39,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "校园"
+        },
+        "page": {
+          "status": 200,
+          "durationMs": 575,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": true,
+          "diagnostics": [],
+          "samples": [],
+          "error": null
+        }
+      },
+      "classification": "stale_source_contract",
+      "evidence": "Exact category is a ParkLogic/NameSilo parking redirect with no contracted `.txt-list-row3 li` rows."
+    },
+    {
+      "rawIndex": 777,
+      "sourceUrl": "https://book.zri.moe/zhbyjm",
+      "name": "炎上书屋",
+      "rank": "04087fc366de7549fae80e9652b554fad31683468695662eb0206604e02203cd",
+      "catalog": {
+        "status": 200,
+        "durationMs": 3,
+        "entryCount": 1,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "༺ˇ»`ʚ 书库 ɞ´«ˇ༻"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 796,
+        "books": 8,
+        "distinctBookUrls": 8,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "蓬莱山音",
+            "author": "蓬莱的竹",
+            "bookUrl": "https://book.zri.moe/api/book/1056",
+            "kind": ""
+          },
+          {
+            "name": "RE的散文集",
+            "author": "RE",
+            "bookUrl": "https://book.zri.moe/api/book/1055",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 858,
+      "sourceUrl": "http://www.83xsw.com",
+      "name": "🌟83小说网",
+      "rank": "04cc0a3556bf5c445f1053cb7f83e09833db99d824006f75f5882b0968e26c48",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 31,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "首页"
+      },
+      "page": {
+        "status": 502,
+        "durationMs": 116,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [],
+        "error": {
+          "code": "transport_failed",
+          "stage": "transport",
+          "severity": "error",
+          "retryable": true,
+          "message": "Explore request failed"
+        }
+      },
+      "sequential": {
+        "rawIndex": 858,
+        "name": "🌟83小说网",
+        "sourceUrl": "http://www.83xsw.com",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 31,
+          "error": null
+        },
+        "category": {
+          "id": "entry-1",
+          "title": "首页"
+        },
+        "page": {
+          "status": 502,
+          "durationMs": 19,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": false,
+          "diagnostics": [],
+          "samples": [],
+          "error": {
+            "code": "transport_failed",
+            "stage": "transport",
+            "severity": "error",
+            "retryable": true,
+            "message": "Explore request failed"
+          }
+        }
+      },
+      "classification": "upstream_dns",
+      "evidence": "Neither `www.83xsw.com` nor `83xsw.com` has usable DNS records; direct requests cannot resolve the host."
+    },
+    {
+      "rawIndex": 435,
+      "sourceUrl": "https://www.iqiyi.com/manhua#Haxc1107",
+      "name": "💰爱奇艺漫画",
+      "rank": "05ed486e606f7cb4822b8682cbc1bb928fc3c6e3a4d9ae28a95284b05a17edef",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 53,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "最近更新"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 362,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "diagnostics": [],
+        "samples": [],
+        "error": null
+      },
+      "sequential": {
+        "rawIndex": 435,
+        "name": "💰爱奇艺漫画",
+        "sourceUrl": "https://www.iqiyi.com/manhua#Haxc1107",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 53,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "最近更新"
+        },
+        "page": {
+          "status": 200,
+          "durationMs": 281,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": true,
+          "diagnostics": [],
+          "samples": [],
+          "error": null
+        }
+      },
+      "classification": "stale_source_contract",
+      "evidence": "Contracted iQiyi category now redirects to the generic homepage; direct and rendered pages contain none of the imported listing selectors."
+    },
+    {
+      "rawIndex": 811,
+      "sourceUrl": "https://m.rourouwu2.com/#🚀",
+      "name": "肉肉屋②",
+      "rank": "0696780a7296d1537b65ace1b2866a1aa4f146ffc76515ff763c3a4a118e7352",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 23,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "总点击榜"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 902,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "长日光阴(H)",
+            "author": "乱作一团",
+            "bookUrl": "https://m.rourouwu2.com/book/63459.html",
+            "kind": "4519953人在看"
+          },
+          {
+            "name": "【超激H】被校草日成母狗（喷奶，粗口，HE）",
+            "author": "生煎包",
+            "bookUrl": "https://m.rourouwu2.com/book/42479.html",
+            "kind": "3671233人在看"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 70,
+      "sourceUrl": "http://www.xbotaodz.com",
+      "name": "快眼看书（优+）",
+      "rank": "07974e0de123766812518d66d10158d7e626bb6b6221a1441708ee8b705ef620",
+      "catalog": {
+        "status": 200,
+        "durationMs": 3,
+        "entryCount": 17,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "总点击  "
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 388,
+        "books": 15,
+        "distinctBookUrls": 15,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "万古神帝",
+            "author": "作者：飞天鱼",
+            "bookUrl": "http://www.xbotaodz.com/38027.html",
+            "kind": ""
+          },
+          {
+            "name": "韩三千苏迎夏",
+            "author": "作者：绝人",
+            "bookUrl": "http://www.xbotaodz.com/89156.html",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 279,
+      "sourceUrl": "https://www.dcrbk.com",
+      "name": "稻草人书屋",
+      "rank": "07d161208f7423f825c74f019fbd2926e3ca248c4ca602372dd54d4b8ed1b166",
+      "catalog": {
+        "status": 200,
+        "durationMs": 5,
+        "entryCount": 12,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "女生·言情"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 847,
+        "books": 10,
+        "distinctBookUrls": 10,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "假如祖龙是二凤的太子",
+            "author": "",
+            "bookUrl": "https://www.dcrbk.com/book/p26453/",
+            "kind": ""
+          },
+          {
+            "name": "欢迎来到欲望之城[无限]",
+            "author": "",
+            "bookUrl": "https://www.dcrbk.com/book/p26450/",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 886,
+      "sourceUrl": "http://www.guowx.com",
+      "name": "果文学网@游客",
+      "rank": "07ecce27d12b5805601efc988e4cab258e3c2a3992d33807cd6925855970c62d",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 8,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "玄幻奇幻"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 2207,
+        "books": 10,
+        "distinctBookUrls": 10,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "SSSSSSSSSSSSS级恶雌降临",
+            "author": "",
+            "bookUrl": "http://ecfssfccd.guowx.com/",
+            "kind": ""
+          },
+          {
+            "name": "重生七零：开局打猎养家，我把妻女宠上天",
+            "author": "",
+            "bookUrl": "http://kjdlyjwbqncst.guowx.com/",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 160,
+      "sourceUrl": "https://www.missevan.com#乃星",
+      "name": "猫耳听书（优+）",
+      "rank": "0916d2cc0bd9aa773f55620040554ec75ad0d0f12691fe4825c0ebb9f9a3e18d",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 8,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "纯爱•全部"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 705,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "奶油巧克力",
+            "author": "",
+            "bookUrl": "https://www.missevan.com/mdrama/drama/95069,{\"webView\":true}",
+            "kind": "广播剧"
+          },
+          {
+            "name": "属于他的冰上赛场",
+            "author": "",
+            "bookUrl": "https://www.missevan.com/mdrama/drama/95054,{\"webView\":true}",
+            "kind": "广播剧"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 347,
+      "sourceUrl": "http://www.zuowenjing.com",
+      "name": "笔趣阁",
+      "rank": "0a14c6131a6116b3e6b7c9cece6ed86ba4a0a096188010cc4c8d9cfe4821d10d",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 27,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "总排行榜"
+      },
+      "page": {
+        "status": 502,
+        "durationMs": 1749,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [],
+        "error": {
+          "code": "http_status",
+          "stage": "transport",
+          "severity": "error",
+          "retryable": true,
+          "message": "Explore source returned an error status"
+        }
+      },
+      "sequential": {
+        "rawIndex": 347,
+        "name": "笔趣阁",
+        "sourceUrl": "http://www.zuowenjing.com",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 27,
+          "error": null
+        },
+        "category": {
+          "id": "entry-1",
+          "title": "总排行榜"
+        },
+        "page": {
+          "status": 502,
+          "durationMs": 1063,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": false,
+          "diagnostics": [],
+          "samples": [],
+          "error": {
+            "code": "http_status",
+            "stage": "transport",
+            "severity": "error",
+            "retryable": true,
+            "message": "Explore source returned an error status"
+          }
+        }
+      },
+      "classification": "upstream_http",
+      "evidence": "Exact rank route and plausible variants return HTTP 404 with no contracted list rows."
+    },
+    {
+      "rawIndex": 837,
+      "sourceUrl": "https://www.jjjjxs.com",
+      "name": "久久小说",
+      "rank": "0ae60cdd8d956e858227171b2bd833f2ab77c601eac3bf68510892239240a7e8",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 15,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "女生"
+      },
+      "page": {
+        "status": 502,
+        "durationMs": 958,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [],
+        "error": {
+          "code": "http_status",
+          "stage": "transport",
+          "severity": "error",
+          "retryable": true,
+          "message": "Explore source returned an error status"
+        }
+      },
+      "sequential": {
+        "rawIndex": 837,
+        "name": "久久小说",
+        "sourceUrl": "https://www.jjjjxs.com",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 15,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "女生"
+        },
+        "page": {
+          "status": 502,
+          "durationMs": 924,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": false,
+          "diagnostics": [],
+          "samples": [],
+          "error": {
+            "code": "http_status",
+            "stage": "transport",
+            "severity": "error",
+            "retryable": true,
+            "message": "Explore source returned an error status"
+          }
+        }
+      },
+      "classification": "upstream_http",
+      "evidence": "Exact category redirects to a migrated host and returns a real HTTP 404; the old toplist contract is gone."
+    },
+    {
+      "rawIndex": 256,
+      "sourceUrl": "https://mm.sfacg.com/",
+      "name": "收费漫画",
+      "rank": "0c326fa7ea025e01fd99a8eea9dc6b3ffbad1bbf6a98f24a8d42159835235c79",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 17,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "更新"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 326,
+        "books": 6,
+        "distinctBookUrls": 6,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "星武神诀",
+            "author": "踏雪动漫",
+            "bookUrl": "https://mm.sfacg.com/b/XWSJ",
+            "kind": "奇幻"
+          },
+          {
+            "name": "凤傲天小说里的黄毛反派也想幸福",
+            "author": "菠萝包轻小说",
+            "bookUrl": "https://mm.sfacg.com/b/FATXS",
+            "kind": "冒险"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 42,
+      "sourceUrl": "http://m.suixkan.com",
+      "name": "阅友小说（优+）",
+      "rank": "0cd538719a315e79f5f2e92cdc40191758952e816e599fd2239f75073c7e8718",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 29,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "重磅推荐"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 140,
+        "books": 6,
+        "distinctBookUrls": 6,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "无上神帝",
+            "author": "蜗牛狂奔",
+            "bookUrl": "http://m.suixkan.com/b/24240.html",
+            "kind": ""
+          },
+          {
+            "name": "神医毒妃不好惹",
+            "author": "姑苏小七",
+            "bookUrl": "http://m.suixkan.com/b/222536.html",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 333,
+      "sourceUrl": "http://www.86dushu.com",
+      "name": "🔖86读书",
+      "rank": "0ce97e59163e81e98c2c071671d18ab7bed79869679dee69be2cb89241c805bf",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1,
+        "entryCount": 11,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "言情小说"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 3369,
+        "books": 18,
+        "distinctBookUrls": 18,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "人群消失",
+            "author": "",
+            "bookUrl": "http://www.86dushu.com/book/160156.html",
+            "kind": ""
+          },
+          {
+            "name": "一个普通人的真实人",
+            "author": "",
+            "bookUrl": "http://www.86dushu.com/book/160155.html",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 258,
+      "sourceUrl": "https://www.mkzhan.com#yc1101",
+      "name": "爱漫客栈",
+      "rank": "0d006632c704474ecc73d896014d5cc3fd1975a8fbd2f928a6e2693efdca838d",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 43,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "人气榜"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 1162,
+        "books": 119,
+        "distinctBookUrls": 119,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "妖神记",
+            "author": "踏雪动漫",
+            "bookUrl": "https://www.mkzhan.com/207622/",
+            "kind": "周点击: 69.24万"
+          },
+          {
+            "name": "偷星九月天",
+            "author": "潜艇工作室",
+            "bookUrl": "https://www.mkzhan.com/43/",
+            "kind": "周点击: 45.91万"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 887,
+      "sourceUrl": "https://wap.jhssd.com",
+      "name": "精华书阁",
+      "rank": "0d09e2384fc12d5a0ffcb0fc27e0ed75655b64472522ae98da72f1b0c8ab9aeb",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 22,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "玄幻"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 1328,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "武逆九千界(虚尘)",
+            "author": "简介：镇龙塔降世，少年炼化九大龙帝，修万古不败龙体，斩诸天神魔帝尊，神挡杀神，...",
+            "bookUrl": "https://m.jhsssd.com/7464/",
+            "kind": "连载中"
+          },
+          {
+            "name": "极道剑尊(人间又污秽了)",
+            "author": "简介：少年顾寒，惨遭陷害，背负弑父恶名。濒死之际唤醒神秘剑道传承。一人一剑，报...",
+            "bookUrl": "https://m.jhsssd.com/22818/",
+            "kind": "连载中"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 310,
+      "sourceUrl": "https://www.wxscs.com#",
+      "name": "万象书城",
+      "rank": "0dc9f3da28b99f47eafb988c40cc0c3ac915a0c05c2c37cfe55232d3109362da",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 9,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "玄幻·奇幻"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 1244,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "diagnostics": [],
+        "samples": [],
+        "error": null
+      },
+      "sequential": {
+        "rawIndex": 310,
+        "name": "万象书城",
+        "sourceUrl": "https://www.wxscs.com#",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 9,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "玄幻·奇幻"
+        },
+        "page": {
+          "status": 200,
+          "durationMs": 1268,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": true,
+          "diagnostics": [],
+          "samples": [],
+          "error": null
+        }
+      },
+      "classification": "stale_source_contract",
+      "evidence": "Live selectors find 10 rows, but current `www.wxscs.com` URLs all fail the imported `www.wxsc8.com` bookUrlPattern."
+    },
+    {
+      "rawIndex": 773,
+      "sourceUrl": "https://www.qubook.org#🎃",
+      "name": "趣书网说",
+      "rank": "0f0b9e9c3b0bc3803e1d87bfb928bbb0984a67401252ed8127e62208eb770ddc",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 23,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "🏅 热门排行 🏅"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 840,
+        "books": 100,
+        "distinctBookUrls": 100,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "仙欲 ",
+            "author": "未聆风",
+            "bookUrl": "https://www.qubook.org/bookna/1.html",
+            "kind": ""
+          },
+          {
+            "name": "九鼎记 ",
+            "author": "我吃西红柿",
+            "bookUrl": "https://www.qubook.org/bookna/2.html",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 693,
+      "sourceUrl": "https://qubook.org/##@遇知",
+      "name": "趣书网",
+      "rank": "0f14ef31e2916cd5a2512803bf5021bc5ffd61da37fb630e2ff98eeae4a6e356",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 22,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "纯爱耿美"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 824,
+        "books": 15,
+        "distinctBookUrls": 15,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "小明历险记(弄清风)",
+            "author": "小明历险记(弄清风)",
+            "bookUrl": "https://qubook.org/bookbl/111977.html",
+            "kind": "纯爱耽美/文"
+          },
+          {
+            "name": "炮灰攻了反派(郎不知)",
+            "author": "炮灰攻了反派(郎不知)",
+            "bookUrl": "https://qubook.org/bookbl/111976.html",
+            "kind": "纯爱耽美/文"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 753,
+      "sourceUrl": "https://www.powenxue3.com/#🚀",
+      "name": "肉文NP①",
+      "rank": "10aae126c201ac93e407f4e1f352c3d9e34baad4aa75324675c722182c4eff2e",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 30,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "最近更新"
+      },
+      "page": {
+        "status": 502,
+        "durationMs": 699,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [],
+        "error": {
+          "code": "http_status",
+          "stage": "transport",
+          "severity": "error",
+          "retryable": true,
+          "message": "Explore source returned an error status"
+        }
+      },
+      "sequential": {
+        "rawIndex": 753,
+        "name": "肉文NP①",
+        "sourceUrl": "https://www.powenxue3.com/#🚀",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 30,
+          "error": null
+        },
+        "category": {
+          "id": "entry-1",
+          "title": "最近更新"
+        },
+        "page": {
+          "status": 502,
+          "durationMs": 576,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": false,
+          "diagnostics": [],
+          "samples": [],
+          "error": {
+            "code": "http_status",
+            "stage": "transport",
+            "severity": "error",
+            "retryable": true,
+            "message": "Explore source returned an error status"
+          }
+        }
+      },
+      "classification": "stale_source_contract",
+      "evidence": "Exact ranking route and sibling imported routes return the site’s HTTP 404 page; current navigation uses different routes."
+    },
+    {
+      "rawIndex": 554,
+      "sourceUrl": "http://wap.shukuge.com",
+      "name": "6",
+      "rank": "10c3911bb30f91789aacb067f79f133453773a1974200edd4c7925a8c6100bab",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 9,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "玄幻"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 369,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "从先天炼丹圣体开始修仙",
+            "author": "行万里路打百万拳",
+            "bookUrl": "http://wap.shukuge.com/book/177835/",
+            "kind": ""
+          },
+          {
+            "name": "极道剑尊",
+            "author": "人间又污秽了",
+            "bookUrl": "http://wap.shukuge.com/book/148119/",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 631,
+      "sourceUrl": "https://www.yehanshu.com#🎃",
+      "name": "️夜寒🎃",
+      "rank": "127a71808bbc9c187ed94dbaaf19d572c1c289e63d8e7d06b3c8cb579993bde4",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1415,
+        "entryCount": 1,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": null,
+      "page": null,
+      "sequential": {
+        "rawIndex": 631,
+        "name": "️夜寒🎃",
+        "sourceUrl": "https://www.yehanshu.com#🎃",
+        "catalog": {
+          "status": 200,
+          "durationMs": 1028,
+          "entryCount": 1,
+          "error": null
+        },
+        "category": null,
+        "page": null
+      },
+      "classification": "blocked_or_auth",
+      "evidence": "All exact catalog-script requests return nginx HTTP 403 with the imported Android UA, yielding only a non-selectable heading."
+    },
+    {
+      "rawIndex": 686,
+      "sourceUrl": "http://www.qudushu.org",
+      "name": "去读书",
+      "rank": "12b0140bc78b3e1a01e65ce4d6fa695e8b01d2c91850cf2eeae099af28de13a7",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 6,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "玄幻魔法"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 1009,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "diagnostics": [],
+        "samples": [],
+        "error": null
+      },
+      "sequential": {
+        "rawIndex": 686,
+        "name": "去读书",
+        "sourceUrl": "http://www.qudushu.org",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 6,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "玄幻魔法"
+        },
+        "page": {
+          "status": 200,
+          "durationMs": 555,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": true,
+          "diagnostics": [],
+          "samples": [],
+          "error": null
+        }
+      },
+      "classification": "stale_source_contract",
+      "evidence": "Live selectors find 15 rows after redirect to `qudushu.la`, but every URL fails the imported `qudushu.com` bookUrlPattern."
+    },
+    {
+      "rawIndex": 588,
+      "sourceUrl": "http://m.zhanvxs.cc#🎃",
+      "name": "渣女小说🎃",
+      "rank": "12f057f9f30d2e8c146dadecb61f868f94304f324a0eb31e3e450cab2350a510",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 8,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "耽美小说"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 426,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "被美男包围后",
+            "author": "露出鸡脚了",
+            "bookUrl": "http://m.zhanvxs.cc/book/97976/",
+            "kind": ""
+          },
+          {
+            "name": "我把哥哥的黑道势力睡了（np 含骨科）",
+            "author": "子时南笙烟",
+            "bookUrl": "http://m.zhanvxs.cc/book/98375/",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 918,
+      "sourceUrl": "https://www.deqixs.co",
+      "name": "得奇小说网",
+      "rank": "13b5bba28dc4d90045fca40b0af49d9e69ef1b493294c4f4612389f4e6742ca1",
+      "catalog": {
+        "status": 200,
+        "durationMs": 3,
+        "entryCount": 48,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "全部"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 1337,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "重生六零，千金囤货随军兵王",
+            "author": "功夫马铃薯",
+            "bookUrl": "https://www.deqixs.cc/books/4987/",
+            "kind": ""
+          },
+          {
+            "name": "重生60带空间",
+            "author": "林家权少",
+            "bookUrl": "https://www.deqixs.cc/books/2588/",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 600,
+      "sourceUrl": "https://www.wtzw.com#yc1101",
+      "name": "㊣梧桐中文 1201",
+      "rank": "13ea17998b0f8942de77346e7facb09eef3ba566cc027fd0d81a2b4abc01aeaf",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 4,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "都市生活"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 727,
+        "books": 15,
+        "distinctBookUrls": 15,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "我的少年班",
+            "author": "卿殇 | 都市生活 | 已完结",
+            "bookUrl": "https://www.wtzw.com/book/224292.html",
+            "kind": "卿殇 | 都市生活 | 已完结"
+          },
+          {
+            "name": "意识方舟",
+            "author": "火箭上的蜗牛 | 都市生活 | 已完结",
+            "bookUrl": "https://www.wtzw.com/book/234233.html",
+            "kind": "火箭上的蜗牛 | 都市生活 | 已完结"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 19,
+      "sourceUrl": "https://cn.ttkan.co/##@遇知",
+      "name": "天天看书（优+++）",
+      "rank": "14a648816baac98a54dbf4b57626a6071b93e9f1805a973a33e581b36602896b",
+      "catalog": {
+        "status": 502,
+        "durationMs": 4,
+        "entryCount": 0,
+        "diagnostics": [],
+        "error": {
+          "code": "category_script_failed",
+          "stage": "category",
+          "severity": "error",
+          "retryable": true,
+          "message": "Could not generate Explore categories"
+        }
+      },
+      "category": null,
+      "page": null,
+      "sequential": {
+        "rawIndex": 19,
+        "name": "天天看书（优+++）",
+        "sourceUrl": "https://cn.ttkan.co/##@遇知",
+        "catalog": {
+          "status": 502,
+          "durationMs": 3,
+          "entryCount": 0,
+          "error": {
+            "code": "category_script_failed",
+            "stage": "category",
+            "severity": "error",
+            "retryable": true,
+            "message": "Could not generate Explore categories"
+          }
+        },
+        "category": null,
+        "page": null
+      },
+      "classification": "source_incomplete_or_invalid",
+      "evidence": "Category JavaScript uses malformed destructured arrow parameters; both goja and Node reject it while the intended API remains live."
+    },
+    {
+      "rawIndex": 782,
+      "sourceUrl": "https://www.isex.work",
+      "name": "夜书吧『移动屏蔽』",
+      "rank": "150da7ee55f31c4d7eb5f26116bd9a3b75062966c8a5d5ae6ff6beb38846877a",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1,
+        "entryCount": 11,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "首页"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 867,
+        "books": 16,
+        "distinctBookUrls": 16,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "逆后宫女王有自知之明",
+            "author": "雨天之后",
+            "bookUrl": "https://www.isex.work/book/19513",
+            "kind": ""
+          },
+          {
+            "name": "花开灭之时",
+            "author": "蒔",
+            "bookUrl": "https://www.isex.work/book/19507",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 566,
+      "sourceUrl": "http://www.txt86w.com",
+      "name": "86小说",
+      "rank": "15d25b8c045052da429be2b56bd803047376307cc70997f57def10e582b747f9",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1,
+        "entryCount": 9,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "玄幻魔法"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 381,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "diagnostics": [],
+        "samples": [],
+        "error": null
+      },
+      "sequential": {
+        "rawIndex": 566,
+        "name": "86小说",
+        "sourceUrl": "http://www.txt86w.com",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 9,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "玄幻魔法"
+        },
+        "page": {
+          "status": 200,
+          "durationMs": 383,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": true,
+          "diagnostics": [],
+          "samples": [],
+          "error": null
+        }
+      },
+      "classification": "stale_source_contract",
+      "evidence": "Exact category is a ParkLogic expired-domain redirect document with no `.item-con li` novel rows."
+    },
+    {
+      "rawIndex": 619,
+      "sourceUrl": "https://www.56zw.com#",
+      "name": "五六中文",
+      "rank": "15e5ee120917c2d53d98b9af1ebfac2a77f1e2b41477db21b1b478b38c22058e",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 8,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "全部小说"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 625,
+        "books": 10,
+        "distinctBookUrls": 10,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "倒计时90天：华夏进入一级战备",
+            "author": "作者：风中摇摆",
+            "bookUrl": "https://www.56zw.com/18_18370/",
+            "kind": ""
+          },
+          {
+            "name": "巅峰青云路",
+            "author": "作者：登封造极",
+            "bookUrl": "https://www.56zw.com/18_18399/",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 122,
+      "sourceUrl": "https://kgbook.com",
+      "name": "苦瓜书盘（导）",
+      "rank": "16123bc3855ff959f69a9ba9daba02d52b47febe8fb7fa1cb9d3913cef3fdb75",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1,
+        "entryCount": 27,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "现代文学"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 1407,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "梅雨前后：永井荷风经典作品集",
+            "author": "永井荷风",
+            "bookUrl": "https://kgbook.com/xiandaiwenxue/9946.html",
+            "kind": "现代文学"
+          },
+          {
+            "name": "石榴树上结樱桃",
+            "author": "李洱",
+            "bookUrl": "https://kgbook.com/xiandaiwenxue/5733.html",
+            "kind": "现代文学"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 57,
+      "sourceUrl": "https://www.zggdwx.com/",
+      "name": "古典文学（优+）",
+      "rank": "167956e343facb08db7a549cde264306cc400046c5f467fe0b6cfd2ceca2c052",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 40,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "十三经"
+      },
+      "page": {
+        "status": 502,
+        "durationMs": 794,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [],
+        "error": {
+          "code": "result_rule_failed",
+          "stage": "result",
+          "severity": "error",
+          "retryable": false,
+          "message": "Could not parse Explore results"
+        }
+      },
+      "sequential": {
+        "rawIndex": 57,
+        "name": "古典文学（优+）",
+        "sourceUrl": "https://www.zggdwx.com/",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 40,
+          "error": null
+        },
+        "category": {
+          "id": "entry-1",
+          "title": "十三经"
+        },
+        "page": {
+          "status": 502,
+          "durationMs": 872,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": false,
+          "diagnostics": [],
+          "samples": [],
+          "error": {
+            "code": "result_rule_failed",
+            "stage": "result",
+            "severity": "error",
+            "retryable": false,
+            "message": "Could not parse Explore results"
+          }
+        }
+      },
+      "classification": "engine_gap",
+      "evidence": "Live API returns 15 valid records. Reduced Analyzer probes reject Legado dotted array wildcards `$.data.[*]` and `$.authors.[*].name`, while undotted equivalents return the expected values."
+    },
+    {
+      "rawIndex": 880,
+      "sourceUrl": "https://www.esjzone.one",
+      "name": "ESJ Zone@zone",
+      "rank": "16b1df65e6becad6d0c6239706eea6a2a76bf19d142a75356e6859d2a5e1fb35",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 45,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "最新更新"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 1786,
+        "books": 40,
+        "distinctBookUrls": 40,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "一般宗门",
+            "author": "TowardEson(叫我向导就可以啦）",
+            "bookUrl": "https://www.esjzone.one/detail/1713446009.html",
+            "kind": "个收藏,条留言"
+          },
+          {
+            "name": "西方岛Europe（？）",
+            "author": "屑芙兰Frandica",
+            "bookUrl": "https://www.esjzone.one/detail/1732591238.html",
+            "kind": "个收藏,条留言"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 581,
+      "sourceUrl": "http://android.jjwxc.net",
+      "name": "晋江文学",
+      "rank": "16deae124ef8d448ce4740083f7e03553f175f3723f7d1aefc446bb21f8ee94d",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 108,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "新书榜单"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 205,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "diagnostics": [],
+        "samples": [],
+        "error": null
+      },
+      "sequential": {
+        "rawIndex": 581,
+        "name": "晋江文学",
+        "sourceUrl": "http://android.jjwxc.net",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 108,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "新书榜单"
+        },
+        "page": {
+          "status": 200,
+          "durationMs": 164,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": true,
+          "diagnostics": [],
+          "samples": [],
+          "error": null
+        }
+      },
+      "classification": "engine_gap",
+      "evidence": "Live endpoint returns a populated 51-record root array. `$.*[?(@.novelName)]` returns no elements while `$[*]` returns 51; the compatibility path handles only object roots."
+    },
+    {
+      "rawIndex": 259,
+      "sourceUrl": "https://www.kuimh.com#♤Haxc",
+      "name": "酷爱漫画",
+      "rank": "17122ef6f3758126105e7a9d64c49cba8380d2afa650d4b12d57622994f5d3db",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 6,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "连载"
+      },
+      "page": {
+        "status": 502,
+        "durationMs": 322,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [],
+        "error": {
+          "code": "transport_failed",
+          "stage": "transport",
+          "severity": "error",
+          "retryable": true,
+          "message": "Explore request failed"
+        }
+      },
+      "sequential": {
+        "rawIndex": 259,
+        "name": "酷爱漫画",
+        "sourceUrl": "https://www.kuimh.com#♤Haxc",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 6,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "连载"
+        },
+        "page": {
+          "status": 502,
+          "durationMs": 309,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": false,
+          "diagnostics": [],
+          "samples": [],
+          "error": {
+            "code": "transport_failed",
+            "stage": "transport",
+            "severity": "error",
+            "retryable": true,
+            "message": "Explore request failed"
+          }
+        }
+      },
+      "classification": "blocked_or_auth",
+      "evidence": "Host returns/terminates with nginx HTTP 444; Chromium reproduces the refusal and no selector-bearing response exists."
+    },
+    {
+      "rawIndex": 131,
+      "sourceUrl": "http://m.enread.com#",
+      "name": "英语阅读（英）",
+      "rank": "174d751199eb58b9ff9ec03f25fc9d10ab7c6bd6e1f51446944392ae13847a3d",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1,
+        "entryCount": 10,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "英语新闻"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 597,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "exhausted": true,
+        "diagnostics": [],
+        "samples": [],
+        "error": null
+      },
+      "sequential": {
+        "rawIndex": 131,
+        "name": "英语阅读（英）",
+        "sourceUrl": "http://m.enread.com#",
+        "catalog": {
+          "status": 200,
+          "durationMs": 2,
+          "entryCount": 10,
+          "error": null
+        },
+        "category": {
+          "id": "entry-0",
+          "title": "英语新闻"
+        },
+        "page": {
+          "status": 200,
+          "durationMs": 127,
+          "books": 0,
+          "distinctBookUrls": 0,
+          "exhausted": true,
+          "diagnostics": [],
+          "samples": [],
+          "error": null
+        }
+      },
+      "classification": "upstream_http",
+      "evidence": "Exact endpoint returns an HTTP 200 DedeCMS `无法使用数据库` application failure with no contracted list elements."
+    },
+    {
+      "rawIndex": 159,
+      "sourceUrl": "https://www.ximalaya.com",
+      "name": "喜马拉雅（优+）",
+      "rank": "17fe7f6a5467c7efc62fd5e63bc68af38912d52e4042b3c4d947ea7efa17464c",
+      "catalog": {
+        "status": 200,
+        "durationMs": 3,
+        "entryCount": 102,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "广播剧"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 406,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "龙图案卷集（今宵/顾辰领衔多人有声剧）| 探案",
+            "author": "掷地有声",
+            "bookUrl": "http://mobile.ximalaya.com/mobile/others/ca/album/track/37662345/true/1/200",
+            "kind": ""
+          },
+          {
+            "name": "神棍下山记|叶忆落|一念成馍&谢必安",
+            "author": "一念成馍",
+            "bookUrl": "http://mobile.ximalaya.com/mobile/others/ca/album/track/40942749/true/1/200",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 501,
+      "sourceUrl": "https://www.idejian.com/nvsheng",
+      "name": "得间女生",
+      "rank": "1849a50d9025b39e4f8ed942137684c1c1a3c735f9cbccd711cf2c1ff9587813",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1,
+        "entryCount": 29,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "榜单·人气"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 976,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "六六啊",
+            "author": "六六啊",
+            "bookUrl": "https://m.idejian.com/book/12933607/",
+            "kind": "都市"
+          },
+          {
+            "name": "林未央",
+            "author": "林未央",
+            "bookUrl": "https://m.idejian.com/book/12796054/",
+            "kind": "都市"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 606,
+      "sourceUrl": "http://www.kk169.net#",
+      "name": "穿越小说",
+      "rank": "18be9c416a9e273f8cfe5934f5fb88dd9fc64e5dc4845da5644c892125a805ec",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1,
+        "entryCount": 21,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "总点击榜"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 1750,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "反派大皇子",
+            "author": "拜见小道长",
+            "bookUrl": "http://www.kk169.la/book/info/819/819032.html",
+            "kind": "连载"
+          },
+          {
+            "name": "要我救世，我反手掏出战锤40k",
+            "author": "山友山",
+            "bookUrl": "http://www.kk169.la/book/info/812/812089.html",
+            "kind": "连载"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 593,
+      "sourceUrl": "https://yiduzkk.com",
+      "name": "易读_yiduzkk.com",
+      "rank": "193577ab32292d16c4172cf6f94ef9d682265938c41b0c99f3d80aa027c3064c",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 13,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "书    库"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 248,
+        "books": 50,
+        "distinctBookUrls": 50,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "命运转折的那一天",
+            "author": "华梦",
+            "bookUrl": "https://yiduzkk.com/art_37585_4981.html",
+            "kind": "[杂谈] 连载"
+          },
+          {
+            "name": "入学考试：在考场里和怪兽生死搏斗",
+            "author": "戏梦",
+            "bookUrl": "https://yiduzkk.com/art_37584_9375.html",
+            "kind": "[杂谈] 连载"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 824,
+      "sourceUrl": "https://m.roushuwu.com#♤yc",
+      "name": " 肉书屋 #一程",
+      "rank": "1a7cc279475fca66a2fb389a8a383b49c0744f10a250b573614bd4c31f31f044",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 23,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "日点击榜"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 676,
+        "books": 30,
+        "distinctBookUrls": 30,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "驭房有术",
+            "author": "铁锁",
+            "bookUrl": "https://m.roushuwu.com/book/44737/",
+            "kind": "都市言情"
+          },
+          {
+            "name": "我的美女老师",
+            "author": "黑夜de白羊",
+            "bookUrl": "https://m.roushuwu.com/book/3517/",
+            "kind": "都市言情"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 810,
+      "sourceUrl": "https://www.boluobook.com",
+      "name": "菠萝小说网",
+      "rank": "1bc72e7b3f807d1e8130a12da3b654a1a748d897e7681a4e7e9ade3fed473001",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1,
+        "entryCount": 8,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "玄幻"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 1131,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "五行废灵根？我一灵石换一年修为",
+            "author": "重头再来",
+            "bookUrl": "https://www.boluobook.com/135/135233/",
+            "kind": "五行废灵根？我一灵石换一年修为\n"
+          },
+          {
+            "name": "黄皮子偷鸡，我请二郎神放哮天犬",
+            "author": "五冠绝尘",
+            "bookUrl": "https://www.boluobook.com/135/135268/",
+            "kind": "黄皮子偷鸡，我请二郎神放哮天犬\n"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 582,
+      "sourceUrl": "https://sesebooks.com/#",
+      "name": "🔞涩涩小说",
+      "rank": "1c1612c19da088c7665bc6f34527cf2619276f183508c784d6132d5082191647",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 6,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "人气"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 990,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "我的性爱幼儿园",
+            "author": "",
+            "bookUrl": "https://sesebooks.com/book/info/wodexingaiyoueryuan",
+            "kind": "藏精阁"
+          },
+          {
+            "name": "（小马拉大车）关于我成了人形春药，各路熟女、御姐投怀送抱，最后征服了高贵美母的这件小事",
+            "author": "",
+            "bookUrl": "https://sesebooks.com/book/info/xiaomaladacheguanyuwochenglerenxingchunyaogelushunuyujietouhuaisongbaozuihouzhengfulegaoguimeimudezhejianxiaoshi",
+            "kind": "藏精阁"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 632,
+      "sourceUrl": "https://www.56zw.com/#♤pb",
+      "name": "⚡️五六中文网",
+      "rank": "1c60a2d08440fbb8a1c8b0ae1221085311ba7fb096324453d57d79485b16587f",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1,
+        "entryCount": 8,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "全部小说"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 581,
+        "books": 10,
+        "distinctBookUrls": 10,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "倒计时90天：华夏进入一级战备",
+            "author": "作者：风中摇摆",
+            "bookUrl": "https://www.56zw.com/18_18370/",
+            "kind": ""
+          },
+          {
+            "name": "巅峰青云路",
+            "author": "作者：登封造极",
+            "bookUrl": "https://www.56zw.com/18_18399/",
+            "kind": ""
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    },
+    {
+      "rawIndex": 672,
+      "sourceUrl": "https://api.wanshu.com#♤yc",
+      "name": "㊣ 绾书文学 ",
+      "rank": "1c70dd38fa719528835f7896a88754d8fa6ee28d337e599f2c00ce3144a6ffb9",
+      "catalog": {
+        "status": 200,
+        "durationMs": 1,
+        "entryCount": 12,
+        "diagnostics": [],
+        "error": null
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "最近更新"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 400,
+        "books": 20,
+        "distinctBookUrls": 20,
+        "exhausted": false,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "我的狙击步枪",
+            "author": "动力火车",
+            "bookUrl": "https://api.wanshu.com/novel/chapterList?page=1&pageSize=19999&novel_id=1329",
+            "kind": "完结 时空穿越"
+          },
+          {
+            "name": "一见倾心：傅爷，强势宠！",
+            "author": "程宝",
+            "bookUrl": "https://api.wanshu.com/novel/chapterList?page=1&pageSize=19999&novel_id=817",
+            "kind": "完结 总裁豪门"
+          }
+        ],
+        "error": null
+      },
+      "sequential": null,
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs and no suspicious diagnostics."
+    }
+  ]
+}
