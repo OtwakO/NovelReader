@@ -38,6 +38,30 @@ func TestExplorePageReversesTheCompleteUncappedResultList(t *testing.T) {
 	}
 }
 
+func TestExplorePageFieldJavaScriptCanReadEarlierBookFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `{"data":[{"title":"Book","groupID":"resource_42"}]}`)
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "Mutable result", EnabledExplore: true,
+		ExploreURL:  "Books::" + server.URL,
+		RuleExplore: `{"bookList":"$.data[*]","name":"$.title","kind":"$.groupID##.*_##","bookUrl":"@js:'/book/'+book.kind"}`,
+	}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Books) != 1 || page.Books[0].BookURL != server.URL+"/book/42" {
+		t.Fatalf("page=%+v", page)
+	}
+}
+
 func TestExplorePageJavaScriptCanReadSourceMetadata(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, `<a class="book" href="/book/1">Book</a>`)
