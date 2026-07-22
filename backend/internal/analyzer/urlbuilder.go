@@ -381,16 +381,26 @@ func findURLJSSegment(input string) int {
 }
 
 func expandPageSelector(input string, page int) string {
-	if !strings.Contains(input, "<,") {
-		return input
-	}
-	pageSelRe := regexp.MustCompile(`<,[^>]*>`)
-	return pageSelRe.ReplaceAllStringFunc(input, func(match string) string {
+	selectPart := func(match string) string {
 		parts := strings.Split(match[1:len(match)-1], ",")
-		if page > 0 && page < len(parts) {
-			return strings.TrimSpace(parts[page-1])
+		index := page - 1
+		if index < 0 {
+			index = 0
 		}
-		return strings.TrimSpace(parts[len(parts)-1])
+		if index >= len(parts) {
+			index = len(parts) - 1
+		}
+		return strings.TrimSpace(parts[index])
+	}
+	plainSelector := regexp.MustCompile(`<[^>]*,[^>]*>`)
+	input = plainSelector.ReplaceAllStringFunc(input, selectPart)
+	encodedSelector := regexp.MustCompile(`(?i)%3c(?:%[0-9a-f]{2}|[^%&])*%3e`)
+	return encodedSelector.ReplaceAllStringFunc(input, func(match string) string {
+		decoded, err := url.PathUnescape(match)
+		if err != nil || !strings.Contains(decoded, ",") {
+			return match
+		}
+		return url.PathEscape(selectPart(decoded))
 	})
 }
 

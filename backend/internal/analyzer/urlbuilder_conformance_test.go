@@ -29,6 +29,16 @@ func TestBuildURLPreservesStructuredJSONBody(t *testing.T) {
 	}
 }
 
+func TestBuildURLExpandsEncodedPageSelector(t *testing.T) {
+	meta, err := BuildURL(`https://example.test/list?body=%7B%22offset%22%3A%22%3C0%2C150%2C300%3E%22%7D`, "", 2, "https://example.test/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.URL != `https://example.test/list?body=%7B%22offset%22%3A%22150%22%7D` {
+		t.Fatalf("url=%q", meta.URL)
+	}
+}
+
 func TestBuildURLResolvesRootRelativePathAgainstHost(t *testing.T) {
 	meta, err := BuildURL(`/search?q={{key}}`, "x", 1, "https://example.test/novels/book-1", nil)
 	if err != nil {

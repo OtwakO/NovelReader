@@ -116,13 +116,25 @@ func filterObjectWildcard(root interface{}, expr string) ([]interface{}, bool) {
 	}
 	values := make([]interface{}, 0, len(object))
 	for _, item := range object {
-		if child, ok := item.(map[string]interface{}); ok {
-			if value, exists := child[key]; exists && value != nil && value != false && value != "" {
+		switch child := item.(type) {
+		case map[string]interface{}:
+			if hasJSONFilterValue(child, key) {
 				values = append(values, item)
+			}
+		case []interface{}:
+			for _, value := range child {
+				if record, ok := value.(map[string]interface{}); ok && hasJSONFilterValue(record, key) {
+					values = append(values, value)
+				}
 			}
 		}
 	}
 	return values, true
+}
+
+func hasJSONFilterValue(object map[string]interface{}, key string) bool {
+	value, exists := object[key]
+	return exists && value != nil && value != false && value != ""
 }
 
 func parseJSONValue(content string) (interface{}, error) {

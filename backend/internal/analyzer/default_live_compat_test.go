@@ -59,7 +59,7 @@ func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
 }
 
 func TestJSONWildcardFilterSelectsObjectValues(t *testing.T) {
-	an := New(`{"0":{"novelName":"A","novelId":1},"1":{"other":"x"}}`, "https://example.com/", NewJSVM(), NewCacheManager())
+	an := New(`{"ranking":[{"novelName":"A","novelId":1},{"other":"x"}]}`, "https://example.com/", NewJSVM(), NewCacheManager())
 	elements, err := an.GetElements(`@Json:$.*[?(@.novelName)]&&$.*[?(@.novelname)]`)
 	if err != nil || len(elements) != 1 {
 		t.Fatalf("GetElements()=%#v err=%v", elements, err)
