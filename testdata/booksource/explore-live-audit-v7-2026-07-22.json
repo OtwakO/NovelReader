@@ -1,0 +1,1062 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-07-22",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c",
+    "total": 939
+  },
+  "selection": {
+    "kind": "targeted deterministic disjoint sample",
+    "seed": "NovelReader-explore-targeted-v7-2026-07-22",
+    "ranking": "SHA-256(seed + NUL + rawIndex + NUL + bookSourceUrl) within ordered strata",
+    "size": 25,
+    "strata": {
+      "redirected_custom_header": 6,
+      "jsoup_collection": 6,
+      "source_variable": 3,
+      "catalog_javascript": 2,
+      "nullable_json": 4,
+      "ordinary_control": 4
+    },
+    "rawIndices": [
+      194,
+      361,
+      177,
+      5,
+      503,
+      378,
+      337,
+      300,
+      313,
+      468,
+      41,
+      56,
+      666,
+      605,
+      913,
+      287,
+      288,
+      395,
+      490,
+      523,
+      44,
+      647,
+      657,
+      407,
+      890
+    ],
+    "excludedManifests": [
+      "explore-live-audit-2026-07-18.json",
+      "explore-live-audit-v2-2026-07-19.json",
+      "explore-live-audit-v3-2026-07-19.json",
+      "explore-live-audit-v4-2026-07-21.json",
+      "explore-live-audit-v5-2026-07-21.json",
+      "explore-live-audit-v6-2026-07-21.json"
+    ],
+    "excludedStableIdentities": 275,
+    "eligibleRemainingBeforeSelection": 450,
+    "adjustment": "Only three unsampled source-variable identities remained; all three were selected and two slots were assigned to other catalog-JavaScript identities."
+  },
+  "execution": {
+    "database": "/tmp/novelreader-v7.db",
+    "initialConcurrency": 4,
+    "timeoutSeconds": 90,
+    "category": "first selectable",
+    "page": 1,
+    "sequentialReruns": 13,
+    "browserPolicy": "Only when static contract/body/runtime evidence could not classify the candidate.",
+    "sourceOrEngineChangesDuringAudit": false
+  },
+  "summary": {
+    "counts": {
+      "blocked_or_auth": 3,
+      "credible_nonempty": 12,
+      "engine_gap": 4,
+      "upstream_http": 2,
+      "site_drift": 1,
+      "upstream_dns": 1,
+      "legitimate_empty": 1,
+      "source_incomplete_or_invalid": 1
+    },
+    "credibleBooks": 274,
+    "credibleDistinctBookUrls": 274,
+    "engineGapIdentities": [
+      177,
+      5,
+      503,
+      288
+    ],
+    "engineGapFamilies": 4
+  },
+  "entries": [
+    {
+      "rawIndex": 194,
+      "name": "起点中文（优+）",
+      "sourceUrl": "https://m.qidian.com#按钮筛选",
+      "rank": "014de67cdf86dd384ef63e28f7dcd8ba001cbbd89e446ff32a0ac0c2850b7308",
+      "stratum": "redirected_custom_header",
+      "traits": {
+        "header": true,
+        "redirectHeader": true,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": true,
+        "json": true
+      },
+      "classification": "blocked_or_auth",
+      "evidence": "Qidian rank API returns application-level failure without the required CSRF cookie.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-1",
+          "title": "月票榜"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "empty"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-1",
+          "title": "月票榜"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "empty"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 361,
+      "name": "阅友小说",
+      "sourceUrl": "http://m.yueyouxs.com#",
+      "rank": "061012601b2d61e4858b720e9e3b46cebc609c195b3be64a4af3592fab173040",
+      "stratum": "redirected_custom_header",
+      "traits": {
+        "header": true,
+        "redirectHeader": true,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": true
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "都市人生"
+        },
+        "books": 5,
+        "distinctBookUrls": 5,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "逍遥小医仙",
+          "bookUrl": "http://m.yueyouxs.com/b/18615.html"
+        },
+        {
+          "name": "超凡兵王俏总裁",
+          "bookUrl": "http://m.yueyouxs.com/b/18616.html"
+        }
+      ]
+    },
+    {
+      "rawIndex": 177,
+      "name": "书单推荐（优+）",
+      "sourceUrl": "https://www.yuque.com/yuqueyonghun8txcr/psb8yc",
+      "rank": "08ba7d3bf242894cdd246706a8eedd8e928b20c27aef7b4ff1fdb8f996525d31",
+      "stratum": "redirected_custom_header",
+      "traits": {
+        "header": true,
+        "redirectHeader": true,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": true
+      },
+      "classification": "engine_gap",
+      "evidence": "Live Yuque page contains populated appData; rule JavaScript requires source.bookSourceComment, but the source binding exposes helper methods only.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-0",
+          "title": "📜哈哈哈的书单"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-0",
+          "title": "📜哈哈哈的书单"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 5,
+      "name": "QQ浏览器柳树",
+      "sourceUrl": "https://novel.html5.qq.com/#柳树",
+      "rank": "0960ba3e5c834bb79af1b355bcd3f25cf15e39f540da6ca6f655fe554a32167e",
+      "stratum": "redirected_custom_header",
+      "traits": {
+        "header": true,
+        "redirectHeader": true,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": false
+      },
+      "classification": "engine_gap",
+      "evidence": "Source header is executable @js JSON; current header parsing drops it instead of evaluating it, while evaluated headers can produce populated endpoint JSON.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-0",
+          "title": "编辑"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-0",
+          "title": "编辑"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 503,
+      "name": "💐 晋江榜单",
+      "sourceUrl": "http://android.jjwxc.net#myself",
+      "rank": "0ebb29bdefde6203dc25a48bbfd295a062452f891fe0cf89959ea5ed1b2c9fe5",
+      "stratum": "redirected_custom_header",
+      "traits": {
+        "header": true,
+        "redirectHeader": true,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": false
+      },
+      "classification": "engine_gap",
+      "evidence": "Live endpoint returns populated object entries with novelName; @Json:$.*[?(@.novelName)] returns no elements in a reduced production analyzer probe.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "纯爱 ——VIP金榜 "
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "empty"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "纯爱 ——VIP金榜 "
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "empty"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 378,
+      "name": "晋江#2",
+      "sourceUrl": "https://m.jjwxc.net#",
+      "rank": "122d95af78af7a9b87608f2950de3770acc40cbae5251dd6c9947bf44c6d55c2",
+      "stratum": "redirected_custom_header",
+      "traits": {
+        "header": true,
+        "redirectHeader": true,
+        "jsoup": true,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": false
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "月 度 榜 "
+        },
+        "books": 119,
+        "distinctBookUrls": 119,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "以你名我的碑",
+          "bookUrl": "http://android.jjwxc.net/androidapi/novelbasicinfo?novelId=8436349"
+        },
+        {
+          "name": "纯白乌鸦",
+          "bookUrl": "http://android.jjwxc.net/androidapi/novelbasicinfo?novelId=10757937"
+        }
+      ]
+    },
+    {
+      "rawIndex": 337,
+      "name": "👔 御宅书屋",
+      "sourceUrl": "http://m.xbbxs.com",
+      "rank": "09fbe48cda58e3f90a7aa8b04cc1602bc2af38ed55022a11304c1d0d560ec4a1",
+      "stratum": "jsoup_collection",
+      "traits": {
+        "header": true,
+        "redirectHeader": false,
+        "jsoup": true,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": false
+      },
+      "classification": "upstream_http",
+      "evidence": "Exact ranking URL times out without a response body.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-1",
+          "title": "总排行榜"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-1",
+          "title": "总排行榜"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 300,
+      "name": "看书网🎃",
+      "sourceUrl": "https://www.kanshuw.com#🎃",
+      "rank": "0c53a36eccf35754ce455fb95305c959b452298c7166c889e2715b3b973f799d",
+      "stratum": "jsoup_collection",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": true,
+        "sourceVariable": false,
+        "catalogJS": true,
+        "json": false
+      },
+      "classification": "site_drift",
+      "evidence": "Imported ranking URL now serves navigation without the expected dl rows; current populated listing moved elsewhere.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-3",
+          "title": "玄幻"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "empty"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-3",
+          "title": "玄幻"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "empty"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 313,
+      "name": "🎃菜小说网🎃",
+      "sourceUrl": "https://www.tatays.com/allbook#🎃",
+      "rank": "0e431556847ef6368f5ccac2da5f5007d7d3954e5f03f708f58357050190da0f",
+      "stratum": "jsoup_collection",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": true,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": false
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "玄幻奇幻"
+        },
+        "books": 30,
+        "distinctBookUrls": 30,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "修复师",
+          "bookUrl": "https://www.tatays.com/book/2987/"
+        },
+        {
+          "name": "神权之上",
+          "bookUrl": "https://www.tatays.com/book/6892/"
+        }
+      ]
+    },
+    {
+      "rawIndex": 468,
+      "name": "阅友小说",
+      "sourceUrl": "https://sma.yueyouxs.com#♤yc",
+      "rank": "1453661eeed0429043441ab34126a61b75298b952dd23085727f93e81ff4c131",
+      "stratum": "jsoup_collection",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": true,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": false
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-1",
+          "title": "重磅推荐"
+        },
+        "books": 6,
+        "distinctBookUrls": 6,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "帝少的心尖哑妻",
+          "bookUrl": "https://sma.yueyouxs.com/b/206179.html"
+        },
+        {
+          "name": "豪门战神",
+          "bookUrl": "https://sma.yueyouxs.com/b/212201.html"
+        }
+      ]
+    },
+    {
+      "rawIndex": 41,
+      "name": "太极小说（优+）",
+      "sourceUrl": "https://69shux.co/",
+      "rank": "23dcf6bb24eb86748a2dbfae85375c009b30276a5290d9dd0d644ef1f939d82d",
+      "stratum": "jsoup_collection",
+      "traits": {
+        "header": true,
+        "redirectHeader": false,
+        "jsoup": true,
+        "sourceVariable": false,
+        "catalogJS": true,
+        "json": false
+      },
+      "classification": "upstream_dns",
+      "evidence": "Imported 69shux.co hostname does not resolve.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-1",
+          "title": "全部分类"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-1",
+          "title": "全部分类"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 56,
+      "name": "古典文学（优+）",
+      "sourceUrl": "http://yz4.chaoxing.com",
+      "rank": "250d9fc86b7f8a8d2e50816b3e98cbf98e99978b486378628c724db3ce3cfe46",
+      "stratum": "jsoup_collection",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": true,
+        "sourceVariable": false,
+        "catalogJS": true,
+        "json": false
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "❀　　　　　❀超星推荐❀　　　　　❀"
+        },
+        "books": 17,
+        "distinctBookUrls": 17,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "木偶奇遇记",
+          "bookUrl": "https://special.rhky.com/mobile/mooc/tocourse/JWonXe25lwlMh2yafn76wQ=="
+        },
+        {
+          "name": "野鸭子再见",
+          "bookUrl": "https://special.rhky.com/mobile/mooc/tocourse/N8twOtaDj86YHQ4xc5cxSQ=="
+        }
+      ]
+    },
+    {
+      "rawIndex": 666,
+      "name": "🎃三零读书🎃",
+      "sourceUrl": "https://www.30dushu.com#🎃",
+      "rank": "9a64299331b0770b774049f8a8ba44d498d94fb4bd8f55b48d9ba7c46679c83e",
+      "stratum": "source_variable",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": true,
+        "sourceVariable": true,
+        "catalogJS": true,
+        "json": false
+      },
+      "classification": "blocked_or_auth",
+      "evidence": "Exact category returns a Cloudflare 403 challenge.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-1",
+          "title": "全部分类"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-1",
+          "title": "全部分类"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 605,
+      "name": "💰多看阅读-搜",
+      "sourceUrl": "https://www.dkmi.com/#wenmoux",
+      "rank": "addce26b8da15966ebd9b822ce5308d342cd0dae50260ef847516ad12258c289",
+      "stratum": "source_variable",
+      "traits": {
+        "header": true,
+        "redirectHeader": true,
+        "jsoup": false,
+        "sourceVariable": true,
+        "catalogJS": true,
+        "json": true
+      },
+      "classification": "legitimate_empty",
+      "evidence": "First rank returns valid empty JSON; a second category returns a valid book.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-1",
+          "title": "人气榜"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "empty"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-1",
+          "title": "人气榜"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "empty"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 913,
+      "name": "ꂵ 30读书",
+      "sourceUrl": "https://www.30dushu.com/",
+      "rank": "fad986263a3ee87bb05b3d82fdb9126adf5f4346ba75ac9ce0a5eb9c9eab3ac9",
+      "stratum": "source_variable",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": true,
+        "sourceVariable": true,
+        "catalogJS": true,
+        "json": false
+      },
+      "classification": "blocked_or_auth",
+      "evidence": "Exact category returns a Cloudflare 403 challenge; catalog source-variable methods work.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-1",
+          "title": "全部分类"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-1",
+          "title": "全部分类"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 287,
+      "name": "酷酷看书网",
+      "sourceUrl": "https://www.kuku3.com",
+      "rank": "02b0801e9b042e01f6ea5003296233a98aaa2a51e800372b9496b77b192f95ff",
+      "stratum": "catalog_javascript",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": true,
+        "json": false
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-1",
+          "title": "总排行榜"
+        },
+        "books": 50,
+        "distinctBookUrls": 50,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "1. 天生尤物【快穿】",
+          "bookUrl": "https://www.kuku3.com/index/10504/"
+        },
+        {
+          "name": "2. 她好甜（校园1v1 h）",
+          "bookUrl": "https://www.kuku3.com/index/24334/"
+        }
+      ]
+    },
+    {
+      "rawIndex": 288,
+      "name": "夜读集小说",
+      "sourceUrl": "https://www.yeduji.com",
+      "rank": "06dd3e3e3b6220cd0e7fceec24ff0423a1518ef91b7ecd0ec04cf9e54035605d",
+      "stratum": "catalog_javascript",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": true,
+        "json": false
+      },
+      "classification": "engine_gap",
+      "evidence": "Live tag/category pages contain matching links; Jsoup element ownText is exposed as a string property rather than ownText().",
+      "initial": {
+        "catalogStatus": 502,
+        "pageStatus": null,
+        "category": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "catalog_failed"
+      },
+      "sequential": {
+        "catalogStatus": 502,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "catalog_failed"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 395,
+      "name": "🌞晴天小说4.0",
+      "sourceUrl": "http://v1.gyks.cf/#小说",
+      "rank": "0b54c5e3f3f6fed89d0bed4974fdd80d09b1dae2da4e9a05cb1157d3c81f34c7",
+      "stratum": "nullable_json",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": true
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "推荐榜"
+        },
+        "books": 10,
+        "distinctBookUrls": 10,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "天命神算",
+          "bookUrl": "http://v1.gyks.cf/detail?book_id=NzEyNDk5MDkxNTM5MDczNzQ0NQ&source=番茄"
+        },
+        {
+          "name": "地府叫我小先生",
+          "bookUrl": "http://v1.gyks.cf/detail?book_id=NzAyNDkwMzEwMjMwMTk5ODExMQ&source=番茄"
+        }
+      ]
+    },
+    {
+      "rawIndex": 490,
+      "name": "💰 晋江",
+      "sourceUrl": "http://android.jjwxc.net#芜恙",
+      "rank": "0b9bde6c74144e807019467041ea7e5dd0789973776a36f4b72d3cf03cd4e6a6",
+      "stratum": "nullable_json",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": true
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "新  书  榜  单  "
+        },
+        "books": 1,
+        "distinctBookUrls": 1,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "{\"age\":\"18\",\"authorId\":\"4595512\",\"authorName\":\"木池塘\",\"authorid\":\"4595512\",\"authorname\":\"木池塘\",\"cover\":\"https://i2-static.jjwxc.net/tmp/backend/authorspace/s1/46/45956/4595512/20260602233421_300_420.jpg\",\"coverid\":\"213\",\"ebookurl\":\"https://i2-static.jjwxc.net/tmp/backend/authorspace/s1/46/45956/4595512/20260602233421.jpg\",\"fit_fenzhan\":[\"3\",\"4\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjEzX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjEzX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"18\",\"mainview\":\"4\",\"novelClass\":\"衍生-纯爱-近代现代-东方衍生-主受\",\"novelId\":\"10697799\",\"novelIntroShort\":\"夏尔老师，钱和爱你怎么都给啊！\",\"novelName\":\"穿到法国，但超越者公务员\",\"novelSizeformat\":\"7.93万\",\"novelStep\":\"1\",\"novelclass\":\"衍生-纯爱-近代现代-东方衍生-主受\",\"novelid\":\"10697799\",\"novelintroshort\":\"夏尔老师，钱和爱你怎么都给啊！\",\"novelname\":\"穿到法国，但超越者公务员\",\"novelsizeformat\":\"7.93万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10697799\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"0\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10697799\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"0\\\"}\",\"sd\":\"1\",\"tags\":\"天作之合,穿越时空,爽文,文野,轻松,沙雕\",\"type_id\":\"1\",\"vip_flag\":\"21\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 00:00:00\",\"xx\":\"2\",\"yc\":\"2\"}\n{\"age\":\"18\",\"authorId\":\"4937592\",\"authorName\":\"二川川\",\"authorid\":\"4937592\",\"authorname\":\"二川川\",\"cover\":\"https://i6-static.jjwxc.net/authorimagespace.php?path=NDkzNzU5Mg==\\u0026imageName=20260627182927.jpg\",\"coverid\":\"14\",\"ebookurl\":\"https://i6-static.jjwxc.net/authorimagespace.php?path=NDkzNzU5Mg==\\u0026imageName=20260627182927.jpg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTRfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTRfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-近代现代-爱情-女主\",\"novelId\":\"8241590\",\"novelIntroShort\":\"女暗恋/他喜欢过别人\",\"novelName\":\"京秋婚约\",\"novelSizeformat\":\"6.29万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-近代现代-爱情-女主\",\"novelid\":\"8241590\",\"novelintroshort\":\"女暗恋/他喜欢过别人\",\"novelname\":\"京秋婚约\",\"novelsizeformat\":\"6.29万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"8241590\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"1\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"8241590\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"1\\\"}\",\"sd\":\"1\",\"tags\":\"豪门世家,恋爱合约,天之骄子,婚恋\",\"type_id\":\"1\",\"vip_flag\":\"13\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 00:05:15\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"680395\",\"authorName\":\"公子寻欢\",\"authorid\":\"680395\",\"authorname\":\"公子寻欢\",\"cover\":\"https://i9-static.jjwxc.net/authorimagespace.php?path=NjgwMzk1\\u0026imageName=20260624023227.JPG\",\"coverid\":\"189\",\"ebookurl\":\"https://i9-static.jjwxc.net/authorimagespace.php?path=NjgwMzk1\\u0026imageName=20260624023227.JPG\",\"fit_fenzhan\":[\"3\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTg5X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTg5X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"4\",\"novelClass\":\"原创-纯爱-近代现代-爱情-主受\",\"novelId\":\"10521982\",\"novelIntroShort\":\"被位高权重大佬强宠的日常\",\"novelName\":\"我是封建大爹的好孕小娇妻\",\"novelSizeformat\":\"10.58万\",\"novelStep\":\"1\",\"novelclass\":\"原创-纯爱-近代现代-爱情-主受\",\"novelid\":\"10521982\",\"novelintroshort\":\"被位高权重大佬强宠的日常\",\"novelname\":\"我是封建大爹的好孕小娇妻\",\"novelsizeformat\":\"10.58万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10521982\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"2\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10521982\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"2\\\"}\",\"sd\":\"1\",\"tags\":\"生子,豪门世家,爽文,轻松\",\"type_id\":\"1\",\"vip_flag\":\"21\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 00:06:06\",\"xx\":\"2\",\"yc\":\"1\"}\n{\"age\":\"13\",\"authorId\":\"4934599\",\"authorName\":\"知金渡\",\"authorid\":\"4934599\",\"authorname\":\"知金渡\",\"cover\":\"https://i5-static.jjwxc.net/tmp/backend/authorspace/s1/50/49346/4934599/20260126203403_300_420.jpg\",\"coverid\":\"188\",\"ebookurl\":\"https://i5-static.jjwxc.net/tmp/backend/authorspace/s1/50/49346/4934599/20260126203403.jpg\",\"fit_fenzhan\":[\"1\",\"4\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTg4X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTg4X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"18\",\"mainview\":\"2\",\"novelClass\":\"衍生-言情-近代现代-东方衍生-女主\",\"novelId\":\"9725020\",\"novelIntroShort\":\"咸鱼就只能从了\",\"novelName\":\"被奇犽告白以后\",\"novelSizeformat\":\"7.29万\",\"novelStep\":\"1\",\"novelclass\":\"衍生-言情-近代现代-东方衍生-女主\",\"novelid\":\"9725020\",\"novelintroshort\":\"咸鱼就只能从了\",\"novelname\":\"被奇犽告白以后\",\"novelsizeformat\":\"7.29万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"9725020\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"3\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"9725020\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"3\\\"}\",\"sd\":\"1\",\"tags\":\"猎人,系统,轻松,万人迷,乙女向,转生\",\"type_id\":\"1\",\"vip_flag\":\"21\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 01:00:14\",\"xx\":\"1\",\"yc\":\"2\"}\n{\"age\":\"18\",\"authorId\":\"2023182\",\"authorName\":\"怀南小山\",\"authorid\":\"2023182\",\"authorname\":\"怀南小山\",\"cover\":\"https://i4-static.jjwxc.net/tmp/backend/authorspace/s1/21/20232/2023182/20260617180454_300_420.jpg\",\"coverid\":\"213\",\"ebookurl\":\"https://i4-static.jjwxc.net/tmp/backend/authorspace/s1/21/20232/2023182/20260617180454.jpg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjEzX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjEzX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-近代现代-爱情-女主\",\"novelId\":\"10816458\",\"novelIntroShort\":\"把天之骄子驯成狗\",\"novelName\":\"言不由衷\",\"novelSizeformat\":\"6.6万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-近代现代-爱情-女主\",\"novelid\":\"10816458\",\"novelintroshort\":\"把天之骄子驯成狗\",\"novelname\":\"言不由衷\",\"novelsizeformat\":\"6.6万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10816458\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"4\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10816458\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"4\\\"}\",\"sd\":\"1\",\"tags\":\"破镜重圆,校园\",\"type_id\":\"1\",\"vip_flag\":\"11\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 00:07:06\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"7028195\",\"authorName\":\"在此留言\",\"authorid\":\"7028195\",\"authorname\":\"在此留言\",\"cover\":\"https://i5-static.jjwxc.net/tmp/backend/authorspace/s1/71/70282/7028195/20260704125412_300_420.jpg\",\"coverid\":\"207\",\"ebookurl\":\"https://i5-static.jjwxc.net/tmp/backend/authorspace/s1/71/70282/7028195/20260704125412.jpg\",\"fit_fenzhan\":[\"4\",\"8\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjA3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjA3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"19\",\"mainview\":\"1\",\"novelClass\":\"衍生-无CP-近代现代-西方衍生-男主\",\"novelId\":\"10822213\",\"novelIntroShort\":\"偶像练习生爆改球王练习生！\",\"novelName\":\"[足球]站C位从青训开始\",\"novelSizeformat\":\"7.53万\",\"novelStep\":\"1\",\"novelclass\":\"衍生-无CP-近代现代-西方衍生-男主\",\"novelid\":\"10822213\",\"novelintroshort\":\"偶像练习生爆改球王练习生！\",\"novelname\":\"[足球]站C位从青训开始\",\"novelsizeformat\":\"7.53万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10822213\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"5\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10822213\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"5\\\"}\",\"sd\":\"1\",\"tags\":\"励志,系统,成长,轻松,天选之子,足球\",\"type_id\":\"1\",\"vip_flag\":\"18\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 10:20:45\",\"xx\":\"5\",\"yc\":\"2\"}\n{\"age\":\"18\",\"authorId\":\"4183962\",\"authorName\":\"左岸逢灯\",\"authorid\":\"4183962\",\"authorname\":\"左岸逢灯\",\"cover\":\"https://i7-static.jjwxc.net/tmp/backend/authorspace/s1/42/41840/4183962/20260706170440_300_420.jpg\",\"coverid\":\"214\",\"ebookurl\":\"https://i7-static.jjwxc.net/tmp/backend/authorspace/s1/42/41840/4183962/20260706170440.jpg\",\"fit_fenzhan\":[\"3\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE0X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE0X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"16\",\"mainview\":\"3\",\"novelClass\":\"原创-纯爱-幻想未来-剧情-主攻\",\"novelId\":\"10337325\",\"novelIntroShort\":\"主攻万人迷💘\",\"novelName\":\"SSS级异种都是我前任\",\"novelSizeformat\":\"12.77万\",\"novelStep\":\"1\",\"novelclass\":\"原创-纯爱-幻想未来-剧情-主攻\",\"novelid\":\"10337325\",\"novelintroshort\":\"主攻万人迷💘\",\"novelname\":\"SSS级异种都是我前任\",\"novelsizeformat\":\"12.77万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10337325\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"6\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10337325\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"6\\\"}\",\"sd\":\"5\",\"tags\":\"异能,星际,爽文,马甲文,万人迷,群像\",\"type_id\":\"1\",\"vip_flag\":\"16\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:18\",\"xx\":\"2\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"5559509\",\"authorName\":\"在逃白桃\",\"authorid\":\"5559509\",\"authorname\":\"在逃白桃\",\"cover\":\"https://i5-static.jjwxc.net/authorimagespace.php?path=NTU1OTUwOQ==\\u0026imageName=20260407135716.jpg\",\"coverid\":\"187\",\"ebookurl\":\"https://i5-static.jjwxc.net/authorimagespace.php?path=NTU1OTUwOQ==\\u0026imageName=20260407135716.jpg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTg3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTg3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"16\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-幻想未来-剧情-女主\",\"novelId\":\"9512994\",\"novelIntroShort\":\"咪嗷~咪咪爱你！\",\"novelName\":\"囤货，人需要咪的帮助\",\"novelSizeformat\":\"10.23万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-幻想未来-剧情-女主\",\"novelid\":\"9512994\",\"novelintroshort\":\"咪嗷~咪咪爱你！\",\"novelname\":\"囤货，人需要咪的帮助\",\"novelsizeformat\":\"10.23万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"9512994\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"7\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"9512994\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"7\\\"}\",\"sd\":\"5\",\"tags\":\"种田文,末世,无限流,萌宠,基建,囤货\",\"type_id\":\"1\",\"vip_flag\":\"15\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:20\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"13\",\"authorId\":\"5343018\",\"authorName\":\"黑糖拌饭\",\"authorid\":\"5343018\",\"authorname\":\"黑糖拌饭\",\"cover\":\"https://i3-static.jjwxc.net/authorimagespace.php?path=NTM0MzAxOA==\\u0026imageName=20260607015614.png\",\"coverid\":\"15\",\"ebookurl\":\"https://i3-static.jjwxc.net/authorimagespace.php?path=NTM0MzAxOA==\\u0026imageName=20260607015614.png\",\"fit_fenzhan\":[\"1\",\"4\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTVfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTVfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"lx\":\"18\",\"mainview\":\"2\",\"novelClass\":\"衍生-言情-架空历史-东方衍生-女主\",\"novelId\":\"8304985\",\"novelIntroShort\":\"狗血恶俗三人夹心饼。\",\"novelName\":\"重力系男友*2\",\"novelSizeformat\":\"7.99万\",\"novelStep\":\"1\",\"novelclass\":\"衍生-言情-架空历史-东方衍生-女主\",\"novelid\":\"8304985\",\"novelintroshort\":\"狗血恶俗三人夹心饼。\",\"novelname\":\"重力系男友*2\",\"novelsizeformat\":\"7.99万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"8304985\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"8\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"8304985\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"8\\\"}\",\"sd\":\"4\",\"tags\":\"猎人,幻想空间,少年漫,甜文,轻松\",\"type_id\":\"1\",\"vip_flag\":\"20\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 00:00:00\",\"xx\":\"1\",\"yc\":\"2\"}\n{\"age\":\"18\",\"authorId\":\"7533624\",\"authorName\":\"青盐客\",\"authorid\":\"7533624\",\"authorname\":\"青盐客\",\"cover\":\"https://i1-static.jjwxc.net/tmp/backend/authorspace/s1/76/75337/7533624/20260518153953_300_420.jpeg\",\"coverid\":\"215\",\"ebookurl\":\"https://i1-static.jjwxc.net/tmp/backend/authorspace/s1/76/75337/7533624/20260518153953.jpeg\",\"fit_fenzhan\":[\"3\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE1X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE1X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"4\",\"novelClass\":\"原创-纯爱-幻想未来-爱情-主受\",\"novelId\":\"10625906\",\"novelIntroShort\":\"爱上宿敌，如何调解？\",\"novelName\":\"沉浸式当反派［快穿］\",\"novelSizeformat\":\"30.24万\",\"novelStep\":\"1\",\"novelclass\":\"原创-纯爱-幻想未来-爱情-主受\",\"novelid\":\"10625906\",\"novelintroshort\":\"爱上宿敌，如何调解？\",\"novelname\":\"沉浸式当反派［快穿］\",\"novelsizeformat\":\"30.24万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10625906\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"9\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10625906\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"9\\\"}\",\"sd\":\"5\",\"tags\":\"生子,系统,狗血,万人迷,钓系,追爱火葬场\",\"type_id\":\"1\",\"vip_flag\":\"22\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:19\",\"xx\":\"2\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"6399329\",\"authorName\":\"眠时礼\",\"authorid\":\"6399329\",\"authorname\":\"眠时礼\",\"cover\":\"https://img12.360buyimg.com/ddimg/jfs/t1/329079/6/26147/134676/68f75287F5ad85e79/f3bdcaa3f2eb3356.jpg\",\"coverid\":\"42\",\"ebookurl\":\"https://img12.360buyimg.com/ddimg/jfs/t1/329079/6/26147/134676/68f75287F5ad85e79/f3bdcaa3f2eb3356.jpg\",\"fit_fenzhan\":[\"8\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=NDJfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=NDJfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"lx\":\"3\",\"mainview\":\"1\",\"novelClass\":\"原创-无CP-幻想未来-奇幻-男主\",\"novelId\":\"9148292\",\"novelIntroShort\":\"同时扮演了漫画主角的挚友和宿敌\",\"novelName\":\"人气反派的马甲演绎实录\",\"novelSizeformat\":\"6.82万\",\"novelStep\":\"1\",\"novelclass\":\"原创-无CP-幻想未来-奇幻-男主\",\"novelid\":\"9148292\",\"novelintroshort\":\"同时扮演了漫画主角的挚友和宿敌\",\"novelname\":\"人气反派的马甲演绎实录\",\"novelsizeformat\":\"6.82万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"9148292\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"10\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"9148292\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"10\\\"}\",\"sd\":\"5\",\"tags\":\"幻想空间,爽文,马甲文,抽奖抽卡,迪化流,弹幕\",\"type_id\":\"1\",\"vip_flag\":\"17\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 00:09:54\",\"xx\":\"5\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"4875294\",\"authorName\":\"长湦\",\"authorid\":\"4875294\",\"authorname\":\"长湦\",\"cover\":\"https://i5-static.jjwxc.net/tmp/backend/authorspace/s1/49/48753/4875294/20260429224627_300_420.jpg\",\"coverid\":\"190\",\"ebookurl\":\"https://i5-static.jjwxc.net/tmp/backend/authorspace/s1/49/48753/4875294/20260429224627.jpg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTkwX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTkwX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"3\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-架空历史-奇幻-女主\",\"novelId\":\"8490821\",\"novelIntroShort\":\"谁要做1v5的仙门共妻呀！\",\"novelName\":\"被迫成为限制文女主后\",\"novelSizeformat\":\"6.83万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-架空历史-奇幻-女主\",\"novelid\":\"8490821\",\"novelintroshort\":\"谁要做1v5的仙门共妻呀！\",\"novelname\":\"被迫成为限制文女主后\",\"novelsizeformat\":\"6.83万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"8490821\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"11\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"8490821\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"11\\\"}\",\"sd\":\"4\",\"tags\":\"情有独钟,天作之合,穿书,东方玄幻,古代幻想,万人迷\",\"type_id\":\"1\",\"vip_flag\":\"18\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 23:53:09\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"6314961\",\"authorName\":\"趁风意\",\"authorid\":\"6314961\",\"authorname\":\"趁风意\",\"cover\":\"https://i7-static.jjwxc.net/tmp/backend/authorspace/s1/64/63150/6314961/20250721180441_300_420.jpg\",\"coverid\":\"159\",\"ebookurl\":\"https://i7-static.jjwxc.net/tmp/backend/authorspace/s1/64/63150/6314961/20250721180441.jpg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTU5X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTU5X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"7\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-幻想未来-科幻-女主\",\"novelId\":\"9889646\",\"novelIntroShort\":\"一觉醒来，我从球变成了人\",\"novelName\":\"星球也要上学吗[星际]\",\"novelSizeformat\":\"6.75万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-幻想未来-科幻-女主\",\"novelid\":\"9889646\",\"novelintroshort\":\"一觉醒来，我从球变成了人\",\"novelname\":\"星球也要上学吗[星际]\",\"novelsizeformat\":\"6.75万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"9889646\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"12\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"9889646\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"12\\\"}\",\"sd\":\"5\",\"tags\":\"机甲,星际,爽文,升级流\",\"type_id\":\"1\",\"vip_flag\":\"18\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 00:06:06\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"6435184\",\"authorName\":\"三月末尾\",\"authorid\":\"6435184\",\"authorname\":\"三月末尾\",\"cover\":\"https://i2-static.jjwxc.net/tmp/backend/authorspace/s1/65/64352/6435184/20260509002146_300_420.jpeg\",\"coverid\":\"217\",\"ebookurl\":\"https://i2-static.jjwxc.net/tmp/backend/authorspace/s1/65/64352/6435184/20260509002146.jpeg\",\"fit_fenzhan\":[\"3\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"4\",\"novelClass\":\"原创-纯爱-近代现代-爱情-主受\",\"novelId\":\"9330488\",\"novelIntroShort\":\"真爱变包养。\",\"novelName\":\"娇贵小少爷也要带球跑吗\",\"novelSizeformat\":\"7.98万\",\"novelStep\":\"1\",\"novelclass\":\"原创-纯爱-近代现代-爱情-主受\",\"novelid\":\"9330488\",\"novelintroshort\":\"真爱变包养。\",\"novelname\":\"娇贵小少爷也要带球跑吗\",\"novelsizeformat\":\"7.98万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"9330488\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"13\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"9330488\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"13\\\"}\",\"sd\":\"1\",\"tags\":\"天之骄子,ABO,狗血,追爱火葬场\",\"type_id\":\"1\",\"vip_flag\":\"21\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 00:16:39\",\"xx\":\"2\",\"yc\":\"1\"}\n{\"age\":\"13\",\"authorId\":\"4767118\",\"authorName\":\"郁七月\",\"authorid\":\"4767118\",\"authorname\":\"郁七月\",\"cover\":\"https://i9-static.jjwxc.net/tmp/backend/authorspace/s1/48/47672/4767118/20260312072344_300_420.jpeg\",\"coverid\":\"157\",\"ebookurl\":\"https://i9-static.jjwxc.net/tmp/backend/authorspace/s1/48/47672/4767118/20260312072344.jpeg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTU3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTU3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-近代现代-爱情-女主\",\"novelId\":\"7410293\",\"novelIntroShort\":\"横刀夺爱 |  强取豪夺 \",\"novelName\":\"缠栀\",\"novelSizeformat\":\"7.16万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-近代现代-爱情-女主\",\"novelid\":\"7410293\",\"novelintroshort\":\"横刀夺爱 |  强取豪夺 \",\"novelname\":\"缠栀\",\"novelsizeformat\":\"7.16万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"7410293\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"14\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"7410293\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"14\\\"}\",\"sd\":\"1\",\"tags\":\"豪门世家,天之骄子,业界精英,甜文\",\"type_id\":\"1\",\"vip_flag\":\"13\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 00:05:00\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"3088175\",\"authorName\":\"一条海鱼\",\"authorid\":\"3088175\",\"authorname\":\"一条海鱼\",\"cover\":\"https://ftp.mioz.cn/test/2026/07/16/1784208490.JPG\",\"coverid\":\"54\",\"ebookurl\":\"https://ftp.mioz.cn/test/2026/07/16/1784208490.JPG\",\"fit_fenzhan\":[\"3\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=NTRfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=NTRfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"4\",\"novelClass\":\"原创-纯爱-近代现代-爱情-主受\",\"novelId\":\"8801228\",\"novelIntroShort\":\"被豪门团宠的小怪物\",\"novelName\":\"小怪物也能被豪门团宠吗\",\"novelSizeformat\":\"7.78万\",\"novelStep\":\"1\",\"novelclass\":\"原创-纯爱-近代现代-爱情-主受\",\"novelid\":\"8801228\",\"novelintroshort\":\"被豪门团宠的小怪物\",\"novelname\":\"小怪物也能被豪门团宠吗\",\"novelsizeformat\":\"7.78万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"8801228\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"15\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"8801228\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"15\\\"}\",\"sd\":\"1\",\"tags\":\"豪门世家,甜文,治愈,日常,克苏鲁,团宠\",\"type_id\":\"1\",\"vip_flag\":\"17\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 20:13:36\",\"xx\":\"2\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"7318891\",\"authorName\":\"鸭鸭不是鸭\",\"authorid\":\"7318891\",\"authorname\":\"鸭鸭不是鸭\",\"cover\":\"https://img13.360buyimg.com/ddimg/jfs/t1/381926/35/12173/68140/695621dfF1c9c5450/0015303438b003d0.jpg\",\"coverid\":\"216\",\"ebookurl\":\"https://img13.360buyimg.com/ddimg/jfs/t1/381926/35/12173/68140/695621dfF1c9c5450/0015303438b003d0.jpg\",\"fit_fenzhan\":[\"3\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE2X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE2X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"4\",\"mainview\":\"4\",\"novelClass\":\"原创-纯爱-架空历史-仙侠-主受\",\"novelId\":\"10370063\",\"novelIntroShort\":\"我成了师兄的亡妻？！\",\"novelName\":\"今天我被大魔头抢亲了吗？\",\"novelSizeformat\":\"10.26万\",\"novelStep\":\"1\",\"novelclass\":\"原创-纯爱-架空历史-仙侠-主受\",\"novelid\":\"10370063\",\"novelintroshort\":\"我成了师兄的亡妻？！\",\"novelname\":\"今天我被大魔头抢亲了吗？\",\"novelsizeformat\":\"10.26万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10370063\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"16\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10370063\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"16\\\"}\",\"sd\":\"4\",\"tags\":\"情有独钟,前世今生,穿越时空,仙侠修真,狗血,万人迷\",\"type_id\":\"1\",\"vip_flag\":\"21\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:17\",\"xx\":\"2\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"5705332\",\"authorName\":\"蓝壳船\",\"authorid\":\"5705332\",\"authorname\":\"蓝壳船\",\"cover\":\"https://i3-static.jjwxc.net/tmp/backend/authorspace/s1/58/57054/5705332/20251226153933_300_420.jpeg\",\"coverid\":\"182\",\"ebookurl\":\"https://i3-static.jjwxc.net/tmp/backend/authorspace/s1/58/57054/5705332/20251226153933.jpeg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTgyX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTgyX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-近代现代-爱情-女主\",\"novelId\":\"8981856\",\"novelIntroShort\":\"无论多少次，愿为你重蹈覆辙\",\"novelName\":\"旧色银河\",\"novelSizeformat\":\"6.48万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-近代现代-爱情-女主\",\"novelid\":\"8981856\",\"novelintroshort\":\"无论多少次，愿为你重蹈覆辙\",\"novelname\":\"旧色银河\",\"novelsizeformat\":\"6.48万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"8981856\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"17\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"8981856\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"17\\\"}\",\"sd\":\"1\",\"tags\":\"都市,豪门世家,虐文,破镜重圆,天作之合,业界精英\",\"type_id\":\"1\",\"vip_flag\":\"16\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 00:05:43\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"7422263\",\"authorName\":\"时山雪\",\"authorid\":\"7422263\",\"authorname\":\"时山雪\",\"cover\":\"https://i2-static.jjwxc.net/tmp/backend/authorspace/s1/75/74223/7422263/20260408232530_300_420.jpg\",\"coverid\":\"214\",\"ebookurl\":\"https://i2-static.jjwxc.net/tmp/backend/authorspace/s1/75/74223/7422263/20260408232530.jpg\",\"fit_fenzhan\":[\"1\",\"4\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE0X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE0X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"18\",\"mainview\":\"1\",\"novelClass\":\"衍生-言情-古色古香-东方衍生-男主\",\"novelId\":\"10677669\",\"novelIntroShort\":\"九子夺嫡？加我一个\",\"novelName\":\"六阿哥也想夺嫡[清穿]\",\"novelSizeformat\":\"18.14万\",\"novelStep\":\"2\",\"novelclass\":\"衍生-言情-古色古香-东方衍生-男主\",\"novelid\":\"10677669\",\"novelintroshort\":\"九子夺嫡？加我一个\",\"novelname\":\"六阿哥也想夺嫡[清穿]\",\"novelsizeformat\":\"18.14万\",\"novelstep\":\"2\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10677669\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"18\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10677669\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"18\\\"}\",\"sd\":\"2\",\"tags\":\"清穿,性别转换,宫廷侯爵,历史衍生,爽文,日常\",\"type_id\":\"1\",\"vip_flag\":\"24\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:20\",\"xx\":\"1\",\"yc\":\"2\"}\n{\"age\":\"18\",\"authorId\":\"7555134\",\"authorName\":\"九月唐\",\"authorid\":\"7555134\",\"authorname\":\"九月唐\",\"cover\":\"https://i4-static.jjwxc.net/tmp/backend/authorspace/s1/76/75552/7555134/20260504214207_300_420.jpeg\",\"coverid\":\"119\",\"ebookurl\":\"https://i4-static.jjwxc.net/tmp/backend/authorspace/s1/76/75552/7555134/20260504214207.jpeg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTE5X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTE5X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-架空历史-爱情-女主\",\"novelId\":\"10639155\",\"novelIntroShort\":\"掉马后被阴湿权臣缠上了怎么办\",\"novelName\":\"不是春风一度吗\",\"novelSizeformat\":\"9.95万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-架空历史-爱情-女主\",\"novelid\":\"10639155\",\"novelintroshort\":\"掉马后被阴湿权臣缠上了怎么办\",\"novelname\":\"不是春风一度吗\",\"novelsizeformat\":\"9.95万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10639155\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"19\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10639155\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"19\\\"}\",\"sd\":\"4\",\"tags\":\"宫廷侯爵,豪门世家,情有独钟,天作之合,天之骄子,甜文\",\"type_id\":\"1\",\"vip_flag\":\"19\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:18\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"7622512\",\"authorName\":\"西枝莫\",\"authorid\":\"7622512\",\"authorname\":\"西枝莫\",\"cover\":\"https://img12.360buyimg.com/ddimg/jfs/t1/433288/5/18696/53398/6a0bb688Fe6904ccd/00152803856a1494.jpg\",\"coverid\":\"10\",\"ebookurl\":\"https://img12.360buyimg.com/ddimg/jfs/t1/433288/5/18696/53398/6a0bb688Fe6904ccd/00152803856a1494.jpg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTBfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTBfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"lx\":\"3\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-架空历史-奇幻-女主\",\"novelId\":\"10751483\",\"novelIntroShort\":\"捡走的小白花路人是黏人男妖精！\",\"novelName\":\"靠武力值拐走路人男妈妈[快穿]\",\"novelSizeformat\":\"14.31万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-架空历史-奇幻-女主\",\"novelid\":\"10751483\",\"novelintroshort\":\"捡走的小白花路人是黏人男妖精！\",\"novelname\":\"靠武力值拐走路人男妈妈[快穿]\",\"novelsizeformat\":\"14.31万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10751483\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"20\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10751483\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"20\\\"}\",\"sd\":\"4\",\"tags\":\"天作之合,穿越时空,女强,系统,快穿,穿书\",\"type_id\":\"1\",\"vip_flag\":\"22\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:20\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"21\",\"authorId\":\"6799280\",\"authorName\":\"疏雨微风\",\"authorid\":\"6799280\",\"authorname\":\"疏雨微风\",\"cover\":\"https://img13.360buyimg.com/ddimg/jfs/t1/422450/31/340/52794/69e19be0F4a01a20a/001528038026213c.jpg\",\"coverid\":\"118\",\"ebookurl\":\"https://img13.360buyimg.com/ddimg/jfs/t1/422450/31/340/52794/69e19be0F4a01a20a/001528038026213c.jpg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTE4X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTE4X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"3\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-架空历史-奇幻-女主\",\"novelId\":\"10340153\",\"novelIntroShort\":\"命运这种东西，就是用来打破的\",\"novelName\":\"有龙则灵\",\"novelSizeformat\":\"28.73万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-架空历史-奇幻-女主\",\"novelid\":\"10340153\",\"novelintroshort\":\"命运这种东西，就是用来打破的\",\"novelname\":\"有龙则灵\",\"novelsizeformat\":\"28.73万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10340153\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"21\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10340153\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"21\\\"}\",\"sd\":\"4\",\"tags\":\"仙侠修真,升级流,成长\",\"type_id\":\"1\",\"vip_flag\":\"23\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:21\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"6836192\",\"authorName\":\"枝三年\",\"authorid\":\"6836192\",\"authorname\":\"枝三年\",\"cover\":\"https://img10.360buyimg.com/ddimg/jfs/t1/439616/35/9231/25222/6a1512e5F563ba5c6/00152803809468fd.jpg\",\"coverid\":\"216\",\"ebookurl\":\"https://img10.360buyimg.com/ddimg/jfs/t1/439616/35/9231/25222/6a1512e5F563ba5c6/00152803809468fd.jpg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE2X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE2X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-近代现代-爱情-女主\",\"novelId\":\"10562665\",\"novelIntroShort\":\"爱我，求你心甘情愿地爱我\",\"novelName\":\"沼泽陷阱\",\"novelSizeformat\":\"6.25万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-近代现代-爱情-女主\",\"novelid\":\"10562665\",\"novelintroshort\":\"爱我，求你心甘情愿地爱我\",\"novelname\":\"沼泽陷阱\",\"novelsizeformat\":\"6.25万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10562665\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"22\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10562665\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"22\\\"}\",\"sd\":\"1\",\"tags\":\"都市,豪门世家,情有独钟,狗血\",\"type_id\":\"1\",\"vip_flag\":\"16\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 18:43:17\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"7542675\",\"authorName\":\"生吃苦瓜不吐皮\",\"authorid\":\"7542675\",\"authorname\":\"生吃苦瓜不吐皮\",\"cover\":\"https://i6-static.jjwxc.net/tmp/backend/authorspace/s1/76/75427/7542675/20260411193840_300_420.jpg\",\"coverid\":\"219\",\"ebookurl\":\"https://i6-static.jjwxc.net/tmp/backend/authorspace/s1/76/75427/7542675/20260411193840.jpg\",\"fit_fenzhan\":[\"3\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE5X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE5X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"4\",\"novelClass\":\"原创-纯爱-架空历史-爱情-主受\",\"novelId\":\"10619507\",\"novelIntroShort\":\"奸佞变成宠妻狂魔了？\",\"novelName\":\"权臣重生后只想娇养朕\",\"novelSizeformat\":\"34.94万\",\"novelStep\":\"1\",\"novelclass\":\"原创-纯爱-架空历史-爱情-主受\",\"novelid\":\"10619507\",\"novelintroshort\":\"奸佞变成宠妻狂魔了？\",\"novelname\":\"权臣重生后只想娇养朕\",\"novelsizeformat\":\"34.94万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10619507\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"23\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10619507\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"23\\\"}\",\"sd\":\"4\",\"tags\":\"强强,宫廷侯爵,朝堂,狗血,美强惨\",\"type_id\":\"1\",\"vip_flag\":\"27\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:18\",\"xx\":\"2\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"6797709\",\"authorName\":\"虞岁稔\",\"authorid\":\"6797709\",\"authorname\":\"虞岁稔\",\"cover\":\"https://img10.360buyimg.com/ddimg/jfs/t1/453410/40/14874/82479/6a34d5cfF670ef1dd/00152803855fc1a5.jpg\",\"coverid\":\"21\",\"ebookurl\":\"https://img10.360buyimg.com/ddimg/jfs/t1/453410/40/14874/82479/6a34d5cfF670ef1dd/00152803855fc1a5.jpg\",\"fit_fenzhan\":[\"3\",\"4\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjFfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjFfbm92ZWxkZWZhdWx0Y292ZXI=\\u0026version=20230323\",\"lx\":\"21\",\"mainview\":\"4\",\"novelClass\":\"衍生-纯爱-近代现代-其他衍生-主受\",\"novelId\":\"10049684\",\"novelIntroShort\":\"巴蜀风云\",\"novelName\":\"[剑三]穿书后我成了龙傲天的绑定奶\",\"novelSizeformat\":\"40.55万\",\"novelStep\":\"1\",\"novelclass\":\"衍生-纯爱-近代现代-其他衍生-主受\",\"novelid\":\"10049684\",\"novelintroshort\":\"巴蜀风云\",\"novelname\":\"[剑三]穿书后我成了龙傲天的绑定奶\",\"novelsizeformat\":\"40.55万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10049684\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"24\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10049684\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"24\\\"}\",\"sd\":\"1\",\"tags\":\"甜文,现代架空,爽文,升级流,废土,剑网3\",\"type_id\":\"1\",\"vip_flag\":\"23\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:17\",\"xx\":\"2\",\"yc\":\"2\"}\n{\"age\":\"18\",\"authorId\":\"4367864\",\"authorName\":\"温昔\",\"authorid\":\"4367864\",\"authorname\":\"温昔\",\"cover\":\"https://i4-static.jjwxc.net/tmp/backend/authorspace/s1/44/43679/4367864/20260417170425_300_420.jpg\",\"coverid\":\"217\",\"ebookurl\":\"https://i4-static.jjwxc.net/tmp/backend/authorspace/s1/44/43679/4367864/20260417170425.jpg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-近代现代-爱情-女主\",\"novelId\":\"7539380\",\"novelIntroShort\":\"Bking追妻\",\"novelName\":\"别淋雨\",\"novelSizeformat\":\"8.05万\",\"novelStep\":\"1\",\"novelclass\":\"原创-言情-近代现代-爱情-女主\",\"novelid\":\"7539380\",\"novelintroshort\":\"Bking追妻\",\"novelname\":\"别淋雨\",\"novelsizeformat\":\"8.05万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"7539380\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"25\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"7539380\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"25\\\"}\",\"sd\":\"1\",\"tags\":\"都市,情有独钟,天作之合,天之骄子,甜文,先婚后爱\",\"type_id\":\"1\",\"vip_flag\":\"16\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:22\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"3232204\",\"authorName\":\"渔泽金金\",\"authorid\":\"3232204\",\"authorname\":\"渔泽金金\",\"cover\":\"https://i7-static.jjwxc.net/tmp/backend/authorspace/s1/33/32323/3232204/20250119230343_300_420.jpg\",\"coverid\":\"117\",\"ebookurl\":\"https://i7-static.jjwxc.net/tmp/backend/authorspace/s1/33/32323/3232204/20250119230343.jpg\",\"fit_fenzhan\":[\"3\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTE3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTE3X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"4\",\"novelClass\":\"原创-纯爱-近代现代-爱情-主受\",\"novelId\":\"8703450\",\"novelIntroShort\":\"是食物，也是珍宝。\",\"novelName\":\"被玄学世家找回后成救世主了\",\"novelSizeformat\":\"20.88万\",\"novelStep\":\"1\",\"novelclass\":\"原创-纯爱-近代现代-爱情-主受\",\"novelid\":\"8703450\",\"novelintroshort\":\"是食物，也是珍宝。\",\"novelname\":\"被玄学世家找回后成救世主了\",\"novelsizeformat\":\"20.88万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"8703450\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"26\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"8703450\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"26\\\"}\",\"sd\":\"1\",\"tags\":\"强强,灵异神怪,爽文,玄学,群像\",\"type_id\":\"1\",\"vip_flag\":\"23\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:22\",\"xx\":\"2\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"5685010\",\"authorName\":\"云鸟不知去处\",\"authorid\":\"5685010\",\"authorname\":\"云鸟不知去处\",\"cover\":\"https://img12.360buyimg.com/ddimg/jfs/t1/414381/31/10427/40701/69d3dfbaF500e53d3/00153294389d0e2b.jpg\",\"coverid\":\"216\",\"ebookurl\":\"https://img12.360buyimg.com/ddimg/jfs/t1/414381/31/10427/40701/69d3dfbaF500e53d3/00153294389d0e2b.jpg\",\"fit_fenzhan\":[\"3\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE2X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MjE2X25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"16\",\"mainview\":\"4\",\"novelClass\":\"原创-纯爱-幻想未来-剧情-主受\",\"novelId\":\"10672491\",\"novelIntroShort\":\"找到你，得到你\",\"novelName\":\"我竟是全丧尸的源主\",\"novelSizeformat\":\"22.48万\",\"novelStep\":\"1\",\"novelclass\":\"原创-纯爱-幻想未来-剧情-主受\",\"novelid\":\"10672491\",\"novelintroshort\":\"找到你，得到你\",\"novelname\":\"我竟是全丧尸的源主\",\"novelsizeformat\":\"22.48万\",\"novelstep\":\"1\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10672491\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"27\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10672491\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"27\\\"}\",\"sd\":\"5\",\"tags\":\"情有独钟,异能,末世,废土,群像\",\"type_id\":\"1\",\"vip_flag\":\"20\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:16\",\"xx\":\"2\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"5776095\",\"authorName\":\"傅翎\",\"authorid\":\"5776095\",\"authorname\":\"傅翎\",\"cover\":\"https://img14.360buyimg.com/ddimg/jfs/t1/410080/2/12580/60520/69c90160Fa82aa7dd/0015303438e8cf28.jpg\",\"coverid\":\"183\",\"ebookurl\":\"https://img14.360buyimg.com/ddimg/jfs/t1/410080/2/12580/60520/69c90160Fa82aa7dd/0015303438e8cf28.jpg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTgzX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTgzX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"1\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-近代现代-爱情-女主\",\"novelId\":\"8767770\",\"novelIntroShort\":\"图谋不轨 X 黑莲花\",\"novelName\":\"再偷吻你十秒\",\"novelSizeformat\":\"22.98万\",\"novelStep\":\"2\",\"novelclass\":\"原创-言情-近代现代-爱情-女主\",\"novelid\":\"8767770\",\"novelintroshort\":\"图谋不轨 X 黑莲花\",\"novelname\":\"再偷吻你十秒\",\"novelsizeformat\":\"22.98万\",\"novelstep\":\"2\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"8767770\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"28\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"8767770\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"28\\\"}\",\"sd\":\"1\",\"tags\":\"都市,天之骄子,娱乐圈,励志,成长,救赎\",\"type_id\":\"1\",\"vip_flag\":\"17\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:23\",\"xx\":\"1\",\"yc\":\"1\"}\n{\"age\":\"18\",\"authorId\":\"7005340\",\"authorName\":\"火木圭\",\"authorid\":\"7005340\",\"authorname\":\"火木圭\",\"cover\":\"https://i0-static.jjwxc.net/tmp/backend/authorspace/s1/71/70054/7005340/20251022212924_300_420.jpeg\",\"coverid\":\"191\",\"ebookurl\":\"https://i0-static.jjwxc.net/tmp/backend/authorspace/s1/71/70054/7005340/20251022212924.jpeg\",\"fit_fenzhan\":[\"1\",\"2\"],\"isVipMonth\":\"0\",\"isvipmonth\":\"0\",\"local\":\"0\",\"localImg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTkxX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"localimg\":\"https://i9-static.jjwxc.net/noveldefaultcover.php?cover=MTkxX25vdmVsZGVmYXVsdGNvdmVy\\u0026version=20230323\",\"lx\":\"3\",\"mainview\":\"2\",\"novelClass\":\"原创-言情-架空历史-奇幻-女主\",\"novelId\":\"10252121\",\"novelIntroShort\":\"我的日久生情，他的暗恋成真。\",\"novelName\":\"人间乌龙\",\"novelSizeformat\":\"35.52万\",\"novelStep\":\"2\",\"novelclass\":\"原创-言情-架空历史-奇幻-女主\",\"novelid\":\"10252121\",\"novelintroshort\":\"我的日久生情，他的暗恋成真。\",\"novelname\":\"人间乌龙\",\"novelsizeformat\":\"35.52万\",\"novelstep\":\"2\",\"recommendInfo\":\"{\\\"relationNovelid\\\":\\\"10252121\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"29\\\"}\",\"recommendinfo\":\"{\\\"relationNovelid\\\":\\\"10252121\\\",\\\"source\\\":\\\"android\\\",\\\"recommendSystem\\\":5,\\\"rankid\\\":719,\\\"is_more\\\":0,\\\"channel\\\":\\\"favObservation\\\",\\\"recommendIndex\\\":\\\"29\\\"}\",\"sd\":\"4\",\"tags\":\"情有独钟,因缘邂逅,悬疑推理,东方玄幻,暗恋,日久生情\",\"type_id\":\"1\",\"vip_flag\":\"19\",\"vip_month_flag\":\"0\",\"vip_short_flag\":\"0\",\"vipdate\":\"2026-07-19 04:00:15\",\"xx\":\"1\",\"yc\":\"1\"}",
+          "bookUrl": "http://android.jjwxc.net/androidapi/newDayList"
+        }
+      ]
+    },
+    {
+      "rawIndex": 523,
+      "name": "🎃推书君网🎃",
+      "sourceUrl": "https://pre-api.tuishujun.com#🎃",
+      "rank": "1860994e9d019caccaae55ee93d2267316b1f27e13b6293f35d0e8b7b6073234",
+      "stratum": "nullable_json",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": true,
+        "json": true
+      },
+      "classification": "source_incomplete_or_invalid",
+      "evidence": "Catalog JavaScript contains malformed destructuring arrow parameters.",
+      "initial": {
+        "catalogStatus": 502,
+        "pageStatus": null,
+        "category": null,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "catalog_failed"
+      },
+      "sequential": {
+        "catalogStatus": 502,
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "catalog_failed"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 44,
+      "name": "阅友小说（优+）",
+      "sourceUrl": "https://sma.yueyouxs.com/",
+      "rank": "1db83558618d524a130309fae91594f628fdce90226086fb6c065e55ded77d73",
+      "stratum": "nullable_json",
+      "traits": {
+        "header": true,
+        "redirectHeader": true,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": true
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "都市人生"
+        },
+        "books": 5,
+        "distinctBookUrls": 5,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "逍遥小医仙",
+          "bookUrl": "http://sma.yueyouxs.com/b/18615.html"
+        },
+        {
+          "name": "超凡兵王俏总裁",
+          "bookUrl": "http://sma.yueyouxs.com/b/18616.html"
+        }
+      ]
+    },
+    {
+      "rawIndex": 647,
+      "name": "阳光中文网",
+      "sourceUrl": "http://www.ygzww.com",
+      "rank": "00150e5891fc38ced521025a45d6d1781973eeb2e07ad55e7c7300ce7940e318",
+      "stratum": "ordinary_control",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": false
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-1",
+          "title": "首页"
+        },
+        "books": 11,
+        "distinctBookUrls": 11,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "从红月开始",
+          "bookUrl": "http://www.ygzww.com/0/270/"
+        },
+        {
+          "name": "四合院：从火车列车员开始",
+          "bookUrl": "http://www.ygzww.com/115/115743/"
+        }
+      ]
+    },
+    {
+      "rawIndex": 657,
+      "name": "女生文学",
+      "sourceUrl": "https://www.dmx5.cc#",
+      "rank": "0145bf7b2c00f3db01e5879f6e1a8592906ad5455da3450a99f4fa7800442473",
+      "stratum": "ordinary_control",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": false
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "连载榜单"
+        },
+        "books": 10,
+        "distinctBookUrls": 10,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "四合院：十级技工，我手搓歼星舰",
+          "bookUrl": "https://www.dmx5.cc/book/62/62552/"
+        },
+        {
+          "name": "万苦霸体诀",
+          "bookUrl": "https://www.dmx5.cc/book/64/64042/"
+        }
+      ]
+    },
+    {
+      "rawIndex": 407,
+      "name": "💰时阅文学",
+      "sourceUrl": "http://m.timeread.com",
+      "rank": "0350edeb32e55441b297d0ca1d7ab5bcf7c5acea931dedad82626c045321cbc4",
+      "stratum": "ordinary_control",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": false
+      },
+      "classification": "upstream_http",
+      "evidence": "Exact category returns HTTP 503.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-0",
+          "title": "穿越架空"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sequential": {
+        "catalogStatus": 200,
+        "pageStatus": 502,
+        "category": {
+          "id": "entry-0",
+          "title": "穿越架空"
+        },
+        "books": 0,
+        "distinctBookUrls": 0,
+        "outcome": "page_failed"
+      },
+      "sampleBooks": []
+    },
+    {
+      "rawIndex": 890,
+      "name": "🙈 色书屋",
+      "sourceUrl": "http://seshuwu.com",
+      "rank": "035ff597d61a0bea6335eef55a9abaa31f94b6d37365222c198b2dae6fd95b1e",
+      "stratum": "ordinary_control",
+      "traits": {
+        "header": false,
+        "redirectHeader": false,
+        "jsoup": false,
+        "sourceVariable": false,
+        "catalogJS": false,
+        "json": false
+      },
+      "classification": "credible_nonempty",
+      "evidence": "Production page 1 returned non-empty books with distinct URLs.",
+      "initial": {
+        "catalogStatus": 200,
+        "pageStatus": 200,
+        "category": {
+          "id": "entry-0",
+          "title": "全部  "
+        },
+        "books": 10,
+        "distinctBookUrls": 10,
+        "outcome": "credible_nonempty"
+      },
+      "sequential": null,
+      "sampleBooks": [
+        {
+          "name": "穿书六零，我一个女配坏一点怎么了",
+          "bookUrl": "http://seshuwu.com/books/78725.html"
+        },
+        {
+          "name": "我把哥哥的黑道势力睡了",
+          "bookUrl": "http://seshuwu.com/books/70725.html"
+        }
+      ]
+    }
+  ]
+}
