@@ -328,7 +328,7 @@ func cutDefaultExclusion(segment string) (string, int, bool) {
 // applyDefaultSegment traverses each current parent independently so positional
 // selectors retain one match per book/card container, as Legado does.
 func applyDefaultSegment(parents *goquery.Selection, seg defaultSegment) *goquery.Selection {
-	result := parents.Slice(0, 0)
+	result := parents.Slice(0, 0).Clone()
 	parents.Each(func(_ int, parent *goquery.Selection) {
 		selected := selectDefaultDescendants(parent, seg)
 		selected = applyDefaultPosition(selected, seg)

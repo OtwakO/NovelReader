@@ -13,6 +13,7 @@ func TestJavaRegexEscapesWorkThroughAnalyzer(t *testing.T) {
 		{content: "X\t \u00a0\u1680\u180e\u2000\u200a\u202f\u205f\u3000X", rule: `##\h##`, want: "XX"},
 		{content: "word space", rule: `##[^\h]+##`, want: " "},
 		{content: `《剑来》 作者：烽火`, rule: `##\《|\》|作者.*|\s##`, want: "剑来"},
+		{content: `分类：玄幻 最新章节：第一章`, rule: `##[\u4e00-\u9fa5]+：##`, want: "玄幻 第一章"},
 	} {
 		analyzer := New(test.content, "https://example.test/", NewJSVM(), nil)
 		value, err := analyzer.GetStringStrict(test.rule)
@@ -24,6 +25,9 @@ func TestJavaRegexEscapesWorkThroughAnalyzer(t *testing.T) {
 	analyzer := New("text", "https://example.test/", NewJSVM(), nil)
 	if _, err := analyzer.GetStringStrict(`##\q##`); err == nil {
 		t.Fatal("unsupported alphabetic escape was accepted")
+	}
+	if _, err := analyzer.GetStringStrict(`##\u12##`); err == nil {
+		t.Fatal("malformed Unicode escape was accepted")
 	}
 }
 

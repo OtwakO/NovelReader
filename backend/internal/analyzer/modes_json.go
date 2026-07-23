@@ -118,20 +118,19 @@ func filterObjectWildcard(content, expr string) ([]interface{}, bool, error) {
 	if err != nil {
 		return nil, true, fmt.Errorf("%w: %v", errInvalidJSONInput, err)
 	}
-	if delimiter, ok := token.(json.Delim); !ok || delimiter != '{' {
+	delimiter, ok := token.(json.Delim)
+	if !ok || delimiter != '{' && delimiter != '[' {
 		return nil, false, nil
 	}
 	var values []interface{}
 	for decoder.More() {
-		if _, err := decoder.Token(); err != nil {
-			return nil, true, fmt.Errorf("%w: %v", errInvalidJSONInput, err)
-		}
-		var raw json.RawMessage
-		if err := decoder.Decode(&raw); err != nil {
-			return nil, true, fmt.Errorf("%w: %v", errInvalidJSONInput, err)
+		if delimiter == '{' {
+			if _, err := decoder.Token(); err != nil {
+				return nil, true, fmt.Errorf("%w: %v", errInvalidJSONInput, err)
+			}
 		}
 		var item interface{}
-		if err := json.Unmarshal(raw, &item); err != nil {
+		if err := decoder.Decode(&item); err != nil {
 			return nil, true, fmt.Errorf("%w: %v", errInvalidJSONInput, err)
 		}
 		switch child := item.(type) {
@@ -197,6 +196,7 @@ func interpolateJSON(root interface{}, expression string) (string, bool, error) 
 }
 
 func selectJSONValue(root interface{}, expr string) (interface{}, error) {
+	expr = normalizeDottedJSONWildcards(expr)
 	value, err := jsonpath.Get(expr, root)
 	if err == nil {
 		return value, nil
@@ -209,6 +209,40 @@ func selectJSONValue(root interface{}, expr string) (interface{}, error) {
 		return nil, classifyJSONPathError(fallbackErr)
 	}
 	return value, nil
+}
+
+func normalizeDottedJSONWildcards(expr string) string {
+	var normalized strings.Builder
+	var quote byte
+	for offset := 0; offset < len(expr); {
+		if quote != 0 {
+			if expr[offset] == '\\' && offset+1 < len(expr) {
+				normalized.WriteString(expr[offset : offset+2])
+				offset += 2
+				continue
+			}
+			normalized.WriteByte(expr[offset])
+			if expr[offset] == quote {
+				quote = 0
+			}
+			offset++
+			continue
+		}
+		if expr[offset] == '\'' || expr[offset] == '"' {
+			quote = expr[offset]
+			normalized.WriteByte(expr[offset])
+			offset++
+			continue
+		}
+		if strings.HasPrefix(expr[offset:], ".[*]") {
+			normalized.WriteString("[*]")
+			offset += len(".[*]")
+			continue
+		}
+		normalized.WriteByte(expr[offset])
+		offset++
+	}
+	return normalized.String()
 }
 
 func classifyJSONPathError(err error) error {

@@ -35,6 +35,15 @@ func TestLiveDefaultListRuleShapes(t *testing.T) {
 	}
 }
 
+func TestDefaultTraversalKeepsAllParentsWhenFirstHasMultipleChildren(t *testing.T) {
+	an := New(`<div class="row"><div class="col-12">header 1</div><div class="col-12">header 2</div></div><div class="row"><div class="col-12">book 1</div><div class="col-12">book 2</div></div>`, "https://example.com/", NewJSVM(), NewCacheManager())
+
+	values, err := an.GetStringList(`.row@.col-12@text`)
+	if err != nil || strings.Join(values, ",") != "header 1,header 2,book 1,book 2" {
+		t.Fatalf("values=%#v err=%v", values, err)
+	}
+}
+
 func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
 	html := `<table><tbody><tr><td>A</td></tr></tbody><tbody><tr><td>B</td></tr><tr><td>C</td></tr></tbody></table><div id="identity" class="kind">Text</div>`
 	an := New(html, "https://example.com/", NewJSVM(), NewCacheManager())
@@ -54,6 +63,32 @@ func TestDefaultBareElementTraversalUsesEveryParent(t *testing.T) {
 		value, err := an.GetStringStrict(rule)
 		if err != nil || value != want {
 			t.Errorf("CSS getter %q = %q, err=%v, want %q", rule, value, err, want)
+		}
+	}
+}
+
+func TestJSONDottedArrayWildcardsMatchLegado(t *testing.T) {
+	an := New(`{"data":[{"name":"Book","authors":[{"name":"Author"}]}]}`, "https://example.com/", NewJSVM(), NewCacheManager())
+	elements, err := an.GetElements(`@Json:$.data.[*]`)
+	if err != nil || len(elements) != 1 {
+		t.Fatalf("elements=%#v err=%v", elements, err)
+	}
+	value, err := New(ToString(elements[0]), "https://example.com/", NewJSVM(), nil).GetStringStrict(`@Json:$.authors.[*].name`)
+	if err != nil || value != "Author" {
+		t.Fatalf("author=%q err=%v", value, err)
+	}
+}
+
+func TestJSONWildcardFilterSelectsRootArrayValues(t *testing.T) {
+	an := New(`[{"novelName":"A"},{"other":"skip"},{"novelName":"B"}]`, "https://example.com/", NewJSVM(), NewCacheManager())
+	elements, err := an.GetElements(`@Json:$.*[?(@.novelName)]`)
+	if err != nil || len(elements) != 2 {
+		t.Fatalf("elements=%#v err=%v", elements, err)
+	}
+	for index, want := range []string{"A", "B"} {
+		value, err := New(ToString(elements[index]), "https://example.com/", NewJSVM(), nil).GetStringStrict(`$.novelName`)
+		if err != nil || value != want {
+			t.Fatalf("index=%d value=%q err=%v", index, value, err)
 		}
 	}
 }

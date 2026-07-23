@@ -161,6 +161,14 @@ func normalizeJavaRegex(pattern string) string {
 
 		next, nextSize := utf8.DecodeRuneInString(pattern[offset+size:])
 		switch {
+		case next == 'u' && offset+size+nextSize+4 <= len(pattern):
+			digits := pattern[offset+size+nextSize : offset+size+nextSize+4]
+			if isHexDigits(digits) {
+				normalized.WriteString(`\x{` + digits + `}`)
+				offset += size + nextSize + 4
+				continue
+			}
+			normalized.WriteString(`\u`)
 		case next == 'h':
 			if inClass {
 				normalized.WriteString(horizontal)
@@ -176,6 +184,15 @@ func normalizeJavaRegex(pattern string) string {
 		offset += size + nextSize
 	}
 	return normalized.String()
+}
+
+func isHexDigits(value string) bool {
+	for _, r := range value {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", r) {
+			return false
+		}
+	}
+	return len(value) == 4
 }
 
 func isJavaIdentityEscape(r rune) bool {
