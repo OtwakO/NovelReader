@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-07-23",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"
+  },
+  "execution": {
+    "database": "fresh isolated SQLite",
+    "api": "production Explore catalog/page",
+    "sourceOrParserChangesDuringRerun": false
+  },
+  "result": {
+    "rawIndex": 927,
+    "sourceUrl": "https://www.jjmh.top",
+    "category": "性感",
+    "before": "empty",
+    "afterStatus": 200,
+    "distinctBooks": 21,
+    "sampleBooks": [
+      {
+        "name": "尾行-女白領故事Yeha",
+        "bookUrl": "https://www.jjmh.top/book/687"
+      },
+      {
+        "name": "魯蛇的多重宇宙",
+        "bookUrl": "https://www.jjmh.top/book/676"
+      }
+    ],
+    "verifiedGap": "Unpositioned Default string getters retain later non-empty matches"
+  }
+}
