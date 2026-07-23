@@ -10,21 +10,27 @@
     "api": "production Explore catalog/page",
     "sourceOrParserChangesDuringRerun": false
   },
+  "supersededObservation": {
+    "sourceUrl": "https://www.jjmh.top",
+    "category": "性感",
+    "distinctBooks": 21,
+    "reason": "This was the separate raw-317 identity and is not evidence for raw 927."
+  },
   "result": {
     "rawIndex": 927,
     "sourceUrl": "https://www.jjmh.top/",
-    "category": "性感",
+    "category": "连载",
     "before": "empty",
     "afterStatus": 200,
-    "distinctBooks": 21,
+    "distinctBooks": 28,
     "sampleBooks": [
       {
-        "name": "尾行-女白領故事Yeha",
-        "bookUrl": "https://www.jjmh.top/book/687"
+        "name": "當時間靜止後",
+        "bookUrl": "https://www.jjmh.top/book/1214"
       },
       {
-        "name": "魯蛇的多重宇宙",
-        "bookUrl": "https://www.jjmh.top/book/676"
+        "name": "斯文壞貓貓",
+        "bookUrl": "https://www.jjmh.top/book/1213"
       }
     ],
     "verifiedGap": "Unpositioned Default string getters retain later non-empty matches"

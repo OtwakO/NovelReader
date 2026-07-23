@@ -14,14 +14,14 @@ import (
 
 func TestExplorePageUsesWholeSearchRulesWhenExploreBookListIsBlank(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = fmt.Fprint(w, `<ul class="mh-list col7"><li><div class="mh-item"><a href="/book/1"><p></p></a><h2><a href="/book/1">Book</a></h2><p class="chapter">Chapter</p></div></li></ul>`)
+		_, _ = fmt.Fprint(w, `<ul class="mh-list col7"><li><div class="mh-item"><a href="/book/1"><img src="/search-cover"></a><h2><a href="/book/1">Book</a></h2><p class="chapter">Chapter</p></div></li></ul>`)
 	}))
 	defer server.Close()
 	source := booksource.BookSource{
 		BookSourceURL: server.URL, BookSourceName: "Partial Explore rules", EnabledExplore: true,
 		ExploreURL:  "Books::" + server.URL,
-		RuleSearch:  `{"bookList":"class.mh-list col7@li","name":"class.mh-item@a@text","bookUrl":"tag.a@href","lastChapter":"class.chapter@text"}`,
-		RuleExplore: `{"coverUrl":"class.mh-item@tag.a@tag.p@style"}`,
+		RuleSearch:  `{"author":"","bookList":"class.mh-list col7@li","bookUrl":"tag.a@href","coverUrl":"class.mh-item@tag.a@tag.img@src","intro":"","kind":"","lastChapter":"class.chapter@text","name":"class.mh-item@a@text"}`,
+		RuleExplore: `{"coverUrl":"@js:'explore-cover'"}`,
 	}
 	searcher := NewSearcher(nil, nil, nil, exploreSourceFixtureStore{source: source}, nil)
 	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
@@ -32,7 +32,7 @@ func TestExplorePageUsesWholeSearchRulesWhenExploreBookListIsBlank(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Books) != 1 || page.Books[0].Name != "Book" || page.Books[0].BookURL != server.URL+"/book/1" {
+	if len(page.Books) != 1 || page.Books[0].Name != "Book" || page.Books[0].BookURL != server.URL+"/book/1" || page.Books[0].CoverURL != server.URL+"/search-cover" {
 		t.Fatalf("page=%+v", page)
 	}
 }

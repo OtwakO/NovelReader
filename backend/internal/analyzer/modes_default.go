@@ -55,8 +55,7 @@ func defaultQuery(html, expr string) (string, error) {
 		}
 	}
 
-	values := extractDefaultGetterList(sel, getter)
-	return strings.Join(values, "\n"), nil
+	return extractDefaultGetter(sel, getter), nil
 }
 
 // defaultQueryList evaluates a Default rule returning multiple string results.
@@ -420,47 +419,49 @@ func applyDefaultCSS(sel *goquery.Selection, selector string) *goquery.Selection
 
 // extractDefaultGetter extracts a value from a selection based on the getter type.
 func extractDefaultGetter(sel *goquery.Selection, getter string) string {
-	values := extractDefaultGetterList(sel.First(), getter)
-	if len(values) == 0 {
-		return ""
+	if getter == "text" {
+		var values []string
+		sel.Each(func(_ int, item *goquery.Selection) {
+			if value := strings.TrimSpace(item.Text()); value != "" {
+				values = append(values, value)
+			}
+		})
+		return strings.Join(values, "\n")
 	}
-	return values[0]
-}
-
-func extractDefaultGetterList(sel *goquery.Selection, getter string) []string {
-	values := make([]string, 0, sel.Length())
-	seen := make(map[string]struct{}, sel.Length())
-	sel.Each(func(_ int, item *goquery.Selection) {
-		var value string
-		switch getter {
-		case "":
-			value = strings.TrimSpace(item.Text())
-		case "text", "ownText":
-			value = strings.TrimSpace(item.Text())
-		case "textNodes":
-			var buf strings.Builder
-			item.Contents().Each(func(_ int, content *goquery.Selection) {
-				if goquery.NodeName(content) == "#text" {
-					buf.WriteString(content.Text())
-				}
-			})
-			value = strings.TrimSpace(buf.String())
-		case "html", "all":
-			value, _ = item.Html()
-			value = strings.TrimSpace(value)
-		default:
-			value, _ = item.Attr(getter)
-		}
-		if value == "" {
-			return
-		}
-		if getter != "" && getter != "text" && getter != "ownText" && getter != "textNodes" && getter != "html" && getter != "all" {
+	if getter != "" && getter != "textNodes" && getter != "ownText" && getter != "html" && getter != "all" {
+		var values []string
+		seen := make(map[string]struct{}, sel.Length())
+		sel.Each(func(_ int, item *goquery.Selection) {
+			value, _ := item.Attr(getter)
+			if value == "" {
+				return
+			}
 			if _, duplicate := seen[value]; duplicate {
 				return
 			}
 			seen[value] = struct{}{}
-		}
-		values = append(values, value)
-	})
-	return values
+			values = append(values, value)
+		})
+		return strings.Join(values, "\n")
+	}
+	if getter == "" {
+		return strings.TrimSpace(sel.Text())
+	}
+	first := sel.First()
+	switch getter {
+	case "textNodes":
+		var buf strings.Builder
+		first.Contents().Each(func(_ int, content *goquery.Selection) {
+			if goquery.NodeName(content) == "#text" {
+				buf.WriteString(content.Text())
+			}
+		})
+		return strings.TrimSpace(buf.String())
+	case "ownText":
+		return strings.TrimSpace(first.Text())
+	case "html", "all":
+		value, _ := first.Html()
+		return strings.TrimSpace(value)
+	}
+	return ""
 }
