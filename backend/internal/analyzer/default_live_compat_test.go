@@ -166,6 +166,15 @@ func TestSelectedTableRowKeepsContextForFieldRules(t *testing.T) {
 	}
 }
 
+func TestDefaultStringJoinsAllUnpositionedMatches(t *testing.T) {
+	an := New(`<div class="mh-item"><a href="/cover"></a><h2><a href="/book">Book</a></h2></div>`, "https://example.com/", NewJSVM(), NewCacheManager())
+
+	value, err := an.GetStringStrict(`class.mh-item@a@text`)
+	if err != nil || value != "Book" {
+		t.Fatalf("GetStringStrict() = %q, err=%v, want Book", value, err)
+	}
+}
+
 func TestDefaultPositionedElementReadsAttribute(t *testing.T) {
 	an := New(`<li><a><img title="First"><img title="Second"></a></li>`, "https://example.com/", NewJSVM(), NewCacheManager())
 

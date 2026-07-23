@@ -12,6 +12,31 @@ import (
 	"github.com/otwako/novelreader/internal/booksource"
 )
 
+func TestExplorePageUsesWholeSearchRulesWhenExploreBookListIsBlank(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `<ul class="mh-list col7"><li><div class="mh-item"><a href="/book/1"><p></p></a><h2><a href="/book/1">Book</a></h2><p class="chapter">Chapter</p></div></li></ul>`)
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "Partial Explore rules", EnabledExplore: true,
+		ExploreURL:  "Books::" + server.URL,
+		RuleSearch:  `{"bookList":"class.mh-list col7@li","name":"class.mh-item@a@text","bookUrl":"tag.a@href","lastChapter":"class.chapter@text"}`,
+		RuleExplore: `{"coverUrl":"class.mh-item@tag.a@tag.p@style"}`,
+	}
+	searcher := NewSearcher(nil, nil, nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Books) != 1 || page.Books[0].Name != "Book" || page.Books[0].BookURL != server.URL+"/book/1" {
+		t.Fatalf("page=%+v", page)
+	}
+}
+
 func TestExplorePageReversesTheCompleteUncappedResultList(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		for index := range 25 {
