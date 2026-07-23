@@ -33,6 +33,12 @@ The imported source has a complete `ruleSearch`, but its `ruleExplore` object co
 
 This is a shared source-selection seam rather than a site-specific selector issue: any source with a partial `ruleExplore` object and blank `bookList` can lose the required search rules.
 
+## Post-audit correction — 2026-07-23
+
+Implementation TDD showed that whole-object fallback already worked: `exploreResultRules` selected the complete `ruleSearch` because `ruleExplore.bookList` was blank. The actual shared mismatch was the fallback rule's `class.mh-item@a@text`: NovelReader's Default string path read only the first matching link, which was the empty cover link, while Legado collects all non-empty matched values and joins them.
+
+The engine-gap count and raw-927 classification remain valid, but the gap family above is superseded by **unpositioned Default string getters discard later non-empty matches**. The recommended fix is at the shared Default getter seam, not Explore rule selection. See `explore-live-v10-fixes-rerun-2026-07-23.json`.
+
 ## Other confirmed outcomes
 
 - **Stale contracts (6):** removed iQiyi manga section; two changed hosts/routes; two stale `bookUrlPattern` constraints; one stale HTTPS API scheme.
@@ -42,4 +48,4 @@ This is a shared source-selection seam rather than a site-specific selector issu
 
 ## Recommendation
 
-Fix only the shared partial-`ruleExplore` fallback seam through the existing Explore rule-selection boundary, with a regression proving that blank Explore `bookList` selects the whole `ruleSearch` object rather than merging fields. Do not weaken URL-pattern enforcement or patch stale source definitions as engine behavior.
+Superseded by the post-audit correction above. Fix only the shared Default string getter seam, preserving ordered repeated text and first-seen distinct attribute values. Do not merge rule objects, weaken URL-pattern enforcement, or patch stale source definitions as engine behavior.

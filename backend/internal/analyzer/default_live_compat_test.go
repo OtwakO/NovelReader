@@ -167,11 +167,15 @@ func TestSelectedTableRowKeepsContextForFieldRules(t *testing.T) {
 }
 
 func TestDefaultStringJoinsAllUnpositionedMatches(t *testing.T) {
-	an := New(`<div class="mh-item"><a href="/cover"></a><h2><a href="/book">Book</a></h2></div>`, "https://example.com/", NewJSVM(), NewCacheManager())
+	an := New(`<div class="mh-item"><a href="/same"></a><a href="/same">A</a><a href="/other">A</a><a href="/last">B</a></div>`, "https://example.com/", NewJSVM(), NewCacheManager())
 
 	value, err := an.GetStringStrict(`class.mh-item@a@text`)
-	if err != nil || value != "Book" {
-		t.Fatalf("GetStringStrict() = %q, err=%v, want Book", value, err)
+	if err != nil || value != "A\nA\nB" {
+		t.Fatalf("text = %q, err=%v, want ordered duplicate values", value, err)
+	}
+	value, err = an.GetStringStrict(`class.mh-item@a@href`)
+	if err != nil || value != "/same\n/other\n/last" {
+		t.Fatalf("href = %q, err=%v, want first-seen distinct values", value, err)
 	}
 }
 

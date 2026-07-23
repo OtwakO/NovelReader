@@ -2699,5 +2699,15 @@
       "classification": "credible_nonempty",
       "evidence": "Production Explore returned 72 books with 72 distinct book URLs and no suspicious diagnostic."
     }
+  ],
+  "corrections": [
+    {
+      "correctedAt": "2026-07-23",
+      "rawIndex": 927,
+      "originalGapFamily": "Partial ruleExplore object must fall back to complete ruleSearch",
+      "correctedGapFamily": "Unpositioned Default string getters discard later non-empty matches",
+      "evidence": "Public-seam TDD proved exploreResultRules already selected the whole ruleSearch object. The exact fallback rule class.mh-item@a@text matched an empty cover link before a non-empty title link; NovelReader read only the first match while Legado collects all non-empty values.",
+      "classificationUnchanged": "engine_gap"
+    }
   ]
 }
