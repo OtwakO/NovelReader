@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-07-22",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"
+  },
+  "execution": {
+    "database": "fresh isolated SQLite",
+    "api": "production Explore catalog/page",
+    "sourceOrParserChangesDuringRerun": false
+  },
+  "results": [
+    {
+      "rawIndex": 66,
+      "sourceUrl": "https://www.dtxsw.com",
+      "category": "玄幻",
+      "before": "result_rule_failed",
+      "afterStatus": 200,
+      "distinctBooks": 20,
+      "sampleName": "长生：别人修仙我练武",
+      "verifiedGaps": ["Java Unicode escape regex compatibility", "multi-parent Default shorthand traversal"]
+    },
+    {
+      "rawIndex": 57,
+      "sourceUrl": "https://www.zggdwx.com/",
+      "category": "十三经注疏",
+      "before": "result_rule_failed",
+      "afterStatus": 200,
+      "distinctBooks": 14,
+      "sampleName": "风俗演义",
+      "verifiedGaps": ["dotted JSON array wildcard compatibility"]
+    },
+    {
+      "rawIndex": 581,
+      "sourceUrl": "http://android.jjwxc.net",
+      "category": "新书榜单",
+      "before": "empty",
+      "afterStatus": 200,
+      "distinctBooks": 51,
+      "sampleName": "金丝雀身败名裂后",
+      "verifiedGaps": ["root-array wildcard predicate compatibility"]
+    }
+  ],
+  "adjacentCorpusInventory": {
+    "javaUnicodeRegexRawIndices": [7,21,37,40,66,118,179,180,184,187,216,222,231,242,343,350,378,380,392,394,400,421,431,444,450,457,461,464,497,503,523,526,581,601,617,626,647,652,683,692,846,858,878,911,924,938],
+    "dottedJSONWildcardRawIndices": [56,57,72,120,139,153,161,162,163,164,181,182,184,197,216,383,385,386,391,392,397,400,416,421,431,444,450,457,461,464,908,920],
+    "rootWildcardPredicateRawIndices": [378,380,394,490,497,503,526,581],
+    "multiParentDefaultCandidateCount": 57
+  }
+}
