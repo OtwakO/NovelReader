@@ -107,6 +107,18 @@ func TestJSONWildcardFilterSelectsObjectValues(t *testing.T) {
 	}
 }
 
+func TestJSONWildcardFilterDelegatesRicherPredicates(t *testing.T) {
+	for _, expression := range []string{
+		`$.*[?(@.score==1)]`,
+		`$.*[?(@.meta.name)]`,
+		`$.*[?(@['novelName'])]`,
+	} {
+		if _, matched, err := filterObjectWildcard(`[{"novelName":"A","score":1,"meta":{"name":"nested"}}]`, expression); err != nil || matched {
+			t.Errorf("expression=%q matched=%v err=%v, want JSONPath delegation", expression, matched, err)
+		}
+	}
+}
+
 func TestJSONWildcardFilterRejectsMalformedInput(t *testing.T) {
 	for _, content := range []string{
 		`{"first":[{"novelName":"A"}]`,

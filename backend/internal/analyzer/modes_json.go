@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/PaesslerAG/jsonpath"
 )
@@ -107,7 +108,9 @@ func filterObjectWildcard(content, expr string) ([]interface{}, bool, error) {
 		return nil, false, nil
 	}
 	key := strings.TrimSuffix(strings.TrimPrefix(expr, prefix), ")]")
-	if key == "" || strings.ContainsAny(key, " []()?!@$") {
+	if key == "" || strings.IndexFunc(key, func(r rune) bool {
+		return r != '_' && r != '-' && !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}) >= 0 {
 		return nil, false, nil
 	}
 	if !json.Valid([]byte(content)) {
