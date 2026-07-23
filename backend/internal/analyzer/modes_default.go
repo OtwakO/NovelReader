@@ -451,7 +451,7 @@ func extractDefaultGetter(sel *goquery.Selection, getter string) string {
 	switch getter {
 	case "textNodes":
 		var buf strings.Builder
-		first.Contents().Each(func(_ int, content *goquery.Selection) {
+		sel.Contents().Each(func(_ int, content *goquery.Selection) {
 			if goquery.NodeName(content) == "#text" {
 				buf.WriteString(content.Text())
 			}

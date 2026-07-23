@@ -177,6 +177,10 @@ func TestDefaultStringJoinsAllUnpositionedMatches(t *testing.T) {
 	if err != nil || value != "/same\n/other\n/last" {
 		t.Fatalf("href = %q, err=%v, want first-seen distinct values", value, err)
 	}
+	value, err = New(`<i class="node">A<span>x</span></i><i class="node">B<span>y</span></i>`, "https://example.com/", NewJSVM(), nil).GetStringStrict(`class.node@textNodes`)
+	if err != nil || value != "AB" {
+		t.Fatalf("textNodes = %q, err=%v, want prior multi-match behavior", value, err)
+	}
 }
 
 func TestDefaultPositionedElementReadsAttribute(t *testing.T) {
