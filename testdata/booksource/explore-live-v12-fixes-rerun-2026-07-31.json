@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-07-30T21:59:19.556Z",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"
+  },
+  "execution": {
+    "database": "fresh isolated SQLite",
+    "api": "production Explore catalog/page",
+    "sourceChanges": false,
+    "verifiedContracts": [
+      "received non-2xx body rule evaluation",
+      "byte-array symmetric crypto and login-header bridge",
+      "arbitrary Default attributes",
+      "complete bracket index grammar",
+      "blank/deduplicated Default attributes"
+    ]
+  },
+  "results": [
+    {
+      "rawIndex": 197,
+      "bookSourceUrl": "https://app.shubl.com",
+      "name": "书耽小说（优）",
+      "catalog": {
+        "status": 200,
+        "durationMs": 41,
+        "entryCount": 13
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "全部纯爱",
+        "type": "url"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 459,
+        "bookCount": 15,
+        "distinctBookUrls": 15,
+        "diagnostics": [
+          {
+            "code": "http_status",
+            "stage": "transport",
+            "severity": "warning",
+            "retryable": true,
+            "message": "Explore source returned HTTP status 404; rules evaluated the received response body"
+          }
+        ],
+        "samples": [
+          {
+            "name": "［快穿］大佬又又黑化了",
+            "bookUrl": "https://app.shubl.com/book/get_info_by_id,{\"method\":\"POST\",\"body\":\"secret_content=hYKytSMHsACWNRRED+zq8asscl2eVP6HdvA4q5ImrVI7MWRmJfl1mXV/bVjWdldyl6Jlfmf78osN25N+IMEqldZF2wv5uQwykVpVF8r3wx6OYLPKZIgIyPE6Z5Hxp5JPiU/g9FEr+9ZNdZbExULhYs39lYRPEskc+o/kDLIorKPJoTdGO3JhZU3frzph6I2h4TZOTkOSDvtdn49A76yhom2fgaMSx8e3M/VF7hwSXlpQ9mLnKhfsELSCXMH/JhatOcGVhB5R4NNhuF7bNPLUPFnNF3s+fn85G1v7NB0OmUo=\"}"
+          },
+          {
+            "name": "【快穿】绝美白莲在线教学",
+            "bookUrl": "https://app.shubl.com/book/get_info_by_id,{\"method\":\"POST\",\"body\":\"secret_content=hYKytSMHsACWNRRED+zq8asscl2eVP6HdvA4q5ImrVI7MWRmJfl1mXV/bVjWdldyl6Jlfmf78osN25N+IMEqldZF2wv5uQwykVpVF8r3wx6OYLPKZIgIyPE6Z5Hxp5JPiU/g9FEr+9ZNdZbExULhYp6GRFzvzdPjOAXp3dFWXY4yBp+F2ZNCgs2+XusNUXx4eC1luPjlmfj3YROQkbkmaOyG2XcN4Nr7WNQCqH+KzbreuamzLz4NF9z6F5ChpEENpt+3g6lfehgoNKj/o3w/EoEwyfU7SZz69Q313cSxZcU=\"}"
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "rawIndex": 163,
+      "bookSourceUrl": "https://www.missevan.com",
+      "name": "猫耳听书（优）",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 3
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "百合",
+        "type": "url"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 396,
+        "bookCount": 20,
+        "distinctBookUrls": 20,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "《口是心非》-许诺、斯洛",
+            "bookUrl": "https://www.missevan.com/sound/player?id=12979699,{\"webView\":true}"
+          },
+          {
+            "name": "第一集",
+            "bookUrl": "https://www.missevan.com/sound/player?id=12346025,{\"webView\":true}"
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "rawIndex": 17,
+      "bookSourceUrl": "https://seqing001.com/",
+      "name": "🚭 色情001",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 7
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "都市激情",
+        "type": "url"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 615,
+        "bookCount": 10,
+        "distinctBookUrls": 10,
+        "diagnostics": [],
+        "samples": [
+          {
+            "name": "刚生完孩子的嫂子更有味儿",
+            "bookUrl": "https://seqing001.com/?p=7060"
+          },
+          {
+            "name": "厕所狂操漂亮妹妹",
+            "bookUrl": "https://seqing001.com/?p=7042"
+          }
+        ],
+        "error": null
+      }
+    }
+  ]
+}
