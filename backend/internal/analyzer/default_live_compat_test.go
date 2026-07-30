@@ -204,15 +204,24 @@ func TestDefaultTraversalReadsArbitraryAttributesAndSkipsBlankDuplicates(t *test
 func TestDefaultBracketIndexesFollowLegadoCollectionGrammar(t *testing.T) {
 	html := `<div class="items"><a>zero</a><a>one</a><a>two</a><a>three</a><a>four</a></div>`
 	for rule, want := range map[string]string{
-		`class.items@tag.a[1]@text`:      "one",
-		`class.items@tag.a[0,2,-1]@text`: "zero\ntwo\nfour",
-		`class.items@tag.a[!0,2]@text`:   "one\nthree\nfour",
-		`class.items@tag.a[1:3]@text`:    "one\ntwo\nthree",
-		`class.items@tag.a[0:4:2]@text`:  "zero\ntwo\nfour",
-		`class.items@tag.a[-1:0]@text`:   "four\nthree\ntwo\none\nzero",
-		`class.items@[1]@text`:           "one",
+		`class.items@tag.a[1]@text`:       "one",
+		`class.items@tag.a[0,2,-1]@text`:  "zero\ntwo\nfour",
+		`class.items@tag.a[!0,2]@text`:    "one\nthree\nfour",
+		`class.items@tag.a[1:3]@text`:     "one\ntwo\nthree",
+		`class.items@tag.a[0:4:2]@text`:   "zero\ntwo\nfour",
+		`class.items@tag.a[-1:0]@text`:    "four\nthree\ntwo\none\nzero",
+		`class.items@[1]@text`:            "one",
+		`class.items@tag.a[10:20]@text`:   "",
+		`class.items@tag.a[-10:-5]@text`:  "",
+		`class.items@tag.a[0,10:20]@text`: "zero",
 	} {
 		value, err := New(html, "https://example.com/", NewJSVM(), nil).GetStringStrict(rule)
+		if want == "" {
+			if value != "" {
+				t.Errorf("rule %q value=%q err=%v, want no value", rule, value, err)
+			}
+			continue
+		}
 		if err != nil || value != want {
 			t.Errorf("rule %q value=%q err=%v, want %q", rule, value, err, want)
 		}

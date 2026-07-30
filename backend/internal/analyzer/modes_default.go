@@ -495,11 +495,17 @@ func applyDefaultPosition(sel *goquery.Selection, seg defaultSegment) *goquery.S
 				continue
 			}
 			start, end := 0, sel.Length()-1
+			if item.start != nil && item.end != nil && ((*item.start >= sel.Length() && *item.end >= sel.Length()) || (*item.start <= -sel.Length() && *item.end <= -sel.Length())) {
+				continue
+			}
 			if item.start != nil {
 				start = resolveDefaultIndex(*item.start, sel.Length())
 			}
 			if item.end != nil {
 				end = resolveDefaultIndex(*item.end, sel.Length())
+			}
+			if (start >= sel.Length() && end >= sel.Length()) || (start < 0 && end < 0) {
+				continue
 			}
 			start = max(0, min(start, sel.Length()-1))
 			end = max(0, min(end, sel.Length()-1))

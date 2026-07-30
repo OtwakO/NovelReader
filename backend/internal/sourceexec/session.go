@@ -2,6 +2,7 @@
 package sourceexec
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
@@ -19,6 +20,7 @@ type SourceSession struct {
 	memory      map[string]interface{}
 	headers     map[string]string
 	loginHeader string
+	loginCookie string
 	lastURL     string
 }
 
@@ -66,7 +68,12 @@ func (s *SourceSession) CookieHeader(rawURL string) string {
 	for _, cookie := range cookies {
 		values = append(values, cookie.Name+"="+cookie.Value)
 	}
-	return strings.Join(values, "; ")
+	if len(values) > 0 {
+		return strings.Join(values, "; ")
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.loginCookie
 }
 
 // Cookies exposes a copy of the cookies applicable to a URL for transport sync.
@@ -130,7 +137,7 @@ func (s *SourceSession) SetRequestHeaders(headers map[string]string) {
 	}
 }
 
-// RequestHeaders returns a copy of source-level request defaults.
+// RequestHeaders returns source defaults overlaid by stored login headers.
 func (s *SourceSession) RequestHeaders() map[string]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -138,14 +145,37 @@ func (s *SourceSession) RequestHeaders() map[string]string {
 	for key, value := range s.headers {
 		headers[key] = value
 	}
+	var login map[string]string
+	if json.Unmarshal([]byte(s.loginHeader), &login) == nil {
+		for key, value := range login {
+			for existing := range headers {
+				if strings.EqualFold(existing, key) {
+					delete(headers, existing)
+				}
+			}
+			headers[key] = value
+		}
+	}
 	return headers
 }
 
-// SetLoginHeader stores the source login-header JSON separately from normal request headers.
+// SetLoginHeader stores login headers and synchronizes any Cookie entry with the source cookie jar.
 func (s *SourceSession) SetLoginHeader(header string) {
 	s.mu.Lock()
 	s.loginHeader = header
 	s.mu.Unlock()
+	var login map[string]string
+	if json.Unmarshal([]byte(header), &login) != nil {
+		return
+	}
+	for key, value := range login {
+		if strings.EqualFold(key, "Cookie") {
+			s.mu.Lock()
+			s.loginCookie = value
+			s.mu.Unlock()
+			return
+		}
+	}
 }
 
 // LoginHeader returns the source login-header JSON, or an empty string when absent.
