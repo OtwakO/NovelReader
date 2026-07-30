@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-07-30T20:06:47.442Z",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"
+  },
+  "execution": {
+    "database": "fresh isolated SQLite",
+    "api": "production Explore catalog/page",
+    "exploreSourceTimeoutSeconds": 30,
+    "sourceChanges": false
+  },
+  "results": [
+    {
+      "rawIndex": 701,
+      "bookSourceUrl": "https://www.po18m.com/#🚀",
+      "name": "PO18文学②",
+      "catalog": {
+        "status": 200,
+        "durationMs": 39,
+        "entryCount": 35
+      },
+      "category": {
+        "id": "entry-1",
+        "title": "最近更新",
+        "type": "url"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 617,
+        "bookCount": 30,
+        "distinctBookUrls": 30,
+        "samples": [
+          {
+            "name": "继承战争（强制）",
+            "bookUrl": "https://www.po18m.com/book/116190/\nhttps://www.po18m.com/book/116190/29113881.html"
+          },
+          {
+            "name": "小哑巴（1v1H 校园）",
+            "bookUrl": "https://www.po18m.com/book/114977/\nhttps://www.po18m.com/book/114977/29113880.html"
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "rawIndex": 54,
+      "bookSourceUrl": "https://m.zhonghuashici.com/",
+      "name": "中华诗词（优+）",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 8
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "首页",
+        "type": "url"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 742,
+        "bookCount": 180,
+        "distinctBookUrls": 180,
+        "samples": [
+          {
+            "name": "杂曲歌辞。西洲曲",
+            "bookUrl": "https://m.zhonghuashici.com/show-1-9200.html"
+          },
+          {
+            "name": "献从兄",
+            "bookUrl": "https://m.zhonghuashici.com/show-1-45785.html"
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "rawIndex": 220,
+      "bookSourceUrl": "http://m.zhizihuan.com",
+      "name": "栀子欢子",
+      "catalog": {
+        "status": 200,
+        "durationMs": 2,
+        "entryCount": 30
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "穿越架空",
+        "type": "url"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 16156,
+        "bookCount": 100,
+        "distinctBookUrls": 100,
+        "samples": [
+          {
+            "name": "王爷，您的王妃要休夫",
+            "bookUrl": "http://m.zhizihuan.com/book/33402"
+          },
+          {
+            "name": "娘娘别骂了，太子他知错了",
+            "bookUrl": "http://m.zhizihuan.com/book/76782"
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "rawIndex": 443,
+      "bookSourceUrl": "https://comic.mkzhan.com",
+      "name": "漫客栈",
+      "catalog": {
+        "status": 200,
+        "durationMs": 3,
+        "entryCount": 38
+      },
+      "category": {
+        "id": "entry-0",
+        "title": "热门人气",
+        "type": "url"
+      },
+      "page": {
+        "status": 200,
+        "durationMs": 200,
+        "bookCount": 12,
+        "distinctBookUrls": 12,
+        "samples": [
+          {
+            "name": "妖神记",
+            "bookUrl": "https://comic.mkzhan.com/comic/info/?comic_id=207622"
+          },
+          {
+            "name": "凤逆天下",
+            "bookUrl": "https://comic.mkzhan.com/comic/info/?comic_id=208644"
+          }
+        ],
+        "error": null
+      }
+    }
+  ]
+}
