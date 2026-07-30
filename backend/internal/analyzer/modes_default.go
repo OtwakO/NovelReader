@@ -170,9 +170,11 @@ func parseDefault(expr string) ([]defaultSegment, string, error) {
 	last := strings.TrimSpace(parts[len(parts)-1])
 	segParts := parts
 	getter := ""
+	first := strings.TrimSpace(parts[0])
+	explicitDefaultFirst := strings.HasPrefix(first, "class.") || strings.HasPrefix(first, "id.") || strings.HasPrefix(first, "tag.") || strings.HasPrefix(first, "text.") || first == "children"
 	if isDefaultGetter(last) || (len(parts) > 1 && !isDefaultElementSelector(last) &&
-		(looksLikeDefault(strings.Join(parts[:len(parts)-1], "@")) || strings.TrimSpace(parts[0]) == "" ||
-			hasNumericSelectorSuffix(strings.TrimSpace(parts[0])))) {
+		(looksLikeDefault(strings.Join(parts[:len(parts)-1], "@")) || first == "" || explicitDefaultFirst ||
+			hasNumericSelectorSuffix(first))) {
 		getter = last
 		segParts = parts[:len(parts)-1]
 	}

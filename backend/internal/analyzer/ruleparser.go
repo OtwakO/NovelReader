@@ -317,6 +317,9 @@ func looksLikeDefault(expr string) bool {
 		if hasNumericSelectorSuffix(beforeAt) {
 			return true
 		}
+		if _, _, _, ok := cutDefaultBracketIndexes(beforeAt); ok {
+			return true
+		}
 
 		// Legacy class/index selectors such as .directoryArea:eq(1)@p@a
 		// and .directoryArea.1@p@a are Default traversal rules.
@@ -325,8 +328,8 @@ func looksLikeDefault(expr string) bool {
 			return true
 		}
 
-		// before @ has #id selector — probably CSS
-		// before @ is just a word + attr — probably CSS
+		// A simple element followed by a known HTML attribute is CSS-compatible
+		// syntax with the same getter meaning; unknown words remain CSS attrs too.
 		return false
 	}
 

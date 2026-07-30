@@ -30,8 +30,21 @@ func cssQuery(html, selector string) (string, error) {
 		if attr == "text" {
 			return strings.TrimSpace(selection.Text()), nil
 		}
-		v, _ := selection.Attr(attr)
-		return v, nil
+		seen := make(map[string]struct{}, selection.Length())
+		values := make([]string, 0, selection.Length())
+		selection.Each(func(_ int, item *goquery.Selection) {
+			value, _ := item.Attr(attr)
+			value = strings.TrimSpace(value)
+			if value == "" {
+				return
+			}
+			if _, duplicate := seen[value]; duplicate {
+				return
+			}
+			seen[value] = struct{}{}
+			values = append(values, value)
+		})
+		return strings.Join(values, "\n"), nil
 	}
 	return strings.TrimSpace(selection.First().Text()), nil
 }
