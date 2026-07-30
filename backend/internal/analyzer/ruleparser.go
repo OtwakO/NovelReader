@@ -332,6 +332,9 @@ func looksLikeDefault(expr string) bool {
 
 	// Positional ranges and terminal exclusions are Legado syntax even when
 	// the selector before them is otherwise valid CSS (`ul li a[8:]`, `#articlelist li!0`).
+	if _, _, _, ok := cutDefaultBracketIndexes(strings.TrimSpace(expr)); ok {
+		return true
+	}
 	if _, _, _, ok := cutDefaultRange(strings.TrimSpace(expr)); ok {
 		return true
 	}
@@ -357,8 +360,8 @@ func looksLikeDefault(expr string) bool {
 		return true
 	}
 
-	// Array index syntax at start
-	if strings.HasPrefix(expr, "[") && strings.Contains(expr, ":") {
+	// Array index syntax at start operates on the current element's children.
+	if strings.HasPrefix(expr, "[") && strings.HasSuffix(expr, "]") {
 		return true
 	}
 

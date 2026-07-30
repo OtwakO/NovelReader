@@ -20,6 +20,11 @@ func (s *testSourceState) GetVariable(key string) string           { return s.va
 func (s *testSourceState) PutVariable(key, value string)           { s.vars[key] = value }
 func (s *testSourceState) GetMemory(key string) interface{}        { return s.memory[key] }
 func (s *testSourceState) PutMemory(key string, value interface{}) { s.memory[key] = value }
+func (s *testSourceState) SetLoginHeader(header string)            { s.memory["__login_header_text"] = header }
+func (s *testSourceState) LoginHeader() string {
+	value, _ := s.memory["__login_header_text"].(string)
+	return value
+}
 
 func TestJSVMPooledRuntimeDoesNotLeakSourceGlobals(t *testing.T) {
 	vm := NewJSVMWithPoolSize(1)
@@ -78,11 +83,22 @@ func TestJSVMBindsLegadoObjectsToSourceState(t *testing.T) {
 	if err != nil || value != "fixture" {
 		t.Fatalf("cookie binding = %v, err=%v", value, err)
 	}
-	value, err = vm.Eval("source.putVariable('value'); source.put('saved', 'yes'); cache.putMemory('x', 'memory'); cache.put('legacy', 'cached'); cache.get('legacy')", "", "https://example.test/", bindings)
+	state.memory["__legado_login_header"] = map[string]string{"login_token": "token", "account": "reader"}
+	value, err = vm.Eval("source.putVariable('value'); source.put('saved', 'yes'); cache.putMemory('x', 'memory'); cache.put('legacy', 'cached'); source.getLoginHeaderMap().get('login_token') + '|' + cache.get('legacy')", "", "https://example.test/", bindings)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if value != "cached" || state.vars["https://example.test/"] != "value" || state.memory["saved"] != "yes" || state.memory["x"] != "memory" || state.memory["legacy"] != "cached" {
+	if value != "token|cached" || state.vars["https://example.test/"] != "value" || state.memory["saved"] != "yes" || state.memory["x"] != "memory" || state.memory["legacy"] != "cached" {
 		t.Fatalf("session state was not updated: value=%v vars=%v memory=%v", value, state.vars, state.memory)
+	}
+	delete(state.memory, "__legado_login_header")
+	value, err = vm.Eval(`source.putLoginHeader('{"login_token":"stored"}'); source.getLoginHeaderMap().get('login_token')`, "", "https://example.test/", bindings)
+	if err != nil || value != "stored" {
+		t.Fatalf("stored login header=%#v err=%v", value, err)
+	}
+	delete(state.memory, "__login_header_text")
+	value, err = vm.Eval("source.getLoginHeaderMap()", "", "https://example.test/", bindings)
+	if err != nil || value != nil {
+		t.Fatalf("missing login header map=%#v err=%v, want null", value, err)
 	}
 }

@@ -184,31 +184,33 @@ Map = function(a) {
 	_ = rt.Set("src", content) // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
 	_ = rt.Set("java", map[string]interface{}{
-		"get":            h.Get,
-		"put":            h.Put,
-		"post":           h.Post,
-		"ajax":           h.Ajax,
-		"connect":        h.Connect,
-		"md5Encode":      h.Md5Encode,
-		"md5Encode16":    h.Md5Encode16,
-		"base64Encode":   h.Base64Encode,
-		"base64Decode":   h.Base64Decode,
-		"encodeURI":      h.EncodeURI,
-		"randomUUID":     h.RandomUUID,
-		"timeFormat":     h.TimeFormat,
-		"toNumChapter":   h.ToNumChapter,
-		"t2s":            h.T2S,
-		"toast":          h.Toast,
-		"androidId":      h.AndroidId,
-		"log":            h.Log,
-		"getString":      h.GetString,
-		"getElement":     h.GetElement,
-		"getElements":    h.GetElements,
-		"setContent":     h.SetContent,
-		"HMacHex":        h.HMacHex,
-		"decode":         h.Decode,
-		"login":          h.Login,
-		"refreshExplore": h.RefreshExplore,
+		"get":                     h.Get,
+		"put":                     h.Put,
+		"post":                    h.Post,
+		"ajax":                    h.Ajax,
+		"connect":                 h.Connect,
+		"md5Encode":               h.Md5Encode,
+		"md5Encode16":             h.Md5Encode16,
+		"base64Encode":            h.Base64Encode,
+		"base64Decode":            h.Base64Decode,
+		"base64DecodeToByteArray": h.Base64DecodeToByteArray,
+		"createSymmetricCrypto":   h.CreateSymmetricCrypto,
+		"encodeURI":               h.EncodeURI,
+		"randomUUID":              h.RandomUUID,
+		"timeFormat":              h.TimeFormat,
+		"toNumChapter":            h.ToNumChapter,
+		"t2s":                     h.T2S,
+		"toast":                   h.Toast,
+		"androidId":               h.AndroidId,
+		"log":                     h.Log,
+		"getString":               h.GetString,
+		"getElement":              h.GetElement,
+		"getElements":             h.GetElements,
+		"setContent":              h.SetContent,
+		"HMacHex":                 h.HMacHex,
+		"decode":                  h.Decode,
+		"login":                   h.Login,
+		"refreshExplore":          h.RefreshExplore,
 	})
 	sourceObj := make(map[string]interface{})
 	if len(extra) > 0 {
@@ -307,8 +309,14 @@ func (vm *JSVM) EvalElementsContext(ctx context.Context, script string, content 
 func (vm *JSVM) makeSourceObj(baseURL string, state SourceState) map[string]interface{} {
 	src := &jsSource{baseURL: baseURL, vm: vm, state: state}
 	return map[string]interface{}{
-		"key":         baseURL,
-		"getKey":      func() string { return baseURL },
+		"key":               baseURL,
+		"getKey":            func() string { return baseURL },
+		"getLoginHeaderMap": func() interface{} { return loginHeaderMap(state) },
+		"putLoginHeader": func(header string) {
+			if target, ok := state.(interface{ SetLoginHeader(string) }); ok {
+				target.SetLoginHeader(header)
+			}
+		},
 		"getVariable": func() string { return src.GetVariable() },
 		"putVariable": func(v string) { src.PutVariable(v) },
 		"setVariable": func(v string) { src.PutVariable(v) },
@@ -954,6 +962,79 @@ func (h *jsHelpers) Base64Decode(str string) string {
 		return ""
 	}
 	return string(b)
+}
+
+// Base64DecodeToByteArray exposes Legado's nullable byte-array decoder.
+func (h *jsHelpers) Base64DecodeToByteArray(str interface{}, _ ...int) interface{} {
+	if str == nil || strings.TrimSpace(fmt.Sprint(str)) == "" {
+		return nil
+	}
+	value, err := base64.StdEncoding.DecodeString(fmt.Sprint(str))
+	if err != nil {
+		return nil
+	}
+	return value
+}
+
+// CreateSymmetricCrypto creates the Legado-compatible symmetric crypto object.
+func (h *jsHelpers) CreateSymmetricCrypto(transformation string, key interface{}, iv ...interface{}) (map[string]interface{}, error) {
+	keyBytes, err := jsBytes(key)
+	if err != nil {
+		return nil, err
+	}
+	var ivBytes []byte
+	if len(iv) > 0 && iv[0] != nil {
+		ivBytes, err = jsBytes(iv[0])
+		if err != nil {
+			return nil, err
+		}
+	}
+	crypto, err := newJSSymmetricCrypto(transformation, keyBytes, ivBytes)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"encrypt":       crypto.Encrypt,
+		"encryptBase64": crypto.EncryptBase64,
+		"encryptHex":    crypto.EncryptHex,
+		"decrypt":       crypto.Decrypt,
+		"decryptStr":    crypto.DecryptStr,
+	}, nil
+}
+
+const loginHeaderMemoryKey = "__legado_login_header"
+
+func loginHeaderMap(state SourceState) interface{} {
+	if state == nil {
+		return nil
+	}
+	var header map[string]string
+	value := state.GetMemory(loginHeaderMemoryKey)
+	if source, ok := state.(interface{ LoginHeader() string }); ok && source.LoginHeader() != "" {
+		value = source.LoginHeader()
+	}
+	switch value := value.(type) {
+	case map[string]string:
+		header = make(map[string]string, len(value))
+		for key, item := range value {
+			header[key] = item
+		}
+	case string:
+		if json.Unmarshal([]byte(value), &header) != nil {
+			return nil
+		}
+	default:
+		return nil
+	}
+	return map[string]interface{}{
+		"get": func(key string) interface{} {
+			value, ok := header[key]
+			if !ok {
+				return nil
+			}
+			return value
+		},
+	}
 }
 
 // randomUUID: java.randomUUID()

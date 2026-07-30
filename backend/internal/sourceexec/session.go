@@ -1,4 +1,4 @@
-// Source-scoped cookies, variables, and memory used by Legado rule execution.
+// Source-scoped cookies, variables, login headers, and memory used by Legado rule execution.
 package sourceexec
 
 import (
@@ -13,12 +13,13 @@ import (
 
 // SourceSession isolates mutable source state from other sources and users.
 type SourceSession struct {
-	jar     http.CookieJar
-	mu      sync.RWMutex
-	vars    map[string]string
-	memory  map[string]interface{}
-	headers map[string]string
-	lastURL string
+	jar         http.CookieJar
+	mu          sync.RWMutex
+	vars        map[string]string
+	memory      map[string]interface{}
+	headers     map[string]string
+	loginHeader string
+	lastURL     string
 }
 
 // NewSourceSession creates an isolated cookie and variable scope.
@@ -138,6 +139,20 @@ func (s *SourceSession) RequestHeaders() map[string]string {
 		headers[key] = value
 	}
 	return headers
+}
+
+// SetLoginHeader stores the source login-header JSON separately from normal request headers.
+func (s *SourceSession) SetLoginHeader(header string) {
+	s.mu.Lock()
+	s.loginHeader = header
+	s.mu.Unlock()
+}
+
+// LoginHeader returns the source login-header JSON, or an empty string when absent.
+func (s *SourceSession) LoginHeader() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.loginHeader
 }
 
 // PutVariable stores a persistent source variable.

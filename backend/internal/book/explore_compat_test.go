@@ -14,6 +14,33 @@ import (
 	"github.com/otwako/novelreader/internal/fetcher"
 )
 
+func TestExplorePageEvaluatesRulesAgainstReceivedHTTPErrorBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprint(w, `<a class="book" href="/book/1">Book</a>`)
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "HTTP body rules", EnabledExplore: true,
+		ExploreURL: "Books::" + server.URL, RuleExplore: `{"bookList":".book","name":"text","bookUrl":"href"}`,
+	}
+	searcher := NewSearcher(nil, nil, nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Books) != 1 || page.Books[0].Name != "Book" {
+		t.Fatalf("page=%+v", page)
+	}
+	if len(page.Diagnostics) != 1 || page.Diagnostics[0].Code != "http_status" || !page.Diagnostics[0].Retryable {
+		t.Fatalf("diagnostics=%+v", page.Diagnostics)
+	}
+}
+
 func TestExplorePageUsesConfiguredSourceTimeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(40 * time.Millisecond)

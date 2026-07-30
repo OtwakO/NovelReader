@@ -124,13 +124,22 @@ func defaultQueryElements(html, expr string) ([]interface{}, error) {
 
 // defaultSegment describes one segment of a Default rule.
 type defaultSegment struct {
-	selType    string // "tag", "class", "id", "text", "children", "css"
-	selVal     string // the tag name, class name, id, or text content
-	noIndex    bool   // true if no index was specified (return all elements)
-	index      int    // specific index to pick (negative = from end)
-	exclude    []int  // indices to exclude
-	rangeStart *int   // inclusive positional range start
-	rangeEnd   *int   // exclusive positional range end
+	selType        string // "tag", "class", "id", "text", "children", "css"
+	selVal         string // the tag name, class name, id, or text content
+	noIndex        bool   // true if no index was specified (return all elements)
+	index          int    // specific index to pick (negative = from end)
+	exclude        []int  // indices to exclude
+	rangeStart     *int   // inclusive positional range start
+	rangeEnd       *int   // inclusive positional range end
+	bracketIndexes []defaultIndexItem
+	bracketExclude bool
+}
+
+type defaultIndexItem struct {
+	index *int
+	start *int
+	end   *int
+	step  int
 }
 
 // parseDefault splits a Default expression into segments and getter.
@@ -161,8 +170,9 @@ func parseDefault(expr string) ([]defaultSegment, string, error) {
 	last := strings.TrimSpace(parts[len(parts)-1])
 	segParts := parts
 	getter := ""
-	if isDefaultGetter(last) || (len(parts) == 2 && (strings.TrimSpace(parts[0]) == "" ||
-		(hasNumericSelectorSuffix(strings.TrimSpace(parts[0])) && !isDefaultElementSelector(last)))) {
+	if isDefaultGetter(last) || (len(parts) > 1 && !isDefaultElementSelector(last) &&
+		(looksLikeDefault(strings.Join(parts[:len(parts)-1], "@")) || strings.TrimSpace(parts[0]) == "" ||
+			hasNumericSelectorSuffix(strings.TrimSpace(parts[0])))) {
 		getter = last
 		segParts = parts[:len(parts)-1]
 	}
@@ -188,6 +198,19 @@ func parseDefaultSegment(seg string) (defaultSegment, error) {
 	seg = strings.TrimSpace(seg)
 	if seg == "" {
 		return defaultSegment{}, fmt.Errorf("empty segment")
+	}
+	if base, items, exclude, ok := cutDefaultBracketIndexes(seg); ok {
+		if base == "" {
+			return defaultSegment{selType: "children", noIndex: true, bracketIndexes: items, bracketExclude: exclude}, nil
+		}
+		parsed, err := parseDefaultSegment(base)
+		if err != nil {
+			return defaultSegment{}, err
+		}
+		parsed.noIndex = true
+		parsed.bracketIndexes = items
+		parsed.bracketExclude = exclude
+		return parsed, nil
 	}
 	if base, start, end, ok := cutDefaultRange(seg); ok {
 		parsed, err := parseDefaultSegment(base)
@@ -326,6 +349,61 @@ func parseIntOrZero(s string) int {
 	return n
 }
 
+var defaultBracketIndexes = regexp.MustCompile(`^(.*)\[([^\]]+)\]$`)
+
+func cutDefaultBracketIndexes(segment string) (string, []defaultIndexItem, bool, bool) {
+	match := defaultBracketIndexes.FindStringSubmatch(segment)
+	if len(match) != 3 {
+		return segment, nil, false, false
+	}
+	body := strings.TrimSpace(match[2])
+	exclude := strings.HasPrefix(body, "!")
+	if exclude {
+		body = strings.TrimSpace(body[1:])
+	}
+	if body == "" {
+		return segment, nil, false, false
+	}
+	parseOptional := func(value string) (*int, bool) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil, true
+		}
+		parsed, err := strconv.Atoi(value)
+		return &parsed, err == nil
+	}
+	items := make([]defaultIndexItem, 0)
+	for _, raw := range strings.Split(body, ",") {
+		parts := strings.Split(strings.TrimSpace(raw), ":")
+		switch len(parts) {
+		case 1:
+			index, ok := parseOptional(parts[0])
+			if !ok || index == nil {
+				return segment, nil, false, false
+			}
+			items = append(items, defaultIndexItem{index: index})
+		case 2, 3:
+			start, startOK := parseOptional(parts[0])
+			end, endOK := parseOptional(parts[1])
+			step := 1
+			if len(parts) == 3 {
+				parsed, err := strconv.Atoi(strings.TrimSpace(parts[2]))
+				if err != nil || parsed == 0 {
+					return segment, nil, false, false
+				}
+				step = parsed
+			}
+			if !startOK || !endOK {
+				return segment, nil, false, false
+			}
+			items = append(items, defaultIndexItem{start: start, end: end, step: step})
+		default:
+			return segment, nil, false, false
+		}
+	}
+	return strings.TrimSpace(match[1]), items, exclude, len(items) > 0
+}
+
 var defaultRange = regexp.MustCompile(`^(.*)\[(-?[0-9]*):(-?[0-9]*)\]$`)
 
 func cutDefaultRange(segment string) (string, *int, *int, bool) {
@@ -399,17 +477,67 @@ func applyDefaultPosition(sel *goquery.Selection, seg defaultSegment) *goquery.S
 	if sel.Length() == 0 {
 		return sel
 	}
+	if len(seg.bracketIndexes) > 0 {
+		selected := make(map[int]bool)
+		order := make([]int, 0, sel.Length())
+		add := func(index int) {
+			index = resolveDefaultIndex(index, sel.Length())
+			if index >= 0 && index < sel.Length() && !selected[index] {
+				selected[index] = true
+				order = append(order, index)
+			}
+		}
+		for _, item := range seg.bracketIndexes {
+			if item.index != nil {
+				add(*item.index)
+				continue
+			}
+			start, end := 0, sel.Length()-1
+			if item.start != nil {
+				start = resolveDefaultIndex(*item.start, sel.Length())
+			}
+			if item.end != nil {
+				end = resolveDefaultIndex(*item.end, sel.Length())
+			}
+			start = max(0, min(start, sel.Length()-1))
+			end = max(0, min(end, sel.Length()-1))
+			step := item.step
+			if step < 0 {
+				step = sel.Length() + step
+			}
+			if step <= 0 {
+				step = 1
+			}
+			if start <= end {
+				for index := start; index <= end; index += step {
+					add(index)
+				}
+			} else {
+				for index := start; index >= end; index -= step {
+					add(index)
+				}
+			}
+		}
+		if seg.bracketExclude {
+			return sel.FilterFunction(func(index int, _ *goquery.Selection) bool { return !selected[index] })
+		}
+		result := sel.Slice(0, 0).Clone()
+		for _, index := range order {
+			result = result.AddSelection(sel.Eq(index))
+		}
+		return result
+	}
 	if seg.rangeStart != nil || seg.rangeEnd != nil {
-		start, end := 0, sel.Length()
+		start, end := 0, sel.Length()-1
 		if seg.rangeStart != nil {
 			start = resolveDefaultIndex(*seg.rangeStart, sel.Length())
 		}
 		if seg.rangeEnd != nil {
 			end = resolveDefaultIndex(*seg.rangeEnd, sel.Length())
 		}
-		start = max(0, min(start, sel.Length()))
-		end = max(start, min(end, sel.Length()))
-		return sel.Slice(start, end)
+		start = max(0, min(start, sel.Length()-1))
+		end = max(start, min(end, sel.Length()-1))
+		return sel.Slice(start, end+1)
 	}
 	if !seg.noIndex && len(seg.exclude) == 0 {
 		index := resolveDefaultIndex(seg.index, sel.Length())

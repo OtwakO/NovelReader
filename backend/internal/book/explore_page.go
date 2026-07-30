@@ -91,8 +91,12 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 	if err != nil {
 		return ExplorePage{}, newExploreError("response_transform_failed", "response", "Explore response transform failed", true, err)
 	}
-	if response.StatusCode != http.StatusOK {
-		return ExplorePage{}, newExploreError("http_status", "transport", "Explore source returned an error status", true, fmt.Errorf("status %d", response.StatusCode))
+	statusDiagnostic := ExploreDiagnostic{}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		statusDiagnostic = ExploreDiagnostic{
+			Code: "http_status", Stage: "transport", Severity: "warning", Retryable: true,
+			Message: fmt.Sprintf("Explore source returned HTTP status %d; rules evaluated the received response body", response.StatusCode),
+		}
 	}
 	baseURL := response.FinalURL
 	if baseURL == "" {
@@ -123,6 +127,9 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 	}
 	unique, truncated := retainExploreBooks(session, state, books)
 	diagnostics := []ExploreDiagnostic{}
+	if statusDiagnostic.Code != "" {
+		diagnostics = append(diagnostics, statusDiagnostic)
+	}
 	if truncated {
 		diagnostics = append(diagnostics, ExploreDiagnostic{
 			Code: "result_truncated", Stage: "capacity", Severity: "warning", Retryable: false,

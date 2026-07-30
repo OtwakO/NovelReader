@@ -39,6 +39,27 @@ func TestJavaChapterAndToastHelpers(t *testing.T) {
 	}
 }
 
+func TestJavaSymmetricCryptoAndByteArrayBridge(t *testing.T) {
+	vm := NewJSVM()
+	script := `
+var crypto=java.createSymmetricCrypto(
+  'AES/CBC/PKCS5Padding',
+  java.base64DecodeToByteArray('L6alxSR4ttjXvcGpZozYtdcJtG4l0tSnQplRUONIRsw='),
+  java.base64DecodeToByteArray('AAAAAAAAAAAAAAAAAAAAAA==')
+);
+var encrypted=crypto.encryptBase64('Legado bridge');
+crypto.decryptStr(encrypted);
+`
+	value, err := vm.Eval(script, "", "https://example.test/")
+	if err != nil || ToString(value) != "Legado bridge" {
+		t.Fatalf("crypto round trip=%q err=%v", ToString(value), err)
+	}
+	nullValue, err := vm.Eval(`java.base64DecodeToByteArray('')`, "", "https://example.test/")
+	if err != nil || nullValue != nil {
+		t.Fatalf("empty decode=%#v err=%v, want null", nullValue, err)
+	}
+}
+
 func TestJavaAjaxExecutesLegadoRequestOptions(t *testing.T) {
 	type request struct {
 		method, path, body, header, contentType string
