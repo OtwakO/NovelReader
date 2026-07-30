@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "auditedAt": "2026-07-30T21:17:51.966Z",
+  "auditedAt": "2026-07-30T21:54:40.083Z",
   "seed": "NovelReader-explore-random-v12-2026-07-31",
   "corpus": {
     "path": "test_booksource4.json",
@@ -394,23 +394,17 @@
     "credibleNonempty": 27,
     "totalDistinctBooks": 2768,
     "counts": {
-      "engine_gap": 4,
-      "source_incomplete_or_invalid": 5,
+      "source_incomplete_or_invalid": 6,
       "credible_nonempty": 27,
       "upstream_http": 2,
       "upstream_dns": 3,
       "site_drift": 5,
       "audit_infrastructure": 1,
+      "engine_gap": 3,
       "stale_source_contract": 2,
       "blocked_or_auth": 1
     },
     "sharedEngineGaps": [
-      {
-        "family": "Desktop default User-Agent breaks mobile-only source routing",
-        "rawIndices": [
-          251
-        ]
-      },
       {
         "family": "Outer non-2xx rejection prevents rule-driven AJAX",
         "rawIndices": [
@@ -562,8 +556,8 @@
           "error": null
         }
       },
-      "classification": "engine_gap",
-      "evidence": "The exact mobile rank URL is live. Desktop default User-Agent redirects to a desktop page with 30 `.mod-rank-name` rows but none of the imported selectors; a mobile User-Agent returns the intended mobile page with 7 `.comic-link` records, and the same production runtime with only that header change returns 7 books."
+      "classification": "source_incomplete_or_invalid",
+      "evidence": "The exact mobile rank URL is live, but the source declares no mobile User-Agent. Legado and NovelReader both use a configurable desktop fallback when no header is declared; that desktop request redirects to a page outside the imported mobile selector contract. A mobile header makes the raw source work, but inferring it from the hostname would overfit and is not a Legado rule contract."
     },
     {
       "rawIndex": 504,
