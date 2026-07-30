@@ -1020,21 +1020,26 @@ func loginHeaderMap(state SourceState) interface{} {
 			header[key] = item
 		}
 	case string:
-		if json.Unmarshal([]byte(value), &header) != nil {
+		var ok bool
+		header, ok = ParseLenientStringMap(value)
+		if !ok {
 			return nil
 		}
 	default:
 		return nil
 	}
-	return map[string]interface{}{
-		"get": func(key string) interface{} {
-			value, ok := header[key]
-			if !ok {
-				return nil
-			}
-			return value
-		},
+	result := make(map[string]interface{}, len(header)+1)
+	for key, value := range header {
+		result[key] = value
 	}
+	result["get"] = func(key string) interface{} {
+		value, ok := header[key]
+		if !ok {
+			return nil
+		}
+		return value
+	}
+	return result
 }
 
 // randomUUID: java.randomUUID()

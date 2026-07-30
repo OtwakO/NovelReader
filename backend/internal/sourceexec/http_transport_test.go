@@ -50,6 +50,29 @@ func TestHTTPTransportMergesHeaderNamesCaseInsensitively(t *testing.T) {
 	}
 }
 
+func TestHTTPTransportAppliesLoginHeadersBelowExplicitRequestHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "explicit" {
+			t.Errorf("Authorization=%q, want explicit", got)
+		}
+		if got := r.Header.Get("X-Login"); got != "yes" {
+			t.Errorf("X-Login=%q, want yes", got)
+		}
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	session := NewSourceSession()
+	session.SetRequestHeaders(map[string]string{"Authorization": "source"})
+	session.SetLoginHeader(`{authorization:"login",'X-Login':'yes'}`)
+	_, err := NewHTTPTransportForSession(fetcher.NewInsecureStateless(3*time.Second), session).Do(t.Context(), RequestSpec{
+		URL: server.URL, Headers: map[string]string{"AUTHORIZATION": "explicit"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestHTTPTransportPreservesRequestAndNonSuccessResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

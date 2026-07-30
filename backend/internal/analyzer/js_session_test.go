@@ -92,8 +92,8 @@ func TestJSVMBindsLegadoObjectsToSourceState(t *testing.T) {
 		t.Fatalf("session state was not updated: value=%v vars=%v memory=%v", value, state.vars, state.memory)
 	}
 	delete(state.memory, "__legado_login_header")
-	value, err = vm.Eval(`source.putLoginHeader('{"login_token":"stored"}'); source.getLoginHeaderMap().get('login_token')`, "", "https://example.test/", bindings)
-	if err != nil || value != "stored" {
+	value, err = vm.Eval(`source.putLoginHeader('{login_token:"stored",Cookie:"token=abc"}'); source.getLoginHeaderMap().get('login_token') + '|' + source.getLoginHeaderMap().Cookie`, "", "https://example.test/", bindings)
+	if err != nil || value != "stored|token=abc" {
 		t.Fatalf("stored login header=%#v err=%v", value, err)
 	}
 	delete(state.memory, "__login_header_text")

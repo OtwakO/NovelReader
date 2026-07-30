@@ -44,7 +44,11 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 		}
 	}
 
-	headers := cloneHeaders(spec.Headers)
+	headers := map[string]string{}
+	if t.session != nil {
+		headers = t.session.RequestHeaders()
+	}
+	headers = MergeHeaders(headers, spec.Headers)
 	if t.session != nil && t.client.CookieJar() == nil && !hasHeader(headers, "Cookie") {
 		if cookie := t.session.CookieHeader(spec.URL); cookie != "" {
 			headers["Cookie"] = cookie

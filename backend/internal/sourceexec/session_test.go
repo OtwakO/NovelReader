@@ -48,14 +48,17 @@ func TestSourceSessionCopiesRequestHeaders(t *testing.T) {
 func TestSourceSessionLoginHeadersOverrideRequestHeadersAndSyncCookie(t *testing.T) {
 	session := NewSourceSession()
 	session.SetRequestHeaders(map[string]string{"Authorization": "source", "X-Source": "yes"})
-	session.SetLoginHeader(`{"authorization":"login","Cookie":"token=abc","X-Login":"yes"}`)
+	if err := session.SetCookie("https://example.test/", "old", "stale"); err != nil {
+		t.Fatal(err)
+	}
+	session.SetLoginHeader(`{authorization:'login',Cookie:"token=abc",'X-Login':'yes'}`)
 
 	headers := session.RequestHeaders()
 	if headers["authorization"] != "login" || headers["X-Source"] != "yes" || headers["X-Login"] != "yes" {
 		t.Fatalf("merged headers=%v", headers)
 	}
 	if got := session.CookieHeader("https://example.test/"); got != "token=abc" {
-		t.Fatalf("cookie=%q, want token=abc", got)
+		t.Fatalf("cookie=%q, want login cookie to replace stale jar cookie", got)
 	}
 }
 

@@ -16,7 +16,7 @@ func ParseLenientStringMap(raw string) (map[string]string, bool) {
 		if index >= len(body) {
 			return values, true
 		}
-		key, next, ok := readQuotedStringMapPart(body, index)
+		key, next, ok := readStringMapKey(body, index)
 		if !ok {
 			return nil, false
 		}
@@ -38,6 +38,20 @@ func ParseLenientStringMap(raw string) (map[string]string, bool) {
 		}
 		index++
 	}
+}
+
+func readStringMapKey(value string, index int) (string, int, bool) {
+	if index < len(value) && (value[index] == '\'' || value[index] == '"') {
+		return readQuotedStringMapPart(value, index)
+	}
+	start := index
+	for index < len(value) && (value[index] == '_' || value[index] == '-' || value[index] >= '0' && value[index] <= '9' || value[index] >= 'A' && value[index] <= 'Z' || value[index] >= 'a' && value[index] <= 'z') {
+		index++
+	}
+	if index == start {
+		return "", index, false
+	}
+	return value[start:index], index, true
 }
 
 func readQuotedStringMapPart(value string, index int) (string, int, bool) {
