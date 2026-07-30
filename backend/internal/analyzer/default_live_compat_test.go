@@ -166,6 +166,15 @@ func TestSelectedTableRowKeepsContextForFieldRules(t *testing.T) {
 	}
 }
 
+func TestDefaultPositionalRangeSelectsFromStartThroughEnd(t *testing.T) {
+	an := New(`<ul><li><a>zero</a><a>one</a><a>two</a><a>three</a></li></ul>`, "https://example.com/", NewJSVM(), nil)
+
+	value, err := an.GetStringStrict(`ul li a[2:]@text`)
+	if err != nil || value != "two\nthree" {
+		t.Fatalf("value=%q err=%v, want two and three", value, err)
+	}
+}
+
 func TestDefaultStringJoinsAllUnpositionedMatches(t *testing.T) {
 	an := New(`<div class="mh-item"><a href="/same"></a><a href="/same">A</a><a href="/other">A</a><a href="/last">B</a></div>`, "https://example.com/", NewJSVM(), NewCacheManager())
 

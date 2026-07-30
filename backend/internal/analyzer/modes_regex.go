@@ -196,7 +196,7 @@ func isHexDigits(value string) bool {
 }
 
 func isJavaIdentityEscape(r rune) bool {
-	if unicode.IsLetter(r) || unicode.IsDigit(r) {
+	if r <= unicode.MaxASCII && (unicode.IsLetter(r) || unicode.IsDigit(r)) {
 		return false
 	}
 	return !strings.ContainsRune(`\\.+*?()|[]{}^$-`, r)

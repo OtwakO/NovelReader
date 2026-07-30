@@ -88,6 +88,7 @@ func main() {
 	limits.ConcurrentGlobal = cfg.GlobalSearchConcurrency
 	limits.MaxSessions = cfg.MaxSessions
 	limits.SessionTTL = cfg.SessionTTL
+	limits.ExploreSourceTimeout = cfg.ExploreSourceTimeout
 	searcher := book.NewSearcherWithLimits(httpContent, jsVM, cache, sourceStore, bookStore, limits)
 	regularFingerprintConfig := fingerprintConfig
 	regularFingerprintConfig.Timeout = 5 * time.Second // leave room for normal fallback within per-source timeout
@@ -136,6 +137,7 @@ func main() {
 		"jsPoolSize", cfg.JSPoolSize,
 		"maxWorkflowSessions", cfg.MaxSessions,
 		"sessionTTL", cfg.SessionTTL,
+		"exploreSourceTimeout", cfg.ExploreSourceTimeout,
 	)
 
 	srv := &http.Server{

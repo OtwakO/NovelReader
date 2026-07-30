@@ -19,6 +19,7 @@ type Config struct {
 	JSPoolSize              int
 	MaxSessions             int
 	SessionTTL              time.Duration
+	ExploreSourceTimeout    time.Duration
 }
 
 func Load() *Config {
@@ -34,6 +35,7 @@ func Load() *Config {
 		JSPoolSize:              getEnvPositiveInt("JS_POOL_SIZE", 4),
 		MaxSessions:             getEnvPositiveInt("MAX_WORKFLOW_SESSIONS", 1024),
 		SessionTTL:              time.Duration(getEnvPositiveInt("SESSION_TTL_MINUTES", 30)) * time.Minute,
+		ExploreSourceTimeout:    time.Duration(getEnvPositiveInt("EXPLORE_SOURCE_TIMEOUT_SECONDS", 30)) * time.Second,
 	}
 }
 

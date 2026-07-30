@@ -124,11 +124,13 @@ func defaultQueryElements(html, expr string) ([]interface{}, error) {
 
 // defaultSegment describes one segment of a Default rule.
 type defaultSegment struct {
-	selType string // "tag", "class", "id", "text", "children", "css"
-	selVal  string // the tag name, class name, id, or text content
-	noIndex bool   // true if no index was specified (return all elements)
-	index   int    // specific index to pick (negative = from end)
-	exclude []int  // indices to exclude
+	selType    string // "tag", "class", "id", "text", "children", "css"
+	selVal     string // the tag name, class name, id, or text content
+	noIndex    bool   // true if no index was specified (return all elements)
+	index      int    // specific index to pick (negative = from end)
+	exclude    []int  // indices to exclude
+	rangeStart *int   // inclusive positional range start
+	rangeEnd   *int   // exclusive positional range end
 }
 
 // parseDefault splits a Default expression into segments and getter.
@@ -186,6 +188,16 @@ func parseDefaultSegment(seg string) (defaultSegment, error) {
 	seg = strings.TrimSpace(seg)
 	if seg == "" {
 		return defaultSegment{}, fmt.Errorf("empty segment")
+	}
+	if base, start, end, ok := cutDefaultRange(seg); ok {
+		parsed, err := parseDefaultSegment(base)
+		if err != nil {
+			return defaultSegment{}, err
+		}
+		parsed.noIndex = true
+		parsed.rangeStart = start
+		parsed.rangeEnd = end
+		return parsed, nil
 	}
 	if base, index, ok := cutDefaultExclusion(seg); ok {
 		parsed, err := parseDefaultSegment(base)
@@ -314,6 +326,25 @@ func parseIntOrZero(s string) int {
 	return n
 }
 
+var defaultRange = regexp.MustCompile(`^(.*)\[(-?[0-9]*):(-?[0-9]*)\]$`)
+
+func cutDefaultRange(segment string) (string, *int, *int, bool) {
+	match := defaultRange.FindStringSubmatch(segment)
+	if len(match) != 4 || strings.TrimSpace(match[1]) == "" || (match[2] == "" && match[3] == "") {
+		return segment, nil, nil, false
+	}
+	parseBound := func(value string) (*int, bool) {
+		if value == "" {
+			return nil, true
+		}
+		bound, err := strconv.Atoi(value)
+		return &bound, err == nil
+	}
+	start, startOK := parseBound(match[2])
+	end, endOK := parseBound(match[3])
+	return strings.TrimSpace(match[1]), start, end, startOK && endOK
+}
+
 var defaultExclusion = regexp.MustCompile(`^(.*)!(-?[0-9]+)$`)
 
 func cutDefaultExclusion(segment string) (string, int, bool) {
@@ -367,6 +398,18 @@ func selectDefaultDescendants(sel *goquery.Selection, seg defaultSegment) *goque
 func applyDefaultPosition(sel *goquery.Selection, seg defaultSegment) *goquery.Selection {
 	if sel.Length() == 0 {
 		return sel
+	}
+	if seg.rangeStart != nil || seg.rangeEnd != nil {
+		start, end := 0, sel.Length()
+		if seg.rangeStart != nil {
+			start = resolveDefaultIndex(*seg.rangeStart, sel.Length())
+		}
+		if seg.rangeEnd != nil {
+			end = resolveDefaultIndex(*seg.rangeEnd, sel.Length())
+		}
+		start = max(0, min(start, sel.Length()))
+		end = max(start, min(end, sel.Length()))
+		return sel.Slice(start, end)
 	}
 	if !seg.noIndex && len(seg.exclude) == 0 {
 		index := resolveDefaultIndex(seg.index, sel.Length())

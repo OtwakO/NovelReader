@@ -42,7 +42,7 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 		return ExplorePage{}, err
 	}
 
-	pageCtx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
+	pageCtx, cancel := context.WithTimeout(ctx, s.exploreTimeout())
 	defer cancel()
 	if err := s.rateLimitWait(pageCtx, session.source); err != nil {
 		return ExplorePage{}, newExploreError("rate_limit_cancelled", "capacity", "Explore request cancelled while rate-limited", true, err)

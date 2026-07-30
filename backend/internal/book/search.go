@@ -32,21 +32,23 @@ const (
 
 // SearcherLimits bounds process-local work and retained workflow state.
 type SearcherLimits struct {
-	ConcurrentPerSearch int
-	ConcurrentGlobal    int
-	MaxSessions         int
-	SessionTTL          time.Duration
-	WorkflowTimeout     time.Duration
+	ConcurrentPerSearch  int
+	ConcurrentGlobal     int
+	MaxSessions          int
+	SessionTTL           time.Duration
+	WorkflowTimeout      time.Duration
+	ExploreSourceTimeout time.Duration
 }
 
 // DefaultSearcherLimits returns conservative limits for a 2-vCPU/4-GB container.
 func DefaultSearcherLimits() SearcherLimits {
 	return SearcherLimits{
-		ConcurrentPerSearch: defaultMaxConcurrentSearch,
-		ConcurrentGlobal:    defaultMaxConcurrentGlobalSearch,
-		MaxSessions:         defaultMaxSessions,
-		SessionTTL:          defaultSessionTTL,
-		WorkflowTimeout:     perSourceTimeout,
+		ConcurrentPerSearch:  defaultMaxConcurrentSearch,
+		ConcurrentGlobal:     defaultMaxConcurrentGlobalSearch,
+		MaxSessions:          defaultMaxSessions,
+		SessionTTL:           defaultSessionTTL,
+		WorkflowTimeout:      perSourceTimeout,
+		ExploreSourceTimeout: 30 * time.Second,
 	}
 }
 
@@ -88,6 +90,7 @@ type Searcher struct {
 	sessions                *sourceexec.SessionRegistry
 	explore                 *exploreRegistry
 	workflowTimeout         time.Duration
+	exploreSourceTimeout    time.Duration
 	concurrentPerSearch     int
 	searchSlots             chan struct{}
 	capacity                capacityCounters
@@ -131,23 +134,27 @@ func NewSearcherWithLimits(
 	if limits.WorkflowTimeout <= 0 {
 		limits.WorkflowTimeout = defaults.WorkflowTimeout
 	}
+	if limits.ExploreSourceTimeout <= 0 {
+		limits.ExploreSourceTimeout = defaults.ExploreSourceTimeout
+	}
 	sharedFetcher := hc
 	if hc != nil {
 		sharedFetcher = hc.StatelessClone()
 	}
 	return &Searcher{
-		fetcher:             sharedFetcher,
-		jsVM:                jsVM,
-		cache:               cache,
-		sourceStore:         sourceStore,
-		bookStore:           bookStore,
-		sessions:            sourceexec.NewSessionRegistryWithLimits(limits.MaxSessions, limits.SessionTTL),
-		explore:             newExploreRegistry(limits.MaxSessions, limits.SessionTTL),
-		workflowTimeout:     limits.WorkflowTimeout,
-		concurrentPerSearch: limits.ConcurrentPerSearch,
-		searchSlots:         make(chan struct{}, limits.ConcurrentGlobal),
-		rateMu:              sync.Mutex{},
-		lastAccess:          make(map[string]time.Time),
+		fetcher:              sharedFetcher,
+		jsVM:                 jsVM,
+		cache:                cache,
+		sourceStore:          sourceStore,
+		bookStore:            bookStore,
+		sessions:             sourceexec.NewSessionRegistryWithLimits(limits.MaxSessions, limits.SessionTTL),
+		explore:              newExploreRegistry(limits.MaxSessions, limits.SessionTTL),
+		workflowTimeout:      limits.WorkflowTimeout,
+		exploreSourceTimeout: limits.ExploreSourceTimeout,
+		concurrentPerSearch:  limits.ConcurrentPerSearch,
+		searchSlots:          make(chan struct{}, limits.ConcurrentGlobal),
+		rateMu:               sync.Mutex{},
+		lastAccess:           make(map[string]time.Time),
 	}
 }
 
@@ -171,6 +178,13 @@ func (s *Searcher) sourceTimeout() time.Duration {
 		return s.workflowTimeout
 	}
 	return perSourceTimeout
+}
+
+func (s *Searcher) exploreTimeout() time.Duration {
+	if s.exploreSourceTimeout > 0 {
+		return s.exploreSourceTimeout
+	}
+	return 30 * time.Second
 }
 
 func (s *Searcher) workflowClient() *fetcher.Client {
@@ -431,8 +445,8 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 
 	var results []SearchResult
 	for _, el := range elements {
-		elHTML := analyzer.ToString(el)
-		elAn := analyzer.New(elHTML, baseURL, s.jsVM, s.cache)
+		elAn := analyzer.New(analyzer.ToString(el), baseURL, s.jsVM, s.cache)
+		elAn.SetContent(el)
 		elAn.SetJSLib(src.JSLib)
 		elAn.SetSourceState(state)
 		elAn.SetSourceData(sourceContext(src))

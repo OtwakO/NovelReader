@@ -8,7 +8,7 @@ import (
 func TestLoadUsesSmallContainerCapacityDefaults(t *testing.T) {
 	for _, key := range []string{
 		"SEARCH_CONCURRENCY", "GLOBAL_SEARCH_CONCURRENCY", "JS_POOL_SIZE",
-		"MAX_WORKFLOW_SESSIONS", "SESSION_TTL_MINUTES",
+		"MAX_WORKFLOW_SESSIONS", "SESSION_TTL_MINUTES", "EXPLORE_SOURCE_TIMEOUT_SECONDS",
 	} {
 		t.Setenv(key, "")
 	}
@@ -16,8 +16,8 @@ func TestLoadUsesSmallContainerCapacityDefaults(t *testing.T) {
 	if cfg.SearchConcurrency != 16 || cfg.GlobalSearchConcurrency != 32 || cfg.JSPoolSize != 4 {
 		t.Fatalf("execution limits=%d/%d/%d", cfg.SearchConcurrency, cfg.GlobalSearchConcurrency, cfg.JSPoolSize)
 	}
-	if cfg.MaxSessions != 1024 || cfg.SessionTTL != 30*time.Minute {
-		t.Fatalf("session limits=%d/%s", cfg.MaxSessions, cfg.SessionTTL)
+	if cfg.MaxSessions != 1024 || cfg.SessionTTL != 30*time.Minute || cfg.ExploreSourceTimeout != 30*time.Second {
+		t.Fatalf("workflow limits=%d/%s/%s", cfg.MaxSessions, cfg.SessionTTL, cfg.ExploreSourceTimeout)
 	}
 }
 
@@ -27,11 +27,12 @@ func TestLoadAcceptsCapacityOverridesAndRejectsNonPositiveValues(t *testing.T) {
 	t.Setenv("JS_POOL_SIZE", "8")
 	t.Setenv("MAX_WORKFLOW_SESSIONS", "2048")
 	t.Setenv("SESSION_TTL_MINUTES", "60")
+	t.Setenv("EXPLORE_SOURCE_TIMEOUT_SECONDS", "45")
 	cfg := Load()
 	if cfg.SearchConcurrency != 24 || cfg.GlobalSearchConcurrency != 32 || cfg.JSPoolSize != 8 {
 		t.Fatalf("execution limits=%d/%d/%d", cfg.SearchConcurrency, cfg.GlobalSearchConcurrency, cfg.JSPoolSize)
 	}
-	if cfg.MaxSessions != 2048 || cfg.SessionTTL != time.Hour {
-		t.Fatalf("session limits=%d/%s", cfg.MaxSessions, cfg.SessionTTL)
+	if cfg.MaxSessions != 2048 || cfg.SessionTTL != time.Hour || cfg.ExploreSourceTimeout != 45*time.Second {
+		t.Fatalf("workflow limits=%d/%s/%s", cfg.MaxSessions, cfg.SessionTTL, cfg.ExploreSourceTimeout)
 	}
 }

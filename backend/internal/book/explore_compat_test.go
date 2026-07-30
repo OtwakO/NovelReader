@@ -7,10 +7,37 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/booksource"
 )
+
+func TestExplorePageUsesConfiguredSourceTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(40 * time.Millisecond)
+		_, _ = fmt.Fprint(w, `<a class="book" href="/book/1">Book</a>`)
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "Slow Explore", EnabledExplore: true,
+		ExploreURL: "Books::" + server.URL, RuleExplore: `{"bookList":".book","name":"text","bookUrl":"href"}`,
+	}
+	limits := DefaultSearcherLimits()
+	limits.ExploreSourceTimeout = 100 * time.Millisecond
+	searcher := NewSearcherWithLimits(nil, nil, nil, exploreSourceFixtureStore{source: source}, nil, limits)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Books) != 1 || page.Books[0].Name != "Book" {
+		t.Fatalf("page=%+v", page)
+	}
+}
 
 func TestExplorePageUsesWholeSearchRulesWhenExploreBookListIsBlank(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -90,6 +117,30 @@ func TestExplorePageExpandsEncodedCategoryPageSelector(t *testing.T) {
 	}
 	if fmt.Sprint(offsets) != "[0 150]" || first.Books[0].Name != "Book 0" || second.Books[0].Name != "Book 150" {
 		t.Fatalf("offsets=%v first=%+v second=%+v", offsets, first, second)
+	}
+}
+
+func TestExplorePageDirectJavaScriptReceivesStructuredJSONResult(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `{"data":{"list":[{"title":"Book","comic_id":42,"author_title":"Author"}]}}`)
+	}))
+	defer server.Close()
+	source := booksource.BookSource{
+		BookSourceURL: server.URL, BookSourceName: "Structured JSON result", EnabledExplore: true,
+		ExploreURL:  "Books::" + server.URL,
+		RuleExplore: `{"bookList":"$.data.list.*","name":"@js:java.put('comic_id',result.comic_id);result.title","author":"$.author_title","bookUrl":"@js:'/book/'+java.get('comic_id')"}`,
+	}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := searcher.GetExplorePage(t.Context(), ExplorePageRequest{SessionID: catalog.SessionID, CategoryID: "entry-0", Page: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Books) != 1 || page.Books[0].Name != "Book" || page.Books[0].Author != "Author" || page.Books[0].BookURL != server.URL+"/book/42" {
+		t.Fatalf("page=%+v", page)
 	}
 }
 

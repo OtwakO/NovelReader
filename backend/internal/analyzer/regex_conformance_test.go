@@ -31,6 +31,14 @@ func TestJavaRegexEscapesWorkThroughAnalyzer(t *testing.T) {
 	}
 }
 
+func TestInlineReplacementNormalizesJavaIdentityEscapes(t *testing.T) {
+	analyzer := New(`<p class="intro">简介：现言</p>`, "https://example.test/", NewJSVM(), nil)
+	value, err := analyzer.GetStringStrict(`class.intro@text##\简介：`)
+	if err != nil || value != "现言" {
+		t.Fatalf("value=%q err=%v, want 现言", value, err)
+	}
+}
+
 func TestStandaloneRegexRuleUsesReplacementAndFirstMatchMarker(t *testing.T) {
 	analyzer := New(`<meta author="忘语">`, "https://example.test/", NewJSVM(), nil)
 	value, err := analyzer.GetString(`##author="([^"]+)"##$1###`)
