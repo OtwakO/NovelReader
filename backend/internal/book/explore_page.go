@@ -69,7 +69,7 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 		return ExplorePage{}, newExploreError("request_build_failed", "request", "Could not build Explore source headers", false, err)
 	}
 	session.state.SetRequestHeaders(sourceHeaders)
-	transport := s.newTransport(s.workflowClient(), session.state)
+	transport := s.newTransport(s.workflowClientWithTimeout(s.exploreTimeout()), session.state)
 	defer transport.CloseIdleConnections()
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session.state)
 	spec, err := executor.BuildContext(pageCtx, kind.URL, "", request.Page, session.source.BookSourceURL)

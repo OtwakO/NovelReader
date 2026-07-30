@@ -330,8 +330,11 @@ func looksLikeDefault(expr string) bool {
 		return false
 	}
 
-	// A terminal !index is Legado exclusion syntax even when the selector
-	// before it is otherwise valid CSS (`#articlelist li!0`).
+	// Positional ranges and terminal exclusions are Legado syntax even when
+	// the selector before them is otherwise valid CSS (`ul li a[8:]`, `#articlelist li!0`).
+	if _, _, _, ok := cutDefaultRange(strings.TrimSpace(expr)); ok {
+		return true
+	}
 	if _, _, ok := cutDefaultExclusion(strings.TrimSpace(expr)); ok {
 		return true
 	}

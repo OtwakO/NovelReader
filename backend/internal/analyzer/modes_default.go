@@ -151,7 +151,7 @@ func parseDefault(expr string) ([]defaultSegment, string, error) {
 		}
 		// A single explicit Default selector such as
 		// `class.foo bar` is still a selector, not CSS.
-		if seg, parseErr := parseDefaultSegment(parts[0]); parseErr == nil && (seg.selType != "css" || len(seg.exclude) > 0) {
+		if seg, parseErr := parseDefaultSegment(parts[0]); parseErr == nil && (seg.selType != "css" || len(seg.exclude) > 0 || seg.rangeStart != nil || seg.rangeEnd != nil) {
 			return []defaultSegment{seg}, "", nil
 		}
 		return []defaultSegment{{selType: "css", selVal: expr, noIndex: true}}, "", nil

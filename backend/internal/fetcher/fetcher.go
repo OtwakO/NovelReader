@@ -107,11 +107,19 @@ func NewInsecureStateless(timeout time.Duration) *Client {
 
 // StatelessClone shares the connection pool without sharing cookies.
 func (c *Client) StatelessClone() *Client {
+	return c.StatelessCloneWithTimeout(0)
+}
+
+// StatelessCloneWithTimeout shares the connection pool without cookies and optionally overrides the client timeout.
+func (c *Client) StatelessCloneWithTimeout(timeout time.Duration) *Client {
 	if c == nil || c.httpClient == nil {
 		return nil
 	}
 	client := *c.httpClient
 	client.Jar = nil
+	if timeout > 0 {
+		client.Timeout = timeout
+	}
 	return &Client{httpClient: &client, headers: cloneStringMap(c.headers)}
 }
 

@@ -188,10 +188,14 @@ func (s *Searcher) exploreTimeout() time.Duration {
 }
 
 func (s *Searcher) workflowClient() *fetcher.Client {
+	return s.workflowClientWithTimeout(s.sourceTimeout())
+}
+
+func (s *Searcher) workflowClientWithTimeout(timeout time.Duration) *fetcher.Client {
 	if s.fetcher != nil {
-		return s.fetcher
+		return s.fetcher.StatelessCloneWithTimeout(timeout)
 	}
-	return fetcher.NewInsecure(s.sourceTimeout())
+	return fetcher.NewInsecureStateless(timeout)
 }
 
 func (s *Searcher) newTransport(client *fetcher.Client, session *sourceexec.SourceSession) *sourceexec.RoutingTransport {

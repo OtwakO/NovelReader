@@ -11,6 +11,7 @@ import (
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/fetcher"
 )
 
 func TestExplorePageUsesConfiguredSourceTimeout(t *testing.T) {
@@ -25,7 +26,7 @@ func TestExplorePageUsesConfiguredSourceTimeout(t *testing.T) {
 	}
 	limits := DefaultSearcherLimits()
 	limits.ExploreSourceTimeout = 100 * time.Millisecond
-	searcher := NewSearcherWithLimits(nil, nil, nil, exploreSourceFixtureStore{source: source}, nil, limits)
+	searcher := NewSearcherWithLimits(fetcher.NewInsecure(20*time.Millisecond), nil, nil, exploreSourceFixtureStore{source: source}, nil, limits)
 	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
 	if err != nil {
 		t.Fatal(err)
