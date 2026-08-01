@@ -862,6 +862,15 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 		}
 		enqueueCandidates(nextURLs[:1])
 	}
+	if replaceRule := rules["replaceRegex"]; replaceRule != "" {
+		lines := strings.Split(content, "\n")
+		for index := range lines {
+			lines[index] = strings.TrimSpace(lines[index])
+		}
+		content = strings.Join(lines, "\n")
+		an.SetContent(content)
+		content = mustString(an, replaceRule)
+	}
 	return content, chapterTitle, nil
 }
 

@@ -43,6 +43,30 @@ func TestGetChapterContentFollowsAllNextContentURLs(t *testing.T) {
 	}
 }
 
+func TestGetChapterContentAppliesReplaceRegexAfterJoiningPages(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/chapter/1":
+			_, _ = w.Write([]byte(`<div class="content">第一页正文</div><a class="next" href="/page-2">下一页</a>`))
+		case "/page-2":
+			_, _ = w.Write([]byte(`<div class="content">第二页正文</div>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL,
+		RuleContent:   `{"content":"@css:.content@text","nextContentUrl":"@css:.next@href","replaceRegex":"##第一页正文\\n第二页正文##合并正文"}`,
+	}
+	content, _, err := s.GetChapterContent(src, server.URL+"/chapter/1")
+	if err != nil || content != "合并正文" {
+		t.Fatalf("content=%q err=%v, want content-level replacement after page aggregation", content, err)
+	}
+}
+
 func TestGetChapterContentStopsAtRepeatedPage(t *testing.T) {
 	var page1Requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
