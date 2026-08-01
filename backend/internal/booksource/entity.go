@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 )
 
+const BookSourceTypeFile = 3
+
 // BookSource mirrors the legado book source JSON format.
 // Fields are tagged with db column names for SQLite storage and JSON for import/export.
 //

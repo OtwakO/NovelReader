@@ -602,7 +602,7 @@ func (s *Searcher) GetBookInfoForBook(src booksource.BookSource, b *Book, bookUR
 	if err != nil {
 		return nil, err
 	}
-	if parsed.TocURL == "" {
+	if src.BookSourceType != booksource.BookSourceTypeFile && parsed.TocURL == "" {
 		slog.Debug("book info: tocUrl not extracted from ruleBookInfo"+
 			" — chapter fetch will fallback to book detail page",
 			"source", src.BookSourceName,

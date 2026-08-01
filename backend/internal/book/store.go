@@ -25,20 +25,21 @@ type AltSource struct {
 
 // Book represents a book on the user's shelf.
 type Book struct {
-	ID          string `json:"id" db:"id"`
-	Name        string `json:"name" db:"name"`
-	Author      string `json:"author,omitempty" db:"author"`
-	CoverURL    string `json:"coverUrl,omitempty" db:"cover_url"`
-	Intro       string `json:"intro,omitempty" db:"intro"`
-	Kind        string `json:"kind,omitempty" db:"kind"`
-	SourceURL   string `json:"sourceUrl" db:"source_url"`
-	BookURL     string `json:"bookUrl" db:"book_url"`
-	TocURL      string `json:"tocUrl,omitempty" db:"toc_url"`
-	Origin      string `json:"origin" db:"origin"`
-	VariableMap string `json:"variableMap,omitempty" db:"variable_map"`
-	LastChapter string `json:"lastChapter,omitempty" db:"last_chapter"`
-	UpdateTime  string `json:"updateTime,omitempty" db:"update_time"`
-	WordCount   string `json:"wordCount,omitempty" db:"word_count"`
+	ID           string   `json:"id" db:"id"`
+	Name         string   `json:"name" db:"name"`
+	Author       string   `json:"author,omitempty" db:"author"`
+	CoverURL     string   `json:"coverUrl,omitempty" db:"cover_url"`
+	Intro        string   `json:"intro,omitempty" db:"intro"`
+	Kind         string   `json:"kind,omitempty" db:"kind"`
+	SourceURL    string   `json:"sourceUrl" db:"source_url"`
+	BookURL      string   `json:"bookUrl" db:"book_url"`
+	TocURL       string   `json:"tocUrl,omitempty" db:"toc_url"`
+	Origin       string   `json:"origin" db:"origin"`
+	VariableMap  string   `json:"variableMap,omitempty" db:"variable_map"`
+	LastChapter  string   `json:"lastChapter,omitempty" db:"last_chapter"`
+	UpdateTime   string   `json:"updateTime,omitempty" db:"update_time"`
+	WordCount    string   `json:"wordCount,omitempty" db:"word_count"`
+	DownloadURLs []string `json:"downloadUrls,omitempty" db:"-"`
 
 	DurChapterIndex int     `json:"durChapterIndex" db:"dur_chapter_index"`
 	DurChapterPos   float64 `json:"durChapterPos" db:"dur_chapter_pos"`

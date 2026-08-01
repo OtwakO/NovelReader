@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -120,6 +121,43 @@ func TestGetBookInfoForBookRespectsCanReName(t *testing.T) {
 				t.Fatalf("book=%+v, want name=%q author=%q and updated intro", book, test.wantName, test.wantAuthor)
 			}
 		})
+	}
+}
+
+func TestGetBookInfoExtractsFileDownloadURLs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<h1>File Book</h1><a class="download" href="files/book.epub">EPUB</a><a class="download" href="/files/book.txt">TXT</a>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL:  server.URL,
+		BookSourceType: booksource.BookSourceTypeFile,
+		RuleBookInfo:   `{"name":"h1@text","downloadUrls":"@css:.download@href"}`,
+	}
+	book, err := s.GetBookInfo(src, server.URL+"/detail/book")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{server.URL + "/detail/files/book.epub", server.URL + "/files/book.txt"}
+	if !slices.Equal(book.DownloadURLs, want) {
+		t.Fatalf("downloadUrls=%v, want %v", book.DownloadURLs, want)
+	}
+
+	src.BookSourceType = 0
+	ordinary, err := s.GetBookInfo(src, server.URL+"/detail/book")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ordinary.DownloadURLs) != 0 {
+		t.Fatalf("ordinary source downloadUrls=%v, want none", ordinary.DownloadURLs)
+	}
+
+	src.BookSourceType = booksource.BookSourceTypeFile
+	src.RuleBookInfo = `{"name":"h1@text","downloadUrls":"@css:.missing@href"}`
+	if _, err := s.GetBookInfo(src, server.URL+"/detail/book"); err == nil || !strings.Contains(err.Error(), "download URLs are empty") {
+		t.Fatalf("error=%v, want empty download URL failure", err)
 	}
 }
 

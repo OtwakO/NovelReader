@@ -60,7 +60,22 @@ func (s *Searcher) parseBookInfoResponse(ctx context.Context, src booksource.Boo
 	bookData["coverUrl"] = book.CoverURL
 	book.UpdateTime = readField(rules["updateTime"])
 	bookData["updateTime"] = book.UpdateTime
-	if tocURL := readField(rules["tocUrl"]); tocURL != "" {
+	if src.BookSourceType == booksource.BookSourceTypeFile {
+		downloadURLs, err := an.GetStringList(rules["downloadUrls"])
+		if err != nil || len(downloadURLs) == 0 {
+			return nil, fmt.Errorf("book info: download URLs are empty")
+		}
+		book.DownloadURLs = book.DownloadURLs[:0]
+		for _, downloadURL := range downloadURLs {
+			if resolved := resolveURL(strings.TrimSpace(downloadURL), baseURL); resolved != "" {
+				book.DownloadURLs = append(book.DownloadURLs, resolved)
+			}
+		}
+		if len(book.DownloadURLs) == 0 {
+			return nil, fmt.Errorf("book info: download URLs are empty")
+		}
+		bookData["downloadUrls"] = book.DownloadURLs
+	} else if tocURL := readField(rules["tocUrl"]); tocURL != "" {
 		book.TocURL = resolveURL(tocURL, baseURL)
 		bookData["tocUrl"] = book.TocURL
 	}

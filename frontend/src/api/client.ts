@@ -283,6 +283,7 @@ export interface Book {
   bookUrl: string;
   origin?: string;
   lastChapter: string;
+  downloadUrls?: string[];
   durChapterIndex: number;
   durChapterPos: number;
   totalChapterNum: number;

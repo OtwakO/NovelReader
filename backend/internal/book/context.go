@@ -127,6 +127,7 @@ func bookContext(b *Book, src booksource.BookSource) map[string]interface{} {
 	values["lastChapter"] = b.LastChapter
 	values["updateTime"] = b.UpdateTime
 	values["wordCount"] = b.WordCount
+	values["downloadUrls"] = b.DownloadURLs
 	values["durChapterIndex"] = b.DurChapterIndex
 	values["durChapterPos"] = b.DurChapterPos
 	values["totalChapterNum"] = b.TotalChapterNum

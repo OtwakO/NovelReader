@@ -72,16 +72,17 @@
 
 ### LC-006 — Extract and expose `ruleBookInfo.downloadUrls`
 
-- **Status:** Next
+- **Status:** Done
 - **Priority:** High
 - **Impact:** Approximately 23 bundled sources define it.
-- **Audit finding:** Detail parsing ignores the field. It is required by type-3/file sources that expose downloadable EPUB, TXT, or archive resources instead of an ordinary chapter-content flow.
-- **Implementation checkpoint:** Define a typed domain/API representation and ownership before implementation; avoid hiding download resources in unrelated text fields.
-- **TDD seam:** Public book-info parsing first; file download execution belongs to the source-type task unless a smaller existing interface is sufficient.
+- **Verified upstream contract:** For `bookSourceType: 3` file sources, detail parsing evaluates `downloadUrls` as a URL list and fails when no links resolve. Legado keeps the resulting list transient rather than persisting it on the shelf record.
+- **Implemented behavior:** `Book.downloadUrls` is exposed as a typed transient `[]string`/`string[]` API field. File-source detail parsing resolves every extracted link against the final response URL and rejects an empty result. Ordinary source types retain TOC parsing and do not populate download URLs. Download/import execution remains intentionally deferred to LC-019.
+- **Verification:** Public book-info coverage checks multiple relative links, ordinary-source exclusion, and the required empty-link failure. Full `internal/book`, `internal/api`, and `internal/conformance` tests pass; the frontend production build succeeds.
+- **Commit:** `feat: expose file source download URLs`
 
 ### LC-007 — Complete explicit CSS/Jsoup compatibility
 
-- **Status:** Queued
+- **Status:** Next
 - **Priority:** High
 - **Important qualification:** Ordinary Cascadia/GoQuery CSS, `@text`, `@html`, and arbitrary attributes already work. CSS support is partial, not absent.
 - **Verified gaps:**
