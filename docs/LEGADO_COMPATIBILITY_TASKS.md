@@ -42,19 +42,19 @@
 - **Verification:** Public `Searcher.ParseSearchResult` regression and focused Search/Explore parser tests.
 - **Commit:** `f0b461f fix: preserve search list metadata`
 
-### LC-003 — Honor `ruleSearch.checkKeyWord`
+### LC-003 — Preserve `ruleSearch.checkKeyWord` for source validation
 
-- **Status:** Next
-- **Priority:** Very high
-- **Impact:** Approximately 77 bundled sources define it.
-- **Audit finding:** NovelReader always uses the supplied user query and never consumes this rule field.
-- **Implementation checkpoint:** Verify exact current Legado semantics before coding, especially where the check keyword overrides the user keyword and whether its scope is source validation, ordinary search, or both.
-- **TDD seam:** Public search-source workflow, asserting the effective keyword before search URL construction and request execution.
-- **Do not:** Generalize keyword rewriting beyond upstream behavior.
+- **Status:** Preserve/classify — no ordinary-search runtime change required
+- **Priority:** Low until NovelReader adds a source-validation workflow
+- **Impact:** Approximately 77 bundled sources define it; raw BookSource JSON preservation already retains it.
+- **Corrected finding:** Current Legado does not use `checkKeyWord` to override an ordinary user search. `BookSource.getCheckKeyword(default)` is called by `CheckSourceService` only when validating source health. The source-debug UI also presents it as a suggested query, but the submitted query remains user-selected.
+- **NovelReader contract:** Keep the field preserved inside `ruleSearch`. If a dedicated source-validation feature is added, use a non-blank value unless it contains `http`, `::`, `++`, or `--`; otherwise use that validator's configured default keyword, matching current upstream `getCheckKeyword` behavior.
+- **Do not:** Substitute it in `Searcher.searchSource`; doing so would silently replace real user queries and diverge from Legado.
+- **Evidence:** `reference/legado/app/src/main/java/io/legado/app/data/entities/BookSource.kt` and `reference/legado/app/src/main/java/io/legado/app/service/CheckSourceService.kt`.
 
 ### LC-004 — Respect `enabledCookieJar`
 
-- **Status:** Queued
+- **Status:** Next
 - **Priority:** Very high
 - **Audit finding:** NovelReader creates and retains session cookies even when a source explicitly sets `enabledCookieJar: false`; an omitted value remains `nil` and is behaviorally ignored.
 - **Required behavior:** Match Legado's decision about automatic cookie-jar persistence while retaining explicit cookie/header behavior.
