@@ -2,7 +2,7 @@
 
 > Created from the verified second-pass compatibility audit on 2026-08-01.
 >
-> This document preserves the implementation queue and the audit's important qualifications. It is a task tracker, not a claim that every item should be implemented with equal urgency. Work should proceed one focused TDD slice at a time, using current vendored Legado behavior in `reference/legado` as the semantic source of truth.
+> This document preserves the implementation queue and the audit's important qualifications. It is a task tracker, not a claim that every item should be implemented with equal urgency. Work should proceed one focused TDD slice at a time, using current vendored Legado behavior in `reference/legado` as the semantic source of truth. An offline snapshot of the important booksource authoring tutorial is indexed at [`docs/legado-reference/README.md`](legado-reference/README.md).
 
 ## Status legend
 
