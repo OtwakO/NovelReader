@@ -77,6 +77,52 @@ func TestGetBookInfoAppliesInitBeforeDetailRules(t *testing.T) {
 	}
 }
 
+func TestGetBookInfoForBookRespectsCanReName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<h1 class="name">Detail Name</h1><span class="author">Detail Author</span><p class="intro">Detail Intro</p>`))
+	}))
+	defer server.Close()
+
+	for _, test := range []struct {
+		name       string
+		canReName  string
+		initial    *Book
+		wantName   string
+		wantAuthor string
+	}{
+		{
+			name: "absent preserves existing identity", initial: &Book{Name: "Search Name", Author: "Search Author"},
+			wantName: "Search Name", wantAuthor: "Search Author",
+		},
+		{
+			name: "nonblank permits detail identity", canReName: "1", initial: &Book{Name: "Search Name", Author: "Search Author"},
+			wantName: "Detail Name", wantAuthor: "Detail Author",
+		},
+		{
+			name: "absent fills empty identity", initial: &Book{},
+			wantName: "Detail Name", wantAuthor: "Detail Author",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+			rule, err := json.Marshal(map[string]string{
+				"name": ".name@text", "author": ".author@text", "intro": ".intro@text", "canReName": test.canReName,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			src := booksource.BookSource{BookSourceURL: server.URL, RuleBookInfo: string(rule)}
+			book, err := s.GetBookInfoForBook(src, test.initial, server.URL+"/book")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if book.Name != test.wantName || book.Author != test.wantAuthor || book.Intro != "Detail Intro" {
+				t.Fatalf("book=%+v, want name=%q author=%q and updated intro", book, test.wantName, test.wantAuthor)
+			}
+		})
+	}
+}
+
 func TestGetBookInfoKeepsMutableBookContext(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<h1 class="name">Mutable Book</h1>`))

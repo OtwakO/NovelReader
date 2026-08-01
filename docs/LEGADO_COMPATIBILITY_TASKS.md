@@ -63,16 +63,16 @@
 
 ### LC-005 — Handle `ruleBookInfo.canReName`
 
-- **Status:** Next
+- **Status:** Done
 - **Priority:** High
-- **Audit finding:** Included in the revised high-priority field list but not intentionally handled by the current runtime.
-- **Implementation checkpoint:** Confirm the current upstream field type, default, and exact effect on book identity/name mutation before defining a NovelReader contract.
-- **TDD seam:** Public book-info workflow with an existing book identity and a source-provided detail name.
-- **Do not:** Change persisted book identity or source-switch behavior until upstream semantics and local ownership are clear.
+- **Verified upstream contract:** `canReName` is a nullable string presence flag. A nonblank value permits detail rules to replace an existing name and author when the caller allows renaming; without it, detail parsing only fills empty identity fields.
+- **Implemented behavior:** Added `GetBookInfoForBook` for enrichment against an existing book. Name and author are preserved unless `canReName` is nonblank, while all other detail fields continue to update. The legacy URL-only method starts from an empty book and remains compatible. Add-book enrichment and source switching now pass their known identity into this workflow.
+- **Verification:** Public book-info regression covers absent/preserve, nonblank/replace, and absent/fill-empty behavior. Full `internal/book` and `internal/api` package tests pass.
+- **Commit:** `fix: respect book detail rename policy`
 
 ### LC-006 — Extract and expose `ruleBookInfo.downloadUrls`
 
-- **Status:** Queued
+- **Status:** Next
 - **Priority:** High
 - **Impact:** Approximately 23 bundled sources define it.
 - **Audit finding:** Detail parsing ignores the field. It is required by type-3/file sources that expose downloadable EPUB, TXT, or archive resources instead of an ordinary chapter-content flow.

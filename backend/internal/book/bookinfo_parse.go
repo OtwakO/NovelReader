@@ -36,10 +36,15 @@ func (s *Searcher) parseBookInfoResponse(ctx context.Context, src booksource.Boo
 		setAnalyzerContextWithBookData(an, src, state, bookData, book, nil, nil, baseURL)
 		return mustString(an, rule)
 	}
-	book.Name = readField(rules["name"])
+	canReName := strings.TrimSpace(rules["canReName"]) != ""
+	if name := readField(rules["name"]); name != "" && (canReName || book.Name == "") {
+		book.Name = name
+	}
 	bookData["name"] = book.Name
 	syncBookFromContext(book, bookData)
-	book.Author = readField(rules["author"])
+	if author := readField(rules["author"]); author != "" && (canReName || book.Author == "") {
+		book.Author = author
+	}
 	bookData["author"] = book.Author
 	syncBookFromContext(book, bookData)
 	book.Kind = readField(rules["kind"])

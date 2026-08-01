@@ -320,20 +320,14 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch and enrich book info from source
-	enriched, err := s.searcher.GetBookInfo(*src, req.BookURL)
+	// Fetch and enrich book info from source while preserving search identity unless the source permits renaming.
+	enriched, err := s.searcher.GetBookInfoForBook(*src, b, req.BookURL)
 	if err != nil {
 		writeCrawlError(w, "book_info", err)
 		return
 	}
 
 	// Merge ALL enriched fields into book (overwrite with enriched data)
-	if enriched.Name != "" {
-		b.Name = enriched.Name
-	}
-	if enriched.Author != "" {
-		b.Author = enriched.Author
-	}
 	if enriched.CoverURL != "" {
 		b.CoverURL = enriched.CoverURL
 	}
@@ -740,7 +734,9 @@ func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
 		return
 	}
-	target, err := s.searcher.GetBookInfo(*src, req.BookURL)
+	target, err := s.searcher.GetBookInfoForBook(*src, &book.Book{
+		Name: current.Name, Author: current.Author,
+	}, req.BookURL)
 	if err != nil {
 		writeCrawlError(w, "book_info", err)
 		return

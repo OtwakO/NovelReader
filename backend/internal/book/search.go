@@ -544,6 +544,11 @@ func (s *Searcher) ParseSearchResultWithStateAtURL(src booksource.BookSource, ht
 
 // GetBookInfo fetches and parses book info using ruleBookInfo.
 func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book, error) {
+	return s.GetBookInfoForBook(src, nil, bookURL)
+}
+
+// GetBookInfoForBook enriches an existing book while respecting ruleBookInfo.canReName.
+func (s *Searcher) GetBookInfoForBook(src booksource.BookSource, b *Book, bookURL string) (*Book, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
 	defer cancel()
 
@@ -556,10 +561,17 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	session.SetRequestHeaders(sourceHeaders)
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
-	b := &Book{
-		SourceURL: src.BookSourceURL,
-		BookURL:   bookURL,
-		Origin:    src.BookSourceName,
+	if b == nil {
+		b = &Book{}
+	}
+	if b.SourceURL == "" {
+		b.SourceURL = src.BookSourceURL
+	}
+	if b.BookURL == "" {
+		b.BookURL = bookURL
+	}
+	if b.Origin == "" {
+		b.Origin = src.BookSourceName
 	}
 	bookData := bookContext(b, src)
 	setExecutorContextWithBookData(executor, src, bookData, b, nil, nil, bookURL)
