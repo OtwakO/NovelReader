@@ -430,7 +430,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		key  string
 		rule string
 	}
-	for _, key := range []string{"name", "author", "coverUrl", "intro", "kind", "lastChapter", "bookUrl"} {
+	for _, key := range []string{"name", "author", "coverUrl", "intro", "kind", "lastChapter", "updateTime", "wordCount", "bookUrl"} {
 		if r := rules[key]; r != "" {
 			fieldRules = append(fieldRules, struct {
 				key  string
@@ -498,6 +498,10 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 				r.Kind = value
 			case "lastChapter":
 				r.LastChapter = value
+			case "updateTime":
+				r.UpdateTime = value
+			case "wordCount":
+				r.WordCount = value
 			}
 			bookData[f.key] = value
 			elAn.SetBookDataValues(bookData)
