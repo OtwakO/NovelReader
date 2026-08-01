@@ -94,9 +94,8 @@ func NewInsecure(timeout time.Duration) *Client {
 	}
 }
 
-// NewInsecureStateless creates a fetcher with InsecureSkipVerify but NO cookie jar.
-// Use for search / stateless requests where cookie isolation matters.
-// All 939 real-world legado sources have enabledCookieJar=false, so this is the correct default.
+// NewInsecureStateless creates a fetcher with InsecureSkipVerify but NO shared cookie jar.
+// Source workflows synchronize cookies through their isolated SourceSession when enabled.
 func NewInsecureStateless(timeout time.Duration) *Client {
 	slog.Warn("fetcher: created with InsecureSkipVerify, no cookie jar (stateless)")
 	return &Client{

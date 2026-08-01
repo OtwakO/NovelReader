@@ -190,5 +190,10 @@ func (c *SessionHTTPClient) syncCookies(requestURL string, response *Response) e
 		rawURL = requestURL
 	}
 	cookies := (&http.Response{Header: response.Headers}).Cookies()
+	if session, ok := c.session.(interface {
+		SetResponseCookies(string, []*http.Cookie) error
+	}); ok {
+		return session.SetResponseCookies(rawURL, cookies)
+	}
 	return c.session.SetCookies(rawURL, cookies)
 }

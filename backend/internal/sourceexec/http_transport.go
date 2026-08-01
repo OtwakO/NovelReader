@@ -99,7 +99,7 @@ func (t *HTTPTransport) Do(ctx context.Context, spec RequestSpec) (Response, err
 		responseCookies := (&http.Response{Header: resp.Headers}).Cookies()
 		for _, cookieURL := range cookieURLs {
 			cookies := mergeCookies(responseCookies, t.client.Cookies(cookieURL))
-			if err := t.session.SetCookies(cookieURL, cookies); err != nil {
+			if err := t.session.SetResponseCookies(cookieURL, cookies); err != nil {
 				return Response{}, fmt.Errorf("sourceexec: sync session cookies after response: %w", err)
 			}
 		}

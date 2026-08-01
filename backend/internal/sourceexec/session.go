@@ -15,20 +15,39 @@ import (
 
 // SourceSession isolates mutable source state from other sources and users.
 type SourceSession struct {
-	jar         http.CookieJar
-	mu          sync.RWMutex
-	vars        map[string]string
-	memory      map[string]interface{}
-	headers     map[string]string
-	loginHeader string
-	loginCookie string
-	lastURL     string
+	jar             http.CookieJar
+	mu              sync.RWMutex
+	vars            map[string]string
+	memory          map[string]interface{}
+	headers         map[string]string
+	loginHeader     string
+	loginCookie     string
+	lastURL         string
+	responseCookies bool
 }
 
 // NewSourceSession creates an isolated cookie and variable scope.
 func NewSourceSession() *SourceSession {
 	jar, _ := cookiejar.New(nil)
-	return &SourceSession{jar: jar, vars: make(map[string]string), memory: make(map[string]interface{}), headers: make(map[string]string)}
+	return &SourceSession{
+		jar: jar, vars: make(map[string]string), memory: make(map[string]interface{}), headers: make(map[string]string),
+		responseCookies: true,
+	}
+}
+
+// SetResponseCookiesEnabled controls automatic persistence of cookies received from source responses.
+// Explicit source-script cookie operations remain available when this is disabled.
+func (s *SourceSession) SetResponseCookiesEnabled(enabled bool) {
+	s.mu.Lock()
+	s.responseCookies = enabled
+	s.mu.Unlock()
+}
+
+// ResponseCookiesEnabled reports whether transports may retain response cookies automatically.
+func (s *SourceSession) ResponseCookiesEnabled() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.responseCookies
 }
 
 // SetCookie stores one cookie for a source URL.
@@ -102,7 +121,7 @@ func (s *SourceSession) RemoveCookies(rawURL string) error {
 	return nil
 }
 
-// SetCookies imports cookies received from a transport into this session.
+// SetCookies explicitly imports cookies into this session.
 func (s *SourceSession) SetCookies(rawURL string, cookies []*http.Cookie) error {
 	u, err := parseSessionURL(rawURL)
 	if err != nil {
@@ -110,6 +129,17 @@ func (s *SourceSession) SetCookies(rawURL string, cookies []*http.Cookie) error 
 	}
 	s.jar.SetCookies(u, cookies)
 	return nil
+}
+
+// SetResponseCookies imports cookies received automatically from a transport when enabled.
+func (s *SourceSession) SetResponseCookies(rawURL string, cookies []*http.Cookie) error {
+	s.mu.RLock()
+	enabled := s.responseCookies
+	s.mu.RUnlock()
+	if !enabled {
+		return nil
+	}
+	return s.SetCookies(rawURL, cookies)
 }
 
 // CookieJar returns the session jar for an HTTP transport created for this session.

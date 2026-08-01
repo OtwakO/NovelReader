@@ -394,6 +394,10 @@ type responseCookieState interface {
 	SetCookies(rawURL string, cookies []*http.Cookie) error
 }
 
+type automaticResponseCookieState interface {
+	SetResponseCookies(rawURL string, cookies []*http.Cookie) error
+}
+
 type responseURLState interface {
 	SetLastURL(rawURL string)
 }
@@ -493,7 +497,14 @@ func (h *jsHelpers) syncResponseCookies(rawURL string, headers http.Header) {
 		return
 	}
 	response := &http.Response{Header: headers}
-	if err := state.SetCookies(rawURL, response.Cookies()); err != nil {
+	cookies := response.Cookies()
+	if automaticState, ok := h.state.(automaticResponseCookieState); ok {
+		if err := automaticState.SetResponseCookies(rawURL, cookies); err != nil {
+			slog.Debug("js: response cookie sync failed", "url", rawURL, "err", err)
+		}
+		return
+	}
+	if err := state.SetCookies(rawURL, cookies); err != nil {
 		slog.Debug("js: response cookie sync failed", "url", rawURL, "err", err)
 	}
 }

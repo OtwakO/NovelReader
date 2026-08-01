@@ -63,7 +63,10 @@ func newClient(config Config, fallback fetcher.HTTPClient, session fetcher.Cooki
 	if config.Timeout <= 0 {
 		config.Timeout = 15 * time.Second
 	}
-	jar := tlsclient.NewCookieJar()
+	var jar tlsclient.CookieJar = tlsclient.NewCookieJar()
+	if state, ok := session.(interface{ ResponseCookiesEnabled() bool }); ok && !state.ResponseCookiesEnabled() {
+		jar = disabledCookieJar{CookieJar: jar}
+	}
 	options := clientOptions(config, jar, nil)
 	if config.InsecureSkipVerify {
 		options = append(options, tlsclient.WithInsecureSkipVerify())
@@ -112,6 +115,13 @@ func (c *Client) ForSource(session fetcher.CookieSession) fetcher.HTTPClient {
 	}
 	return scoped
 }
+
+type disabledCookieJar struct{ tlsclient.CookieJar }
+
+func (j disabledCookieJar) SetCookies(*url.URL, []*fhttp.Cookie) {}
+
+// GetAllCookies must stay empty because the wrapped jar deliberately receives no response cookies.
+func (j disabledCookieJar) GetAllCookies() map[string][]*fhttp.Cookie { return nil }
 
 type failedClient struct{ err error }
 
@@ -343,7 +353,13 @@ func (c *Client) syncSession(response *fetcher.Response, requestURL string) {
 				Secure: cookie.Secure, HttpOnly: cookie.HttpOnly, SameSite: http.SameSite(cookie.SameSite),
 			})
 		}
-		if err := c.session.SetCookies(rawURL, converted); err != nil {
+		if session, ok := c.session.(interface {
+			SetResponseCookies(string, []*http.Cookie) error
+		}); ok {
+			if err := session.SetResponseCookies(rawURL, converted); err != nil {
+				return
+			}
+		} else if err := c.session.SetCookies(rawURL, converted); err != nil {
 			return
 		}
 	}

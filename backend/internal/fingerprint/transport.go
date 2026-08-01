@@ -111,7 +111,7 @@ func (t *Transport) finish(ctx context.Context, spec sourceexec.RequestSpec, res
 	}
 	if t.session != nil {
 		stdResponse := &http.Response{Header: response.Headers}
-		if err := t.session.SetCookies(response.URL, stdResponse.Cookies()); err != nil {
+		if err := t.session.SetResponseCookies(response.URL, stdResponse.Cookies()); err != nil {
 			return sourceexec.Response{}, fmt.Errorf("fingerprint: sync session cookies: %w", err)
 		}
 	}

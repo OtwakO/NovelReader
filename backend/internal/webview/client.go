@@ -110,7 +110,7 @@ func (c *Client) do(ctx context.Context, spec sourceexec.RequestSpec, session *s
 		finalURL = spec.URL
 	}
 	if session != nil {
-		if err := session.SetCookies(finalURL, fromProtocolCookies(result.Cookies)); err != nil {
+		if err := session.SetResponseCookies(finalURL, fromProtocolCookies(result.Cookies)); err != nil {
 			return sourceexec.Response{}, fmt.Errorf("webview: sync cookies: %w", err)
 		}
 		session.SetLastURL(finalURL)

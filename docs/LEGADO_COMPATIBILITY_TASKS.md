@@ -54,16 +54,16 @@
 
 ### LC-004 — Respect `enabledCookieJar`
 
-- **Status:** Next
+- **Status:** Done
 - **Priority:** Very high
-- **Audit finding:** NovelReader creates and retains session cookies even when a source explicitly sets `enabledCookieJar: false`; an omitted value remains `nil` and is behaviorally ignored.
-- **Required behavior:** Match Legado's decision about automatic cookie-jar persistence while retaining explicit cookie/header behavior.
-- **TDD seam:** Public multi-request source workflow with one source enabling and one disabling automatic jar continuity.
-- **Risk:** Cookie policy affects state isolation across search, detail, TOC, content, Java bridge HTTP, fingerprint, and WebView transports. Keep the change centralized in the shared session/transport boundary.
+- **Corrected default:** Current Legado `BookSource.enabledCookieJar` defaults to true. NovelReader therefore treats an omitted value as enabled and an explicit false as disabled.
+- **Implemented behavior:** Automatic response-cookie capture is gated centrally on `SourceSession` across normal HTTP, JavaScript HTTP adapters, fingerprint transport, and WebView transport. Explicit source-script cookie operations and explicit Cookie headers remain available when automatic capture is disabled.
+- **Verification:** Public detail → TOC workflow covers omitted/default-enabled and explicit-false behavior; focused nearby transport/session tests pass.
+- **Commit:** `fix: respect source cookie jar policy`
 
 ### LC-005 — Handle `ruleBookInfo.canReName`
 
-- **Status:** Queued
+- **Status:** Next
 - **Priority:** High
 - **Audit finding:** Included in the revised high-priority field list but not intentionally handled by the current runtime.
 - **Implementation checkpoint:** Confirm the current upstream field type, default, and exact effect on book identity/name mutation before defining a NovelReader contract.

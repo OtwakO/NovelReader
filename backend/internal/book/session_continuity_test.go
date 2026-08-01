@@ -60,6 +60,54 @@ func TestBookWorkflowEvaluatesSourceHeadersForEveryRequest(t *testing.T) {
 	}
 }
 
+func TestBookWorkflowRespectsEnabledCookieJar(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		enabledCookieJar *bool
+		wantCookie       bool
+	}{
+		{name: "omitted defaults enabled", wantCookie: true},
+		{name: "explicit false disables automatic cookies", enabledCookieJar: boolPointer(false), wantCookie: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/book":
+					http.SetCookie(w, &http.Cookie{Name: "auth", Value: "fixture", Path: "/"})
+					_, _ = w.Write([]byte(`<h1 class="name">Book</h1><a class="toc" href="/toc">TOC</a>`))
+				case "/toc":
+					hasCookie := r.Header.Get("Cookie") == "auth=fixture"
+					if hasCookie != test.wantCookie {
+						http.Error(w, "unexpected automatic cookie state", http.StatusForbidden)
+						return
+					}
+					_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">One</a>`))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+			src := booksource.BookSource{
+				BookSourceURL: server.URL, BookSourceName: "fixture", EnabledCookieJar: test.enabledCookieJar,
+				RuleBookInfo: `{"name":"@css:.name@text","tocUrl":"@css:.toc@href"}`,
+				RuleToc:      `{"chapterList":"@css:.chapter","chapterName":"text","chapterUrl":"@href"}`,
+			}
+			book, err := s.GetBookInfo(src, server.URL+"/book")
+			if err != nil {
+				t.Fatal(err)
+			}
+			chapters, err := s.GetChapterListForBook(src, book, book.TocURL)
+			if err != nil || len(chapters) != 1 {
+				t.Fatalf("chapters=%+v err=%v", chapters, err)
+			}
+		})
+	}
+}
+
+func boolPointer(value bool) *bool { return &value }
+
 func TestBookWorkflowCarriesCookiesFromDetailToTOCAndContent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/book" {

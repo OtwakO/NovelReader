@@ -198,6 +198,13 @@ func (s *Searcher) workflowClientWithTimeout(timeout time.Duration) *fetcher.Cli
 	return fetcher.NewInsecureStateless(timeout)
 }
 
+func configureSourceSession(src booksource.BookSource, session *sourceexec.SourceSession) {
+	if session == nil {
+		return
+	}
+	session.SetResponseCookiesEnabled(src.EnabledCookieJar == nil || *src.EnabledCookieJar)
+}
+
 func (s *Searcher) newTransport(client *fetcher.Client, session *sourceexec.SourceSession) *sourceexec.RoutingTransport {
 	normal := sourceexec.Transport(sourceexec.NewHTTPTransportForSession(client, session))
 	if s.transportFactory != nil {
@@ -320,6 +327,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	// Search owns one session/client pair so cookies and source variables cannot leak
 	// between concurrent sources while remaining available to multi-stage rules.
 	session := sourceexec.NewSourceSession()
+	configureSourceSession(src, session)
 	sourceHeaders, err := evaluateSourceHeaders(srcCtx, s.jsVM, src, session)
 	if err != nil {
 		return nil, fmt.Errorf("source headers: %w", err)
@@ -540,6 +548,7 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
+	configureSourceSession(src, session)
 	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
 	if err != nil {
 		return nil, fmt.Errorf("book info: source headers: %w", err)
@@ -614,6 +623,7 @@ func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, toc
 	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
+	configureSourceSession(src, session)
 	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
 	if err != nil {
 		return nil, fmt.Errorf("chapter list: source headers: %w", err)
@@ -693,6 +703,7 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 	if session == nil {
 		session = sourceexec.NewSourceSession()
 	}
+	configureSourceSession(src, session)
 	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
 	if err != nil {
 		return "", "", fmt.Errorf("content: source headers: %w", err)
