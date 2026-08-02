@@ -82,13 +82,14 @@
 
 ### LC-007 — Complete explicit CSS/Jsoup compatibility
 
-- **Status:** In progress — explicit CSS getters complete; Jsoup-only selectors next
+- **Status:** Complete for audited pinned-corpus contracts
 - **Priority:** High
 - **Important qualification:** Ordinary Cascadia/GoQuery CSS, `@text`, `@html`, and arbitrary attributes already work. CSS support is partial, not absent.
-- **Remaining verified gap:** Jsoup-only selectors such as `:eq`, `:lt`, `:gt`, and other extensions.
+- **Scope qualification:** This closes the explicit-CSS gaps verified in the pinned corpus; it does not claim universal support for every selector added by future Jsoup releases.
 - **Completed slice:** Explicit `@css:...@ownText` now uses Jsoup-compatible direct-child text semantics for both string and list extraction, skips empty results, and preserves selection order. Full Analyzer package tests pass. Commit: `fix: support explicit CSS ownText`.
 - **Completed slice:** Explicit `@css:...@textNodes` now extracts only direct text nodes, trims and removes blanks, joins nodes within each selected element with newlines, and preserves element order for string/list extraction. Full Analyzer package tests pass. Commit: `fix: support explicit CSS textNodes`.
 - **Completed slice:** Explicit `@css:...@html` and `@all` now return the selected elements' aggregate outer HTML as one value. `html` removes selected script/style descendants first; `all` preserves them. Full Analyzer package tests pass. Commit: `fix: distinguish explicit CSS html and all`.
+- **Completed slice:** Jsoup's zero-based sibling-index selectors `:eq(n)`, `:lt(n)`, and `:gt(n)` now translate to equivalent standard `:nth-child(...)` selectors across string, list, and element extraction. Translation works at intermediate selector positions, counts all element siblings, and leaves quoted attribute values unchanged. Corpus inventory confirms the other active explicit-CSS pseudo families are already handled by Cascadia. Full Analyzer package tests pass. Commit: `fix: support Jsoup positional selectors`.
 - **Approach:** Split into small getter/selector slices rather than replacing the analyzer wholesale.
 - **TDD seam:** Analyzer public rule methods with exact upstream-shaped fixtures.
 - **Do not:** Describe common CSS as unsupported or replace GoQuery without evidence that a focused compatibility layer cannot solve the selected slice.

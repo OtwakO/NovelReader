@@ -2,6 +2,8 @@ package analyzer
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -17,7 +19,7 @@ func cssQuery(html, selector string) (string, error) {
 	}
 
 	sel, attr := splitCSSAttr(selector)
-	selection := doc.Find(sel)
+	selection := doc.Find(translateJsoupPositionalSelectors(sel))
 	if selection.Length() == 0 {
 		return "", nil
 	}
@@ -62,7 +64,7 @@ func cssQueryList(html, selector string) ([]string, error) {
 	}
 
 	sel, attr := splitCSSAttr(selector)
-	selection := doc.Find(sel)
+	selection := doc.Find(translateJsoupPositionalSelectors(sel))
 	if attr == "html" || attr == "all" {
 		value := cssOuterHTML(selection, attr == "html")
 		if value == "" {
@@ -141,13 +143,87 @@ func cssQueryElements(html, selector string) ([]interface{}, error) {
 	}
 
 	sel, _ := splitCSSAttr(selector)
-	selection := doc.Find(sel)
+	selection := doc.Find(translateJsoupPositionalSelectors(sel))
 	var results []interface{}
 	for i := 0; i < selection.Length(); i++ {
 		h, _ := goquery.OuterHtml(selection.Eq(i))
 		results = append(results, h)
 	}
 	return results, nil
+}
+
+var jsoupPositionalSelectorPattern = regexp.MustCompile(`(?i)^:(eq|lt|gt)\(\s*([+-]?\d+)\s*\)`)
+
+func translateJsoupPositionalSelectors(selector string) string {
+	var translated strings.Builder
+	translated.Grow(len(selector))
+	attributeDepth := 0
+	var quote byte
+
+	for i := 0; i < len(selector); {
+		char := selector[i]
+		if quote != 0 {
+			translated.WriteByte(char)
+			i++
+			if char == '\\' && i < len(selector) {
+				translated.WriteByte(selector[i])
+				i++
+			} else if char == quote {
+				quote = 0
+			}
+			continue
+		}
+		if char == '\'' || char == '"' {
+			quote = char
+			translated.WriteByte(char)
+			i++
+			continue
+		}
+		switch char {
+		case '[':
+			attributeDepth++
+		case ']':
+			if attributeDepth > 0 {
+				attributeDepth--
+			}
+		}
+		if attributeDepth == 0 {
+			if parts := jsoupPositionalSelectorPattern.FindStringSubmatch(selector[i:]); parts != nil {
+				translated.WriteString(translateJsoupPositionalSelector(parts[0], parts[1], parts[2]))
+				i += len(parts[0])
+				continue
+			}
+		}
+		translated.WriteByte(char)
+		i++
+	}
+	return translated.String()
+}
+
+func translateJsoupPositionalSelector(match, operation, indexText string) string {
+	index, err := strconv.Atoi(indexText)
+	if err != nil {
+		return match
+	}
+	switch strings.ToLower(operation) {
+	case "eq":
+		if index < 0 {
+			return ":not(*)"
+		}
+		return fmt.Sprintf(":nth-child(%d)", index+1)
+	case "lt":
+		if index <= 0 {
+			return ":not(*)"
+		}
+		return fmt.Sprintf(":nth-child(-n+%d)", index)
+	case "gt":
+		if index < 0 {
+			return ""
+		}
+		return fmt.Sprintf(":nth-child(n+%d)", index+2)
+	default:
+		return match
+	}
 }
 
 // splitCSSAttr splits "tag@attr" into selector and attribute name.

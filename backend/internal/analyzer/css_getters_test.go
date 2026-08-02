@@ -2,8 +2,54 @@ package analyzer
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
+
+func TestExplicitCSSJsoupPositionalSelectors(t *testing.T) {
+	html := `<ul class="items"><b>skip</b><li><a>one</a></li><li><a>two</a></li><li><a>three</a></li></ul>`
+	an := New(html, "", NewJSVM(), nil)
+
+	value, err := an.GetStringStrict(`@css:.items li:eq(1) a@text`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value != "one" {
+		t.Fatalf("eq value=%q, want sibling-indexed descendant value one", value)
+	}
+
+	values, err := an.GetStringList(`@css:.items > *:lt(2)@text`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"skip", "one"}; !slices.Equal(values, want) {
+		t.Fatalf("lt values=%v, want %v", values, want)
+	}
+	values, err = an.GetStringList(`@css:.items > *:gt(1)@text`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"two", "three"}; !slices.Equal(values, want) {
+		t.Fatalf("gt values=%v, want %v", values, want)
+	}
+
+	elements, err := an.GetElements(`@css:.items > *:eq(2)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(elements) != 1 || !strings.Contains(ToString(elements[0]), ">two<") {
+		t.Fatalf("eq elements=%v, want the sibling at zero-based index 2", elements)
+	}
+
+	quoted := New(`<i data-rule=":eq(1)">literal</i><i data-rule="other">other</i>`, "", NewJSVM(), nil)
+	value, err = quoted.GetStringStrict(`@css:[data-rule=":eq(1)"]@text`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value != "literal" {
+		t.Fatalf("quoted positional text value=%q, want literal", value)
+	}
+}
 
 func TestExplicitCSSHTMLAndAllReturnAggregateOuterHTML(t *testing.T) {
 	html := `<section class="item"><p>One</p><script>run()</script></section><section class="item"><style>.x{}</style><b>Two</b></section>`
