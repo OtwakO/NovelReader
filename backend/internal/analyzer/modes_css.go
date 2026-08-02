@@ -31,6 +31,8 @@ func cssQuery(html, selector string) (string, error) {
 			return strings.TrimSpace(selection.Text()), nil
 		case "ownText":
 			return strings.Join(cssGetterValues(selection, ownText), "\n"), nil
+		case "textNodes":
+			return strings.Join(cssGetterValues(selection, directTextNodes), "\n"), nil
 		}
 		seen := make(map[string]struct{}, selection.Length())
 		values := make([]string, 0, selection.Length())
@@ -70,6 +72,8 @@ func cssQueryList(html, selector string) ([]string, error) {
 				v = s.Text()
 			case "ownText":
 				v = ownText(s)
+			case "textNodes":
+				v = directTextNodes(s)
 			default:
 				v, _ = s.Attr(attr)
 			}
@@ -82,6 +86,19 @@ func cssQueryList(html, selector string) ([]string, error) {
 		}
 	})
 	return results, nil
+}
+
+func directTextNodes(selection *goquery.Selection) string {
+	var values []string
+	selection.Contents().Each(func(_ int, child *goquery.Selection) {
+		if goquery.NodeName(child) != "#text" {
+			return
+		}
+		if value := strings.TrimSpace(child.Text()); value != "" {
+			values = append(values, value)
+		}
+	})
+	return strings.Join(values, "\n")
 }
 
 func cssGetterValues(selection *goquery.Selection, getter func(*goquery.Selection) string) []string {
