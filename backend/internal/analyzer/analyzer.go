@@ -111,6 +111,7 @@ type Analyzer struct {
 	ruleVars    map[string]string
 	sourceState SourceState
 	sourceData  map[string]interface{}
+	jsBridge    *JSBridge
 	ctx         context.Context
 }
 
@@ -163,6 +164,9 @@ func (a *Analyzer) SetSourceState(state SourceState) { a.sourceState = state }
 
 // SetSourceData exposes the imported source metadata to rule JavaScript.
 func (a *Analyzer) SetSourceData(data map[string]interface{}) { a.sourceData = data }
+
+// SetJSBridge binds workflow-scoped helpers for the current rule evaluation.
+func (a *Analyzer) SetJSBridge(bridge *JSBridge) { a.jsBridge = bridge }
 
 // SetContext binds cancellation to JavaScript HTTP helpers used by this analyzer.
 func (a *Analyzer) SetContext(ctx context.Context) {
@@ -813,6 +817,9 @@ func (a *Analyzer) jsBindings() map[string]interface{} {
 	}
 	if a.sourceData != nil {
 		b["source"] = a.sourceData
+	}
+	if a.jsBridge != nil {
+		b["jsBridge"] = a.jsBridge
 	}
 	b["analyzer"] = a
 	return b

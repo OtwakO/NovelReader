@@ -96,11 +96,11 @@
 
 ### LC-008 — Execute `ruleToc.preUpdateJs`
 
-- **Status:** In progress — execution ordering and direct book/TOC URL mutation complete; guarded refresh bridges remain
+- **Status:** In progress — execution ordering, direct mutation, and guarded `java.refreshTocUrl()` complete; `java.reGetBook()` remains
 - **Priority:** High
 - **Impact:** Approximately six bundled sources actively use it.
-- **Completed slice:** `preUpdateJs` now executes before the first TOC request with source state and typed book context. Direct mutations synchronize back to the domain book, and a mutated `book.tocUrl`/`book.bookUrl` selects the request target. Script failures stop before network I/O with contextual errors. Targeted book/API/conformance tests pass. Commit: `feat: run TOC pre-update scripts`.
-- **Remaining behavior:** Implement the explicitly pre-update-only `java.refreshTocUrl()` and `java.reGetBook()` detail-refresh bridges with recursion guards; audit direct mutations of fields not currently represented by NovelReader's `Book` contract.
+- **Completed slices:** `preUpdateJs` executes before the first TOC request with source state and typed book context. Direct mutations synchronize back to the domain book, and a mutated `book.tocUrl`/`book.bookUrl` selects the request target. Workflow-scoped `java.refreshTocUrl()` now runs the existing detail workflow once, refreshes typed book context, and uses the resulting TOC URL; refresh failures stop before stale TOC I/O. Targeted Analyzer/book/API/conformance tests pass. Commits: `feat: run TOC pre-update scripts`, `feat: refresh TOC URLs from pre-update scripts`.
+- **Remaining behavior:** Implement the explicitly pre-update-only `java.reGetBook()` bridge, including upstream's precise-search-then-detail contract; audit direct mutations of fields not currently represented by NovelReader's `Book` contract.
 - **Required behavior:** Match upstream ordering and permitted effects, including state mutation and supported TOC URL/book refresh behavior.
 - **TDD seam:** Public TOC workflow, proving execution order and one meaningful state/URL mutation.
 - **Risk:** Avoid recursive refresh or hidden network retries; confirm upstream boundaries first.

@@ -37,6 +37,12 @@ type JSVM struct {
 	memoryCache map[string]interface{} // cache.putMemory/cache.getFromMemory
 }
 
+// JSBridge exposes workflow-scoped JavaScript helpers without coupling analyzer to callers.
+type JSBridge struct {
+	RefreshTocURL func() error
+	ReGetBook     func() error
+}
+
 // NewJSVM creates a JSVM with the compatibility pool size of 16 runtimes.
 func NewJSVM() *JSVM { return NewJSVMWithPoolSize(16) }
 
@@ -180,10 +186,14 @@ Map = function(a) {
 		}
 	}
 	h := &jsHelpers{vm: vm, rt: rt, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState, baseURL: baseURL}
+	var bridge *JSBridge
+	if len(extra) > 0 {
+		bridge, _ = extra[0]["jsBridge"].(*JSBridge)
+	}
 	_ = rt.Set("result", content)
 	_ = rt.Set("src", content) // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
-	_ = rt.Set("java", map[string]interface{}{
+	java := map[string]interface{}{
 		"get":                     h.Get,
 		"put":                     h.Put,
 		"post":                    h.Post,
@@ -211,7 +221,16 @@ Map = function(a) {
 		"decode":                  h.Decode,
 		"login":                   h.Login,
 		"refreshExplore":          h.RefreshExplore,
-	})
+	}
+	if bridge != nil {
+		if bridge.RefreshTocURL != nil {
+			java["refreshTocUrl"] = bridge.RefreshTocURL
+		}
+		if bridge.ReGetBook != nil {
+			java["reGetBook"] = bridge.ReGetBook
+		}
+	}
+	_ = rt.Set("java", java)
 	sourceObj := make(map[string]interface{})
 	if len(extra) > 0 {
 		if metadata, ok := extra[0]["source"].(map[string]interface{}); ok {
@@ -230,7 +249,7 @@ Map = function(a) {
 	// Set extra bindings (key, page, book, chapter, etc.)
 	if len(extra) > 0 {
 		for k, v := range extra[0] {
-			if k == "analyzer" || k == "source" {
+			if k == "analyzer" || k == "source" || k == "jsBridge" {
 				continue
 			}
 			_ = rt.Set(k, v)

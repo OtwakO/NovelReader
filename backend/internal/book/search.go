@@ -648,6 +648,21 @@ func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, toc
 		an := analyzer.New("", fetchURL, s.jsVM, s.cache)
 		an.SetContext(ctx)
 		setAnalyzerContextMaps(an, src, session, bookData, nil, nil)
+		an.SetJSBridge(&analyzer.JSBridge{
+			RefreshTocURL: func() error {
+				syncBookFromContext(b, bookData)
+				if _, err := s.GetBookInfoForBook(src, b, b.BookURL); err != nil {
+					return err
+				}
+				for key := range bookData {
+					delete(bookData, key)
+				}
+				for key, value := range bookContext(b, src) {
+					bookData[key] = value
+				}
+				return nil
+			},
+		})
 		if _, err := an.GetStringStrict("<js>" + preUpdateJS + "</js>"); err != nil && !errors.Is(err, analyzer.ErrNoElements) {
 			return nil, fmt.Errorf("chapter list: preUpdateJs: %w", err)
 		}

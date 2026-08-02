@@ -4,6 +4,7 @@ package book
 import (
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +49,75 @@ func TestGetChapterListRunsPreUpdateJSBeforeFetchingMutatedTOCURL(t *testing.T) 
 	}
 	if len(chapters) != 1 || chapters[0].Title != "第一章" {
 		t.Fatalf("chapters=%+v, want parsed chapter from mutated URL", chapters)
+	}
+}
+
+func TestGetChapterListRefreshTocURLReloadsDetailBeforeTOC(t *testing.T) {
+	var requestedPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPaths = append(requestedPaths, r.URL.Path)
+		switch r.URL.Path {
+		case "/book":
+			_, _ = w.Write([]byte(`<a class="toc" href="/fresh-toc">目录</a><span class="latest">详情已刷新</span>`))
+		case "/fresh-toc":
+			_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">第一章</a>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL,
+		RuleBookInfo:  `{"tocUrl":"@css:.toc@href","lastChapter":"@css:.latest@text"}`,
+		RuleToc: `{
+			"preUpdateJs":"java.refreshTocUrl()",
+			"chapterList":"@css:.chapter", "chapterName":"text", "chapterUrl":"@href"
+		}`,
+	}
+	book := &Book{SourceURL: server.URL, BookURL: server.URL + "/book", TocURL: server.URL + "/stale-toc"}
+
+	chapters, err := s.GetChapterListForBook(src, book, book.TocURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(requestedPaths, []string{"/book", "/fresh-toc"}) {
+		t.Fatalf("requested paths=%v, want detail refresh before refreshed TOC", requestedPaths)
+	}
+	if book.TocURL != server.URL+"/fresh-toc" || book.LastChapter != "详情已刷新" {
+		t.Fatalf("book=%+v, want refreshed detail state", book)
+	}
+	if len(chapters) != 1 || chapters[0].Title != "第一章" {
+		t.Fatalf("chapters=%+v, want refreshed TOC result", chapters)
+	}
+}
+
+func TestGetChapterListRefreshTocURLStopsWhenDetailRefreshFails(t *testing.T) {
+	var requestedPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPaths = append(requestedPaths, r.URL.Path)
+		http.Error(w, "detail unavailable", http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL,
+		RuleBookInfo:  `{"tocUrl":"@css:.toc@href"}`,
+		RuleToc: `{
+			"preUpdateJs":"java.refreshTocUrl()",
+			"chapterList":"@css:.chapter", "chapterName":"text", "chapterUrl":"@href"
+		}`,
+	}
+	book := &Book{SourceURL: server.URL, BookURL: server.URL + "/book", TocURL: server.URL + "/stale-toc"}
+
+	_, err := s.GetChapterListForBook(src, book, book.TocURL)
+	if err == nil || !strings.Contains(err.Error(), "preUpdateJs") || !strings.Contains(err.Error(), "book info: status 502") {
+		t.Fatalf("err=%v, want contextual detail-refresh failure", err)
+	}
+	if !slices.Equal(requestedPaths, []string{"/book"}) {
+		t.Fatalf("requested paths=%v, want detail only and no stale TOC fetch", requestedPaths)
 	}
 }
 
