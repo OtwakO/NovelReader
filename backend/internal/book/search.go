@@ -644,6 +644,20 @@ func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, toc
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	bookData := bookContext(b, src)
+	if preUpdateJS := parseRuleJSON(src.RuleToc)["preUpdateJs"]; preUpdateJS != "" {
+		an := analyzer.New("", fetchURL, s.jsVM, s.cache)
+		an.SetContext(ctx)
+		setAnalyzerContextMaps(an, src, session, bookData, nil, nil)
+		if _, err := an.GetStringStrict("<js>" + preUpdateJS + "</js>"); err != nil && !errors.Is(err, analyzer.ErrNoElements) {
+			return nil, fmt.Errorf("chapter list: preUpdateJs: %w", err)
+		}
+		syncBookFromContext(b, bookData)
+		if b.TocURL != "" {
+			fetchURL = b.TocURL
+		} else if b.BookURL != "" {
+			fetchURL = b.BookURL
+		}
+	}
 	setExecutorContextWithBookData(executor, src, bookData, b, nil, nil, fetchURL)
 	parser := &ChapterListParser{
 		src:      src,

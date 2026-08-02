@@ -75,6 +75,12 @@ func syncBookFromContext(b *Book, values map[string]interface{}) {
 	if value := stringValue("wordCount"); value != "" {
 		b.WordCount = value
 	}
+	if value := stringValue("bookUrl"); value != "" {
+		b.BookURL = value
+	}
+	if value := stringValue("tocUrl"); value != "" {
+		b.TocURL = value
+	}
 }
 
 func sourceContext(src booksource.BookSource) map[string]interface{} {

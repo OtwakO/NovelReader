@@ -96,11 +96,12 @@
 
 ### LC-008 — Execute `ruleToc.preUpdateJs`
 
-- **Status:** Queued
+- **Status:** In progress — execution ordering and direct book/TOC URL mutation complete; guarded refresh bridges remain
 - **Priority:** High
 - **Impact:** Approximately six bundled sources actively use it.
-- **Audit finding:** NovelReader does not run the script before TOC refresh.
-- **Required behavior:** Match upstream ordering and permitted effects, including state mutation and any supported TOC URL/book refresh behavior.
+- **Completed slice:** `preUpdateJs` now executes before the first TOC request with source state and typed book context. Direct mutations synchronize back to the domain book, and a mutated `book.tocUrl`/`book.bookUrl` selects the request target. Script failures stop before network I/O with contextual errors. Targeted book/API/conformance tests pass. Commit: `feat: run TOC pre-update scripts`.
+- **Remaining behavior:** Implement the explicitly pre-update-only `java.refreshTocUrl()` and `java.reGetBook()` detail-refresh bridges with recursion guards; audit direct mutations of fields not currently represented by NovelReader's `Book` contract.
+- **Required behavior:** Match upstream ordering and permitted effects, including state mutation and supported TOC URL/book refresh behavior.
 - **TDD seam:** Public TOC workflow, proving execution order and one meaningful state/URL mutation.
 - **Risk:** Avoid recursive refresh or hidden network retries; confirm upstream boundaries first.
 
