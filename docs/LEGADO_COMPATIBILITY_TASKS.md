@@ -82,18 +82,13 @@
 
 ### LC-007 — Complete explicit CSS/Jsoup compatibility
 
-- **Status:** In progress — explicit CSS `ownText` and `textNodes` complete; HTML/`all` distinction next
+- **Status:** In progress — explicit CSS getters complete; Jsoup-only selectors next
 - **Priority:** High
 - **Important qualification:** Ordinary Cascadia/GoQuery CSS, `@text`, `@html`, and arbitrary attributes already work. CSS support is partial, not absent.
-- **Verified gaps:**
-  - Jsoup-only selectors such as `:eq`, `:lt`, `:gt`, and other extensions.
-  - `textNodes`.
-  - Correct `ownText` behavior in explicit CSS mode.
-  - Distinct `html`, outer HTML/`all`, and getter behavior.
-  - Correct script/style handling for HTML getters.
-  - Current `@html` returns inner HTML; `html` and `all` behave identically.
+- **Remaining verified gap:** Jsoup-only selectors such as `:eq`, `:lt`, `:gt`, and other extensions.
 - **Completed slice:** Explicit `@css:...@ownText` now uses Jsoup-compatible direct-child text semantics for both string and list extraction, skips empty results, and preserves selection order. Full Analyzer package tests pass. Commit: `fix: support explicit CSS ownText`.
 - **Completed slice:** Explicit `@css:...@textNodes` now extracts only direct text nodes, trims and removes blanks, joins nodes within each selected element with newlines, and preserves element order for string/list extraction. Full Analyzer package tests pass. Commit: `fix: support explicit CSS textNodes`.
+- **Completed slice:** Explicit `@css:...@html` and `@all` now return the selected elements' aggregate outer HTML as one value. `html` removes selected script/style descendants first; `all` preserves them. Full Analyzer package tests pass. Commit: `fix: distinguish explicit CSS html and all`.
 - **Approach:** Split into small getter/selector slices rather than replacing the analyzer wholesale.
 - **TDD seam:** Analyzer public rule methods with exact upstream-shaped fixtures.
 - **Do not:** Describe common CSS as unsupported or replace GoQuery without evidence that a focused compatibility layer cannot solve the selected slice.

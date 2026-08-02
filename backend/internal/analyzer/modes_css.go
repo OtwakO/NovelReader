@@ -25,8 +25,9 @@ func cssQuery(html, selector string) (string, error) {
 	if attr != "" {
 		switch attr {
 		case "html":
-			v, _ := selection.Html()
-			return v, nil
+			return cssOuterHTML(selection, true), nil
+		case "all":
+			return cssOuterHTML(selection, false), nil
 		case "text":
 			return strings.TrimSpace(selection.Text()), nil
 		case "ownText":
@@ -61,13 +62,20 @@ func cssQueryList(html, selector string) ([]string, error) {
 	}
 
 	sel, attr := splitCSSAttr(selector)
+	selection := doc.Find(sel)
+	if attr == "html" || attr == "all" {
+		value := cssOuterHTML(selection, attr == "html")
+		if value == "" {
+			return nil, nil
+		}
+		return []string{value}, nil
+	}
+
 	var results []string
-	doc.Find(sel).Each(func(i int, s *goquery.Selection) {
+	selection.Each(func(i int, s *goquery.Selection) {
 		var v string
 		if attr != "" {
 			switch attr {
-			case "html":
-				v, _ = s.Html()
 			case "text":
 				v = s.Text()
 			case "ownText":
@@ -86,6 +94,19 @@ func cssQueryList(html, selector string) ([]string, error) {
 		}
 	})
 	return results, nil
+}
+
+func cssOuterHTML(selection *goquery.Selection, removeScriptsAndStyles bool) string {
+	if removeScriptsAndStyles {
+		selection.Find("script, style").Remove()
+	}
+	values := make([]string, 0, selection.Length())
+	selection.Each(func(_ int, item *goquery.Selection) {
+		if value, err := goquery.OuterHtml(item); err == nil && value != "" {
+			values = append(values, value)
+		}
+	})
+	return strings.Join(values, "\n")
 }
 
 func directTextNodes(selection *goquery.Selection) string {
