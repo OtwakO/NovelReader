@@ -82,7 +82,7 @@
 
 ### LC-007 — Complete explicit CSS/Jsoup compatibility
 
-- **Status:** Next
+- **Status:** In progress — explicit CSS `ownText` complete; `textNodes` next
 - **Priority:** High
 - **Important qualification:** Ordinary Cascadia/GoQuery CSS, `@text`, `@html`, and arbitrary attributes already work. CSS support is partial, not absent.
 - **Verified gaps:**
@@ -92,6 +92,7 @@
   - Distinct `html`, outer HTML/`all`, and getter behavior.
   - Correct script/style handling for HTML getters.
   - Current `@html` returns inner HTML; `html` and `all` behave identically.
+- **Completed slice:** Explicit `@css:...@ownText` now uses Jsoup-compatible direct-child text semantics for both string and list extraction, skips empty results, and preserves selection order. Full Analyzer package tests pass. Commit: `fix: support explicit CSS ownText`.
 - **Approach:** Split into small getter/selector slices rather than replacing the analyzer wholesale.
 - **TDD seam:** Analyzer public rule methods with exact upstream-shaped fixtures.
 - **Do not:** Describe common CSS as unsupported or replace GoQuery without evidence that a focused compatibility layer cannot solve the selected slice.

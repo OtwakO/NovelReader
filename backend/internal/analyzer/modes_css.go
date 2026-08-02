@@ -23,12 +23,14 @@ func cssQuery(html, selector string) (string, error) {
 	}
 
 	if attr != "" {
-		if attr == "html" {
+		switch attr {
+		case "html":
 			v, _ := selection.Html()
 			return v, nil
-		}
-		if attr == "text" {
+		case "text":
 			return strings.TrimSpace(selection.Text()), nil
+		case "ownText":
+			return strings.Join(cssGetterValues(selection, ownText), "\n"), nil
 		}
 		seen := make(map[string]struct{}, selection.Length())
 		values := make([]string, 0, selection.Length())
@@ -61,11 +63,14 @@ func cssQueryList(html, selector string) ([]string, error) {
 	doc.Find(sel).Each(func(i int, s *goquery.Selection) {
 		var v string
 		if attr != "" {
-			if attr == "html" {
+			switch attr {
+			case "html":
 				v, _ = s.Html()
-			} else if attr == "text" {
+			case "text":
 				v = s.Text()
-			} else {
+			case "ownText":
+				v = ownText(s)
+			default:
 				v, _ = s.Attr(attr)
 			}
 		} else {
@@ -77,6 +82,16 @@ func cssQueryList(html, selector string) ([]string, error) {
 		}
 	})
 	return results, nil
+}
+
+func cssGetterValues(selection *goquery.Selection, getter func(*goquery.Selection) string) []string {
+	values := make([]string, 0, selection.Length())
+	selection.Each(func(_ int, item *goquery.Selection) {
+		if value := strings.TrimSpace(getter(item)); value != "" {
+			values = append(values, value)
+		}
+	})
+	return values
 }
 
 // cssQueryElements returns elements as interface{} for further chaining.
