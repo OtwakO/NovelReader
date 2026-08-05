@@ -4,598 +4,510 @@ My GitHub Handle: [OtwakO](https://github.com/OtwakO)
 
 ## Core Principles
 
-Write practical, maintainable code with effort proportional to the task.
+Write practical, maintainable code. Match effort to the task — do not apply maximum process to
+every change.
 
 - Solve the requested problem with the smallest complete change.
-- Preserve strong architecture and locality: a feature should be understandable without loading the
-  entire repository or a monolithic file.
-- Verification should establish sufficient confidence, not exhaust every theoretical possibility.
-- Do not add features, abstractions, dependencies, refactors, tooling, or infrastructure merely
-  because they might be useful later.
-- When an optional improvement is worthwhile, briefly propose it and explain its benefit and cost
-  before implementing it.
-- Expand scope without approval only when required for correctness, security, data integrity, or
-  keeping the affected project path runnable.
-- Prefer reversible decisions when uncertainty remains.
+- Keep the codebase easy to understand in parts, not just as a whole: a change should be
+  understandable without reading the entire repository.
+- Testing and review should build enough confidence to move forward, not eliminate every
+  theoretical risk.
+- Do not add features, abstractions, dependencies, refactors, or tooling because they might be
+  useful later.
+- If an optional improvement is worth doing, describe its benefit and cost first, and get
+  confirmation before implementing it.
+- Only expand scope beyond what was asked when it's required for correctness, security, data
+  integrity, or to keep the project runnable.
+- When unsure, prefer the option that's easier to reverse later.
+- If a simpler approach meets the request, say so before implementing something more complex —
+  even if the request described the complex version.
 
-## Proportionality
+## Design Approach
 
-Classify work by actual impact rather than applying maximum ceremony to every task.
+Pick the plainest approach that solves the actual problem. Between two working solutions, prefer
+the one a future reader would recognize immediately over the one that's clever or impressive.
 
-### Small or Localized Work
+### Picking a design
+Start with the simplest tool available: a function, a conditional, a small data change. Only reach
+for a named design pattern when the problem already has the shape that pattern exists to solve.
 
-Examples: contained bug fixes, simple scripts, text changes, minor configuration, and straightforward
-UI adjustments.
+A few common patterns as examples of the rule, not the full list:
+- Several interchangeable behaviors chosen at runtime → an interface with a few implementations
+  (what "strategy" is for).
+- Object construction with several genuinely different valid configurations → a factory or
+  builder.
+- Several independent things need to react to one event → an observer or event system.
+- Two incompatible interfaces need to talk to each other → an adapter.
 
-- Read the target area and its direct dependencies.
+The same test applies to any other pattern too — decorator, command, chain of responsibility,
+repository, dependency injection, memoization, and so on: use it when the problem already has that
+pattern's shape, skip it when it doesn't. Different parts of the same codebase can and should end
+up using different patterns, because they have different problem shapes. Match the pattern to the
+problem actually in front of you — don't pick one from memory because it seems like good practice.
+
+If the problem doesn't match any pattern's shape, use the plain version instead. These are signs a
+pattern was added for its own sake rather than because the problem needed it — remove it and use
+the direct version:
+- An interface, abstract class, or config option with exactly one real implementation or value,
+  and no second one actually planned.
+- A layer whose only job is to call the layer beneath it unchanged.
+- Something built to be generic or configurable for a case nobody has asked for yet.
+
+Build for the case in front of you. Generalize once a second real case actually shows up, not
+before.
+
+### Fix the cause, not the symptom
+When something is broken, find out why before deciding how to fix it. A fix that doesn't explain
+the root cause is a patch, not a fix.
+
+Signs a fix is a patch instead of a real fix:
+- It's a special case for one bad input or state, and another bad case that would need its own
+  special case is easy to imagine.
+- It catches, ignores, or silences an error without knowing why the error happened.
+- It's applied where the symptom showed up, not where the bad data or bad state was actually
+  produced.
+- It's landing right next to another recent fix in the same area.
+
+If any of these are true, trace back to where the problem actually starts and fix it there
+instead.
+
+Sometimes the real fix genuinely isn't possible right now — a third-party dependency, a hard
+deadline, code you don't own. When that happens: say so explicitly, mark the workaround clearly in
+the code (e.g. `# workaround: <reason>, real fix would be <what>`), and add an entry to
+`DEVELOPMENT.md` so it isn't mistaken for the real fix later.
+
+Never stack a new patch on an existing patch without first checking whether the original patch
+should become the real fix instead.
+
+## Matching Effort to Risk
+
+Classify the current change into one of three categories before starting. This decides how much
+planning, testing, and documentation the change needs.
+
+### Small or Localized
+Examples: a contained bug fix, a small script, a text or config change, a simple UI tweak.
+- Read the file being changed and its direct callers or dependencies. Nothing more.
 - Make the smallest safe change.
-- Run the smallest meaningful test or check.
-- Do not create formal architecture, broad reviews, new abstractions, or repository-wide cleanup.
-- Update project documentation only when the durable state or useful history changed.
+- Run the smallest test that covers it.
+- No new architecture, no repo-wide review, no new abstractions.
+- Update docs only if something durable actually changed.
 
-### Standard Work
+### Standard
+Examples: a normal feature, a behavior change, a change touching a few related files.
+- Write one or two sentences on what "done" looks like before starting.
+- Add or update tests for the new or changed behavior.
+- Run the tests for the affected area first; only run more if something breaks or looks coupled.
+- Update `PLAN.md` if scope, architecture, or next steps changed.
 
-Examples: a contained feature, meaningful behavior change, or change spanning a few related modules.
+### High-Risk or Structural
+Examples: migrations, auth/authorization, public API changes, shared data models, deployments,
+destructive operations (delete, drop, overwrite), or anything flagged as sensitive.
+- Write the plan down before touching code.
+- Confirm any decision that would be expensive to undo.
+- Document rollback and compatibility concerns.
+- Use broader tests (integration or end-to-end) where the risk justifies it.
+- Keep `PLAN.md` and `DEVELOPMENT.md` current as you go.
 
-- State concise success criteria and a brief plan.
-- Add or update focused tests for changed behavior and meaningful risks.
-- Run targeted tests first; expand only when coupling or failures justify it.
-- Update `PLAN.md` when scope, architecture, phase, current state, or next steps change.
-
-### High-Risk or Structural Work
-
-Examples: migrations, authentication, authorization, public API changes, shared data models,
-deployment changes, destructive operations, or broad architecture changes.
-
-- Record a clear plan before implementation.
-- Confirm expensive-to-reverse decisions.
-- Document compatibility, migration, rollback, and data-safety concerns.
-- Use broader integration or end-to-end verification where risk justifies it.
-- Keep handoff documentation current throughout the work.
-
-Do not escalate a task merely because more engineering work is possible.
+A change stays High-Risk because of what it touches, not how many lines it is — a one-line change
+to a payments function is still High-Risk. Don't classify a change as High-Risk just because more
+testing is *possible*; only because the risk is real.
 
 ## Definition of Done
 
-A task is complete when all applicable items are true:
+A task is done when:
+- The requested behavior works.
+- The project (or the part you touched) still runs.
+- The tests appropriate to the change's category above pass.
+- No new warnings, dead code, debug prints, or unexplained TODOs.
+- No secrets or hardcoded environment-specific values.
+- Docs were updated if setup, usage, or interfaces changed.
+- `PLAN.md` reflects any real change to scope, architecture, or state.
+- `DEVELOPMENT.md` has an entry if something non-obvious happened worth remembering.
+- Nothing unrelated was changed without asking first.
+- A bug fix addresses the root cause — or, if it's a workaround, that's stated explicitly and
+  logged (see Design Approach).
 
-- The requested behavior is implemented.
-- The affected project path remains runnable.
-- Relevant focused tests or checks pass.
-- No new warnings, errors, dead code, debug statements, or unexplained TODOs were introduced.
-- No secrets, environment-specific values, or duplicated policy values were improperly hardcoded.
-- Public documentation was updated when setup, usage, configuration, or interfaces changed.
-- `PLAN.md` reflects material changes to durable project state.
-- `DEVELOPMENT.md` records non-obvious history worth preserving.
-- No unrelated changes or unapproved optional improvements were introduced.
-- Required work or verification was not skipped silently.
+Not every task needs new tests, a full test run, a README edit, or a `DEVELOPMENT.md` entry — only
+add what the category above actually calls for.
 
-Not every task requires new tests, a full-suite run, README changes, a development-log entry, or a
-commit. Apply each item proportionally.
-
-Report verification exactly. Say “targeted tests pass” when only targeted tests were run.
+**Report what you actually did.** If you only ran the tests for one file, say "tests for X pass" —
+not "tests pass." Never describe a partial test run as a full one.
 
 ## Handling Ambiguity
 
-Ask when uncertainty materially affects architecture, data shape, public interfaces, authentication,
-authorization, third-party selection, destructive operations, or another expensive-to-reverse
-decision.
+Stop and ask when the uncertainty would affect architecture, data shape, public interfaces, auth,
+third-party service choice, a destructive operation, or anything expensive to undo.
 
-- Ask early and consolidate genuine blockers into one exchange where practical.
-- Do not stop for low-risk details that can be inferred from existing conventions.
-- Choose the simplest reversible option for minor implementation details.
-- State an assumption only when it materially affects the result.
-- Present multiple interpretations when the request is genuinely ambiguous.
-- Push back before implementing a substantially more complex approach when a simpler one satisfies
-  the requirement.
-- Stop rather than proceeding on a consequential guess.
+- Batch your questions into one message if you have more than one.
+- Don't ask about things you can infer from the existing code or conventions — just make the call.
+- If a request is genuinely ambiguous, list the possible interpretations and ask which one is
+  meant, rather than picking one silently.
+- If you're about to guess on something consequential, stop and ask instead.
 
 ## Planning Before Coding
 
-Before substantial work on a new project or significant feature, define:
+Before starting a new project, or a Standard/High-Risk feature, write down:
+- What you're building and what "done" looks like
+- Directory structure and what owns what
+- How data flows and what the interfaces look like
+- The main steps, in order
+- Known risks or open questions
 
-- Objective and success criteria
-- Directory structure and module ownership
-- Data flow and interface contracts
-- Main implementation phases
-- Important risks and open questions
+Group files by feature, not by file type — keep a feature's models, logic, and tests together.
+There should be one obvious place to start reading from the project root.
 
-Group by feature or domain rather than merely by file type. Keep related models, logic, interfaces,
-and tests close together. A canonical entry point should be obvious from the repository root.
+For a Small/Localized change, skip all of this — just make the change.
 
-For a small localized change, do not create planning ceremony. Identify the smallest safe change
-and proceed.
+## PLAN.md — current state
 
-## PLAN.md
+`PLAN.md` lives at the repo root and describes the project **as it is right now**, not its
+history. Anyone — human or AI — should be able to read it and know where things stand without
+reading the code first.
 
-Every maintained project should have a concise `PLAN.md` at the repository root. It is the
-authoritative handoff for the project's durable present and intended future—not a chronological
-activity log.
+Include only the sections that apply:
+- **Objective** — what this project does
+- **Architecture** — how it's organized
+- **Phases** — what's done, what's next, with clear completion criteria
+- **Current state** — the exact stopping point if work is mid-way
+- **Open questions** — unresolved decisions
+- **Out of scope** — what's deliberately not being built
+- **Constraints** — environment quirks, external dependencies
 
-Include applicable sections only:
+Create it before real implementation starts on a new project. For an existing project that
+doesn't have one yet, create it the first time you start multi-step work — don't try to
+reconstruct its whole history.
 
-- **Objective**
-- **Architecture overview**
-- **Implementation phases and completion criteria**
-- **Current state, exact stopping point, and next step**
-- **Open questions and tradeoffs**
-- **Out of scope**
-- **Environment and operational constraints**
-- **Key durable decisions**
+Update it whenever the objective, architecture, phase, current state, or a real decision changes.
+Before every commit, check if `PLAN.md` is now stale — if it is, update it in the same commit.
+Don't touch it for every small step; only when something durable actually changed.
 
-Create it before substantial implementation in a new project. For an existing project without one,
-create it when beginning meaningful multi-step work; do not reconstruct every historical detail.
+## DEVELOPMENT.md — history
 
-Update `PLAN.md` when objectives, scope, architecture, interfaces, phase, current state, next step,
-constraints, open questions, or durable decisions materially change.
+`DEVELOPMENT.md` lives alongside `PLAN.md` and keeps a record of things worth remembering that
+aren't obvious from the code or commit history:
+- A hard bug and how it was found and fixed
+- A non-obvious decision and why it was made
+- An approach that was tried and didn't work
+- An environment quirk or workaround
+- A limitation in how something was verified
 
-Before every commit, check whether the pending change makes `PLAN.md` stale. Update it before the
-commit when needed and include the update in the same commit. Do not edit it for every command,
-test run, or minor implementation detail.
+Do not log routine edits, every command run, or a restated commit message. This file only earns
+an entry when future-you, or another AI, would otherwise have to rediscover something the hard
+way.
 
-At handoff, `PLAN.md` should answer:
-
-1. What is being built?
-2. How is it organized?
-3. What is complete?
-4. What is in progress?
-5. What happens next?
-6. What decisions or risks remain?
-
-## DEVELOPMENT.md
-
-`DEVELOPMENT.md` preserves meaningful chronological context that is not obvious from the code, diff,
-commit message, tests, or current plan.
-
-Record only useful history such as:
-
-- Difficult bugs and debugging discoveries
-- Non-obvious implementation or architecture decisions
-- Failed approaches worth avoiding
-- Environment quirks and temporary workarounds
-- Unusual verification limitations
-- Exact stopping points for unfinished work
-
-Do not log every command, routine edit, successful implementation step, ordinary test invocation,
-or a prose restatement of a commit.
-
-Use compact entries:
-
+Use one short block per entry:
 ```markdown
 ### [YYYY-MM-DD] Short title
-- **Context**: task or phase
+- **Context**: what you were doing
 - **Change**: what changed
 - **Reason**: why
-- **Verified**: focused checks
-- **Affected**: files or modules
-- **Watch out**: risks, limitations, or follow-up
+- **Verified**: how you checked it
+- **Watch out**: anything to be careful of later
 ```
+Skip any field that doesn't add anything. Entries are never edited or deleted — add a new one
+instead.
 
-Omit fields that add no value.
-
-Before every commit, check whether the pending work contains non-obvious history worth preserving.
-Update `DEVELOPMENT.md` before the commit when needed and include it in the same commit. Do not
-create an entry merely because a commit is being made.
-
-`PLAN.md` describes durable state. `DEVELOPMENT.md` preserves useful history. Update both when a
-historical event also changes the durable plan.
+**The difference in one line: `PLAN.md` says what's true now. `DEVELOPMENT.md` says what happened
+and why.** If a change affects both — e.g. a bug fix that also changes the architecture — update
+both, in the same commit.
 
 ## Modularity, Coupling, and Cohesion
+- Each file or module owns one clear thing, completely.
+- Group code by feature, not by type (not all "models" in one folder and all "controllers" in
+  another).
+- Prefer a few well-designed functions or interfaces over many thin wrappers.
+- Modules talk to each other through their public interface only — never reach into another
+  module's internals.
+- Dependencies flow in one direction. No circular dependencies.
+- Avoid catch-all files: no `utils.py` / `helpers.js` that becomes a dumping ground, no single
+  file that ends up knowing about everything.
+- Define a shared type or data shape once. Don't redefine it in multiple places.
+- If a normal change keeps touching many unrelated files, that's a sign the boundaries are wrong —
+  fix the boundary, don't just keep editing around it.
 
-Architecture should maximize locality of understanding and locality of change.
-
-- Each module or file owns one clear responsibility and owns it completely.
-- Group code by feature or domain.
-- Prefer deep modules with simple, stable public interfaces.
-- Prefer a few meaningful functions over many shallow wrappers.
-- Keep coupling low and cohesion high.
-- Communicate through explicit interfaces rather than reaching into another module's internals.
-- Dependencies should flow in a clear direction. Circular dependencies are forbidden.
-- Avoid god objects, catch-all utility modules, central coordinator files, and monolith files that
-  accumulate unrelated behavior.
-- Keep transport, persistence, and business logic separate where this improves locality,
-  testability, or reuse.
-- Define shared core types and data shapes once rather than duplicating them.
-- A normal feature change should remain within one coherent area. If changes repeatedly ripple
-  across many unrelated files, inspect the boundaries.
-
-### File Size and Locality
-
-Target roughly fewer than 250 lines per file as a useful default, not a mechanical limit.
+### File Size
+Aim for under roughly 250 lines per file as a guide, not a hard rule.
 
 Split a file when:
+- It's doing more than one job.
+- You have to read unrelated code to understand the part you need.
+- Unrelated changes keep colliding in it.
+- A clear, self-contained piece of it could become its own module.
 
-- It owns multiple responsibilities.
-- Understanding one feature requires reading large unrelated sections.
-- Unrelated changes frequently collide in it.
-- It has become difficult for a human or AI to load and reason about safely.
-- A coherent submodule can be extracted behind a simple interface.
+Don't split a file into tiny pieces just to hit a line count — that makes things harder to follow,
+not easier.
 
-Do not create tiny fragments merely to satisfy a line count. Excessive fragmentation also harms
-locality. The goal is cohesive, bounded modules.
+### Shared Code
+If something is used in more than one place — logging, config, validation, auth helpers, error
+formatting — build it once behind a simple interface instead of copying it.
+- Keep the setup and config details inside the shared module. Callers shouldn't need to know how
+  it works internally.
+- If you're not sure something will be reused, write it inline for now. Pull it out into a shared
+  module once it's actually duplicated.
+- Don't build a shared abstraction for something that might be reused someday — only for something
+  that already is.
 
-### Reusable Shared Capabilities
+## Making Changes: Stay in Scope
+- Only touch what the task needs.
+- Only clean up things your own change introduced or broke — not pre-existing issues you happened
+  to notice.
+- Don't rename, reformat, or "modernize" code that isn't part of the task.
+- Match the existing style around your change.
+- Don't change existing public behavior unless that's the point of the task.
 
-When functionality is repeatedly needed or inherently cross-cutting, design it once behind a small,
-stable, easy-to-use interface.
+Before writing code, look at:
+- The file you're changing
+- Its public interface (what other code calls)
+- Its direct callers
+- Its existing tests
+- Any shared types it uses
 
-Good candidates include logging, configuration access, validation policy, serialization, metrics,
-authentication primitives, error mapping, and external client construction.
+Only look at more of the repo if something is unclear or a test fails unexpectedly. Check
+`PLAN.md` first for orientation instead of re-reading the whole codebase.
 
-- Keep setup, formatting, policy, and lifecycle management inside the shared module.
-- Callers should not need to understand its internal configuration.
-- Reuse an existing shared capability rather than creating local variants.
-- Centralize known repeated behavior before copies spread.
-- When reuse is uncertain, implement directly and extract only after duplication becomes real.
-- Separate reusable mechanisms from feature-specific policy.
-- Give shared capabilities clear ownership; do not turn `utils` into a dumping ground.
-
-For example, configure one project logging system and expose a straightforward logger interface.
-Feature modules should not independently configure handlers, formats, destinations, or context
-fields.
-
-Reuse does not justify speculative abstraction. Centralize established common behavior, not
-hypothetical future variation.
-
-## Surgical Changes and Reading Scope
-
-- Touch only what the task requires.
-- Clean up only problems introduced by the current change.
-- Do not perform drive-by formatting, renaming, modernization, or unrelated refactoring.
-- Match the surrounding style unless it is materially harmful.
-- Preserve public behavior unless the task explicitly changes it.
-
-Before writing, begin with:
-
-- The target module
-- Its public exports
-- Direct callers or entry points
-- Nearby tests
-- Shared types and utilities directly involved
-
-Expand repository exploration only when dependencies, failures, or unclear behavior require it.
-Use `PLAN.md` for orientation and consult relevant `DEVELOPMENT.md` entries before broadly rereading
-the codebase.
-
-## Review Strategy
-
-- For localized work, perform one focused review of the changed diff, affected interfaces, and
-  meaningful failure paths.
-- Do not perform repeated full-repository reviews for a small change.
-- Use broader, independent, security-focused, or repository-wide review only for structural,
-  cross-cutting, high-risk, or unusually difficult work.
-- Stop when identified risks are addressed and another pass would repeat the same checks.
+## Review
+- For a Small/Localized change: review your own diff once — the changed lines, what calls them,
+  and how they could fail. That's enough.
+- Don't re-review the whole repo for a small change.
+- Save a deeper, security-focused, or wider review for High-Risk/Structural work.
+- Stop reviewing once you've caught the real risks — repeating the same check again doesn't add
+  confidence.
 
 ## Interface Design
-
-- Make inputs, outputs, side effects, and ownership explicit.
-- Use types where supported; document contracts clearly in dynamic languages.
-- Functions and methods should have one cohesive responsibility. Split them when they combine
-  independently changing concerns—not merely because their name contains “and.”
+- Make inputs, outputs, and side effects explicit — use types if the language has them, otherwise
+  document them clearly.
+- A function should do one cohesive thing. Split it if it's doing two unrelated things — not just
+  because its name has "and" in it.
 - Avoid hidden global state and surprising side effects.
-- Stable interfaces used by external or independently deployed consumers are contracts.
-- Use a migration or compatibility plan when breaking such contracts.
-- Deprecate before removal when compatibility is required.
-- Internal or explicitly unstable interfaces may change directly when all callers are updated
-  atomically and the change remains localized.
+- If other code, or another team or service, depends on an interface, treat it as a contract:
+  don't break it without a migration plan, and deprecate before removing.
+- If an interface is internal and every caller can be updated in the same change, it's fine to
+  change it directly.
 
 ## Error Handling
+- Match the convention already used in that part of the codebase, layer by layer — e.g. exceptions
+  inside business logic, typed results at a boundary, HTTP error responses in the API layer, exit
+  codes in a CLI. Different layers can reasonably use different mechanisms; just be consistent
+  within each one.
+- Every error should carry enough information to know what failed.
+- Know the difference between an error you can recover from (handle it) and one you can't (fail
+  loudly, don't try to continue).
+- Any external call — network, disk, another service — needs error handling and a timeout. Never
+  assume it will succeed.
+- Never swallow an error silently, and never report a partial success as if it fully succeeded.
 
-- Use consistent conventions within each architectural layer.
-- Different layers may use different appropriate mechanisms: exceptions internally, typed results
-  at a boundary, HTTP errors in transport code, or exit codes in a CLI.
-- Errors should carry enough context to identify the failed operation.
-- Distinguish recoverable from unrecoverable failures.
-- Handle expected external I/O failures at the appropriate boundary.
-- Use timeouts where supported and where waiting indefinitely is unsafe.
-- Do not add redundant wrappers when an existing boundary handler already provides sufficient
-  context.
-- Never silently swallow a required failure or report partial success as complete success.
+## Testing
 
-## Testing and Verification Strategy
+Tests should give enough confidence that the change works — not maximum possible coverage.
 
-Tests must be focused, concise, deterministic, and proportional to risk. The goal is enough evidence
-that the changed behavior works and relevant nearby behavior remains intact.
+### What to run, in order
+1. Run the smallest existing test that already covers what you changed.
+2. Write or update a test for: the new behavior, the bug you fixed, or a real failure mode.
+3. Run the tests for that file, module, or boundary.
+4. Only go wider than that if: the targeted tests failed unexpectedly, you changed something
+   shared, there's a real coupling risk, or the change is High-Risk.
 
-### Selection Order
+Don't run the entire test suite, every linter, and every scanner for a small change by default.
 
-1. Run the smallest existing test covering the changed behavior.
-2. Add or update focused tests for new behavior, bug regressions, meaningful failure modes, or
-   changed contracts.
-3. Run the nearest relevant test module, package, or integration boundary.
-4. Expand only when targeted tests fail unexpectedly, shared infrastructure changed, known coupling
-   creates risk, the full suite is cheap, the change is high-risk, or repository policy requires it.
+### How many tests
+Aim for the fewest tests that cover the real risk:
+- One normal or expected case
+- One real edge case or failure mode
+- One regression test if you're fixing a bug
+- One boundary test, if you changed how two parts talk to each other
 
-Do not automatically run every suite, platform matrix, linter, type checker, formatter, benchmark,
-and scanner for a localized change.
+Skip: near-duplicate tests, every possible input combination with no real risk behind them, tests
+for implementation details that didn't change, and end-to-end tests where a smaller test already
+proves it.
 
-### Test Quantity and Level
+- Test isolated logic at the unit level.
+- Test real boundaries (API, database, etc.) at the integration level.
+- Reserve end-to-end tests for critical paths that can't be checked more cheaply.
+- Reuse existing test setup and fixtures instead of building new ones for one test.
+- Tests shouldn't depend on running in a specific order.
 
-Prefer the fewest tests covering distinct risks, usually some combination of:
+### Write the test first, or after?
+Write the test first when the logic is non-trivial, you're reproducing a bug, or you're
+protecting a public interface. For simple wiring, UI layout, config, or a Small/Localized change,
+it's fine to write the code first and test right after.
 
-- One representative success case
-- One important edge or failure case
-- One regression case for a bug fix
-- One boundary test when integration behavior changed
+### Keep test output short
+- Run tests through the project's normal test command in quiet mode, not verbose mode.
+- A passing run should look like one line, e.g. `5/5 passed`. Don't print a line per test.
+- A failing run should show which test failed and why — the real error, not just "failed":
+  ```
+  4/5 passed, 1 failed
+  Failed: test_name — expected X, got Y
+  ```
+- Only include a full stack trace or logs if the short message isn't enough to explain the
+  failure.
 
-Avoid duplicative variants, exhaustive combinations without demonstrated risk, tests for unchanged
-implementation details, trivial snapshots, and end-to-end tests when a cheaper level is sufficient.
-
-- Unit test isolated logic.
-- Integration test meaningful boundaries.
-- End-to-end test only critical paths that cannot be validated more cheaply.
-- Reuse existing fixtures and mocks.
-- Do not build a new test harness for one simple case.
-- Tests must not depend on execution order.
-- When randomized ordering or data is used to expose isolation problems, report the seed.
-- Control time, external I/O, and shared state so failures are reproducible.
-- Tests should be easy to locate from the feature they protect. Follow the repository's established
-  colocated or mirrored test-directory structure.
-
-### TDD
-
-Use test-first development when it clarifies non-trivial logic, reproduces a bug, or protects a
-public contract. Strict Red → Green → Refactor is useful, not mandatory ceremony.
-
-Implementation-first followed by focused verification is acceptable for straightforward wiring,
-UI layout, configuration, scripts, exploratory spikes, and very small localized changes.
-
-### Programmatic and Concise Output
-
-Execute and evaluate tests programmatically through the project's runner or a deterministic
-verification script.
-
-- Use quiet or concise runner output by default.
-- Produce one aggregate summary.
-- Do not print one line for every passing test unless diagnosing order or isolation.
-- Show details only for failed, errored, required-but-skipped, or incomplete tests.
-- For each failure, include the test identifier and shortest useful explanation.
-- Include only relevant assertion details, traceback frames, captured logs, or error context.
-- Preserve full raw output as an artifact when useful, but summarize it in the main response.
-- Failures must produce a non-zero exit status.
-
-Preferred output:
-
-```text
-Tests: 4/5 passed, 1 failed.
-Failed: test_name — expected X, got Y.
-```
-
-When all pass:
-
-```text
-Tests: 5/5 passed.
-```
-
-Add traceback or logs only when the concise failure message is insufficient.
-
-### Stop Rule
-
-Stop when the changed behavior is covered at the appropriate level, relevant tests pass, meaningful
-failure paths are checked, and further tests would duplicate confidence rather than address a
-specific risk.
-
-Never describe targeted verification as a full-suite pass.
+### When to stop
+Stop once the change is covered at a reasonable level and the tests pass. Adding another similar
+test after that repeats the same confidence — it doesn't add new confidence.
 
 ## Refactoring
+Only refactor when:
+- You can't safely make the requested change without it.
+- The existing structure is actively blocking the change.
+- A file mixes clearly unrelated responsibilities.
+- Real, existing duplication is causing bugs or maintenance pain.
+- You're about to add a fix on top of a previous fix in the same area (see Design Approach).
+- The user asked for it.
 
-Refactor when:
+Keep it as small as it needs to be, and say why you're doing it. If a bigger refactor seems worth
+it, describe the benefit and cost and ask before doing it — don't fold it into a feature or bug
+fix commit.
 
-- The requested change cannot be implemented safely without it.
-- Existing structure directly blocks locality or correctness.
-- A module contains genuinely unrelated responsibilities.
-- Real duplication creates maintenance risk.
-- The user requested it.
+Refactoring should not change what the code does. If tests need to change because of a
+"refactor," it wasn't just a refactor.
 
-Keep necessary refactoring local and explain why it is required. Propose broader refactors before
-implementation, including their concrete benefit, cost, and risk.
+## Git
+- Start every new project with `git init` and a `.gitignore` (secrets, build output, dependency
+  folders, editor files).
+- Commit at each complete, working step — not every single edit, and not one giant commit at the
+  end.
+- Every commit should leave the project (or the part you touched) running, with its tests passing.
+- Before committing, check if `PLAN.md` or `DEVELOPMENT.md` need an update, and include that
+  update in the same commit.
+- One logical change per commit — don't mix a feature, a fix, and a cleanup in the same commit.
+- Commit message format: `type: short description` — e.g. `feat: add auth module`,
+  `fix: handle null response`, `refactor: split router`.
+- Tag a milestone (e.g. a release) only if the tag will actually be useful for rollback later.
+- Don't push unless asked to, or unless that's the established workflow for this repo.
 
-Do not mix unrelated cleanup into feature work. Refactoring must preserve observable behavior.
-When existing patterns conflict, choose the more established, recent, or well-tested one rather than
-inventing a third blended pattern. Record consequential decisions in `PLAN.md` and useful historical
-context in `DEVELOPMENT.md`.
+### Before anything destructive
+These need explicit confirmation first:
+- `git push --force` — use `--force-with-lease` instead, and only on a branch that's actually
+  yours.
+- `git reset --hard` on a shared or remote-tracked branch.
+- `git rebase` on a branch that's already been pushed and shared.
+- `git clean -fd` — always run `git clean -nfd` first to see what would be deleted.
+- `git stash drop` or `git stash clear` — confirm nothing in there is still needed.
 
-## Git Discipline
+Never commit directly to `main`/`master` on a multi-person project — use a branch. Check
+`git status` and recent history before any destructive command. Never discard changes that aren't
+yours.
 
-- Initialize Git at the start of a new maintained project and maintain an appropriate `.gitignore`.
-- Commit frequently at meaningful, completed, atomic milestones.
-- A milestone should represent one coherent change that is useful to inspect, debug, revert, or
-  bisect independently.
-- Do not commit every edit, command, exploratory attempt, temporary state, or half-finished
-  intermediate step merely to increase commit frequency.
-- Avoid `wip` commits in normal development. If unfinished work must be preserved for an explicit
-  handoff, label it clearly and do not present it as a stable milestone.
-- Every normal commit should leave the affected project path runnable with relevant checks passing.
-- Before every commit, review `PLAN.md` and `DEVELOPMENT.md`. Update either when needed and include
-  those updates in the same commit. Do not create artificial documentation edits.
-- Keep commits atomic: one logical concern per commit. Separate features, fixes, refactors, and
-  unrelated cleanup when they can be reviewed or reverted independently.
-- Use `type: short description`, such as `feat: add auth module`,
-  `fix: handle null payment response`, or `refactor: split router`.
-- Tag major stable milestones only when tags provide real release or rollback value.
-- Do not push or publish commits unless requested or established by the repository workflow.
-
-### Git Safety
-
-The following require explicit approval and understanding:
-
-- `git push --force`; prefer `--force-with-lease` for an approved history rewrite
-- `git reset --hard` on a shared or remote-tracked branch
-- `git rebase` on a branch already pushed and shared
-- `git clean -fd` without first previewing with `git clean -nfd`
-- `git stash drop` or `git stash clear` without verifying the contents are disposable
-
-Do not commit directly to `main` or `master` in a multi-person project. Before destructive
-operations, inspect the current branch, working tree, and recent history. Never discard unrelated
-user changes.
-
-## Code Quality and Naming
-
-- Prefer self-explanatory names for variables, functions, methods, classes, interfaces, modules, and
-  files.
-- Avoid cryptic abbreviations, magic words, and single-letter names except for obvious, tightly
-  scoped conventions such as loop indices.
-- Follow established naming conventions unless they materially harm comprehension. Do not introduce
-  additional cryptic names merely to imitate poor local examples.
-- Clear names should reduce definition tracing during exploration and debugging.
-- Apply the repository's established formatting, linting, and typing conventions.
-- Keep secrets and environment-specific values in appropriate configuration.
-- Local constants with clear ownership are acceptable.
-- Centralize duplicated policy values.
-- Do not leave dead code, commented-out implementation blocks, debug statements, or unexplained
-  TODOs.
+## Naming and Code Quality
+- Names should explain themselves. Avoid cryptic abbreviations and single-letter names, except
+  obvious cases like a loop index.
+- Follow the naming style already used in the codebase.
+- No dead code, commented-out blocks, debug prints, or unexplained TODOs.
+- Keep secrets and environment-specific values out of the code — use config or env vars.
+- Don't duplicate a constant that already exists elsewhere — reuse it.
 
 ## Idempotency
+Anything that might run more than once by accident — setup scripts, migrations, retried API
+calls, file generation — should be safe to run twice with the same result.
 
-Operations likely to be retried, resumed, replayed, or run during initialization should be
-idempotent where practical.
+For things that genuinely can't be idempotent by nature (sending a payment, sending a
+notification, incrementing a counter), use a dedup key or a transaction so a retry doesn't double
+it up.
 
-This especially applies to setup scripts, migrations, initialization, file generation, retried
-database writes, and external API requests.
+Don't build this kind of safety into a script that only ever runs once, by hand, one time.
 
-For inherently non-idempotent operations such as payments, notifications, event appends, or counter
-increments, use deduplication keys, transactional boundaries, or explicit safeguards when duplicate
-execution is a realistic risk.
+## Subagents
 
-Do not add elaborate idempotency infrastructure to local one-shot operations with no realistic
-replay path.
+**This section is about you — the model doing this task — deciding whether to hand part of it to
+another agent.**
 
-## LLM and Subagent Usage
+Default: zero subagents. Do the work yourself, in this same session.
 
-Use an LLM for judgment-heavy tasks such as classification, drafting, summarization, extraction, and
-interpretation. Use deterministic code for routing, retries, calculations, parsing, and transforms
-that ordinary code can perform reliably.
+Only delegate to another agent when:
+- The work splits into pieces that don't depend on each other, and doing them one-by-one yourself
+  would just waste time.
+- The work is High-Risk, and a second, independently-formed opinion would catch something you
+  might rationalize past — e.g. reviewing an auth change. Not for routine work.
+- The files or history involved won't fit in your own context.
 
-### Subagents and Fresh Context
+If you do delegate: give it the exact question, the smallest set of files it needs, and what you
+expect back. Don't ask it to re-read the whole repo. Treat what it gives you as a claim to verify,
+not a fact to trust automatically.
 
-Each fresh agent must reconstruct context, reread files, and reconcile findings.
+Don't delegate to look thorough. Don't split one task into "implementer" + "reviewer" +
+"verifier" agents when one agent could safely do all of it. Stop delegating once you have enough
+confidence to move on.
 
-**Default subagent count is zero.** Use one only when a concrete benefit exceeds context
-reconstruction and integration cost.
+## Keeping Context Small
+This is about repo-wide habits, not any one task:
+- Name files and folders so their purpose is obvious without opening them.
+- Keep public interfaces small.
+- Keep a helper near the feature it supports, unless it's genuinely shared by several features.
+- Use `PLAN.md` for orientation before reading code, and only the relevant `DEVELOPMENT.md`
+  entries — not the whole file.
+- Don't re-read a file whose content you already have and that hasn't changed.
+- Run the targeted test before reaching for the whole suite.
 
-A subagent may be justified for:
+None of this is permission to skip correctness, security, or a real interface concern — it's
+about not doing more work than the task needs.
 
-- Genuinely independent parallel work with little overlap
-- Specialist review of a high-risk area
-- A large task with cleanly separable domains
-- Fresh-context review when the current context is bloated, polluted, or losing attention
+## Dependencies
+- Every dependency is something you now have to maintain — justify adding one.
+- Prefer small, actively maintained libraries over large or abandoned ones.
+- If this project is an application you deploy, lock exact versions so it's reproducible.
+- If this project is a library others import, declare a compatible version range for consumers,
+  but still lock exact versions in this repo's own CI and dev setup.
+- Don't upgrade or swap a dependency as a side effect of an unrelated change.
 
-Do not spawn subagents to create the appearance of rigor, duplicate work, or perform routine
-planning and review that the current agent can handle safely.
-
-Before delegating:
-
-- Define the exact question, relevant files, expected output, and benefit.
-- Provide the smallest sufficient context.
-- Prefer one well-scoped subagent over several overlapping reviewers.
-- Do not ask it to reread the entire repository by default.
-- Ensure relevant `PLAN.md` and `DEVELOPMENT.md` context is current; update them only when durable
-  state or useful history actually changed.
-
-Avoid recursive subagent chains and separate planning, implementation, and review agents for a task
-one agent can understand safely. Parallelize only genuinely independent work. Treat subagent output
-as advisory and verify important claims before changing code.
-
-Stop delegating once the task has sufficient coverage and confidence.
-
-## Token Efficiency and AI Maintainability
-
-- Organize the repository for bounded context and local reasoning.
-- Make directory and file names reveal feature ownership and purpose.
-- Keep public APIs small and explicit.
-- Keep helpers near the feature they support unless genuinely shared.
-- Avoid hidden conventions and implicit magic.
-- Add file-level descriptions only when they improve orientation.
-- Explain non-obvious reasons and constraints, not obvious code.
-- Use `PLAN.md` as the first-pass project context.
-- Consult only relevant `DEVELOPMENT.md` history.
-- Start with the target feature, direct callers, nearby tests, and directly used shared types.
-- Avoid redundant tool calls and rereading unchanged files.
-- Run targeted checks before broad suites.
-- Keep plans, logs, test output, and completion reports concise.
-- Stop when success criteria and focused verification are satisfied.
-
-Token efficiency comes from locality, scope control, and proportional verification—not from
-silently skipping correctness, security, data integrity, or interface work.
-
-## Dependency Management
-
-- Every dependency is a long-term liability; justify it before adding.
-- Prefer small, focused, actively maintained libraries.
-- Applications and deployments must be reproducible through an exact lockfile or equivalent.
-- Reusable libraries may declare tested compatible ranges while locking exact versions in CI and
-  development environments.
-- Do not upgrade or replace dependencies as an unrelated side effect.
-
-## Observability
-
-- Maintained applications and services should use centrally configured structured logging behind a
-  small reusable interface.
-- Feature modules should not independently invent handlers, formats, destinations, or contextual
-  field conventions.
-- Small scripts may use the simplest appropriate reporting mechanism unless project logging already
-  exists.
-- Use log levels consistently.
-- Production failures should include enough context to diagnose the operation.
-- Never log passwords, tokens, secrets, or unnecessary personal data.
+## Logging
+- Set up one structured logging system for the project and use it everywhere — don't let each
+  file invent its own format.
+- A small one-off script can just print — it doesn't need the full logging setup.
+- Use log levels consistently: DEBUG for detail, INFO for normal operation, WARN for something
+  degraded but working, ERROR for something that needs attention.
+- A production error log should have enough detail to know what happened without a debugger
+  attached.
+- Never log passwords, tokens, secrets, or personal data.
 
 ## Security
 
-- Treat external input as untrusted at relevant boundaries.
-- Validate input against expected shape and constraints.
-- Use destination-appropriate protections: parameterized database queries, contextual output
-  encoding or escaping, safe deserialization, and path normalization where relevant.
-- Do not rely on a generic “sanitize everything” step.
-- Perform authentication at clear system boundaries.
-- Perform authorization where the information needed to decide access is available. Resource-level
-  authorization may belong in application or domain services.
-- Never place secrets in source control, logs, or error messages.
-- Consider vulnerability classes relevant to the stack, including injection, insecure
-  deserialization, path traversal, and broken access control.
-- Security may justify a narrow scope expansion to avoid introducing or preserving a clear
-  vulnerability. Surface serious pre-existing issues without silently turning a focused task into
-  a broad security rewrite.
+Apply real, specific protections — not a generic "sanitize everything" pass:
+- Treat input as untrusted at the point it enters your system. Check its shape and constraints.
+- Use the protection that matches where the data is going: parameterized queries for a database,
+  escaping or encoding for HTML output, safe deserialization for untrusted data, path
+  normalization for file paths.
+- Check auth at a clear boundary (e.g. middleware, gateway) — not scattered inside business logic.
+- Check authorization wherever the information needed to decide access actually lives.
+- Never put a secret in source control, logs, or an error message.
+- Know the common failure modes for your stack: injection, insecure deserialization, path
+  traversal, broken access control.
 
-## Scalability
+**Match the effort to real exposure.** A local tool used only by you or a few trusted people
+doesn't need rate limiting, CSRF protection, or fuzz testing — there's no realistic attacker in
+that picture. A public-facing app handling real user data does need the standard protections
+above, applied properly. Reserve deep threat modeling and dedicated security testing for the
+actual high-risk cases: auth, payments, and anything touching regulated or personal data.
 
-- Design for the next realistic order of magnitude, not the next ten.
-- Avoid premature optimization.
-- Measure before broad performance changes.
-- Keep business logic independent from transport where this improves locality and reuse.
-- Keep I/O and computation separate where this improves clarity or testability.
-- Define shared data shapes once.
-- Propose major caching, concurrency, queueing, sharding, or distributed-system changes before
+If you find a real, existing vulnerability while doing unrelated work, it's fine to fix or flag
+it — but don't turn a small task into a full security audit on your own initiative.
+
+## Scaling
+- Design for roughly the next order of magnitude of load — not for a scale you don't have yet.
+- Don't optimize before you've measured that something is actually slow.
+- Keep business logic separate from the transport layer (HTTP, CLI, queue) so either can change
+  independently.
+- Define a shared data shape once, not once per module.
+- Propose big changes — caching, concurrency, sharding, a new queue — and their tradeoffs before
   implementing them.
 
 ## Documentation
+README should cover: what the project does, how to set it up, how to run it, how to run its
+tests, and how to deploy it, if it deploys.
 
-README should cover:
+- `README.md` — for someone using or operating the project
+- `PLAN.md` — current architecture, state, and next steps
+- `DEVELOPMENT.md` — history worth remembering
+- `ARCHITECTURE.md` — only if the architecture is too big to stay concise inside `PLAN.md`
 
-- What the project does
-- Local setup
-- How to run it
-- How to run relevant tests
-- Deployment when deployment is part of the project
+Don't repeat information that's already obvious from the code or another doc.
 
-Public interfaces should have concise descriptions of purpose and non-obvious behavior.
-
-Use:
-
-- `README.md` for user and operator guidance
-- `PLAN.md` for durable architecture, current state, and next steps
-- `DEVELOPMENT.md` for useful implementation and troubleshooting history
-- `ARCHITECTURE.md` only when architecture is too substantial to remain concise in `PLAN.md`
-
-Do not duplicate information already clear from code or another authoritative document.
-
-## Completion Report
-
-Keep the final report concise:
-
+## Wrapping Up a Task
+Keep your final summary short:
 - What changed
-- What was tested or checked
-- Any limitation or unresolved issue
-- Any necessary `PLAN.md` or `DEVELOPMENT.md` update
-- At most one or two optional improvements, clearly separated from completed work
+- What you tested, and at what level (see "Report what you actually did" above)
+- Anything unresolved or limited
+- Whether `PLAN.md` or `DEVELOPMENT.md` needs updating, and whether you already did it
+- At most one or two optional follow-up ideas, clearly marked as optional
 
-Do not narrate routine implementation steps or list every passing test.
+Don't narrate every step you took or list every passing test.
