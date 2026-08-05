@@ -69,6 +69,18 @@ func TestSessionRegistryBoundsConcurrentSessionCreation(t *testing.T) {
 	}
 }
 
+func TestSessionRegistryAssociatesReplacementBookIdentity(t *testing.T) {
+	registry := NewSessionRegistry()
+	session := registry.GetOrCreateBook("source", "old-book")
+	session.PutVariable("token", "fixture")
+
+	registry.AssociateBook("source", "new-book", session)
+
+	if got := registry.GetBook("source", "new-book"); got != session || got.GetVariable("token") != "fixture" {
+		t.Fatal("replacement book identity did not retain the workflow session")
+	}
+}
+
 func TestSessionRegistryCreatesIsolatedBookSessions(t *testing.T) {
 	registry := NewSessionRegistry()
 	first := registry.GetOrCreateBook("source", "book-1")

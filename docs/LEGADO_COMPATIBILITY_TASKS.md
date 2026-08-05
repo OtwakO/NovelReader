@@ -96,11 +96,11 @@
 
 ### LC-008 — Execute `ruleToc.preUpdateJs`
 
-- **Status:** In progress — execution ordering, direct mutation, and guarded `java.refreshTocUrl()` complete; `java.reGetBook()` remains
+- **Status:** Complete for the audited upstream contract
 - **Priority:** High
 - **Impact:** Approximately six bundled sources actively use it.
-- **Completed slices:** `preUpdateJs` executes before the first TOC request with source state and typed book context. Direct mutations synchronize back to the domain book, and a mutated `book.tocUrl`/`book.bookUrl` selects the request target. Workflow-scoped `java.refreshTocUrl()` now runs the existing detail workflow once, refreshes typed book context, and uses the resulting TOC URL; refresh failures stop before stale TOC I/O. Targeted Analyzer/book/API/conformance tests pass. Commits: `feat: run TOC pre-update scripts`, `feat: refresh TOC URLs from pre-update scripts`.
-- **Remaining behavior:** Implement the explicitly pre-update-only `java.reGetBook()` bridge, including upstream's precise-search-then-detail contract; audit direct mutations of fields not currently represented by NovelReader's `Book` contract.
+- **Completed slices:** `preUpdateJs` executes before the first TOC request with source state and typed book context. Direct mutations synchronize back to the domain book, and a mutated `book.tocUrl`/`book.bookUrl` selects the request target. Workflow-scoped `java.refreshTocUrl()` runs the existing detail workflow and uses the refreshed TOC URL. Workflow-scoped `java.reGetBook()` performs uncapped exact name+author search, replaces search-result identity/state without overwriting shelf/progress fields, refreshes detail, clears stale TOC state when necessary, and preserves source cookies/variables through detail, TOC, and content. Both network bridges are queued during JavaScript evaluation and executed after the runtime is returned, preventing pool-size-one deadlock. Failures stop before stale TOC I/O with contextual errors. Targeted Analyzer/sourceexec/book/API/conformance tests pass. Commits: `feat: run TOC pre-update scripts`, `feat: refresh TOC URLs from pre-update scripts`, `feat: re-fetch books from TOC pre-update scripts`.
+- **Scope note:** The pinned corpus actively uses `refreshTocUrl()` but contains no active `reGetBook()` call; deterministic regressions pin the upstream `reGetBook()` contract without a live-source repair claim. Direct mutations remain limited to fields represented by NovelReader's typed `Book` contract.
 - **Required behavior:** Match upstream ordering and permitted effects, including state mutation and supported TOC URL/book refresh behavior.
 - **TDD seam:** Public TOC workflow, proving execution order and one meaningful state/URL mutation.
 - **Risk:** Avoid recursive refresh or hidden network retries; confirm upstream boundaries first.

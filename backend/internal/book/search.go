@@ -321,12 +321,18 @@ func (s *Searcher) rateLimitWait(ctx context.Context, src booksource.BookSource)
 
 // searchSource performs a single source search.
 func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, query string) ([]SearchResult, error) {
+	return s.searchSourceWithLimit(ctx, src, query, maxResultsPerSource)
+}
+
+func (s *Searcher) searchSourceWithLimit(ctx context.Context, src booksource.BookSource, query string, limit int) ([]SearchResult, error) {
+	return s.searchSourceWithLimitAndSession(ctx, src, query, limit, sourceexec.NewSourceSession())
+}
+
+func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src booksource.BookSource, query string, limit int, session *sourceexec.SourceSession) ([]SearchResult, error) {
 	srcCtx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
 	defer cancel()
 
-	// Search owns one session/client pair so cookies and source variables cannot leak
-	// between concurrent sources while remaining available to multi-stage rules.
-	session := sourceexec.NewSourceSession()
+	// Search owns one session/client pair unless a multi-stage workflow supplies one.
 	configureSourceSession(src, session)
 	sourceHeaders, err := evaluateSourceHeaders(srcCtx, s.jsVM, src, session)
 	if err != nil {
@@ -375,7 +381,7 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 	if resultBaseURL == "" {
 		resultBaseURL = spec.URL
 	}
-	results, err := s.parseSearchResultWithRuleStateContextAtURL(srcCtx, src, resp.Body, src.RuleSearch, resultBaseURL, session)
+	results, err := s.parseSearchResultWithRuleStateContextAtURLLimit(srcCtx, src, resp.Body, src.RuleSearch, resultBaseURL, session, limit, false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -383,6 +389,34 @@ func (s *Searcher) searchSource(ctx context.Context, src booksource.BookSource, 
 		results[i].Score = scoreResult(query, results[i].Name)
 	}
 	return results, nil
+}
+
+func applySearchResultToBook(book *Book, result SearchResult) {
+	book.Name = result.Name
+	book.Author = result.Author
+	book.CoverURL = result.CoverURL
+	book.Intro = result.Intro
+	book.Kind = result.Kind
+	book.LastChapter = result.LastChapter
+	book.UpdateTime = result.UpdateTime
+	book.WordCount = result.WordCount
+	book.BookURL = result.BookURL
+	book.TocURL = ""
+	book.SourceURL = result.SourceURL
+	book.Origin = result.SourceName
+}
+
+func (s *Searcher) preciseSearchSource(ctx context.Context, src booksource.BookSource, name, author string, session *sourceexec.SourceSession) (SearchResult, error) {
+	results, err := s.searchSourceWithLimitAndSession(ctx, src, name, 0, session)
+	if err != nil {
+		return SearchResult{}, err
+	}
+	for _, result := range results {
+		if result.Name == name && result.Author == author {
+			return result, nil
+		}
+	}
+	return SearchResult{}, fmt.Errorf("no exact match for %q (%s)", name, author)
 }
 
 // parseSearchResultWithRule parses search results using structured SearchRule JSON.
@@ -551,8 +585,10 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 func (s *Searcher) GetBookInfoForBook(src booksource.BookSource, b *Book, bookURL string) (*Book, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
 	defer cancel()
+	return s.getBookInfoForBookWithSession(ctx, src, b, bookURL, s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL))
+}
 
-	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
+func (s *Searcher) getBookInfoForBookWithSession(ctx context.Context, src booksource.BookSource, b *Book, bookURL string, session *sourceexec.SourceSession) (*Book, error) {
 	configureSourceSession(src, session)
 	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
 	if err != nil {
@@ -645,26 +681,41 @@ func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, toc
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	bookData := bookContext(b, src)
 	if preUpdateJS := parseRuleJSON(src.RuleToc)["preUpdateJs"]; preUpdateJS != "" {
+		var preUpdateCommands []string
 		an := analyzer.New("", fetchURL, s.jsVM, s.cache)
 		an.SetContext(ctx)
 		setAnalyzerContextMaps(an, src, session, bookData, nil, nil)
 		an.SetJSBridge(&analyzer.JSBridge{
-			RefreshTocURL: func() error {
-				syncBookFromContext(b, bookData)
-				if _, err := s.GetBookInfoForBook(src, b, b.BookURL); err != nil {
-					return err
-				}
-				for key := range bookData {
-					delete(bookData, key)
-				}
-				for key, value := range bookContext(b, src) {
-					bookData[key] = value
-				}
-				return nil
-			},
+			RefreshTocURL: func() { preUpdateCommands = append(preUpdateCommands, "refreshTocUrl") },
+			ReGetBook:     func() { preUpdateCommands = append(preUpdateCommands, "reGetBook") },
 		})
 		if _, err := an.GetStringStrict("<js>" + preUpdateJS + "</js>"); err != nil && !errors.Is(err, analyzer.ErrNoElements) {
 			return nil, fmt.Errorf("chapter list: preUpdateJs: %w", err)
+		}
+		syncBookFromContext(b, bookData)
+		for _, command := range preUpdateCommands {
+			switch command {
+			case "refreshTocUrl":
+				if _, err := s.getBookInfoForBookWithSession(ctx, src, b, b.BookURL, session); err != nil {
+					return nil, fmt.Errorf("chapter list: preUpdateJs refreshTocUrl: %w", err)
+				}
+			case "reGetBook":
+				result, err := s.preciseSearchSource(ctx, src, b.Name, b.Author, session)
+				if err != nil {
+					return nil, fmt.Errorf("chapter list: preUpdateJs reGetBook: %w", err)
+				}
+				applySearchResultToBook(b, result)
+				s.sessions.AssociateBook(src.BookSourceURL, b.BookURL, session)
+				if _, err := s.getBookInfoForBookWithSession(ctx, src, b, b.BookURL, session); err != nil {
+					return nil, fmt.Errorf("chapter list: preUpdateJs reGetBook: %w", err)
+				}
+			}
+			for key := range bookData {
+				delete(bookData, key)
+			}
+			for key, value := range bookContext(b, src) {
+				bookData[key] = value
+			}
 		}
 		syncBookFromContext(b, bookData)
 		if b.TocURL != "" {
@@ -713,7 +764,7 @@ func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, toc
 	}
 	for _, chapter := range chapters {
 		if chapter.URL != "" {
-			s.sessions.AssociateChapter(src.BookSourceURL, bookURL, chapter.URL)
+			s.sessions.AssociateChapter(src.BookSourceURL, b.BookURL, chapter.URL)
 		}
 	}
 

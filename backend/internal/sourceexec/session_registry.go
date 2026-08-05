@@ -64,6 +64,19 @@ func (r *SessionRegistry) GetOrCreateBook(sourceURL, bookURL string) *SourceSess
 	return session
 }
 
+// AssociateBook maps another source/book identity to an existing workflow session.
+func (r *SessionRegistry) AssociateBook(sourceURL, bookURL string, session *SourceSession) {
+	if r == nil || session == nil || bookURL == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.evictLocked(time.Now())
+	r.books[sessionKey(sourceURL, bookURL)] = session
+	r.touchLocked(session)
+	r.evictLocked(time.Now())
+}
+
 // GetBook returns an existing book session without creating one.
 func (r *SessionRegistry) GetBook(sourceURL, bookURL string) *SourceSession {
 	if r == nil {

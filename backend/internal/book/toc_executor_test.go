@@ -67,7 +67,7 @@ func TestGetChapterListRefreshTocURLReloadsDetailBeforeTOC(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVMWithPoolSize(1), nil, nil, nil)
 	src := booksource.BookSource{
 		BookSourceURL: server.URL,
 		RuleBookInfo:  `{"tocUrl":"@css:.toc@href","lastChapter":"@css:.latest@text"}`,
@@ -90,6 +90,152 @@ func TestGetChapterListRefreshTocURLReloadsDetailBeforeTOC(t *testing.T) {
 	}
 	if len(chapters) != 1 || chapters[0].Title != "第一章" {
 		t.Fatalf("chapters=%+v, want refreshed TOC result", chapters)
+	}
+}
+
+func TestGetChapterListReGetBookSearchesThenRefreshesDetailWithoutRuntimeReentry(t *testing.T) {
+	var requestedPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPaths = append(requestedPaths, r.URL.Path)
+		switch r.URL.Path {
+		case "/search":
+			if r.URL.Query().Get("q") != "ExistingName" {
+				t.Errorf("search query=%q, want existing book name", r.URL.Query().Get("q"))
+			}
+			http.SetCookie(w, &http.Cookie{Name: "precise", Value: "matched", Path: "/"})
+			nearMatches := strings.Repeat(`<div class="book"><span class="name">ExistingName</span><span class="author">OtherAuthor</span><a href="/wrong-book">书籍</a></div>`, 20)
+			_, _ = w.Write([]byte(nearMatches + `<div class="book"><span class="name">ExistingName</span><span class="author">ExistingAuthor</span><span class="kind">SearchKind</span><a href="/new-book">书籍</a></div>`))
+		case "/new-book":
+			if r.Header.Get("Cookie") != "precise=matched" {
+				t.Errorf("detail cookie=%q, want cookie established by precise search", r.Header.Get("Cookie"))
+			}
+			_, _ = w.Write([]byte(`<a class="toc" href="/fresh-toc">目录</a><span class="latest">重新搜索并刷新</span><span class="kind">SearchKind</span>`))
+		case "/fresh-toc":
+			if r.Header.Get("Cookie") != "precise=matched" {
+				t.Errorf("TOC cookie=%q, want precise-search cookie retained", r.Header.Get("Cookie"))
+			}
+			_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">第一章</a>`))
+		case "/chapter/1":
+			if r.Header.Get("Cookie") != "precise=matched" {
+				t.Errorf("content cookie=%q, want re-searched book session retained", r.Header.Get("Cookie"))
+			}
+			_, _ = w.Write([]byte(`<article>正文</article>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVMWithPoolSize(1), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL:  server.URL,
+		BookSourceName: "fixture",
+		SearchURL:      server.URL + "/search?q={{key}}",
+		RuleSearch:     `{"bookList":"@css:.book","name":"@css:.name@text","author":"@css:.author@text","kind":"@css:.kind@text","bookUrl":"@css:a@href"}`,
+		RuleBookInfo:   `{"tocUrl":"@css:.toc@href","lastChapter":"@css:.latest@text","kind":"@css:.kind@text"}`,
+		RuleToc: `{
+			"preUpdateJs":"java.reGetBook()",
+			"chapterList":"@css:.chapter", "chapterName":"text", "chapterUrl":"@href"
+		}`,
+		RuleContent: `{"content":"@css:article@text"}`,
+	}
+	book := &Book{Name: "ExistingName", Author: "ExistingAuthor", SourceURL: server.URL, BookURL: server.URL + "/old-book", TocURL: server.URL + "/stale-toc"}
+
+	chapters, err := s.GetChapterListForBook(src, book, book.TocURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(requestedPaths, []string{"/search", "/new-book", "/fresh-toc"}) {
+		t.Fatalf("requested paths=%v, want precise search then detail then TOC", requestedPaths)
+	}
+	if book.BookURL != server.URL+"/new-book" || book.TocURL != server.URL+"/fresh-toc" || book.LastChapter != "重新搜索并刷新" || book.Kind != "SearchKind" {
+		t.Fatalf("book=%+v, want searched identity and refreshed detail", book)
+	}
+	if len(chapters) != 1 || chapters[0].Title != "第一章" {
+		t.Fatalf("chapters=%+v, want refreshed TOC result", chapters)
+	}
+	content, _, err := s.GetChapterContentForBook(src, book, &chapters[0], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if content != "正文" {
+		t.Fatalf("content=%q, want first chapter through retained session", content)
+	}
+}
+
+func TestGetChapterListReGetBookClearsStaleTOCWhenDetailHasNoTOCURL(t *testing.T) {
+	var requestedPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPaths = append(requestedPaths, r.URL.Path)
+		switch r.URL.Path {
+		case "/search":
+			_, _ = w.Write([]byte(`<div class="book"><span class="name">ExistingName</span><span class="author">ExistingAuthor</span><a href="/new-book">书籍</a></div>`))
+		case "/new-book":
+			_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">第一章</a>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVMWithPoolSize(1), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL,
+		SearchURL:     server.URL + "/search?q={{key}}",
+		RuleSearch:    `{"bookList":"@css:.book","name":"@css:.name@text","author":"@css:.author@text","bookUrl":"@css:a@href"}`,
+		RuleBookInfo:  `{}`,
+		RuleToc: `{
+			"preUpdateJs":"java.reGetBook()",
+			"chapterList":"@css:.chapter", "chapterName":"text", "chapterUrl":"@href"
+		}`,
+	}
+	book := &Book{Name: "ExistingName", Author: "ExistingAuthor", SourceURL: server.URL, BookURL: server.URL + "/old-book", TocURL: server.URL + "/stale-toc"}
+
+	chapters, err := s.GetChapterListForBook(src, book, book.TocURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(requestedPaths, []string{"/search", "/new-book", "/new-book"}) {
+		t.Fatalf("requested paths=%v, want searched detail then new book URL fallback", requestedPaths)
+	}
+	if book.TocURL != "" || book.BookURL != server.URL+"/new-book" {
+		t.Fatalf("book=%+v, want stale TOC cleared after replacement", book)
+	}
+	if len(chapters) != 1 || chapters[0].Title != "第一章" {
+		t.Fatalf("chapters=%+v, want TOC parsed from replacement book URL", chapters)
+	}
+}
+
+func TestGetChapterListReGetBookStopsWhenExactAuthorIsMissing(t *testing.T) {
+	var requestedPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPaths = append(requestedPaths, r.URL.Path)
+		_, _ = w.Write([]byte(`<div class="book"><span class="name">ExistingName</span><span class="author">OtherAuthor</span><a href="/wrong-book">书籍</a></div>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVMWithPoolSize(1), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL,
+		SearchURL:     server.URL + "/search?q={{key}}",
+		RuleSearch:    `{"bookList":"@css:.book","name":"@css:.name@text","author":"@css:.author@text","bookUrl":"@css:a@href"}`,
+		RuleBookInfo:  `{"tocUrl":"@css:.toc@href"}`,
+		RuleToc: `{
+			"preUpdateJs":"java.reGetBook()",
+			"chapterList":"@css:.chapter", "chapterName":"text", "chapterUrl":"@href"
+		}`,
+	}
+	book := &Book{Name: "ExistingName", Author: "ExistingAuthor", SourceURL: server.URL, BookURL: server.URL + "/old-book", TocURL: server.URL + "/stale-toc"}
+
+	_, err := s.GetChapterListForBook(src, book, book.TocURL)
+	if err == nil || !strings.Contains(err.Error(), "preUpdateJs reGetBook") || !strings.Contains(err.Error(), "no exact match") {
+		t.Fatalf("err=%v, want contextual exact-search failure", err)
+	}
+	if !slices.Equal(requestedPaths, []string{"/search"}) {
+		t.Fatalf("requested paths=%v, want search only and no detail/TOC fetch", requestedPaths)
+	}
+	if book.BookURL != server.URL+"/old-book" || book.TocURL != server.URL+"/stale-toc" {
+		t.Fatalf("book=%+v, want identity unchanged after failed exact search", book)
 	}
 }
 

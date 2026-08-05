@@ -39,8 +39,8 @@ type JSVM struct {
 
 // JSBridge exposes workflow-scoped JavaScript helpers without coupling analyzer to callers.
 type JSBridge struct {
-	RefreshTocURL func() error
-	ReGetBook     func() error
+	RefreshTocURL func()
+	ReGetBook     func()
 }
 
 // NewJSVM creates a JSVM with the compatibility pool size of 16 runtimes.
