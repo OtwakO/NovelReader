@@ -107,11 +107,11 @@
 
 ### LC-009 — Execute `ruleToc.formatJs`
 
-- **Status:** Queued
+- **Status:** Complete for the audited upstream contract
 - **Priority:** Medium
-- **Corpus note:** No active non-empty use was found in the pinned corpus, but the field is part of the current source contract.
-- **Audit finding:** NovelReader extracts chapter names but does not run the chapter formatting script.
-- **Required behavior:** Apply it after chapter construction in the same context and order as Legado.
+- **Corpus note:** One active non-empty use was found in the pinned corpus: removing a trailing six-digit marker from chapter titles.
+- **Implemented behavior:** Runs once over the final TOC after pagination, reversal, deduplication, and zero-based index assignment. Each chapter receives persistent `gInt`, one-based `index`, mutable `chapter`, current `title`, book/source/session context, and source `jsLib`. Non-null results replace titles. Per-chapter errors are logged with the one-based index, retain mutations/title state reached before failure, and do not stop later chapters. Only the exposed chapter contract synchronizes back, preserving NovelReader-only fields.
+- **Verification:** Public TOC regressions cover final-order/dedup timing, persistent `gInt`, one-based versus zero-based indices, mutable chapter state, fail-soft continuation, a one-runtime pool, and the exact active suffix-removal script. Targeted Analyzer/sourceexec/book/API/conformance tests pass. Commit: `feat: format TOC chapter titles`.
 - **TDD seam:** Public TOC parsing with a title transformation and chapter context assertion.
 
 ### LC-010 — Support content-rule `webJs`

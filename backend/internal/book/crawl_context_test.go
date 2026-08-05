@@ -39,6 +39,56 @@ func TestTOCRulesReceiveCompleteBookAndChapterContext(t *testing.T) {
 	}
 }
 
+func TestTOCFormatJSRunsAfterFinalOrderingWithPersistentBindings(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">One</a><a class="chapter" href="/chapter/2">Two</a><a class="chapter" href="/chapter/2">Duplicate Two</a><a class="chapter" href="/chapter/3">Three</a>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVMWithPoolSize(1), nil, nil, nil)
+	src := booksource.BookSource{BookSourceURL: server.URL, BookSourceName: "Fixture", RuleToc: `{
+		"chapterList":"@css:.chapter", "chapterName":"text", "chapterUrl":"@href",
+		"formatJs":"gInt += index; chapter.tag = 'tag-' + index; if (index === 2) throw new Error('skip second'); title + '|' + index + '|' + chapter.index + '|' + gInt"
+	}`}
+
+	chapters, err := s.GetChapterListForBook(src, &Book{BookURL: server.URL + "/book"}, server.URL+"/toc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chapters) != 3 {
+		t.Fatalf("chapters=%+v, want three formatted chapters", chapters)
+	}
+	if chapters[0].Title != "One|1|0|1" || chapters[0].Tag != "tag-1" {
+		t.Fatalf("first=%+v, want one-based format index and zero-based chapter index", chapters[0])
+	}
+	if chapters[1].Title != "Duplicate Two" || chapters[1].Tag != "tag-2" {
+		t.Fatalf("second=%+v, want mutation retained but title unchanged after format error", chapters[1])
+	}
+	if chapters[2].Title != "Three|3|2|6" || chapters[2].Tag != "tag-3" {
+		t.Fatalf("third=%+v, want formatting to continue with persistent gInt", chapters[2])
+	}
+}
+
+func TestTOCFormatJSSupportsActiveSuffixRemovalContract(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">第一章【123456】</a><a class="chapter" href="/chapter/2">第二章</a>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVMWithPoolSize(1), nil, nil, nil)
+	src := booksource.BookSource{BookSourceURL: server.URL, RuleToc: `{
+		"chapterList":"@css:.chapter", "chapterName":"text", "chapterUrl":"@href",
+		"formatJs":"title.replace(/【\\d{6}】$/,'')"
+	}`}
+	chapters, err := s.GetChapterListForBook(src, &Book{BookURL: server.URL + "/book"}, server.URL+"/toc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chapters) != 2 || chapters[0].Title != "第一章" || chapters[1].Title != "第二章" {
+		t.Fatalf("chapters=%+v, want active formatJs suffix removal", chapters)
+	}
+}
+
 func TestTOCPaginationURLReceivesBookContext(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

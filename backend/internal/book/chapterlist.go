@@ -2,6 +2,7 @@ package book
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -186,8 +187,114 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 	for i := range allChapters {
 		allChapters[i].Index = i
 	}
+	p.formatChapterTitles(allChapters, rules["formatJs"], tocURL)
 
 	return allChapters, nil
+}
+
+func (p *ChapterListParser) formatChapterTitles(chapters []Chapter, formatJS, baseURL string) {
+	if strings.TrimSpace(formatJS) == "" || len(chapters) == 0 || p.jsVM == nil {
+		return
+	}
+	chapterValues := make([]map[string]interface{}, len(chapters))
+	for i := range chapters {
+		chapterValues[i] = chapterContext(p.book, &chapters[i], chapters[i].BaseURL)
+	}
+	encodedFormatJS, _ := json.Marshal(formatJS)
+	script := `
+var gInt = 0;
+var __formatErrors = [];
+var __formatCode = ` + string(encodedFormatJS) + `;
+for (var __chapterIndex = 0; __chapterIndex < chapters.length; __chapterIndex++) {
+  var chapter = chapters[__chapterIndex];
+  var index = __chapterIndex + 1;
+  var title = chapter.title;
+  try {
+    var __formattedTitle = eval(__formatCode);
+    if (__formattedTitle !== null && __formattedTitle !== undefined) {
+      chapter.title = String(__formattedTitle);
+    }
+  } catch (__formatError) {
+    __formatErrors.push({index: index, message: String(__formatError)});
+  }
+}
+({chapters: chapters, errors: __formatErrors});`
+	data := &analyzer.URLContext{Book: p.bookData, JSLib: p.src.JSLib}
+	bindings := analyzer.URLBindings(data, baseURL, p.state)
+	bindings["chapters"] = chapterValues
+	bindings["source"] = sourceContext(p.src)
+	ctx := p.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	value, err := analyzer.EvalURLScript(ctx, p.jsVM, script, "", baseURL, data, bindings)
+	if err != nil {
+		slog.Warn("toc: formatJs batch failed", "source", p.src.BookSourceName, "err", err)
+		return
+	}
+	result, ok := value.(map[string]interface{})
+	if !ok {
+		return
+	}
+	if formatted, ok := result["chapters"]; ok {
+		raw, marshalErr := json.Marshal(formatted)
+		var values []map[string]interface{}
+		if marshalErr == nil && json.Unmarshal(raw, &values) == nil {
+			for i := range chapters {
+				if i >= len(values) {
+					break
+				}
+				syncChapterFromContext(&chapters[i], values[i])
+			}
+		}
+	}
+	if formatErrors, ok := result["errors"]; ok {
+		var entries []struct {
+			Index   int    `json:"index"`
+			Message string `json:"message"`
+		}
+		raw, marshalErr := json.Marshal(formatErrors)
+		if marshalErr == nil && json.Unmarshal(raw, &entries) == nil {
+			for _, entry := range entries {
+				slog.Warn("toc: formatJs chapter failed", "source", p.src.BookSourceName, "chapterIndex", entry.Index, "err", entry.Message)
+			}
+		}
+	}
+}
+
+func syncChapterFromContext(chapter *Chapter, values map[string]interface{}) {
+	if chapter == nil {
+		return
+	}
+	raw, err := json.Marshal(values)
+	if err != nil {
+		return
+	}
+	var exposed struct {
+		ID        string `json:"id"`
+		Index     int    `json:"index"`
+		Title     string `json:"title"`
+		URL       string `json:"url"`
+		BaseURL   string `json:"baseUrl"`
+		IsVip     bool   `json:"isVip"`
+		IsVolume  bool   `json:"isVolume"`
+		IsPay     bool   `json:"isPay"`
+		Tag       string `json:"tag"`
+		WordCount string `json:"wordCount"`
+	}
+	if json.Unmarshal(raw, &exposed) != nil {
+		return
+	}
+	chapter.ID = exposed.ID
+	chapter.Index = exposed.Index
+	chapter.Title = exposed.Title
+	chapter.URL = exposed.URL
+	chapter.BaseURL = exposed.BaseURL
+	chapter.IsVip = exposed.IsVip
+	chapter.IsVolume = exposed.IsVolume
+	chapter.IsPay = exposed.IsPay
+	chapter.Tag = exposed.Tag
+	chapter.WordCount = exposed.WordCount
 }
 
 func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[string]string) ([]Chapter, string, error) {
