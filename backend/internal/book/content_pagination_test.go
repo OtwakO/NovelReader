@@ -2,10 +2,13 @@
 package book
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,7 +16,91 @@ import (
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/sourceexec"
 )
+
+type recordingContentWebViewTransport struct {
+	mu        sync.Mutex
+	requests  []sourceexec.RequestSpec
+	responses map[string]sourceexec.Response
+}
+
+func (t *recordingContentWebViewTransport) Do(_ context.Context, spec sourceexec.RequestSpec) (sourceexec.Response, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.requests = append(t.requests, spec)
+	return t.responses[spec.URL], nil
+}
+
+func TestGetChapterContentUsesRuleWebJSForWebViewPagesWithOptionPrecedence(t *testing.T) {
+	ruleWebJS := `<js>
+var content = result;
+content = content.replace(/<script[^>]*>[\s\S]*?<\/script>/g, '');
+content = content.replace(/<img src="\/asset\/fonts\/\d+\.png"[^>]*>/g, '');
+result = content;
+</js>`
+	browser := &recordingContentWebViewTransport{responses: map[string]sourceexec.Response{
+		"https://fixture.test/chapter/1": {
+			StatusCode: http.StatusOK, FinalURL: "https://fixture.test/chapter/1", Transport: "webview",
+			Body: `<div class="content">第一页正文</div><a class="next" href='https://fixture.test/page-2,{"webView":true,"webJs":"optionScript()"}'>下一页</a>`,
+		},
+		"https://fixture.test/page-2": {
+			StatusCode: http.StatusOK, FinalURL: "https://fixture.test/page-2", Transport: "webview",
+			Body: `<div class="content">第二页正文</div>`,
+		},
+	}}
+	s := NewSearcher(nil, analyzer.NewJSVM(), nil, nil, nil)
+	s.SetWebViewTransportFactory(func(*sourceexec.SourceSession) sourceexec.Transport { return browser })
+	ruleContent, err := json.Marshal(map[string]string{
+		"content": "@css:.content@text", "nextContentUrl": "@css:.next@href", "webJs": ruleWebJS,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := booksource.BookSource{BookSourceURL: "https://fixture.test", RuleContent: string(ruleContent)}
+	content, _, err := s.GetChapterContent(src, `https://fixture.test/chapter/1,{"webView":true}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if content != "第一页正文\n第二页正文" {
+		t.Fatalf("content=%q, want both browser-rendered pages", content)
+	}
+	browser.mu.Lock()
+	defer browser.mu.Unlock()
+	if len(browser.requests) != 2 || browser.requests[0].WebJS != ruleWebJS || browser.requests[1].WebJS != "optionScript()" {
+		t.Fatalf("requests=%+v, want rule fallback and URL-option precedence", browser.requests)
+	}
+}
+
+func TestGetChapterContentRuleWebJSDoesNotForceWebView(t *testing.T) {
+	var browserRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<div class="content">普通正文</div>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	s.SetWebViewTransportFactory(func(*sourceexec.SourceSession) sourceexec.Transport {
+		return transportFunc(func(context.Context, sourceexec.RequestSpec) (sourceexec.Response, error) {
+			browserRequests.Add(1)
+			return sourceexec.Response{}, nil
+		})
+	})
+	src := booksource.BookSource{BookSourceURL: server.URL, RuleContent: `{
+		"content":"@css:.content@text",
+		"webJs":"<js>var content = result; content = content.replace(/广告/g, ''); result = content;</js>"
+	}`}
+	content, _, err := s.GetChapterContent(src, server.URL+"/chapter/1")
+	if err != nil || content != "普通正文" || browserRequests.Load() != 0 {
+		t.Fatalf("content=%q err=%v browserRequests=%d, want ordinary HTTP without WebView escalation", content, err, browserRequests.Load())
+	}
+}
+
+type transportFunc func(context.Context, sourceexec.RequestSpec) (sourceexec.Response, error)
+
+func (f transportFunc) Do(ctx context.Context, spec sourceexec.RequestSpec) (sourceexec.Response, error) {
+	return f(ctx, spec)
+}
 
 func TestGetChapterContentFollowsAllNextContentURLs(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

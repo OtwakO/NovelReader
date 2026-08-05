@@ -116,12 +116,13 @@
 
 ### LC-010 — Support content-rule `webJs`
 
-- **Status:** Queued
+- **Status:** Complete for the audited upstream request-routing contract
 - **Priority:** High
-- **Important qualification:** URL-option `{ "webView": true, "webJs": "..." }` rendering already works through the browser worker.
-- **Audit finding:** The distinct `ruleContent.webJs` contract is not executed.
+- **Important qualification:** `ruleContent.webJs` does not force browser rendering upstream. It is a fallback script only when the chapter URL already requests WebView; URL-option `{ "webView": true, "webJs": "..." }` takes precedence.
+- **Implemented behavior:** Initial and paginated content requests copy the rule-level script into browser request metadata only when `WebView` is already true and URL-level `webJs` is blank. The original script, including `<js>…</js>` wrappers and regex text, is forwarded unchanged to the configured browser worker. Ordinary HTTP requests remain HTTP and do not evaluate this script in Go.
+- **Verification:** Public content regressions with an injected browser transport cover initial-page fallback, paginated reuse, URL-option precedence, full active-corpus script preservation, and non-escalation without WebView. Targeted Analyzer/sourceexec/webview/book/API/conformance tests pass. Commit: `feat: route content webJs to browser requests`.
 - **TDD seam:** Public content workflow with an injected browser transport fixture.
-- **Scope boundary:** Browser-side Legado bridge injection and `java.webView*` methods are separate tasks; do not claim them from content-rule script support alone.
+- **Scope boundary:** Browser-side Legado bridge injection and `java.webView*` methods remain separate tasks and are not claimed here.
 
 ### LC-011 — Support content `sourceRegex` and resource sniffing
 
