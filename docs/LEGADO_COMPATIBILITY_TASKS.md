@@ -175,12 +175,14 @@
 
 ### LC-016 — Implement the automatic login lifecycle
 
-- **Status:** Design needed
+- **Status:** Blocked on accepted application-authentication prerequisite
 - **Priority:** High
-- **Corpus impact:** Approximately 179 non-empty `loginUrl`, 17 `loginUi`, and seven `loginCheckJs` values.
-- **Audit finding:** Fields survive import and may be visible as metadata, but the host does not render/execute login UI, perform login actions, check authentication, re-authenticate, or durably retain credentials/source variables.
-- **Required planning:** User interaction, secret storage, multi-user isolation, expiry, re-authentication, browser/HTTP continuity, and cancellation.
-- **Do not:** Equate `java.login` support with the complete host lifecycle.
+- **Updated corpus impact:** Combined local source corpora contain roughly 296 non-empty `loginUrl`, 47 `loginUi`, and 21 `loginCheckJs` values. Most login URLs are ordinary web pages; source-defined UIs often execute privileged scripts, and many check scripts are browser/WAF challenge handlers rather than account checks.
+- **Audit finding:** Fields survive import, in-memory source sessions can carry cookies/headers, and the Java bridge exposes login-header helpers, but `java.login` remains a stub. There is no application identity, durable credential/cookie store, interactive browser handoff, source login UI, authentication check/retry lifecycle, or user isolation.
+- **Accepted prerequisite:** `docs/AUTHENTICATION_DESIGN.md` defines local Reader Accounts, a plaintext self-contained reader directory/database per immutable user ID, user-keyed live Source Sessions, and a separate encrypted credential store. Global durable login state is forbidden because it would share source accounts across readers.
+- **Portability constraint:** Source credentials are excluded from portable reader exports, and loss of `NOVELREADER_SECRET_KEY` must not affect sources, shelf, progress/history, bookmarks, caches, preferences, fonts, or other Reader Data.
+- **First login slice after prerequisite:** Manual per-user cookie/login-header import, encrypted with `NOVELREADER_SECRET_KEY`, plus status and logout. Interactive browser login and source-defined `loginUi` remain later capability/security designs.
+- **Do not:** Equate `java.login` support with the complete host lifecycle or execute source credential forms before the capability sandbox is designed.
 
 ### LC-017 — Correct `java.timeFormat`
 
@@ -228,11 +230,11 @@
 
 ### LC-021 — Make source state durable and user-isolated
 
-- **Status:** Design needed
+- **Status:** Portable per-user storage and encryption design accepted; implementation begins with the fail-closed `readerstore` foundation
 - **Priority:** Structural/security
 - **Important qualification:** Workflow continuity already exists across many detail → TOC → content flows.
 - **Verified limitations:** State is in bounded memory, expires after idle TTL, is lost on restart, may be capacity-evicted, is generally workflow/book scoped rather than durable source/user scoped, and does not represent multi-user isolation in session keys.
-- **Required planning:** Persistence ownership, encryption/secret handling, source/user keys, eviction, migration, logout/deletion, and compatibility with disabled cookie jars.
+- **Accepted planning:** `docs/AUTHENTICATION_DESIGN.md` assigns Reader Data to plaintext per-user `reader.db` directories, isolates reversible source credentials in a separate encrypted non-exportable store, keys live sessions by immutable user ID, and defines backup, key-loss, deletion, migration, and logout behavior.
 
 ## Additional verified compatibility backlog
 
