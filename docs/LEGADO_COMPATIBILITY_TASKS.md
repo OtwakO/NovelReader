@@ -136,12 +136,13 @@
 
 ### LC-012 — Support `payAction`
 
-- **Status:** Design needed
-- **Priority:** High for paid/VIP sources
-- **Impact:** Approximately five bundled sources use it.
-- **Audit finding:** Purchase actions cannot run.
-- **Required planning:** Define explicit user consent, idempotency, failure reporting, credential/payment safety, and whether the current application permits transactional source actions.
-- **Do not:** Execute purchase scripts automatically during ordinary content fetch.
+- **Status:** Intentionally deferred by product decision; unsupported
+- **Priority:** High for paid/VIP sources, but blocked on an explicit transactional feature
+- **Impact:** 11 configurations across the current corpus (including duplicates) define an action. Audited examples include a real paid-chapter POST, archive loan/return requests, browser-login handoffs, and generated payment URLs.
+- **Upstream contract:** The reader exposes the action only from an explicit menu item for a remote chapter with `isVip=true` and `isPay!=true`, then displays a chapter-specific confirmation. The script receives authenticated source/book/chapter context. A `true` result invalidates cached content and refreshes the TOC; an absolute URL opens an interactive WebView.
+- **Decision:** Keep `payAction` unsupported for now. Do not expose an execution endpoint, evaluate it during content fetch, or silently classify any action as safe.
+- **Future implementation gate:** Require a user-initiated reader action and per-chapter confirmation; authenticated session scoping; no automatic retries; an in-flight deduplication/idempotency key; explicit success/failure/cancel/interactive-URL outcomes; cache/TOC refresh only after confirmed success; redacted logging; and clear disclosure that source scripts may spend funds, borrow/return items, or mutate an account. Because source rules do not reliably expose price/currency, the UI must not imply a known charge unless separately verified.
+- **Revisit when:** The product intentionally adds transactional source actions and is prepared to own the API, reader UX, authentication, and safety boundaries above.
 
 ### LC-013 — Execute content `callBackJs` and source `eventListener`
 
