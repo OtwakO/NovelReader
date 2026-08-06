@@ -146,10 +146,12 @@
 
 ### LC-013 — Execute content `callBackJs` and source `eventListener`
 
-- **Status:** Design needed
+- **Status:** Dormant in the audited corpus; intentionally unimplemented pending real usage
 - **Priority:** Medium
-- **Audit finding:** Content callbacks are ignored and top-level `eventListener` has no effect. Current corpus use is low, but both belong to the active source model.
-- **Required planning:** Enumerate supported events, lifecycle ordering, error policy, and side-effect boundaries before exposing callbacks.
+- **Corpus finding:** Zero nonblank `ruleContent.callBackJs` scripts and zero sources with `eventListener=true` across the current test corpora. Explicit `false` values are configuration defaults, not active usage.
+- **Upstream contract:** The callback receives one of 20 events: `clickAuthor`, `longClickAuthor`, `clickBookName`, `longClickBookName`, `clickCustomButton`, `longClickCustomButton`, `clickShareBook`, `clickClearCache`, `clickCopyBookUrl`, `clickCopyTocUrl`, `clickCopyPlayUrl`, `clickBookLabel`, `longClickBookLabel`, `addBookShelf`, `delBookShelf`, `saveRead`, `startRead`, `endRead`, `startShelfRefresh`, or `endShelfRefresh`. Bindings vary by event and include `event`, `result`, `book`, `chapter`, and for interactive button callbacks an authenticated `java` bridge. A truthy button result suppresses the default UI action; errors are logged and lifecycle callbacks run asynchronously with upstream 30/60-second bounds.
+- **Decision:** Do not add a speculative partial callback/event system with no active source to validate it. Revisit when a real imported source enables the listener or product requirements explicitly need source lifecycle hooks.
+- **Future implementation gate:** Define the supported event subset and exact ordering at owned reader/shelf boundaries; preserve default-action suppression only for interactive callbacks; scope bridge capabilities by event; bound execution; isolate callback failures from core reading/state transitions; and add fixtures from actual active scripts before enabling it.
 
 ### LC-014 — Apply `coverDecodeJs`
 
