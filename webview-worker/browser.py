@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import re
 from urllib.parse import urlparse
 
 from patchright.async_api import async_playwright
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 DEFAULT_TIMEOUT_MS = 30_000
 
 
@@ -161,19 +163,33 @@ class BrowserWorker:
                     raise ValueError(f"cookie input rejected ({len(cookies)} cookies): {exc}") from exc
             page = await context.new_page()
             navigation_urls: list[str] = []
+            source_pattern = compile_source_regex(request.get("sourceRegex"))
+            source_match = asyncio.get_running_loop().create_future() if source_pattern else None
             page.on(
                 "request",
                 lambda event: navigation_urls.append(event.url)
                 if event.is_navigation_request()
                 else None,
             )
+            if source_match is not None:
+                page.on(
+                    "request",
+                    lambda event: capture_source_match(source_pattern, source_match, event.url),
+                )
             method = (request.get("method") or "GET").upper()
             response = None
             if method == "GET":
-                response = await page.goto(
-                    target, wait_until="domcontentloaded", timeout=timeout_ms
+                matched_url, response = await await_or_source_match(
+                    page.goto(target, wait_until="domcontentloaded", timeout=timeout_ms),
+                    source_match,
                 )
-                await settle_page(page, timeout_ms)
+                if matched_url:
+                    return await sniffed_source_response(matched_url, target, context)
+                matched_url, _ = await await_or_source_match(
+                    settle_page(page, timeout_ms), source_match
+                )
+                if matched_url:
+                    return await sniffed_source_response(matched_url, target, context)
             else:
                 response = await context.request.fetch(
                     target,
@@ -186,21 +202,51 @@ class BrowserWorker:
                 headers = response_headers(response)
                 body = decode_response_body(await response.body(), request, headers)
                 ensure_body_size(body, self.max_body_bytes)
-                await page.set_content(
-                    with_base_url(body, target),
-                    wait_until="domcontentloaded",
-                    timeout=timeout_ms,
+                matched_url, _ = await await_or_source_match(
+                    page.set_content(
+                        with_base_url(body, target),
+                        wait_until="domcontentloaded",
+                        timeout=timeout_ms,
+                    ),
+                    source_match,
                 )
+                if matched_url:
+                    return await sniffed_source_response(matched_url, target, context)
+
+            if source_match is not None and source_match.done():
+                return await sniffed_source_response(await source_match, target, context)
 
             delay_ms = max(0, int(request.get("delayMs") or 0))
             if delay_ms:
-                await asyncio.sleep(delay_ms / 1000)
+                matched_url, _ = await await_or_source_match(
+                    asyncio.sleep(delay_ms / 1000), source_match
+                )
+                if matched_url:
+                    return await sniffed_source_response(matched_url, target, context)
             script = request.get("webJs") or ""
             if script:
-                await page.evaluate(
-                    "async () => {" + script + "}", isolated_context=False
+                matched_url, _ = await await_or_source_match(
+                    page.evaluate("async () => {" + script + "}", isolated_context=False),
+                    source_match,
                 )
-                await settle_page(page, timeout_ms)
+                if matched_url:
+                    return await sniffed_source_response(matched_url, target, context)
+                matched_url, _ = await await_or_source_match(
+                    settle_page(page, timeout_ms), source_match
+                )
+                if matched_url:
+                    return await sniffed_source_response(matched_url, target, context)
+
+            if source_match is not None:
+                if source_match.done():
+                    return await sniffed_source_response(await source_match, target, context)
+                try:
+                    matched_url = await asyncio.wait_for(
+                        asyncio.shield(source_match), timeout=max(0.001, timeout_ms / 1000)
+                    )
+                    return await sniffed_source_response(matched_url, target, context)
+                except TimeoutError:
+                    raise ValueError("sourceRegex did not match a loaded resource URL")
 
             body = await page.content()
             ensure_body_size(body, self.max_body_bytes)
@@ -245,6 +291,48 @@ class BrowserWorker:
     @staticmethod
     def _error(message: str) -> dict:
         return {"version": PROTOCOL_VERSION, "error": message}
+
+
+async def await_or_source_match(awaitable, source_match) -> tuple[str | None, object]:
+    operation = asyncio.create_task(awaitable)
+    if source_match is None:
+        return None, await operation
+    done, _ = await asyncio.wait(
+        {operation, source_match}, return_when=asyncio.FIRST_COMPLETED
+    )
+    if source_match in done:
+        operation.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await operation
+        return source_match.result(), None
+    return None, await operation
+
+
+def capture_source_match(pattern, match_future, resource_url: str) -> None:
+    if not match_future.done() and pattern.fullmatch(resource_url):
+        match_future.set_result(resource_url)
+
+
+def compile_source_regex(value: object):
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return re.compile(text)
+    except re.error as exc:
+        raise ValueError(f"invalid sourceRegex: {exc}") from exc
+
+
+async def sniffed_source_response(matched_url: str, target: str, context) -> dict:
+    return {
+        "version": PROTOCOL_VERSION,
+        "statusCode": 200,
+        "headers": {},
+        "body": matched_url,
+        "finalUrl": target,
+        "redirectChain": [],
+        "cookies": protocol_cookies(await context.cookies()),
+    }
 
 
 async def settle_page(page, timeout_ms: int) -> None:

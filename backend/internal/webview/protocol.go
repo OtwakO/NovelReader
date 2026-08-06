@@ -2,16 +2,17 @@
 package webview
 
 type protocolRequest struct {
-	Version   int               `json:"version"`
-	URL       string            `json:"url"`
-	Method    string            `json:"method"`
-	Body      string            `json:"body,omitempty"`
-	Charset   string            `json:"charset,omitempty"`
-	Headers   map[string]string `json:"headers,omitempty"`
-	Cookies   []protocolCookie  `json:"cookies,omitempty"`
-	WebJS     string            `json:"webJs,omitempty"`
-	DelayMS   int               `json:"delayMs,omitempty"`
-	TimeoutMS int               `json:"timeoutMs,omitempty"`
+	Version     int               `json:"version"`
+	URL         string            `json:"url"`
+	Method      string            `json:"method"`
+	Body        string            `json:"body,omitempty"`
+	Charset     string            `json:"charset,omitempty"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	Cookies     []protocolCookie  `json:"cookies,omitempty"`
+	WebJS       string            `json:"webJs,omitempty"`
+	SourceRegex string            `json:"sourceRegex,omitempty"`
+	DelayMS     int               `json:"delayMs,omitempty"`
+	TimeoutMS   int               `json:"timeoutMs,omitempty"`
 }
 
 type protocolCookie struct {

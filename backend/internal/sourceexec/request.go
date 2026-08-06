@@ -20,6 +20,7 @@ type RequestSpec struct {
 	WebView      bool
 	WebViewDelay int
 	WebJS        string
+	SourceRegex  string
 	BodyJS       string
 	DNSIP        string
 	Origin       string

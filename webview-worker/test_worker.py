@@ -1,10 +1,16 @@
 """Capacity configuration checks for the headless browser worker."""
 
+import asyncio
 import os
 import unittest
 from unittest.mock import MagicMock, patch
 
-from browser import BrowserWorker
+from browser import (
+    BrowserWorker,
+    await_or_source_match,
+    capture_source_match,
+    compile_source_regex,
+)
 from worker import capacity_settings
 
 
@@ -17,6 +23,46 @@ class BrowserWorkerHealthTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((await worker.health())["ok"])
         worker.consumers[0].done = lambda: True
         self.assertFalse((await worker.health())["ok"])
+
+
+class SourceRegexTest(unittest.TestCase):
+    def test_uses_full_url_match(self) -> None:
+        pattern = compile_source_regex(r"https://cdn\.test/.*\.(mp3|m4a)(\?.*)?")
+
+        self.assertTrue(pattern.fullmatch("https://cdn.test/chapter.m4a?token=one"))
+        self.assertFalse(pattern.fullmatch("prefix https://cdn.test/chapter.m4a?token=one"))
+
+    def test_first_matching_resource_wins(self) -> None:
+        async def exercise() -> str:
+            pattern = compile_source_regex(r".*\.(mp3|m4a).*")
+            match = asyncio.get_running_loop().create_future()
+            capture_source_match(pattern, match, "https://cdn.test/first.mp3")
+            capture_source_match(pattern, match, "https://cdn.test/second.m4a")
+            return match.result()
+
+        self.assertEqual(asyncio.run(exercise()), "https://cdn.test/first.mp3")
+
+    def test_match_interrupts_pending_browser_operation(self) -> None:
+        async def exercise() -> tuple[str | None, object]:
+            match = asyncio.get_running_loop().create_future()
+
+            async def pending() -> str:
+                await asyncio.sleep(10)
+                return "late"
+
+            operation = asyncio.create_task(await_or_source_match(pending(), match))
+            await asyncio.sleep(0)
+            match.set_result("https://cdn.test/first.mp3")
+            return await operation
+
+        self.assertEqual(asyncio.run(exercise()), ("https://cdn.test/first.mp3", None))
+
+    def test_invalid_regex_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "invalid sourceRegex"):
+            compile_source_regex("[")
+
+    def test_blank_regex_disables_sniffing(self) -> None:
+        self.assertIsNone(compile_source_regex("  "))
 
 
 class CapacitySettingsTest(unittest.TestCase):

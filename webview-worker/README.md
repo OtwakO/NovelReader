@@ -29,6 +29,8 @@ docker compose --profile webview up -d --no-build
 `WEBVIEW_MAX_PAGES` limits concurrent browser contexts, `WEBVIEW_MAX_PENDING` bounds queued
 requests, `WEBVIEW_MAX_CONTEXTS_PER_BROWSER` recycles Chromium after clean usage, and
 `WEBVIEW_MAX_BODY_BYTES` caps returned content. Each request gets an isolated context and cookies
-are returned to the Go source session.
+are returned to the Go source session. Browser protocol v2 also accepts optional `sourceRegex`;
+the worker full-matches loaded resource URLs and returns the first match as the response body.
+Backend and worker versions must be upgraded together when this protocol changes.
 
 Do not expose this worker publicly: `POST /execute` accepts arbitrary navigation URLs by design.

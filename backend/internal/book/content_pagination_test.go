@@ -52,7 +52,8 @@ result = content;
 	s := NewSearcher(nil, analyzer.NewJSVM(), nil, nil, nil)
 	s.SetWebViewTransportFactory(func(*sourceexec.SourceSession) sourceexec.Transport { return browser })
 	ruleContent, err := json.Marshal(map[string]string{
-		"content": "@css:.content@text", "nextContentUrl": "@css:.next@href", "webJs": ruleWebJS,
+		"content": "@css:.content@text", "nextContentUrl": "@css:.next@href",
+		"webJs": ruleWebJS, "sourceRegex": `.*\.(mp3|m4a).*`,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -67,8 +68,34 @@ result = content;
 	}
 	browser.mu.Lock()
 	defer browser.mu.Unlock()
-	if len(browser.requests) != 2 || browser.requests[0].WebJS != ruleWebJS || browser.requests[1].WebJS != "optionScript()" {
-		t.Fatalf("requests=%+v, want rule fallback and URL-option precedence", browser.requests)
+	if len(browser.requests) != 2 || browser.requests[0].WebJS != ruleWebJS || browser.requests[1].WebJS != "optionScript()" ||
+		browser.requests[0].SourceRegex != `.*\.(mp3|m4a).*` || browser.requests[1].SourceRegex != `.*\.(mp3|m4a).*` {
+		t.Fatalf("requests=%+v, want rule fallback, URL-option precedence, and sourceRegex pagination", browser.requests)
+	}
+}
+
+func TestGetChapterContentRoutesSourceRegexOnlyToWebViewPages(t *testing.T) {
+	browser := &recordingContentWebViewTransport{responses: map[string]sourceexec.Response{
+		"https://fixture.test/audio/1": {
+			StatusCode: http.StatusOK, FinalURL: "https://fixture.test/audio/1", Transport: "webview",
+			Body: "https://cdn.fixture.test/media/chapter-1.m4a?token=one",
+		},
+	}}
+	s := NewSearcher(nil, analyzer.NewJSVM(), nil, nil, nil)
+	s.SetWebViewTransportFactory(func(*sourceexec.SourceSession) sourceexec.Transport { return browser })
+	src := booksource.BookSource{
+		BookSourceURL:  "https://fixture.test",
+		BookSourceType: 1,
+		RuleContent:    `{"content":"<js>result</js>","sourceRegex":".*\\.(mp3|m4a).*"}`,
+	}
+	content, _, err := s.GetChapterContent(src, `https://fixture.test/audio/1,{"webView":true}`)
+	if err != nil || content != "https://cdn.fixture.test/media/chapter-1.m4a?token=one" {
+		t.Fatalf("content=%q err=%v", content, err)
+	}
+	browser.mu.Lock()
+	defer browser.mu.Unlock()
+	if len(browser.requests) != 1 || browser.requests[0].SourceRegex != `.*\.(mp3|m4a).*` {
+		t.Fatalf("requests=%+v, want source regex on browser request", browser.requests)
 	}
 }
 
@@ -88,7 +115,8 @@ func TestGetChapterContentRuleWebJSDoesNotForceWebView(t *testing.T) {
 	})
 	src := booksource.BookSource{BookSourceURL: server.URL, RuleContent: `{
 		"content":"@css:.content@text",
-		"webJs":"<js>var content = result; content = content.replace(/广告/g, ''); result = content;</js>"
+		"webJs":"<js>var content = result; content = content.replace(/广告/g, ''); result = content;</js>",
+		"sourceRegex":".*\\.(mp3|m4a).*"
 	}`}
 	content, _, err := s.GetChapterContent(src, server.URL+"/chapter/1")
 	if err != nil || content != "普通正文" || browserRequests.Load() != 0 {

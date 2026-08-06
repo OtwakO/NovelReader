@@ -814,7 +814,7 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 	}
 	spec.Headers = sourceexec.MergeHeaders(sourceHeaders, spec.Headers)
 	rules := parseRuleJSON(src.RuleContent)
-	applyContentWebJS(&spec, rules)
+	applyContentBrowserRules(&spec, rules)
 	response, err := transport.Do(ctx, spec)
 	if err != nil {
 		return "", "", fmt.Errorf("content: fetch: %w", err)
@@ -917,7 +917,7 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 			return "", "", newContentPaginationError("next page build", fullURL, nextURL, pagesFetched, err)
 		}
 		nextSpec.Headers = sourceexec.MergeHeaders(sourceHeaders, nextSpec.Headers)
-		applyContentWebJS(&nextSpec, rules)
+		applyContentBrowserRules(&nextSpec, rules)
 		slog.Debug("content: fetching next page", "source", src.BookSourceName, "url", nextSpec.URL, "method", nextSpec.Method)
 		nextResponse, err := transport.Do(ctx, nextSpec)
 		if err != nil {
@@ -983,11 +983,14 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 	return content, chapterTitle, nil
 }
 
-func applyContentWebJS(spec *sourceexec.RequestSpec, rules map[string]string) {
-	if spec == nil || !spec.WebView || spec.WebJS != "" || rules == nil {
+func applyContentBrowserRules(spec *sourceexec.RequestSpec, rules map[string]string) {
+	if spec == nil || !spec.WebView || rules == nil {
 		return
 	}
-	spec.WebJS = rules["webJs"]
+	if spec.WebJS == "" {
+		spec.WebJS = rules["webJs"]
+	}
+	spec.SourceRegex = rules["sourceRegex"]
 }
 
 // extractContentFromScriptJSON attempts to extract chapter content from JSON

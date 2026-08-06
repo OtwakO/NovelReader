@@ -27,7 +27,7 @@ func TestClientSendsSessionRequestAndSyncsWorkerResponse(t *testing.T) {
 		if len(request.Cookies) != 1 || request.Cookies[0].Name != "before" {
 			t.Errorf("cookies=%v", request.Cookies)
 		}
-		if request.WebJS != "document.body.dataset.ready = 'yes'" || request.DelayMS != 250 {
+		if request.WebJS != "document.body.dataset.ready = 'yes'" || request.SourceRegex != `.*\.(mp3|m4a).*` || request.DelayMS != 250 {
 			t.Errorf("browser options=%+v", request)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -49,7 +49,7 @@ func TestClientSendsSessionRequestAndSyncsWorkerResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	response, err := client.ForSession(session).Do(t.Context(), sourceexec.RequestSpec{
-		URL: "https://example.test/page", WebView: true, WebJS: "document.body.dataset.ready = 'yes'", WebViewDelay: 250,
+		URL: "https://example.test/page", WebView: true, WebJS: "document.body.dataset.ready = 'yes'", SourceRegex: `.*\.(mp3|m4a).*`, WebViewDelay: 250,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +69,7 @@ func TestClientRetriesTransientWorkerBusyResponses(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		if attempts < 3 {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte(`{"version":1,"error":"browser worker is busy"}`))
+			_, _ = w.Write([]byte(`{"version":2,"error":"browser worker is busy"}`))
 			return
 		}
 		_ = json.NewEncoder(w).Encode(protocolResponse{Version: protocolVersion, StatusCode: http.StatusOK, Body: "ok"})
@@ -86,10 +86,27 @@ func TestClientRetriesTransientWorkerBusyResponses(t *testing.T) {
 	}
 }
 
+func TestClientRejectsOlderWorkerProtocol(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":1,"statusCode":200,"body":"html instead of sniffed resource"}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{Endpoint: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Do(t.Context(), sourceexec.RequestSpec{URL: "https://example.test", SourceRegex: `.*\.mp3`})
+	if err == nil || !strings.Contains(err.Error(), "unsupported worker protocol 1") {
+		t.Fatalf("error=%v", err)
+	}
+}
+
 func TestClientRejectsWorkerProtocolErrors(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":1,"error":"browser unavailable"}`))
+		_, _ = w.Write([]byte(`{"version":2,"error":"browser unavailable"}`))
 	}))
 	defer server.Close()
 

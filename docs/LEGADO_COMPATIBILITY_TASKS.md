@@ -126,11 +126,13 @@
 
 ### LC-011 — Support content `sourceRegex` and resource sniffing
 
-- **Status:** Queued
+- **Status:** Complete for the audited browser resource-sniffing contract
 - **Priority:** High for media sources
-- **Audit finding:** Resource/media sniffing semantics and `ruleContent.sourceRegex` are unsupported.
-- **Implementation checkpoint:** Confirm which source types and response/resource events consume this field before choosing a transport interface.
-- **Risk:** Likely crosses browser networking, media domain models, and UI playback. Keep any initial implementation explicitly bounded.
+- **Audit finding:** Upstream passes `sourceRegex` only when a chapter request already uses WebView. Its browser client applies a full regex match to loaded resource URLs and completes with the first matching URL as the response body. It is source-type agnostic and does not fetch or decode the matched resource.
+- **Active corpus:** 15 configured rules across text (`bookSourceType=0`), audio (`1`), and archive/file (`2`) sources. Common patterns target `mp3`, `m4a`, `mp4`, `txt`, and `/files`; three selector-shaped values appear stale but are still preserved as regex text.
+- **Implemented behavior:** Initial and paginated WebView content requests forward `sourceRegex` to protocol v2 of the browser worker. The worker observes browser request events, uses full-match semantics, and returns the first match immediately during navigation, settling, delay, or script execution. Ordinary HTTP requests are not escalated.
+- **Verification:** Public content regressions cover browser-only routing, source-type-independent URL output, pagination propagation, and non-escalation. Go client tests cover protocol forwarding and rejection of older workers. Worker tests cover full matching, first-match wins, operation interruption, blank values, and invalid regexes. A real local Patchright smoke page requested two matching resources and returned the first (`/first.mp3`). Targeted Analyzer/sourceexec/webview/book/API/conformance and worker tests pass.
+- **Scope boundary:** No playback model, media-body fetch, decode pipeline, UI changes, or browser bridge APIs were added.
 
 ### LC-012 — Support `payAction`
 

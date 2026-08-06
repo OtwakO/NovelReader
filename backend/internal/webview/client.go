@@ -12,7 +12,7 @@ import (
 	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
-const protocolVersion = 1
+const protocolVersion = 2
 
 // Config controls the Patchright worker endpoint and response limit.
 type Config struct {
@@ -99,7 +99,7 @@ func (c *Client) do(ctx context.Context, spec sourceexec.RequestSpec, session *s
 	payload := protocolRequest{
 		Version: protocolVersion, URL: spec.URL, Method: method, Body: spec.Body,
 		Charset: spec.Charset, Headers: headers, Cookies: cookies, WebJS: spec.WebJS,
-		DelayMS: spec.WebViewDelay, TimeoutMS: int(c.timeout.Milliseconds()),
+		SourceRegex: spec.SourceRegex, DelayMS: spec.WebViewDelay, TimeoutMS: int(c.timeout.Milliseconds()),
 	}
 	result, err := c.executeWorker(ctx, payload)
 	if err != nil {
