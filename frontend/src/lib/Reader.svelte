@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import { getBook, getChapterContent, getChapters, listFonts, getFontUrl, type Chapter, type ChapterContent } from '../api/client';
+  import { getBook, getChapterContent, getChapterImageUrl, getChapters, listFonts, getFontUrl, type Chapter, type ChapterContent } from '../api/client';
   import { adjacentChapterIndex, clampProgress, normalizedScroll, resolveChapterIndex, scrollTopForProgress } from './readingProgress.js';
   import { getProgressVersion, queueProgressWrite, setProgressVersion, waitForProgressWrites } from './progressWriter';
   import ReaderBookmarks from './ReaderBookmarks.svelte';
@@ -148,9 +148,27 @@
       {#if content.offlineCopy}
         <p class="offline-copy" role="status">Offline copy — the source is currently unavailable.</p>
       {/if}
-      {#each content.paragraphs as p}
-        <p class="paragraph">{p}</p>
-      {/each}
+      {#if content.blocks.length > 0}
+        {#each content.blocks as block}
+          {#if block.type === 'text'}
+            <p class="paragraph">{block.text}</p>
+          {:else}
+            <figure class="chapter-image-frame">
+              <img
+                class="chapter-image"
+                src={getChapterImageUrl(bookId, currentIdx, block.index)}
+                alt="Illustration from {content.title}"
+                loading="lazy"
+                decoding="async"
+              />
+            </figure>
+          {/if}
+        {/each}
+      {:else}
+        {#each content.paragraphs as p}
+          <p class="paragraph">{p}</p>
+        {/each}
+      {/if}
     {/if}
   </div>
 
@@ -191,6 +209,19 @@
     margin-bottom: 0.4em;
     word-break: break-word;
     letter-spacing: 0.02em;
+  }
+
+  .chapter-image-frame {
+    margin: 1.2rem 0;
+  }
+
+  .chapter-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 85dvh;
+    object-fit: contain;
+    margin-inline: auto;
   }
 
   .loading, .reader-error {

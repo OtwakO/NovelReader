@@ -165,10 +165,13 @@
 
 ### LC-015 — Complete chapter image decoding behavior
 
-- **Status:** Queued
+- **Status:** Portable subset complete; Android bitmap transforms explicitly unsupported
 - **Priority:** Medium/high for image sources
-- **Audit finding:** Existing image handling does not constitute complete type-2/image compatibility.
-- **Implementation checkpoint:** Inventory current `imageDecode` behavior and define preserved chapter image/resource output before expanding it.
+- **Corpus finding:** Six active rules split into four portable byte decoders (AES or the obfuscated `decode(result)` family) and two scripts importing Android `BitmapFactory`/`Canvas`/`Matrix` for image rotation or slice reordering.
+- **Implemented content contract:** Chapter responses retain legacy `paragraphs` and add ordered `blocks` containing text or server-assigned image indices. The cache persists both shapes, and the reader renders image blocks through `GET /api/books/{id}/chapters/{idx}/images/{imageIdx}`.
+- **Implemented image boundary:** The endpoint accepts no target URL. It resolves the exact stored book/source/chapter and cached image index, resolves relative URLs against the chapter page, applies source and URL-option headers with the existing session, performs a 10 MiB bounded binary GET, supplies byte `result` and resolved URL `src`, runs executable `jsLib + imageDecode`, requires a byte result, and returns sniffed binary content.
+- **Explicit limitation:** Scripts referencing Android bitmap APIs return HTTP 501 with `chapter_image_decoder_unsupported`; NovelReader does not silently return scrambled/encrypted bytes. JSON remote-library maps in `jsLib` are metadata and are not executed as JavaScript; the active portable scripts using them rely only on built-in bridges.
+- **Verification:** Processor ordering/text-parity, cache persistence and schema upgrade, fresh/offline API shape, URL redaction, stored identity/index lookup, source and URL-option headers, relative resolution, `src` binding, byte transform, and Android rejection are covered. The active portable scripts parse/initialize against the current bridge; data-dependent AES/obfuscated fixtures are qualified separately from syntax/bridge failures.
 
 ### LC-016 — Implement the automatic login lifecycle
 

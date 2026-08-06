@@ -357,9 +357,14 @@ export interface Chapter {
   isVolume: boolean;
 }
 
+export type ChapterContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; index: number };
+
 export interface ChapterContent {
   title: string;
   paragraphs: string[];
+  blocks: ChapterContentBlock[];
   offlineCopy: boolean;
 }
 
@@ -373,8 +378,18 @@ export function getChapterContent(bookId: string, chapterIdx: number) {
   ).then(data => ({
     title: data.title || data.Title || '',
     paragraphs: data.paragraphs || data.Paragraphs || [],
+    blocks: Array.isArray(data.blocks) ? data.blocks.filter((block: unknown) => {
+      if (!block || typeof block !== 'object') return false;
+      const value = block as Record<string, unknown>;
+      return (value.type === 'text' && typeof value.text === 'string') ||
+        (value.type === 'image' && Number.isInteger(value.index) && Number(value.index) >= 0);
+    }) as ChapterContentBlock[] : [],
     offlineCopy: Boolean(data.offlineCopy)
   }));
+}
+
+export function getChapterImageUrl(bookId: string, chapterIdx: number, imageIdx: number) {
+  return `${BASE}/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/images/${imageIdx}`;
 }
 
 // --- Progress ---

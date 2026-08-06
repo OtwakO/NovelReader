@@ -2,9 +2,13 @@
 package processor
 
 import (
+	"fmt"
 	"html"
+	"io"
 	"regexp"
 	"strings"
+
+	xhtml "golang.org/x/net/html"
 )
 
 // ChineseConvertMode defines simplified/traditional conversion.
@@ -12,26 +16,26 @@ type ChineseConvertMode int
 
 const (
 	ConvertNone ChineseConvertMode = iota
-	SToT // Simplified → Traditional
-	TToS // Traditional → Simplified
+	SToT                           // Simplified → Traditional
+	TToS                           // Traditional → Simplified
 )
 
 // Config holds content processing settings.
 type Config struct {
-	ChineseConvert ChineseConvertMode
-	ParagraphIndent string // default: two spaces or \u3000\u3000
+	ChineseConvert       ChineseConvertMode
+	ParagraphIndent      string // default: two spaces or \u3000\u3000
 	RemoveDuplicateTitle bool
-	ReSegment bool
-	UseReplaceRules bool
+	ReSegment            bool
+	UseReplaceRules      bool
 }
 
 // DefaultConfig returns sensible defaults for reading.
 func DefaultConfig() Config {
 	return Config{
-		ParagraphIndent: "\u3000\u3000", // two full-width spaces
+		ParagraphIndent:      "\u3000\u3000", // two full-width spaces
 		RemoveDuplicateTitle: true,
-		ReSegment: true,
-		UseReplaceRules: true,
+		ReSegment:            true,
+		UseReplaceRules:      true,
 	}
 }
 
@@ -45,9 +49,16 @@ type ReplaceRule struct {
 }
 
 // ProcessResult holds the processed content and metadata.
+type ContentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+	Src  string `json:"src,omitempty"`
+}
+
 type ProcessResult struct {
-	Title      string   `json:"title"`
-	Paragraphs []string `json:"paragraphs"`
+	Title      string         `json:"title"`
+	Paragraphs []string       `json:"paragraphs"`
+	Blocks     []ContentBlock `json:"blocks,omitempty"`
 	// ponytail: ReplaceRulesEffective is omitted — only add when the UI needs to show it.
 }
 
@@ -64,35 +75,79 @@ func New(config Config) *ContentProcessor {
 
 // Process runs all processing steps on raw content.
 func (p *ContentProcessor) Process(title, rawContent string) ProcessResult {
-	content := rawContent
-
-	// Remove duplicate title from content start
-	if p.config.RemoveDuplicateTitle && content != "null" {
-		content = p.removeTitle(title, content)
-	}
-
-	// Re-segment paragraphs
-	if p.config.ReSegment {
-		content = p.reSegment(content, title)
-	}
-
-	// Chinese conversion
-	if p.config.ChineseConvert != ConvertNone {
-		content = p.convertChinese(content, p.config.ChineseConvert)
-	}
-
-	// Replace rules
-	if p.config.UseReplaceRules && len(p.contentReplaceRules) > 0 {
-		content = p.applyReplaceRules(content, p.contentReplaceRules)
-	}
-
-	// Split into paragraphs
-	paragraphs := p.toParagraphs(title, content)
-
+	paragraphs := p.processParagraphs(title, rawContent)
 	return ProcessResult{
 		Title:      title,
 		Paragraphs: paragraphs,
+		Blocks:     p.toBlocks(title, rawContent),
 	}
+}
+
+func (p *ContentProcessor) processParagraphs(title, content string) []string {
+	if p.config.RemoveDuplicateTitle && content != "null" {
+		content = p.removeTitle(title, content)
+	}
+	if p.config.ReSegment {
+		content = p.reSegment(content, title)
+	}
+	if p.config.ChineseConvert != ConvertNone {
+		content = p.convertChinese(content, p.config.ChineseConvert)
+	}
+	if p.config.UseReplaceRules && len(p.contentReplaceRules) > 0 {
+		content = p.applyReplaceRules(content, p.contentReplaceRules)
+	}
+	return p.toParagraphs(title, content)
+}
+
+func (p *ContentProcessor) toBlocks(title, content string) []ContentBlock {
+	if !strings.Contains(strings.ToLower(content), "<img") {
+		return nil
+	}
+	const markerPrefix = "NOVELREADERIMAGEBLOCK"
+	var marked strings.Builder
+	var sources []string
+	tokenizer := xhtml.NewTokenizer(strings.NewReader(content))
+	for {
+		tokenType := tokenizer.Next()
+		if tokenType == xhtml.ErrorToken {
+			if tokenizer.Err() != nil && tokenizer.Err() != io.EOF {
+				return nil
+			}
+			break
+		}
+		if tokenType == xhtml.StartTagToken || tokenType == xhtml.SelfClosingTagToken {
+			token := tokenizer.Token()
+			if strings.EqualFold(token.Data, "img") {
+				for _, attribute := range token.Attr {
+					if strings.EqualFold(attribute.Key, "src") && strings.TrimSpace(attribute.Val) != "" {
+						index := len(sources)
+						sources = append(sources, strings.TrimSpace(attribute.Val))
+						fmt.Fprintf(&marked, "<br>%s%dTOKEN<br>", markerPrefix, index)
+						break
+					}
+				}
+				continue
+			}
+		}
+		marked.Write(tokenizer.Raw())
+	}
+	if len(sources) == 0 {
+		return nil
+	}
+	paragraphs := p.processParagraphs(title, marked.String())
+	blocks := make([]ContentBlock, 0, len(paragraphs))
+	for _, paragraph := range paragraphs {
+		trimmed := strings.TrimSpace(paragraph)
+		if strings.HasPrefix(trimmed, markerPrefix) && strings.HasSuffix(trimmed, "TOKEN") {
+			var index int
+			if _, err := fmt.Sscanf(trimmed, markerPrefix+"%dTOKEN", &index); err == nil && index >= 0 && index < len(sources) {
+				blocks = append(blocks, ContentBlock{Type: "image", Src: sources[index]})
+				continue
+			}
+		}
+		blocks = append(blocks, ContentBlock{Type: "text", Text: paragraph})
+	}
+	return blocks
 }
 
 func (p *ContentProcessor) removeTitle(title, content string) string {

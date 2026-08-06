@@ -21,7 +21,7 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 		case 2:
 			_, _ = fmt.Fprint(w, `<article class="content"></article>`)
 		default:
-			_, _ = fmt.Fprint(w, `<article class="content"><p>cached paragraph</p></article>`)
+			_, _ = fmt.Fprint(w, `<article class="content"><p>cached paragraph</p><img src="/chapter.png"></article>`)
 		}
 	}))
 	defer upstream.Close()
@@ -44,14 +44,14 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 
 	response := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content", nil)
 	var fresh chapterContentResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &fresh); err != nil || response.Code != http.StatusOK || fresh.OfflineCopy || len(fresh.Paragraphs) == 0 {
+	if err := json.Unmarshal(response.Body.Bytes(), &fresh); err != nil || response.Code != http.StatusOK || fresh.OfflineCopy || len(fresh.Paragraphs) == 0 || len(fresh.Blocks) != 2 || fresh.Blocks[1].Index == nil || *fresh.Blocks[1].Index != 0 {
 		t.Fatalf("fresh status=%d result=%+v err=%v body=%s", response.Code, fresh, err, response.Body.String())
 	}
 	var cached chapterContentResponse
 	for _, upstreamMode := range []int32{2, 1} {
 		mode.Store(upstreamMode)
 		response = performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content", nil)
-		if err := json.Unmarshal(response.Body.Bytes(), &cached); err != nil || response.Code != http.StatusOK || !cached.OfflineCopy || cached.Paragraphs[0] != fresh.Paragraphs[0] {
+		if err := json.Unmarshal(response.Body.Bytes(), &cached); err != nil || response.Code != http.StatusOK || !cached.OfflineCopy || cached.Paragraphs[0] != fresh.Paragraphs[0] || len(cached.Blocks) != len(fresh.Blocks) || cached.Blocks[1].Index == nil || *cached.Blocks[1].Index != 0 {
 			t.Fatalf("mode=%d cached status=%d result=%+v err=%v body=%s", upstreamMode, response.Code, cached, err, response.Body.String())
 		}
 	}

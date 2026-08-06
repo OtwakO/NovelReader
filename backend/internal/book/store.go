@@ -153,6 +153,7 @@ func (s *Store) Init() error {
 			chapter_url TEXT NOT NULL,
 			title TEXT NOT NULL,
 			paragraphs TEXT NOT NULL,
+			blocks TEXT NOT NULL DEFAULT '[]',
 			cached_at INTEGER NOT NULL,
 			last_accessed INTEGER NOT NULL,
 			PRIMARY KEY (book_id, source_url, chapter_index)
@@ -182,6 +183,9 @@ func (s *Store) Init() error {
 		if err := ensureColumn(s.db, "chapters", column.name, column.definition); err != nil {
 			return fmt.Errorf("book: init chapter column %s: %w", column.name, err)
 		}
+	}
+	if err := ensureColumn(s.db, "chapter_cache", "blocks", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
+		return fmt.Errorf("book: init chapter cache column blocks: %w", err)
 	}
 	return nil
 }

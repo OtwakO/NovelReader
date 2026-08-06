@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/otwako/novelreader/internal/database"
+	"github.com/otwako/novelreader/internal/processor"
 )
 
 func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
@@ -25,7 +26,7 @@ func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
 			t.Fatal(err)
 		}
 		for chapter := 0; chapter < 101; chapter++ {
-			entry := CachedChapter{BookID: bookID, SourceURL: "source", ChapterIndex: chapter, ChapterURL: fmt.Sprintf("url-%d", chapter), Title: "Title", Paragraphs: []string{fmt.Sprintf("content-%d", chapter)}}
+			entry := CachedChapter{BookID: bookID, SourceURL: "source", ChapterIndex: chapter, ChapterURL: fmt.Sprintf("url-%d", chapter), Title: "Title", Paragraphs: []string{fmt.Sprintf("content-%d", chapter)}, Blocks: []processor.ContentBlock{{Type: "image", Src: fmt.Sprintf("image-%d", chapter)}}}
 			if err := store.SaveChapterCache(entry); err != nil {
 				t.Fatal(err)
 			}
@@ -40,7 +41,7 @@ func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
 		t.Fatalf("perBook=%d err=%v", perBook, err)
 	}
 	cached, err := store.GetChapterCache("book-5", "source", 100, "url-100")
-	if err != nil || cached == nil || cached.Paragraphs[0] != "content-100" {
+	if err != nil || cached == nil || cached.Paragraphs[0] != "content-100" || len(cached.Blocks) != 1 || cached.Blocks[0].Src != "image-100" {
 		t.Fatalf("cached=%+v err=%v", cached, err)
 	}
 	if cached, err := store.GetChapterCache("book-5", "source", 100, "changed-url"); err != nil || cached != nil {
