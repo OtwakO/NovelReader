@@ -154,6 +154,14 @@ Map = function(a) {
 	// to parse HTML strings in JS. We delegate to goquery.
 	org := newJSoupBridge(rt, baseURL)
 	_ = rt.Set("org", org)
+	_ = rt.Set("Packages", map[string]interface{}{
+		"java": map[string]interface{}{
+			"io": map[string]interface{}{
+				"ByteArrayOutputStream": newJSByteArrayOutputStreamConstructor(rt),
+				"InputStream":           func() {},
+			},
+		},
+	})
 
 	var sourceState SourceState
 	var activeAnalyzer *Analyzer

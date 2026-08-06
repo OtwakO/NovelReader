@@ -40,6 +40,21 @@ func (c *SessionHTTPClient) GetContext(ctx context.Context, rawURL string, heade
 	return response, err
 }
 
+func (c *SessionHTTPClient) GetBytesContext(ctx context.Context, rawURL string, headers map[string]string, maxBytes int64) (*Response, error) {
+	headers = c.requestHeaders(rawURL, headers)
+	client, ok := c.base.(interface {
+		GetBytesContext(context.Context, string, map[string]string, int64) (*Response, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("fetcher: binary GET is not supported by the wrapped client")
+	}
+	response, err := client.GetBytesContext(ctx, rawURL, headers, maxBytes)
+	if err == nil {
+		err = c.syncCookies(rawURL, response)
+	}
+	return response, err
+}
+
 func (c *SessionHTTPClient) GetContextWithCharset(ctx context.Context, rawURL string, headers map[string]string, retry int, responseCharset string) (*Response, error) {
 	headers = c.requestHeaders(rawURL, headers)
 	var (

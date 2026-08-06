@@ -88,7 +88,7 @@
   {:else}
     <div class="book-header">
       {#if book.coverUrl}
-        <img src={book.coverUrl} alt={book.name} class="cover" />
+        <img src={`/api/books/${encodeURIComponent(book.id)}/cover`} alt={book.name} class="cover" />
       {/if}
       <div class="info">
         <h2>{book.name}</h2>

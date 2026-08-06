@@ -156,6 +156,49 @@ func (c *Client) GetContext(ctx context.Context, rawURL string, extraHeaders map
 }
 
 // GetContextWithCharset performs a GET with an explicit response charset.
+// GetBytesContext performs a bounded binary GET without charset conversion.
+func (c *Client) GetBytesContext(ctx context.Context, rawURL string, extraHeaders map[string]string, maxBytes int64) (*Response, error) {
+	if c == nil || c.httpClient == nil {
+		return nil, fmt.Errorf("fetcher: client unavailable")
+	}
+	if maxBytes <= 0 {
+		maxBytes = 10 * 1024 * 1024
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetcher: new request: %w", err)
+	}
+	for key, value := range c.headers {
+		req.Header.Set(key, value)
+	}
+	for key, value := range extraHeaders {
+		req.Header.Set(key, value)
+	}
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	}
+	if req.Header.Get("Accept") == "" {
+		req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetcher: fetch: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("fetcher: read body: %w", err)
+	}
+	if int64(len(body)) > maxBytes {
+		return nil, fmt.Errorf("fetcher: response exceeds %d bytes", maxBytes)
+	}
+	finalURL := rawURL
+	if resp.Request != nil && resp.Request.URL != nil {
+		finalURL = resp.Request.URL.String()
+	}
+	return &Response{StatusCode: resp.StatusCode, Body: string(body), RawBody: body, Headers: resp.Header, URL: finalURL}, nil
+}
+
 func (c *Client) GetContextWithCharset(ctx context.Context, rawURL string, extraHeaders map[string]string, retry int, responseCharset string) (*Response, error) {
 	return c.doRequest(ctx, "GET", rawURL, "", extraHeaders, retry, responseCharset, true)
 }
@@ -338,6 +381,7 @@ func (c *Client) doRequestWithDNSIP(ctx context.Context, method, rawURL, reqBody
 type Response struct {
 	StatusCode    int
 	Body          string
+	RawBody       []byte // populated by binary fetches; nil for text requests
 	Headers       http.Header
 	URL           string
 	RedirectChain []string

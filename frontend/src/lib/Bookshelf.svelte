@@ -44,7 +44,7 @@
         <div class="book-card">
           <a class="book-open" href={`#/book?id=${b.id}`} aria-label={`Open details for ${b.name}`}>
           {#if b.coverUrl && !brokenCovers.has(b.id)}
-            <img src={b.coverUrl} alt={b.name} class="cover" loading="lazy" onerror={() => coverFailed(b.id)} />
+            <img src={`/api/books/${encodeURIComponent(b.id)}/cover`} alt={b.name} class="cover" loading="lazy" onerror={() => coverFailed(b.id)} />
           {:else}
             <div class="cover-placeholder">{b.name[0] || '?'}</div>
           {/if}

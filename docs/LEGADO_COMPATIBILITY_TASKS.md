@@ -155,12 +155,13 @@
 
 ### LC-014 — Apply `coverDecodeJs`
 
-- **Status:** Queued
+- **Status:** Complete for stored books; search and Explore previews remain out of scope
 - **Priority:** Medium
-- **Impact:** At least one bundled source actively uses it.
-- **Audit finding:** The field is imported but never applied by a cover image fetch/decode pipeline.
-- **Important distinction:** This is separate from chapter-content `imageDecode`.
-- **Implementation checkpoint:** Locate or define one owned image decode boundary; do not duplicate fetch/decode policy in the frontend and backend.
+- **Impact:** One current source actively defines `coverDecodeJs` (`斋书苑` in `test_booksource4.json`).
+- **Implemented boundary:** `GET /api/books/{id}/cover` derives the cover URL and source identity from the stored book—there is no arbitrary target-URL parameter. Bookshelf and book-detail images use this endpoint; search and Explore result covers remain direct browser URLs by explicit product choice.
+- **Implemented behavior:** The backend evaluates source and URL-option headers, carries the existing source/book session, performs a 10 MiB bounded binary GET, evaluates `jsLib + coverDecodeJs` with byte-array `result` plus `source` and typed `book`, and returns decoded bytes with sniffed media type. Non-byte/null decoder results preserve the original bytes as upstream does. A narrow Rhino compatibility shim exposes only `Packages.java.io.ByteArrayOutputStream` and `InputStream`, required to initialize the active obfuscated library.
+- **Verification:** API regressions cover source headers, URL-scoped headers, byte transforms, null-result fallback, and stored-identity-only lookup. The exact active `jsLib + coverDecodeJs` now initializes and runs with byte input. Analyzer/fetcher/book/API/conformance tests pass; frontend 13 tests and production build pass.
+- **Important distinction:** This is separate from chapter-content `imageDecode` (LC-015). It does not add a general image proxy/cache, search/Explore decoding, WebView cover requests, or non-GET cover fetches.
 
 ### LC-015 — Complete chapter image decoding behavior
 

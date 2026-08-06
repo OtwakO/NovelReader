@@ -99,6 +99,7 @@ func newWorkflowAPIServer(t *testing.T) (*Server, func()) {
 	}
 	client := fetcher.NewInsecure(2 * time.Second)
 	jsVM := analyzer.NewJSVM()
+	jsVM.SetFetcher(client)
 	searcher := book.NewSearcher(client, jsVM, nil, sourceStore, bookStore)
 	server := NewServer(sourceStore, bookStore, searcher, nil, client, jsVM, nil, processor.Config{}, t.TempDir(), db)
 	return server, func() { _ = db.Close() }

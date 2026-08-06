@@ -11,7 +11,8 @@ import (
 	"strings"
 )
 
-func jsBytes(value interface{}) ([]byte, error) {
+// ToBytes converts JavaScript byte-array exports into Go bytes.
+func ToBytes(value interface{}) ([]byte, error) {
 	switch typed := value.(type) {
 	case []byte:
 		return append([]byte(nil), typed...), nil
@@ -41,6 +42,8 @@ type jsSymmetricCrypto struct {
 	block cipher.Block
 	iv    []byte
 }
+
+func jsBytes(value interface{}) ([]byte, error) { return ToBytes(value) }
 
 func newJSSymmetricCrypto(transformation string, key, iv []byte) (*jsSymmetricCrypto, error) {
 	parts := strings.Split(strings.ToUpper(strings.TrimSpace(transformation)), "/")

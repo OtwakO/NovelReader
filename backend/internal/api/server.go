@@ -102,6 +102,7 @@ func (s *Server) registerRoutes() {
 	// Books
 	s.mux.HandleFunc("GET /api/books", s.handleListBooks)
 	s.mux.HandleFunc("GET /api/books/{id}", s.handleGetBook)
+	s.mux.HandleFunc("GET /api/books/{id}/cover", s.handleGetBookCover)
 	s.mux.HandleFunc("POST /api/books", s.handleAddBook)
 	s.mux.HandleFunc("POST /api/books/enrich", s.handleEnrichBook)
 	s.mux.HandleFunc("DELETE /api/books", s.handleDeleteBook)
@@ -241,6 +242,46 @@ func (s *Server) handleGetBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, b)
+}
+
+func (s *Server) handleGetBookCover(w http.ResponseWriter, r *http.Request) {
+	if s.bookStore == nil || s.sourceStore == nil || s.searcher == nil {
+		writeError(w, http.StatusServiceUnavailable, "cover service unavailable")
+		return
+	}
+	b, err := s.bookStore.GetBook(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load book failed")
+		return
+	}
+	if b == nil {
+		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+		return
+	}
+	if b.CoverURL == "" {
+		writeErrorCode(w, http.StatusNotFound, "cover_not_found", "book cover not found")
+		return
+	}
+	src, err := s.sourceStore.GetByID(b.SourceURL)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "load source failed")
+		return
+	}
+	if src == nil {
+		writeErrorCode(w, http.StatusNotFound, "source_not_found", "book source not found")
+		return
+	}
+	data, contentType, err := s.searcher.GetBookCover(r.Context(), *src, b)
+	if err != nil {
+		slog.Warn("cover: fetch failed", "bookId", b.ID, "source", b.SourceURL, "err", err)
+		writeErrorCode(w, http.StatusBadGateway, "cover_fetch_failed", "book cover unavailable")
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
