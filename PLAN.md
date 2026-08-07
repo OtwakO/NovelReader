@@ -681,7 +681,7 @@ The user-approved v7 shared Explore fixes are implemented and live-verified. Wor
 ### [2026-07-31] Twelfth unrestricted Explore audit started
 - **Problem**: Batch 11 still exposed four reusable engine gaps, so another disjoint unrestricted sample is needed to test compatibility after those fixes.
 - **Fix**: User selected 50 identities. Froze seed `NovelReader-explore-random-v12-2026-07-31`, excluded all 500 prior stable identities, and selected the first 50 of 221 remaining eligible identities by `SHA-256(seed + NUL + rawIndex + NUL + bookSourceUrl)`.
-- **Affected**: `PLAN.md`, `freeze-v12.mjs`, `/tmp/explore-v12-frozen.json`.
+- **Affected**: `PLAN.md`, `scripts/explore-audit/v12/freeze.mjs`, `/tmp/explore-v12-frozen.json`.
 - **Watch out**: Preserve exact `(rawIndex, bookSourceUrl)` identities without substitution, sequentially replay every non-pass, and do not modify source/parser behavior during the audit.
 
 ### [2026-07-23] Eleventh Explore shared-gap fixes started
@@ -699,7 +699,7 @@ The user-approved v7 shared Explore fixes are implemented and live-verified. Wor
 ### [2026-07-23] Eleventh unrestricted Explore audit started
 - **Problem**: Batch 10 still exposed a shared Default getter mismatch, so another disjoint random batch is needed to measure whether reusable compatibility gaps remain after the fix.
 - **Fix**: User selected 50 identities. Froze seed `NovelReader-explore-random-v11-2026-07-23`, excluded all 450 prior stable identities, and selected the first 50 of 271 remaining eligible identities by `SHA-256(seed + NUL + rawIndex + NUL + bookSourceUrl)`.
-- **Affected**: `PLAN.md`, `freeze-v11.mjs`, `/tmp/explore-v11-frozen.json`.
+- **Affected**: `PLAN.md`, `scripts/explore-audit/v11/freeze.mjs`, `/tmp/explore-v11-frozen.json`.
 - **Watch out**: Preserve the frozen sample without substitutions, use exact `(rawIndex, bookSourceUrl)` identities, sequentially confirm every non-pass, and do not modify source/parser behavior during the audit.
 
 ### [2026-07-23] Unpositioned Default string getter discarded later non-empty matches
@@ -717,7 +717,7 @@ The user-approved v7 shared Explore fixes are implemented and live-verified. Wor
 ### [2026-07-23] Tenth Explore random audit started
 - **Problem**: The ninth unrestricted 50-identity batch exposed four shared compatibility seams, so another disjoint random batch is needed to measure remaining shared gaps after those fixes.
 - **Fix**: User selected 50 identities. Froze seed `NovelReader-explore-random-v10-2026-07-23`, excluded all 400 prior stable identities, and selected the first 50 of 321 remaining eligible identities by `SHA-256(seed + NUL + rawIndex + NUL + bookSourceUrl)`.
-- **Affected**: `PLAN.md`, `freeze-v10.mjs`, `/tmp/explore-v10-frozen.json`.
+- **Affected**: `PLAN.md`, `scripts/explore-audit/v10/freeze.mjs`, `/tmp/explore-v10-frozen.json`.
 - **Watch out**: Do not substitute sampled identities, modify source/parser behavior, classify a source-specific outage as an engine gap, or skip sequential confirmation of a non-pass.
 
 ### [2026-07-22] Ninth Explore shared gaps fixed at common parser seams
