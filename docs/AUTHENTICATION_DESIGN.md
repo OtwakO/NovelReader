@@ -12,8 +12,9 @@ The following are hard architectural invariants:
 4. **Each reader directory is independently recoverable.** Losing authentication state or the source-credential encryption key must not make `reader.db` or ordinary files unreadable.
 5. **Ownership is enforced at the storage seam.** HTTP input never supplies authoritative user IDs, and feature code never constructs reader paths.
 6. **Authentication and ownership ship atomically.** Existing globally keyed Reader Data routes remain unavailable until per-user storage is active; authentication-looking routes must never front global stores.
+7. **The cutover removes the legacy architecture.** This pre-release project has no production users, so completed replacement slices delete superseded global schemas, startup wiring, stores, paths, configuration, adapters, and tests instead of maintaining dual modes or compatibility remnants.
 
-This is a pre-release structural change. Existing unowned development data may be reset after a verified cold backup; this design does not require a compatibility migration for current development data.
+This is a pre-release structural change. Existing unowned development data may be reset after a verified cold backup; this design does not require a compatibility migration for current development data. Temporary transition code is permitted only when a phase cannot remain runnable without it, must be explicitly marked, and is removed at the Phase 2 atomic cutover.
 
 ## Product decisions
 
@@ -335,6 +336,16 @@ The schema/reset decision runs immediately after opening the data root and befor
 - Use SQLite backup semantics that include WAL state; stage new data paths and rename atomically where the filesystem permits.
 - Never partially expose authenticated routes while any global store remains active.
 - Old binaries are incompatible with the new layout; rollback means stopping the new binary and restoring the complete prior data-directory backup.
+
+## Legacy removal discipline
+
+- Prefer reset and re-import of internal test data over schema converters that would survive the cutover.
+- Replace old modules directly when all callers can be updated in the same slice; do not wrap global stores with user-aware pass-through adapters.
+- Do not dual-write global and per-user databases.
+- When a per-user store replaces a global store, delete the old initialization, schema/migrations, configuration, filesystem path handling, dead interfaces, and obsolete tests in the same completed slice.
+- Retain tests that describe still-supported behavior by moving them to the new public seam; delete tests whose only purpose is legacy compatibility.
+- At the Phase 2 release gate, search for and remove legacy database/table/path names and document any intentionally retained occurrence.
+- No dormant fallback may reopen global Reader Data after the authenticated cutover. Startup either opens the current architecture or fails clearly.
 
 ## Implementation phases
 

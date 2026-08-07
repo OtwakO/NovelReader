@@ -12,6 +12,11 @@ storage contracts; this file owns execution order and completion status.
 - Keep Reader Data and files unencrypted. Encrypt only reversible source credentials.
 - A stopped-server copy of the complete `data/` directory must remain a valid backup.
 - Add abstractions only when required by a task below or by a second real use case.
+- Treat this as a clean pre-release replacement: no production-user compatibility layer is needed.
+- Do not dual-write old and new storage or add pass-through adapters around global stores.
+- Delete superseded schema, migrations, startup wiring, configuration, paths, modules, and tests in
+  the same completed slice that replaces them.
+- Temporary transition code must be explicitly marked and removed at the Phase 2 cutover.
 - Update this checklist and `PLAN.md` when a phase changes state.
 
 ## Phase 1 — Reader storage foundation
@@ -116,7 +121,11 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 - [ ] Update covers and chapter-image endpoints to resolve only through the authenticated home.
 - [ ] Key in-memory Source Sessions by immutable `UserID` and purge them on disable/deletion.
 - [ ] Update Search and Explore to use only the authenticated reader's sources.
-- [ ] Remove or disable the old global storage initialization path.
+- [ ] Delete the old global storage initialization path; do not retain a disabled fallback.
+- [ ] Delete superseded global table migrations, store constructors/interfaces, database/path
+      configuration, and legacy-only tests as each replacement becomes complete.
+- [ ] Search for old database/table/path names and either remove each occurrence or document why it
+      is still current.
 - [ ] Add cross-user isolation tests for every store and public resource endpoint, including equal
       resource IDs and source URLs.
 
@@ -129,8 +138,9 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 - [ ] Add tests for protected Administrator accounts, issuer deletion, reset replay/expiry,
       in-flight writes, filesystem failure, and deletion retry.
 
-**Complete when:** every non-public route requires identity, no global Reader Data store remains,
-and cross-user access fails without revealing whether another reader's resource exists.
+**Complete when:** every non-public route requires identity, no global Reader Data store or
+fallback remains, obsolete schema/configuration/tests are removed, and cross-user access fails
+without revealing whether another reader's resource exists.
 
 ## Phase 3 — Frontend account shell
 
@@ -185,6 +195,21 @@ new account on another deployment without carrying credentials or Administrator 
 
 **Complete when:** source login survives restart for one reader, cannot cross readers, and can be
 lost or deleted without affecting sources, books, reading state, or files.
+
+## Phase 2 legacy-removal gate
+
+Before Phase 2 is marked complete:
+
+- [ ] Remove the transitional `novelreader.db` startup path and `DATABASE_PATH` compatibility if it
+      is no longer part of the final layout.
+- [ ] Remove global source/book/font store initialization and all global Reader Data tables.
+- [ ] Remove old font/data paths outside reader directories.
+- [ ] Remove compatibility adapters and temporary feature flags introduced only for the cutover.
+- [ ] Remove or rewrite tests that instantiate global stores directly.
+- [ ] Run a repository search for `novelreader.db`, old global table names, and old global paths;
+      record any intentional remaining references.
+- [ ] Verify an old global data root fails clearly and a fresh current-layout deployment has no
+      code path capable of opening it as Reader Data.
 
 ## Deferred until requested
 
