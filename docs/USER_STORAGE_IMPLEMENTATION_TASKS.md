@@ -43,17 +43,17 @@ any existing store touches the database.
 
 ### 1.2 Minimal `readerstore` module
 
-- [ ] Add `backend/internal/readerstore/` with typed immutable `UserID` validation.
-- [ ] Implement safe resolution beneath the configured `data/users/` root.
-- [ ] Implement staged, idempotent creation of a reader directory.
-- [ ] Create and validate `manifest.json` with a format version and immutable user ID.
-- [ ] Initialize ordinary plaintext `reader.db` and its schema-version metadata.
-- [ ] Initialize `credentials.db` as a separate store, without credential encryption behavior yet.
-- [ ] Create the initial `files/fonts`, `files/covers`, and `files/chapter-assets` directories only
+- [x] Add `backend/internal/readerstore/` with canonical lowercase UUID v4 `UserID` validation.
+- [x] Implement safe resolution beneath the configured `data/users/` root.
+- [x] Implement staged, idempotent creation of a reader directory.
+- [x] Create and validate `manifest.json` with a format version and immutable user ID.
+- [x] Initialize ordinary plaintext `reader.db` and its schema-version metadata.
+- [x] Initialize `credentials.db` as a separate store, without credential encryption behavior yet.
+- [x] Create the initial `files/fonts`, `files/covers`, and `files/chapter-assets` directories only
       where current features require them.
-- [ ] Implement `Open` and explicit close/lifecycle behavior with a small bounded connection cache.
-- [ ] Add tests for path traversal, invalid IDs, idempotent creation, two-user isolation, database
-      readability with normal SQLite, and clean handle shutdown.
+- [x] Implement `Open` and explicit close/lifecycle behavior with a small bounded connection cache.
+- [x] Add tests for path traversal, invalid IDs, idempotent creation, two-user isolation, database
+      readability with normal SQLite, cache pressure/wake-up, and clean handle shutdown.
 
 **Complete when:** callers can create and open isolated reader homes without knowing filesystem
 paths or database setup details.

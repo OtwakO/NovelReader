@@ -13,3 +13,10 @@
 - **Reason**: Lexical `filepath.Rel` checks can classify `data/db-link/file.db` as contained even when `db-link` targets another filesystem location. That would make a stopped copy of `data/` incomplete.
 - **Verified**: Symlinked root/manifest/users/database regressions pass, concurrent root initialization passes under the race detector, and the complete backend Go suite passes.
 - **Watch out**: Future reader file paths must use the `readerstore` containment seam rather than reimplementing lexical path checks.
+
+### [2026-08-06] Reader storage keeps SQLite and files behind owned seams
+- **Context**: Phase 1.2 introduced portable per-reader homes and a bounded database-handle cache.
+- **Change**: SQLite filenames are escaped `file:` URIs with driver-supported `_pragma` parameters, staged homes are published only after both databases validate at the supported schema version, and reader files expose rooted read/write/remove operations instead of filesystem paths.
+- **Reason**: Appending query parameters to a raw filename truncates valid paths containing `?` or `#`, and returning a prevalidated path cannot prevent later symlink traversal by a caller.
+- **Verified**: Hostile root names, effective SQLite pragmas, interrupted staging recovery, symlink escapes, cache pressure/wake-up, race tests, the complete backend suite, and Linux/Windows compilation pass.
+- **Watch out**: Feature stores must use `Home.DB()` and `Home.Files()` directly; do not reconstruct reader database/file paths outside `readerstore`.
