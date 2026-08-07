@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -24,6 +25,7 @@ import (
 	"github.com/otwako/novelreader/internal/fingerprint"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/sourceexec"
 	"github.com/otwako/novelreader/internal/webview"
 )
@@ -41,8 +43,8 @@ func main() {
 		slog.Info("Debug logging enabled (to disable: unset DEBUG)")
 	}
 
-	// Open database
-	db, err := database.Open(cfg.DatabasePath)
+	// Classify the complete data root before any database or store can modify it.
+	db, err := openDatabase(cfg.DataDir, cfg.DatabasePath)
 	if err != nil {
 		log.Fatalf("database: %v", err)
 	}
@@ -156,6 +158,20 @@ func main() {
 	if err := serve(ctx, srv, listener); err != nil {
 		log.Fatalf("server: %v", err)
 	}
+}
+
+func openDatabase(dataDir, databasePath string) (*sql.DB, error) {
+	inside, err := readerstore.ContainsPath(dataDir, databasePath)
+	if err != nil {
+		return nil, fmt.Errorf("data root: resolve database path: %w", err)
+	}
+	if !inside {
+		return nil, fmt.Errorf("data root: database path must be inside DATA_DIR")
+	}
+	if _, err := readerstore.PrepareRoot(dataDir); err != nil {
+		return nil, fmt.Errorf("data root: %w", err)
+	}
+	return database.Open(databasePath)
 }
 
 func serve(ctx context.Context, server *http.Server, listener net.Listener) error {

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -18,6 +19,47 @@ func TestLoadUsesSmallContainerCapacityDefaults(t *testing.T) {
 	}
 	if cfg.MaxSessions != 1024 || cfg.SessionTTL != 30*time.Minute || cfg.ExploreSourceTimeout != 30*time.Second {
 		t.Fatalf("workflow limits=%d/%s/%s", cfg.MaxSessions, cfg.SessionTTL, cfg.ExploreSourceTimeout)
+	}
+}
+
+func TestLoadKeepsDefaultDatabaseInsideConfiguredDataDir(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "reader-data")
+	t.Setenv("DATA_DIR", dataDir)
+	t.Setenv("DATABASE_PATH", "")
+
+	cfg := Load()
+	if cfg.DatabasePath != filepath.Join(dataDir, "novelreader.db") {
+		t.Fatalf("database path = %q", cfg.DatabasePath)
+	}
+}
+
+func TestLoadAcceptsExplicitDatabasePath(t *testing.T) {
+	t.Setenv("DATA_DIR", "/srv/novelreader")
+	t.Setenv("DATABASE_PATH", "/srv/novelreader/custom.db")
+
+	cfg := Load()
+	if cfg.DatabasePath != "/srv/novelreader/custom.db" {
+		t.Fatalf("database path = %q", cfg.DatabasePath)
+	}
+}
+
+func TestLoadInfersDataDirFromDatabasePath(t *testing.T) {
+	t.Setenv("DATA_DIR", "")
+	t.Setenv("DATABASE_PATH", "/srv/novelreader/custom.db")
+
+	cfg := Load()
+	if cfg.DataDir != "/srv/novelreader" || cfg.DatabasePath != "/srv/novelreader/custom.db" {
+		t.Fatalf("storage paths = %q / %q", cfg.DataDir, cfg.DatabasePath)
+	}
+}
+
+func TestLoadPlacesBareDatabasePathInsideDefaultDataDir(t *testing.T) {
+	t.Setenv("DATA_DIR", "")
+	t.Setenv("DATABASE_PATH", "custom.db")
+
+	cfg := Load()
+	if cfg.DataDir != "./data" || cfg.DatabasePath != filepath.Join("data", "custom.db") {
+		t.Fatalf("storage paths = %q / %q", cfg.DataDir, cfg.DatabasePath)
 	}
 }
 

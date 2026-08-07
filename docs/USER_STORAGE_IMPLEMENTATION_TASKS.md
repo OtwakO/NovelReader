@@ -21,14 +21,17 @@ adding account routes or changing current public behavior.
 
 ### 1.1 Data-root classification
 
-- [ ] Define the supported data-root states: empty, current per-user layout, legacy non-empty,
-      unsupported newer schema, and interrupted staging.
-- [ ] Run classification immediately after opening the data root and before existing store
+- [x] Define the supported data-root states: empty, current per-user layout, legacy non-empty,
+      unsupported newer schema, interrupted staging, and invalid current layout.
+- [x] Run classification before opening the current database and therefore before existing store
       initialization, workers, frontend serving, or the network listener.
-- [ ] Allow an empty deployment to initialize the new root metadata safely.
-- [ ] Refuse legacy non-empty data by default with clear cold-backup/reset instructions.
-- [ ] Refuse unsupported newer schema versions without modifying files.
-- [ ] Add focused tests for every state and prove refusal paths leave data unchanged.
+- [x] Allow an empty deployment to initialize versioned root metadata and `users/` safely.
+- [x] Refuse legacy non-empty data by default without modifying it. Detailed backup/reset
+      instructions remain Phase 1.3.
+- [x] Refuse unsupported newer schema versions without modifying files.
+- [x] Require the current database path to remain inside `DATA_DIR` so cold-copy backup is complete.
+- [x] Add focused tests for every state and prove refusal paths do not create the database or alter
+      existing data.
 
 **Complete when:** startup can safely decide whether the new storage layout may be opened before
 any existing store touches the database.
@@ -197,4 +200,5 @@ lost or deleted without affecting sources, books, reading state, or files.
 - [x] Architecture and security decisions accepted.
 - [x] Domain glossary and ADR recorded.
 - [x] Independent architecture review completed without blockers.
-- [ ] Phase 1.1 data-root classifier and startup gate started.
+- [x] Phase 1.1 data-root classifier and startup gate complete.
+- [ ] Phase 1.2 minimal `readerstore` module started.
