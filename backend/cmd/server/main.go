@@ -17,6 +17,7 @@ import (
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/api"
+	"github.com/otwako/novelreader/internal/auth"
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/config"
@@ -43,11 +44,12 @@ func main() {
 		slog.Info("Debug logging enabled (to disable: unset DEBUG)")
 	}
 
-	// Classify the complete data root before any database or store can modify it.
-	db, err := openDatabase(cfg.DataDir, cfg.DatabasePath)
+	// Classify the complete data root and validate identity storage before any feature store opens.
+	systemStore, db, err := openDatabases(cfg.DataDir, cfg.DatabasePath)
 	if err != nil {
 		log.Fatalf("database: %v", err)
 	}
+	defer systemStore.Close()
 	defer db.Close()
 
 	// Init stores
@@ -160,18 +162,27 @@ func main() {
 	}
 }
 
-func openDatabase(dataDir, databasePath string) (*sql.DB, error) {
+func openDatabases(dataDir, databasePath string) (*auth.Store, *sql.DB, error) {
 	inside, err := readerstore.ContainsPath(dataDir, databasePath)
 	if err != nil {
-		return nil, fmt.Errorf("data root: resolve database path: %w", err)
+		return nil, nil, fmt.Errorf("data root: resolve database path: %w", err)
 	}
 	if !inside {
-		return nil, fmt.Errorf("data root: database path must be inside DATA_DIR")
+		return nil, nil, fmt.Errorf("data root: database path must be inside DATA_DIR")
 	}
 	if _, err := readerstore.PrepareRoot(dataDir); err != nil {
-		return nil, fmt.Errorf("data root: %w", err)
+		return nil, nil, fmt.Errorf("data root: %w", err)
 	}
-	return database.Open(databasePath)
+	systemStore, err := auth.OpenSystemStore(dataDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("system database: %w", err)
+	}
+	db, err := database.Open(databasePath)
+	if err != nil {
+		_ = systemStore.Close()
+		return nil, nil, err
+	}
+	return systemStore, db, nil
 }
 
 func serve(ctx context.Context, server *http.Server, listener net.Listener) error {

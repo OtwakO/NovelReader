@@ -27,3 +27,10 @@
 - **Reason**: NovelReader has no production users or irreplaceable legacy Reader Data. Permanent migration code would preserve debt for disposable internal test state.
 - **Verified**: The old-root refusal test proves no database is created or existing file changed, the startup message includes reset/re-import guidance, and the complete backend suite passes.
 - **Watch out**: Do not reintroduce legacy conversion during Phase 2. Replace global stores directly and delete their schema/configuration once the authenticated per-reader cutover is complete.
+
+### [2026-08-06] System schema is validated canonically before writable open
+- **Context**: Phase 2.1 introduced `system.db`, which stores password/session/reset hashes and durable setup/deletion state.
+- **Change**: Startup compares every declared SQLite catalog object against the canonical versioned schema through a read-only connection before enabling WAL or opening feature storage. New databases are staged with owner-only permissions; partial stages are rebuilt, while newer authoritative schemas are refused.
+- **Reason**: Version and column-name checks can accept lookalike databases that omit role/foreign-key/uniqueness constraints or hide Reader Data tables. Applying writable pragmas before full validation would modify unsupported state.
+- **Verified**: Regressions cover malformed, newer, unconstrained, Reader-Data-polluted, and hidden `sqlite_*` catalog schemas; refusal remains byte-for-byte and creates no WAL/SHM or feature database. Focused race/vet and the complete backend suite pass.
+- **Watch out**: Every future `system.db` migration must update the canonical schema and schema version together. Do not loosen validation into a partial table/column allowlist.

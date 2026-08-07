@@ -89,11 +89,11 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 
 ### 2.1 System identity storage
 
-- [ ] Add versioned `system.db` schema for users, roles, session hashes, reset-token hashes, setup
+- [x] Add versioned `system.db` schema for users, roles, session hashes, reset-token hashes, setup
       state, and durable deletion jobs.
-- [ ] Add only `reader` and `admin` roles.
-- [ ] Keep Reader Data and feature metadata out of `system.db`.
-- [ ] Add account status transitions for active, disabled, and deleting.
+- [x] Add only `reader` and `admin` roles.
+- [x] Keep Reader Data and feature metadata out of `system.db`.
+- [x] Add account status transitions for active, disabled, and deleting.
 
 ### 2.2 Authentication core
 
