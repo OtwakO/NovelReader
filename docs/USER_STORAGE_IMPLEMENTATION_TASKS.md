@@ -31,8 +31,8 @@ adding account routes or changing current public behavior.
 - [x] Run classification before opening the current database and therefore before existing store
       initialization, workers, frontend serving, or the network listener.
 - [x] Allow an empty deployment to initialize versioned root metadata and `users/` safely.
-- [x] Refuse legacy non-empty data by default without modifying it. Detailed backup/reset
-      instructions remain Phase 1.3.
+- [x] Refuse legacy non-empty data without modifying it and direct internal developers to a clean
+      reset rather than a compatibility migration.
 - [x] Refuse unsupported newer schema versions without modifying files.
 - [x] Require the current database path to remain inside `DATA_DIR` so cold-copy backup is complete.
 - [x] Add focused tests for every state and prove refusal paths do not create the database or alter
@@ -58,19 +58,24 @@ any existing store touches the database.
 **Complete when:** callers can create and open isolated reader homes without knowing filesystem
 paths or database setup details.
 
-### 1.3 Cold backup and reset gate
+### 1.3 Development reset and cold-copy contract
 
-- [ ] Document the stopped-server copy/restore procedure, including SQLite WAL/SHM files after a
-      crash.
-- [ ] Implement the explicit pre-release reset confirmation for legacy data.
-- [ ] Create a timestamped, cold-compatible backup before resetting anything.
-- [ ] Verify the backup can be enumerated and its SQLite databases opened before proceeding.
-- [ ] Stage the new layout and publish it by same-filesystem rename where supported.
-- [ ] Handle interrupted staging by retrying safely or quarantining it with an actionable error.
-- [ ] Add stop-copy-restore, interrupted-reset, backup-failure, and rollback tests.
+The project has no production users or irreplaceable legacy Reader Data. Automated legacy reset,
+migration, backup verification, and rollback machinery were removed from scope to avoid permanent
+pre-release compatibility debt.
 
-**Complete when:** a legacy reset cannot destroy the only copy of data and a stopped deployment can
-be restored by replacing the complete `data/` directory.
+- [x] Document the clean development reset: stop the process, optionally copy old state for manual
+      inspection, delete/rename `DATA_DIR`, restart, and re-import test BookSources.
+- [x] Keep old non-empty layouts fail-closed and provide an actionable startup error without a reset
+      flag or automatic mutation.
+- [x] Document that ignored `test_booksource*.json` corpora and tracked `testdata/booksource/`
+      fixtures are import inputs/evidence rather than user data and do not need database migration.
+- [x] Document complete stopped-server copy/restore, including preserving SQLite WAL/SHM files after
+      a crash.
+- [x] Retain tests proving a refused old root is not modified and no database is created.
+
+**Complete when:** internal developers can start fresh without migration code, and operators know
+how to copy/restore a complete current-layout `data/` directory while NovelReader is stopped.
 
 ### Phase 1 exclusions
 

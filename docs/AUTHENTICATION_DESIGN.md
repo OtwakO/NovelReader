@@ -14,7 +14,7 @@ The following are hard architectural invariants:
 6. **Authentication and ownership ship atomically.** Existing globally keyed Reader Data routes remain unavailable until per-user storage is active; authentication-looking routes must never front global stores.
 7. **The cutover removes the legacy architecture.** This pre-release project has no production users, so completed replacement slices delete superseded global schemas, startup wiring, stores, paths, configuration, adapters, and tests instead of maintaining dual modes or compatibility remnants.
 
-This is a pre-release structural change. Existing unowned development data may be reset after a verified cold backup; this design does not require a compatibility migration for current development data. Temporary transition code is permitted only when a phase cannot remain runnable without it, must be explicitly marked, and is removed at the Phase 2 atomic cutover.
+This is a pre-release structural change with no production users or irreplaceable legacy Reader Data. Existing unowned development state is discarded by stopping NovelReader, optionally copying it for manual inspection, deleting or renaming `DATA_DIR`, and re-importing test BookSources. NovelReader intentionally provides no legacy migration or automatic reset machinery. Temporary transition code is permitted only when a phase cannot remain runnable without it, must be explicitly marked, and is removed at the Phase 2 atomic cutover.
 
 ## Product decisions
 
@@ -329,13 +329,13 @@ Source deletion first makes the source unavailable in `reader.db`, then idempote
 
 ## Schema gate and atomic cutover
 
-The schema/reset decision runs immediately after opening the data root and before current store initialization, migrations, workers, frontend serving, or network listener startup.
+The schema decision runs immediately after opening the data root and before current store initialization, migrations, workers, frontend serving, or network listener startup.
 
-- Refuse old globally keyed non-empty data unless the explicit pre-release reset flag is set.
-- Before reset, require/produce a timestamped cold-compatible backup and verify it can be enumerated/opened.
-- Use SQLite backup semantics that include WAL state; stage new data paths and rename atomically where the filesystem permits.
+- Refuse old globally keyed non-empty data without modifying it.
+- Direct internal developers to stop NovelReader, optionally retain a manual copy, delete or rename `DATA_DIR`, restart, and re-import test BookSources.
+- Do not add a legacy reset flag, database converter, automatic backup verifier, rollback engine, or dual-layout mode.
 - Never partially expose authenticated routes while any global store remains active.
-- Old binaries are incompatible with the new layout; rollback means stopping the new binary and restoring the complete prior data-directory backup.
+- Old binaries are incompatible with the new layout. Current-layout disaster recovery uses a stopped complete-data-directory copy, not legacy migration.
 
 ## Legacy removal discipline
 
@@ -349,7 +349,7 @@ The schema/reset decision runs immediately after opening the data root and befor
 
 ## Implementation phases
 
-1. **Storage foundation and cutover gate** — `readerstore`, data-root layout, manifests, system/reader schema versioning, cold-copy docs/tests, backup/reset staging, and fail-closed startup. No account routes are exposed yet.
+1. **Storage foundation and cutover gate** — `readerstore`, data-root layout, manifests, reader schema versioning, clean development-reset guidance, cold-copy documentation, and fail-closed startup. No account routes are exposed yet.
 2. **Authentication plus ownership conversion as one release boundary** — setup, users, roles, Argon2 controls, sessions, middleware, origin policy, and conversion of every source/book/cache/font/session interface to the authenticated reader home. Existing Reader Data routes open only when both halves are complete.
 3. **Frontend account shell and administration** — setup/login/register, current account, logout/change-password, expiry recovery, ordinary-account management, environment recovery, and destructive confirmations.
 4. **Portable export/import and system-loss recovery** — per-reader bundles, conflict policies, directory validation/attachment, and documented cold restore.
@@ -358,11 +358,11 @@ The schema/reset decision runs immediately after opening the data root and befor
 
 ## Verification gates
 
-- Stop-copy-restore tests for the complete data root and for one independently imported reader directory; cold copy is the only initial complete-deployment backup contract.
+- Complete-data-root cold-copy documentation and later restore integration coverage; cold copy is the only initial complete-deployment backup contract.
 - Concurrent-write per-reader export tests proving SQLite WAL contents and the matching ordinary-file generation form one validated bundle.
 - Concurrent and crash-interrupted first-Administrator setup tests proving one durable winner and idempotent roll-forward/quarantine.
 - Source/credential crash, orphan, deletion, logout, and same-URL re-import tests proving stale credentials never hydrate.
-- Schema-newer refusal, migration backup, WAL-aware backup, interrupted migration, and rollback tests.
+- Schema-newer and old-layout refusal tests proving startup does not modify unsupported data.
 - Password hashing/verification, Argon2 admission/overload, setup/bootstrap, registration invite, generic login failure, and recovery tests.
 - Session creation, concurrent rotation/grace, expiry, replay, revocation, logout, password change/reset, and disabled/deleting-account tests.
 - Origin/CORS tests for safe and unsafe methods.

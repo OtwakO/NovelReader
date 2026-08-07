@@ -20,3 +20,10 @@
 - **Reason**: Appending query parameters to a raw filename truncates valid paths containing `?` or `#`, and returning a prevalidated path cannot prevent later symlink traversal by a caller.
 - **Verified**: Hostile root names, effective SQLite pragmas, interrupted staging recovery, symlink escapes, cache pressure/wake-up, race tests, the complete backend suite, and Linux/Windows compilation pass.
 - **Watch out**: Feature stores must use `Home.DB()` and `Home.Files()` directly; do not reconstruct reader database/file paths outside `readerstore`.
+
+### [2026-08-06] Legacy development databases are reset, not migrated
+- **Context**: Phase 1.3 originally planned an automated backup-and-reset path for the old global database layout.
+- **Change**: Automated legacy backup, migration, reset flags, verification, and rollback machinery were removed from scope. Startup remains fail-closed and points developers to a manual fresh reset; test BookSource JSON remains independent import input.
+- **Reason**: NovelReader has no production users or irreplaceable legacy Reader Data. Permanent migration code would preserve debt for disposable internal test state.
+- **Verified**: The old-root refusal test proves no database is created or existing file changed, the startup message includes reset/re-import guidance, and the complete backend suite passes.
+- **Watch out**: Do not reintroduce legacy conversion during Phase 2. Replace global stores directly and delete their schema/configuration once the authenticated per-reader cutover is complete.

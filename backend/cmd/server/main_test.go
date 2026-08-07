@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,11 @@ func TestOpenDatabaseGatesLegacyRootBeforeCreatingDatabase(t *testing.T) {
 	}
 	if !errors.Is(err, readerstore.ErrLegacyRoot) {
 		t.Fatalf("err = %v", err)
+	}
+	for _, instruction := range []string{"remove or rename DATA_DIR", "re-import test BookSources"} {
+		if !strings.Contains(err.Error(), instruction) {
+			t.Errorf("error %q does not contain %q", err, instruction)
+		}
 	}
 	if _, statErr := os.Stat(databasePath); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("database unexpectedly created: %v", statErr)

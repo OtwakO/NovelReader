@@ -33,7 +33,7 @@ const (
 var (
 	rootInitializationMu sync.Mutex
 
-	ErrLegacyRoot      = errors.New("legacy data root requires backup and explicit reset")
+	ErrLegacyRoot      = errors.New("legacy development data root is unsupported; stop NovelReader, remove or rename DATA_DIR, restart, then re-import test BookSources")
 	ErrNewerRoot       = errors.New("data root was created by a newer NovelReader version")
 	ErrInterruptedRoot = errors.New("data root initialization was interrupted")
 	ErrInvalidRoot     = errors.New("data root manifest is invalid")

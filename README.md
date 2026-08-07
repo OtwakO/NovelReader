@@ -13,7 +13,7 @@ cd .. && ./dev.sh run
 
 On Windows, double-click `run-local.bat` (or run it from Command Prompt) to install dependencies, build the frontend, and start the server.
 
-The server listens on port `8888` by default. Set `PORT`, `DATABASE_PATH`, or `DATA_DIR` to override local settings.
+The server listens on port `8888` by default. Set `PORT`, `DATABASE_PATH`, or `DATA_DIR` to override local settings. If startup rejects an old development data directory, follow [`docs/DEVELOPMENT_DATA_RESET.md`](docs/DEVELOPMENT_DATA_RESET.md); old global test state is intentionally reset rather than migrated.
 
 Capacity defaults target a 2-vCPU/4-GB container: 16 source requests per search, 32 process-wide, 4 JavaScript runtimes, 1,024 workflow sessions with a 30-minute idle TTL, and 2 browser pages with 8 queued requests; the browser recycles after 100 contexts. Explore page fetches have a 30-second per-source deadline. Override capacity and workflow settings with `SEARCH_CONCURRENCY`, `GLOBAL_SEARCH_CONCURRENCY`, `JS_POOL_SIZE`, `MAX_WORKFLOW_SESSIONS`, `SESSION_TTL_MINUTES`, `EXPLORE_SOURCE_TIMEOUT_SECONDS` (a positive integer), `WEBVIEW_MAX_PAGES`, `WEBVIEW_MAX_PENDING`, or `WEBVIEW_MAX_CONTEXTS_PER_BROWSER`. A 4-vCPU/8-GB starting profile is `32`, `64`, `8`, `2048`, `60`, `4`, `16`, and `250` respectively; measure before increasing further.
 
