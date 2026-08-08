@@ -34,3 +34,10 @@
 - **Reason**: Version and column-name checks can accept lookalike databases that omit role/foreign-key/uniqueness constraints or hide Reader Data tables. Applying writable pragmas before full validation would modify unsupported state.
 - **Verified**: Regressions cover malformed, newer, unconstrained, Reader-Data-polluted, and hidden `sqlite_*` catalog schemas; refusal remains byte-for-byte and creates no WAL/SHM or feature database. Focused race/vet and the complete backend suite pass.
 - **Watch out**: Every future `system.db` migration must update the canonical schema and schema version together. Do not loosen validation into a partial table/column allowlist.
+
+### [2026-08-06] Password hashing uses a light fixed Argon2id profile
+- **Context**: The original authentication design proposed a 64 MiB Argon2id profile, but NovelReader is a small self-hosted reader and the operator requested lower resource use.
+- **Change**: Password hashing now uses Argon2id at 19 MiB, 2 iterations, parallelism 1, 16-byte random salts, and 32-byte output, with two non-blocking process-wide work slots. Username and password Unicode policy is implemented separately from account persistence.
+- **Reason**: This keeps modern memory-hard password protection while limiting simultaneous hashing to roughly 38 MiB instead of roughly 128 MiB. A fixed profile avoids unsafe operator configuration.
+- **Verified**: Tests cover canonical Unicode usernames, malformed UTF-8, exact password code-point boundaries, fresh PHC salts, wrong/malformed hashes, dummy verification, overload across hasher instances, and cancellation before/during work. Focused repeated/race/vet checks and independent review pass.
+- **Watch out**: The fixed dummy PHC hash is deliberately non-secret and only equalizes unknown-user work. All future password paths must use `PasswordHasher`; do not call Argon2 directly or add unbounded constructor/setup hashing.

@@ -97,8 +97,9 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 
 ### 2.2 Authentication core
 
-- [ ] Implement username normalization and uniqueness rules.
-- [ ] Implement Argon2id password hashing and verification with a process-wide admission limit.
+- [x] Implement username normalization and validation rules.
+- [ ] Enforce normalized username uniqueness in account storage.
+- [x] Implement Argon2id password hashing and verification with a process-wide admission limit.
 - [ ] Apply request-size limits, timeouts, generic login errors, and bounded rate limits.
 - [ ] Implement opaque server-side sessions with current-token hash, one previous-token hash, a
       fixed five-minute grace period, and a 30-day absolute expiry.

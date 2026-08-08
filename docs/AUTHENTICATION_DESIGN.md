@@ -164,11 +164,11 @@ Public registration cannot create an Administrator.
 ## Password and Argon2 controls
 
 - Hash passwords with Argon2id and store algorithm/parameters in a PHC-style encoded hash.
-- Initial target: 64 MiB memory, 3 iterations, parallelism 2, 16-byte random salt, 32-byte output; benchmark on the supported deployment target before fixing defaults.
+- Fixed self-hosted baseline: 19 MiB memory, 2 iterations, parallelism 1, 16-byte random salt, and 32-byte output. This keeps password work modest while retaining memory-hard Argon2id protection.
 - Passwords are 12–128 Unicode code points and are not silently trimmed or normalized.
 - Usernames are trimmed, NFKC-normalized, and case-folded into `username_normalized`; display spelling is stored separately. Initial normalized usernames permit letters, numbers, `_`, `-`, and `.` and are 3–32 code points.
 - Unknown user, wrong password, and disabled account return one generic invalid-credentials response. Unknown users perform bounded dummy verification.
-- A process-wide semaphore bounds all Argon2 work, including registration, login, dummy verification, password change, setup, and reset completion. Overload fails quickly with a retryable response rather than exhausting memory.
+- A process-wide semaphore allows at most two Argon2 operations across registration, login, dummy verification, password change, setup, and reset completion. Overload fails quickly with a retryable response rather than queuing unbounded work or exhausting memory.
 - Authentication endpoints enforce small request-body limits, deadlines, and rate limits. Proxy-derived addresses are trusted only from explicitly configured proxy networks.
 - Password change/reset revokes every Application Session for the account.
 
