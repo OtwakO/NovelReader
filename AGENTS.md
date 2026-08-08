@@ -1,5 +1,7 @@
 My GitHub Handle: [OtwakO](https://github.com/OtwakO)
 
+You are running inside a sandboxed environment, /tmp directory is ephemeral and resets when session is closed. For files that would be used in future session and warrants persistency, properly organize, name, and store them under the project directory.
+
 # Codebase Architecture & Engineering Guidelines
 
 ## Core Principles
