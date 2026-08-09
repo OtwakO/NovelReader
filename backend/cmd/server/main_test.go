@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,6 +143,63 @@ func TestOpenDatabasesRejectsNewerSystemSchemaBeforeCreatingFeatureDatabase(t *t
 	}
 	if _, statErr := os.Stat(featurePath); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("feature database unexpectedly created: %v", statErr)
+	}
+}
+
+func TestCredentialOriginMiddlewareAllowsOnlyConfiguredOrigin(t *testing.T) {
+	nextCalls := 0
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalls++
+		w.WriteHeader(http.StatusNoContent)
+	})
+	handler, err := credentialOriginMiddleware("https://reader.example", false, next)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	allowed := httptest.NewRequest(http.MethodPost, "/api/auth/login", nil)
+	allowed.Header.Set("Origin", "https://reader.example")
+	allowedResponse := httptest.NewRecorder()
+	handler.ServeHTTP(allowedResponse, allowed)
+	if allowedResponse.Code != http.StatusNoContent || allowedResponse.Header().Get("Access-Control-Allow-Origin") != "https://reader.example" || allowedResponse.Header().Get("Access-Control-Allow-Credentials") != "true" {
+		t.Fatalf("allowed response status=%d headers=%v", allowedResponse.Code, allowedResponse.Header())
+	}
+
+	missing := httptest.NewRequest(http.MethodPost, "/api/auth/login", nil)
+	missingResponse := httptest.NewRecorder()
+	handler.ServeHTTP(missingResponse, missing)
+	if missingResponse.Code != http.StatusForbidden || nextCalls != 1 {
+		t.Fatalf("missing-origin response status=%d calls=%d", missingResponse.Code, nextCalls)
+	}
+
+	foreign := httptest.NewRequest(http.MethodPost, "/api/auth/login", nil)
+	foreign.Header.Set("Origin", "https://evil.example")
+	foreignResponse := httptest.NewRecorder()
+	handler.ServeHTTP(foreignResponse, foreign)
+	if foreignResponse.Code != http.StatusForbidden || nextCalls != 1 {
+		t.Fatalf("foreign response status=%d calls=%d", foreignResponse.Code, nextCalls)
+	}
+
+	if _, err := credentialOriginMiddleware("", false, next); err == nil {
+		t.Fatal("missing production PUBLIC_URL was accepted")
+	}
+	development, err := credentialOriginMiddleware("", true, next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	developmentRequest := httptest.NewRequest(http.MethodPost, "http://reader.local/api/auth/login", nil)
+	developmentRequest.Header.Set("Origin", "http://reader.local")
+	developmentResponse := httptest.NewRecorder()
+	development.ServeHTTP(developmentResponse, developmentRequest)
+	if developmentResponse.Code != http.StatusNoContent || developmentResponse.Header().Get("Access-Control-Allow-Origin") != "http://reader.local" {
+		t.Fatalf("development same-origin status=%d headers=%v", developmentResponse.Code, developmentResponse.Header())
+	}
+	developmentForeign := httptest.NewRequest(http.MethodPost, "http://reader.local/api/auth/login", nil)
+	developmentForeign.Header.Set("Origin", "http://evil.local")
+	developmentForeignResponse := httptest.NewRecorder()
+	development.ServeHTTP(developmentForeignResponse, developmentForeign)
+	if developmentForeignResponse.Code != http.StatusForbidden {
+		t.Fatalf("development foreign status=%d", developmentForeignResponse.Code)
 	}
 }
 

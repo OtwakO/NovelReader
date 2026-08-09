@@ -2,6 +2,7 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -45,7 +46,76 @@ var (
 )
 
 type sharedSessionGuard struct {
-	mutex sync.RWMutex
+	mutex          sync.Mutex
+	changed        chan struct{}
+	readers        int
+	writer         bool
+	waitingWriters int
+}
+
+func newSharedSessionGuard() *sharedSessionGuard {
+	return &sharedSessionGuard{changed: make(chan struct{})}
+}
+
+func (g *sharedSessionGuard) lock(ctx context.Context) error {
+	g.mutex.Lock()
+	g.waitingWriters++
+	for g.writer || g.readers > 0 {
+		changed := g.changed
+		g.mutex.Unlock()
+		select {
+		case <-ctx.Done():
+			g.mutex.Lock()
+			g.waitingWriters--
+			g.notifyLocked()
+			g.mutex.Unlock()
+			return ctx.Err()
+		case <-changed:
+			g.mutex.Lock()
+		}
+	}
+	g.waitingWriters--
+	g.writer = true
+	g.mutex.Unlock()
+	return nil
+}
+
+func (g *sharedSessionGuard) unlock() {
+	g.mutex.Lock()
+	g.writer = false
+	g.notifyLocked()
+	g.mutex.Unlock()
+}
+
+func (g *sharedSessionGuard) readLock(ctx context.Context) error {
+	g.mutex.Lock()
+	for g.writer || g.waitingWriters > 0 {
+		changed := g.changed
+		g.mutex.Unlock()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-changed:
+			g.mutex.Lock()
+		}
+	}
+	g.readers++
+	g.mutex.Unlock()
+	return nil
+}
+
+func (g *sharedSessionGuard) readUnlock() {
+	g.mutex.Lock()
+	g.readers--
+	if g.readers == 0 {
+		g.notifyLocked()
+	}
+	g.mutex.Unlock()
+}
+
+func (g *sharedSessionGuard) notifyLocked() {
+	close(g.changed)
+	g.changed = make(chan struct{})
 }
 
 // Store owns system.db and deployment-level identity/control records.
@@ -108,8 +178,10 @@ func (s *Store) TransitionAccountStatus(userID readerstore.UserID, next AccountS
 	if _, err := readerstore.ParseUserID(string(userID)); err != nil {
 		return err
 	}
-	s.sessionGuard.mutex.Lock()
-	defer s.sessionGuard.mutex.Unlock()
+	if err := s.sessionGuard.lock(context.Background()); err != nil {
+		return err
+	}
+	defer s.sessionGuard.unlock()
 	if next != StatusActive && next != StatusDisabled && next != StatusDeleting {
 		return ErrInvalidStatusTransition
 	}
@@ -156,7 +228,7 @@ func acquireSessionGuard(path string) *sharedSessionGuard {
 	defer sessionGuards.Unlock()
 	guard := sessionGuards.byPath[path]
 	if guard == nil {
-		guard = &sharedSessionGuard{}
+		guard = newSharedSessionGuard()
 		sessionGuards.byPath[path] = guard
 	}
 	return guard

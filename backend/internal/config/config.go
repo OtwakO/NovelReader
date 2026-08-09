@@ -13,7 +13,8 @@ type Config struct {
 	DatabasePath            string
 	DataDir                 string
 	ReadTimeout             time.Duration
-	CORSOrigin              string
+	PublicURL               string
+	DevelopmentMode         bool
 	WebViewEndpoint         string
 	SearchConcurrency       int
 	GlobalSearchConcurrency int
@@ -30,7 +31,8 @@ func Load() *Config {
 		DatabasePath:            databasePath,
 		DataDir:                 dataDir,
 		ReadTimeout:             time.Duration(getEnvInt("READ_TIMEOUT_SECONDS", 30)) * time.Second,
-		CORSOrigin:              getEnv("CORS_ORIGIN", "*"),
+		PublicURL:               getEnv("PUBLIC_URL", ""),
+		DevelopmentMode:         getEnv("DEVELOPMENT_MODE", "") == "1",
 		WebViewEndpoint:         getEnv("WEBVIEW_ENDPOINT", ""),
 		SearchConcurrency:       getEnvPositiveInt("SEARCH_CONCURRENCY", 16),
 		GlobalSearchConcurrency: getEnvPositiveInt("GLOBAL_SEARCH_CONCURRENCY", 32),

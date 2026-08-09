@@ -55,8 +55,10 @@ func (s *SessionService) Create(ctx context.Context, userID readerstore.UserID, 
 	}
 	tokenHash := sha256.Sum256([]byte(token))
 
-	s.store.sessionGuard.mutex.Lock()
-	defer s.store.sessionGuard.mutex.Unlock()
+	if err := s.store.sessionGuard.lock(ctx); err != nil {
+		return SessionCredential{}, err
+	}
+	defer s.store.sessionGuard.unlock()
 	tx, err := s.store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return SessionCredential{}, fmt.Errorf("auth: begin session creation: %w", err)
@@ -89,8 +91,10 @@ func (s *SessionService) Authenticate(ctx context.Context, token string, now int
 	if !ok {
 		return Account{}, ErrInvalidSession
 	}
-	s.store.sessionGuard.mutex.RLock()
-	defer s.store.sessionGuard.mutex.RUnlock()
+	if err := s.store.sessionGuard.readLock(ctx); err != nil {
+		return Account{}, err
+	}
+	defer s.store.sessionGuard.readUnlock()
 
 	var account Account
 	var id string
@@ -149,8 +153,10 @@ func (s *SessionService) Logout(ctx context.Context, token string) error {
 	if !ok {
 		return nil
 	}
-	s.store.sessionGuard.mutex.Lock()
-	defer s.store.sessionGuard.mutex.Unlock()
+	if err := s.store.sessionGuard.lock(ctx); err != nil {
+		return err
+	}
+	defer s.store.sessionGuard.unlock()
 	if _, err := s.store.db.ExecContext(ctx, `DELETE FROM auth_sessions WHERE token_hash = ?`, tokenHash[:]); err != nil {
 		return fmt.Errorf("auth: logout session: %w", err)
 	}
@@ -164,8 +170,10 @@ func (s *SessionService) LogoutAll(ctx context.Context, userID readerstore.UserI
 	if _, err := readerstore.ParseUserID(string(userID)); err != nil {
 		return err
 	}
-	s.store.sessionGuard.mutex.Lock()
-	defer s.store.sessionGuard.mutex.Unlock()
+	if err := s.store.sessionGuard.lock(ctx); err != nil {
+		return err
+	}
+	defer s.store.sessionGuard.unlock()
 	if _, err := s.store.db.ExecContext(ctx, `DELETE FROM auth_sessions WHERE user_id = ?`, string(userID)); err != nil {
 		return fmt.Errorf("auth: logout all sessions: %w", err)
 	}

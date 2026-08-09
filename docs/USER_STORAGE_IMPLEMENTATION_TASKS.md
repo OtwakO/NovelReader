@@ -100,12 +100,13 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 - [x] Implement username normalization and validation rules.
 - [x] Enforce normalized username uniqueness in account storage.
 - [x] Implement Argon2id password hashing and verification with a process-wide admission limit.
-- [ ] Apply request-size limits, timeouts, generic login errors, and bounded rate limits.
+- [x] Implement request-size limits, bounded response deadlines, generic login errors, and bounded direct-peer rate limits in the fail-closed HTTP auth module.
 - [x] Implement persistent opaque server-side sessions with one hash-only token per login and no automatic expiry or rotation.
-- [ ] Implement login, logout, request-context identity, and browser-session token lifecycle.
+- [x] Implement login, logout, `RequireIdentity`, `RequireAdmin`, request-context identity, and browser-session token lifecycle behind an unmounted fail-closed HTTP module.
 - [x] Implement storage-level credential lookup, generic credential failure, and privileged password replacement with transactional session revocation.
-- [ ] Replace wildcard credentialed CORS with the documented same-origin policy.
-- [ ] Add tests for HTTP login/cookie behavior, request limits, rate limits, and unsafe cross-origin requests.
+- [x] Replace wildcard credentialed CORS with the documented exact-origin policy; production requires `PUBLIC_URL`, while request-host development origins require explicit `DEVELOPMENT_MODE=1`.
+- [x] Add module-level tests for HTTP login/cookie behavior, independent devices, logout idempotency, identity/admin middleware, strict request limits, bounded deadlines/rate limits, and unsafe cross-origin requests.
+- [ ] Mount authentication routes only in the atomic ownership cutover that also wraps every non-public Reader Data route and selects per-account stores.
 - [x] Add storage-level tests for password parameters, overload, independent device sessions, logout-this-device, logout-all-devices, and concurrent revocation.
 
 ### 2.3 First Administrator setup and recovery

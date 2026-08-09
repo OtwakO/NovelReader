@@ -22,6 +22,7 @@ if not defined PORT set "PORT=8888"
 echo [3/3] Starting NovelReader at http://localhost:%PORT%
 pushd backend
 set "DEBUG=1"
+set "DEVELOPMENT_MODE=1"
 set "WEBVIEW_ENDPOINT=http://127.0.0.1:8787"
 go run ./cmd/server/ %*
 set "EXIT_CODE=%ERRORLEVEL%"

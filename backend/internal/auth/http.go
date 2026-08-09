@@ -1,0 +1,469 @@
+package auth
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/otwako/novelreader/internal/readerstore"
+)
+
+const (
+	SessionCookieName   = "novelreader_session"
+	maxLoginRequestSize = 4 * 1024
+	maxLoginRatePeers   = 4096
+)
+
+type HTTPConfig struct {
+	PublicURL     string
+	LoginTimeout  time.Duration
+	LoginAttempts int
+	LoginWindow   time.Duration
+}
+
+type HTTPHandler struct {
+	accounts           *AccountService
+	sessions           *SessionService
+	mux                *http.ServeMux
+	allowedOrigin      string
+	secureCookie       bool
+	loginTimeout       time.Duration
+	loginLimiter       *loginRateLimiter
+	now                func() time.Time
+	afterSessionCreate func(SessionCredential)
+}
+
+type loginRateLimiter struct {
+	mutex    sync.Mutex
+	attempts map[string]loginAttemptWindow
+	limit    int
+	window   time.Duration
+}
+
+type loginAttemptWindow struct {
+	count int
+	start time.Time
+}
+
+type identityContextKey struct{}
+
+type accountResponse struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Role     Role   `json:"role"`
+}
+
+func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
+	origin, secure, err := ParsePublicOrigin(config.PublicURL)
+	if err != nil {
+		return nil, err
+	}
+	if config.LoginTimeout <= 0 {
+		config.LoginTimeout = 5 * time.Second
+	}
+	if config.LoginAttempts <= 0 {
+		config.LoginAttempts = 10
+	}
+	if config.LoginWindow <= 0 {
+		config.LoginWindow = time.Minute
+	}
+	handler := &HTTPHandler{
+		accounts:      NewAccountService(store),
+		sessions:      NewSessionService(store),
+		mux:           http.NewServeMux(),
+		allowedOrigin: origin,
+		secureCookie:  secure,
+		loginTimeout:  config.LoginTimeout,
+		loginLimiter: &loginRateLimiter{
+			attempts: make(map[string]loginAttemptWindow),
+			limit:    config.LoginAttempts,
+			window:   config.LoginWindow,
+		},
+		now: time.Now,
+	}
+	handler.mux.HandleFunc("POST /api/auth/login", handler.handleLogin)
+	handler.mux.HandleFunc("POST /api/auth/logout", handler.handleLogout)
+	handler.mux.Handle("GET /api/auth/account", handler.RequireIdentity(http.HandlerFunc(handler.handleAccount)))
+	return handler, nil
+}
+
+func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.mux.ServeHTTP(w, r)
+}
+
+func (h *HTTPHandler) RequireIdentity(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie(SessionCookieName)
+		if err != nil || cookie.Value == "" {
+			writeAuthError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
+		account, err := h.sessions.Authenticate(r.Context(), cookie.Value, h.now().Unix())
+		if errors.Is(err, ErrInvalidSession) {
+			writeAuthError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
+		if err != nil {
+			writeAuthError(w, http.StatusInternalServerError, "authentication unavailable")
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), identityContextKey{}, account)))
+	})
+}
+
+func (h *HTTPHandler) RequireAdmin(next http.Handler) http.Handler {
+	return h.RequireIdentity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		account, ok := IdentityFromContext(r.Context())
+		if !ok || account.Role != RoleAdmin {
+			writeAuthError(w, http.StatusForbidden, "administrator access required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	}))
+}
+
+func IdentityFromContext(ctx context.Context) (Account, bool) {
+	account, ok := ctx.Value(identityContextKey{}).(Account)
+	return account, ok
+}
+
+func (h *HTTPHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if !h.allowUnsafeRequest(w, r) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.loginTimeout)
+	defer cancel()
+	request, err := readLoginWithinDeadline(ctx, r)
+	if errors.Is(err, errLoginRequestTooLarge) {
+		writeAuthError(w, http.StatusRequestEntityTooLarge, "request body is too large")
+		return
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "login temporarily unavailable")
+		return
+	}
+	if err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if retryAfter, allowed := h.loginLimiter.allow(directPeerAddress(r.RemoteAddr), h.now()); !allowed {
+		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retryAfter.Seconds()))))
+		writeAuthError(w, http.StatusTooManyRequests, "too many login attempts")
+		return
+	}
+	account, err := h.authenticateWithinDeadline(ctx, request.Username, request.Password)
+	if errors.Is(err, ErrInvalidCredentials) {
+		writeAuthError(w, http.StatusUnauthorized, "invalid username or password")
+		return
+	}
+	if errors.Is(err, ErrPasswordWorkOverloaded) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "login temporarily unavailable")
+		return
+	}
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "login unavailable")
+		return
+	}
+	credential, err := h.createSessionWithinDeadline(ctx, account.ID, h.now().Unix())
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "login temporarily unavailable")
+		return
+	}
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "login unavailable")
+		return
+	}
+	h.setSessionCookie(w, credential.Token, 0)
+	writeAuthJSON(w, http.StatusOK, publicAccount(account))
+}
+
+func (h *HTTPHandler) authenticateWithinDeadline(ctx context.Context, username, password string) (Account, error) {
+	result := make(chan struct {
+		account Account
+		err     error
+	}, 1)
+	go func() {
+		account, err := h.accounts.Authenticate(ctx, username, password)
+		result <- struct {
+			account Account
+			err     error
+		}{account: account, err: err}
+	}()
+	select {
+	case authenticated := <-result:
+		return authenticated.account, authenticated.err
+	case <-ctx.Done():
+		return Account{}, ctx.Err()
+	}
+}
+
+func (h *HTTPHandler) createSessionWithinDeadline(ctx context.Context, userID readerstore.UserID, now int64) (SessionCredential, error) {
+	result := make(chan struct {
+		credential SessionCredential
+		err        error
+	}, 1)
+	go func() {
+		credential, err := h.sessions.Create(ctx, userID, now)
+		if err == nil && h.afterSessionCreate != nil {
+			h.afterSessionCreate(credential)
+		}
+		result <- struct {
+			credential SessionCredential
+			err        error
+		}{credential: credential, err: err}
+	}()
+	select {
+	case created := <-result:
+		return created.credential, created.err
+	case <-ctx.Done():
+		go h.revokeEventuallyCreatedSession(result)
+		return SessionCredential{}, ctx.Err()
+	}
+}
+
+func (h *HTTPHandler) revokeEventuallyCreatedSession(result <-chan struct {
+	credential SessionCredential
+	err        error
+}) {
+	created := <-result
+	if created.err != nil || created.credential.Token == "" {
+		return
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for {
+		err := h.sessions.Logout(cleanupCtx, created.credential.Token)
+		if err == nil {
+			return
+		}
+		if cleanupCtx.Err() != nil {
+			slog.Error("auth: failed to revoke session created after login timeout", "error", err)
+			return
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		select {
+		case <-cleanupCtx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			slog.Error("auth: failed to revoke session created after login timeout", "error", cleanupCtx.Err())
+			return
+		case <-timer.C:
+		}
+	}
+}
+
+func (h *HTTPHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if !h.allowUnsafeRequest(w, r) {
+		return
+	}
+	if cookie, err := r.Cookie(SessionCookieName); err == nil {
+		if err := h.sessions.Logout(r.Context(), cookie.Value); err != nil {
+			writeAuthError(w, http.StatusInternalServerError, "logout unavailable")
+			return
+		}
+	}
+	h.setSessionCookie(w, "", -1)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *HTTPHandler) handleAccount(w http.ResponseWriter, r *http.Request) {
+	account, ok := IdentityFromContext(r.Context())
+	if !ok {
+		writeAuthError(w, http.StatusInternalServerError, "authentication unavailable")
+		return
+	}
+	writeAuthJSON(w, http.StatusOK, publicAccount(account))
+}
+
+func (h *HTTPHandler) allowUnsafeRequest(w http.ResponseWriter, r *http.Request) bool {
+	expectedOrigin := h.allowedOrigin
+	if expectedOrigin == "" {
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		expectedOrigin = scheme + "://" + r.Host
+	}
+	if r.Header.Get("Origin") == expectedOrigin {
+		return true
+	}
+	writeAuthError(w, http.StatusForbidden, "origin not allowed")
+	return false
+}
+
+func (l *loginRateLimiter) allow(peer string, now time.Time) (time.Duration, bool) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	attempt := l.attempts[peer]
+	if attempt.start.IsZero() {
+		if len(l.attempts) >= maxLoginRatePeers {
+			for existingPeer, existingAttempt := range l.attempts {
+				if now.Sub(existingAttempt.start) >= l.window {
+					delete(l.attempts, existingPeer)
+				}
+			}
+			if len(l.attempts) >= maxLoginRatePeers {
+				return l.window, false
+			}
+		}
+		l.attempts[peer] = loginAttemptWindow{count: 1, start: now}
+		return 0, true
+	}
+	if now.Sub(attempt.start) >= l.window {
+		l.attempts[peer] = loginAttemptWindow{count: 1, start: now}
+		return 0, true
+	}
+	if attempt.count >= l.limit {
+		return l.window - now.Sub(attempt.start), false
+	}
+	attempt.count++
+	l.attempts[peer] = attempt
+	return 0, true
+}
+
+func directPeerAddress(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err == nil && host != "" {
+		return host
+	}
+	return remoteAddr
+}
+
+func (h *HTTPHandler) setSessionCookie(w http.ResponseWriter, value string, maxAge int) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     SessionCookieName,
+		Value:    value,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.secureCookie,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   maxAge,
+		Expires:  expiredCookieTime(maxAge),
+	})
+}
+
+func expiredCookieTime(maxAge int) time.Time {
+	if maxAge < 0 {
+		return time.Unix(1, 0).UTC()
+	}
+	return time.Time{}
+}
+
+func ParsePublicOrigin(raw string) (string, bool, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false, nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", false, errors.New("auth: PUBLIC_URL must be an HTTP(S) origin")
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return "", false, errors.New("auth: PUBLIC_URL must not contain a path")
+	}
+	return parsed.Scheme + "://" + parsed.Host, parsed.Scheme == "https", nil
+}
+
+type loginRequest struct {
+	Username string
+	Password string
+}
+
+var (
+	errInvalidLoginRequest  = errors.New("auth: invalid login request")
+	errLoginRequestTooLarge = errors.New("auth: login request is too large")
+)
+
+func readLoginWithinDeadline(ctx context.Context, r *http.Request) (loginRequest, error) {
+	result := make(chan struct {
+		request loginRequest
+		err     error
+	}, 1)
+	go func() {
+		defer r.Body.Close()
+		body, err := io.ReadAll(io.LimitReader(r.Body, maxLoginRequestSize+1))
+		if err == nil && len(body) > maxLoginRequestSize {
+			err = errLoginRequestTooLarge
+		}
+		var request loginRequest
+		if err == nil {
+			request, err = decodeLoginJSON(body)
+		}
+		result <- struct {
+			request loginRequest
+			err     error
+		}{request: request, err: err}
+	}()
+	select {
+	case decoded := <-result:
+		return decoded.request, decoded.err
+	case <-ctx.Done():
+		_ = r.Body.Close()
+		return loginRequest{}, ctx.Err()
+	}
+}
+
+func decodeLoginJSON(body []byte) (loginRequest, error) {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return loginRequest{}, errInvalidLoginRequest
+	}
+	var request loginRequest
+	seen := make(map[string]bool, 2)
+	for decoder.More() {
+		field, err := decoder.Token()
+		name, ok := field.(string)
+		if err != nil || !ok || seen[name] {
+			return loginRequest{}, errInvalidLoginRequest
+		}
+		seen[name] = true
+		switch name {
+		case "username":
+			err = decoder.Decode(&request.Username)
+		case "password":
+			err = decoder.Decode(&request.Password)
+		default:
+			return loginRequest{}, errInvalidLoginRequest
+		}
+		if err != nil {
+			return loginRequest{}, errInvalidLoginRequest
+		}
+	}
+	closing, err := decoder.Token()
+	if err != nil || closing != json.Delim('}') || !seen["username"] || !seen["password"] {
+		return loginRequest{}, errInvalidLoginRequest
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return loginRequest{}, errInvalidLoginRequest
+	}
+	return request, nil
+}
+
+func publicAccount(account Account) accountResponse {
+	return accountResponse{ID: string(account.ID), Username: account.Username, Role: account.Role}
+}
+
+func writeAuthJSON(w http.ResponseWriter, status int, value interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
+
+func writeAuthError(w http.ResponseWriter, status int, message string) {
+	writeAuthJSON(w, status, map[string]string{"error": message})
+}

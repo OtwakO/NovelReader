@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 export COMPOSE_PROJECT_NAME="novelreader-e2e-${PPID}-$$"
 export APP_PORT="${E2E_APP_PORT:-$((18000 + $$ % 1000))}"
+export PUBLIC_URL="http://127.0.0.1:${APP_PORT}"
 export NOVELREADER_IMAGE="${NOVELREADER_IMAGE:-novelreader:e2e}"
 export NOVELREADER_WEBVIEW_IMAGE="${NOVELREADER_WEBVIEW_IMAGE:-novelreader-webview:e2e}"
 export WEBVIEW_ENDPOINT="http://webview-worker:8787"
@@ -38,7 +39,7 @@ if docker inspect "$worker_container" --format '{{json .NetworkSettings.Ports}}'
   exit 1
 fi
 
-curl -fsS -X POST -H 'Content-Type: application/json' \
+curl -fsS -X POST -H 'Content-Type: application/json' -H "Origin: $PUBLIC_URL" \
   --data-binary "@$ROOT/testdata/docker/webview-source.json" \
   "$base_url/api/sources" >/dev/null
 curl -fsS --get --data-urlencode 'q=Rendered Fixture Book' \

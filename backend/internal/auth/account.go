@@ -124,8 +124,10 @@ func (s *AccountService) ReplacePassword(ctx context.Context, userID readerstore
 	if err != nil {
 		return err
 	}
-	s.store.sessionGuard.mutex.Lock()
-	defer s.store.sessionGuard.mutex.Unlock()
+	if err := s.store.sessionGuard.lock(ctx); err != nil {
+		return err
+	}
+	defer s.store.sessionGuard.unlock()
 	tx, err := s.store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("auth: begin password replacement: %w", err)

@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestSessionServiceCreatesIndependentHashOnlySessions(t *testing.T) {
@@ -232,6 +233,48 @@ func TestSessionServiceConcurrentAuthenticationAndLogoutFailsClosedAfterLogout(t
 	if _, err := sessions.Authenticate(context.Background(), credential.Token, 201); !errors.Is(err, ErrInvalidSession) {
 		t.Fatalf("post-logout authentication error = %v", err)
 	}
+}
+
+func TestSessionGuardGivesQueuedWriterPriority(t *testing.T) {
+	guard := newSharedSessionGuard()
+	if err := guard.readLock(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	writerAcquired := make(chan struct{})
+	writerDone := make(chan struct{})
+	go func() {
+		if err := guard.lock(context.Background()); err != nil {
+			return
+		}
+		close(writerAcquired)
+		<-writerDone
+		guard.unlock()
+	}()
+	deadline := time.Now().Add(time.Second)
+	for {
+		guard.mutex.Lock()
+		waiting := guard.waitingWriters
+		guard.mutex.Unlock()
+		if waiting == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("writer did not queue")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	readerCtx, cancelReader := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancelReader()
+	if err := guard.readLock(readerCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("reader bypassed queued writer: %v", err)
+	}
+	guard.readUnlock()
+	select {
+	case <-writerAcquired:
+	case <-time.After(time.Second):
+		t.Fatal("queued writer did not acquire after readers exited")
+	}
+	close(writerDone)
 }
 
 func TestSessionServiceSharesRevocationBarrierAcrossStoreInstances(t *testing.T) {
