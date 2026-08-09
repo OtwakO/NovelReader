@@ -101,6 +101,7 @@ func openSystemDatabase(path string) (*sql.DB, error) {
 	query.Add("_pragma", "busy_timeout(5000)")
 	query.Add("_pragma", "cache_size(-8000)")
 	query.Add("_pragma", "foreign_keys(ON)")
+	query.Add("_txlock", "immediate")
 	db, err := sql.Open("sqlite", sqliteFileURI(path)+"?"+query.Encode())
 	if err != nil {
 		return nil, fmt.Errorf("auth: open system database: %w", err)

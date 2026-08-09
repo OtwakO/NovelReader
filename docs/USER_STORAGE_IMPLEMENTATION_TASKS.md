@@ -98,12 +98,13 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 ### 2.2 Authentication core
 
 - [x] Implement username normalization and validation rules.
-- [ ] Enforce normalized username uniqueness in account storage.
+- [x] Enforce normalized username uniqueness in account storage.
 - [x] Implement Argon2id password hashing and verification with a process-wide admission limit.
 - [ ] Apply request-size limits, timeouts, generic login errors, and bounded rate limits.
 - [ ] Implement opaque server-side sessions with current-token hash, one previous-token hash, a
       fixed five-minute grace period, and a 30-day absolute expiry.
-- [ ] Implement login, logout, password change, session revocation, and request-context identity.
+- [ ] Implement login, logout, request-context identity, and browser-session token lifecycle.
+- [x] Implement storage-level credential lookup, generic credential failure, and privileged password replacement with transactional session revocation.
 - [ ] Replace wildcard credentialed CORS with the documented same-origin policy.
 - [ ] Add tests for password parameters, overload, session rotation/replay, logout, expiry,
       revocation, and unsafe cross-origin requests.

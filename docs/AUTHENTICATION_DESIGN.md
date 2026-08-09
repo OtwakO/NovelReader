@@ -143,7 +143,7 @@ Tests must prove that equal source URLs and resource IDs in two reader databases
 
 ## Authentication module
 
-Create `backend/internal/auth/` as a deep module over `system.db`. Ordinary account operations and administrator operations use separate interfaces so feature handlers cannot call destructive account methods accidentally.
+Create `backend/internal/auth/` as a deep module over `system.db`. Ordinary account operations and administrator operations use separate interfaces so feature handlers cannot call destructive account methods accidentally. Cross-store registration/setup workflows generate one immutable `readerstore.UserID` and supply it to account storage so `system.db` and the reader directory use the same reserved identity. Ordinary account creation exposes only the `reader` role; Administrator creation remains inside setup/recovery workflows.
 
 Do not introduce generic RBAC initially. HTTP authorization has two seams: `RequireIdentity` and `RequireAdmin`. Roles are stored in `system.db` and limited to `reader` and `admin`; future permissions can deepen this module without changing reader storage ownership.
 
