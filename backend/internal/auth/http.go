@@ -186,7 +186,7 @@ func (h *HTTPHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusInternalServerError, "login unavailable")
 		return
 	}
-	h.setSessionCookie(w, credential.Token, 0)
+	h.setSessionCookie(w, r, credential.Token, 0)
 	writeAuthJSON(w, http.StatusOK, publicAccount(account))
 }
 
@@ -276,7 +276,7 @@ func (h *HTTPHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	h.setSessionCookie(w, "", -1)
+	h.setSessionCookie(w, r, "", -1)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -290,15 +290,7 @@ func (h *HTTPHandler) handleAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPHandler) allowUnsafeRequest(w http.ResponseWriter, r *http.Request) bool {
-	expectedOrigin := h.allowedOrigin
-	if expectedOrigin == "" {
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-		expectedOrigin = scheme + "://" + r.Host
-	}
-	if r.Header.Get("Origin") == expectedOrigin {
+	if _, _, ok := MatchRequestOrigin(h.allowedOrigin, r); ok {
 		return true
 	}
 	writeAuthError(w, http.StatusForbidden, "origin not allowed")
@@ -343,13 +335,17 @@ func directPeerAddress(remoteAddr string) string {
 	return remoteAddr
 }
 
-func (h *HTTPHandler) setSessionCookie(w http.ResponseWriter, value string, maxAge int) {
+func (h *HTTPHandler) setSessionCookie(w http.ResponseWriter, r *http.Request, value string, maxAge int) {
+	secure := h.secureCookie
+	if h.allowedOrigin == "" {
+		_, secure, _ = MatchRequestOrigin("", r)
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   h.secureCookie,
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   maxAge,
 		Expires:  expiredCookieTime(maxAge),
@@ -363,19 +359,89 @@ func expiredCookieTime(maxAge int) time.Time {
 	return time.Time{}
 }
 
+func MatchRequestOrigin(configuredOrigin string, r *http.Request) (string, bool, bool) {
+	requestOrigin, secure, err := ParsePublicOrigin(r.Header.Get("Origin"))
+	if err != nil || requestOrigin == "" {
+		return "", false, false
+	}
+	if configuredOrigin != "" {
+		return requestOrigin, secure, requestOrigin == configuredOrigin
+	}
+	parsed, err := url.Parse(requestOrigin)
+	if err != nil || !sameOriginAuthority(parsed, r.Host) {
+		return "", false, false
+	}
+	return requestOrigin, secure, true
+}
+
+func sameOriginAuthority(origin *url.URL, requestHost string) bool {
+	requestAuthority, err := url.Parse("//" + requestHost)
+	if err != nil || origin.Hostname() == "" || requestAuthority.Hostname() == "" || requestAuthority.User != nil {
+		return false
+	}
+	originIP := net.ParseIP(origin.Hostname())
+	requestIP := net.ParseIP(requestAuthority.Hostname())
+	if originIP != nil || requestIP != nil {
+		if originIP == nil || requestIP == nil || !originIP.Equal(requestIP) {
+			return false
+		}
+	} else if !strings.EqualFold(origin.Hostname(), requestAuthority.Hostname()) {
+		return false
+	}
+	originPort, err := validatedOriginPort(origin.Scheme, origin.Port())
+	if err != nil {
+		return false
+	}
+	requestPort, err := validatedOriginPort(origin.Scheme, requestAuthority.Port())
+	return err == nil && originPort == requestPort
+}
+
+func validatedOriginPort(scheme, rawPort string) (int, error) {
+	if rawPort == "" {
+		if scheme == "https" {
+			return 443, nil
+		}
+		return 80, nil
+	}
+	port, err := strconv.Atoi(rawPort)
+	if err != nil || port < 1 || port > 65535 {
+		return 0, errors.New("auth: origin port is invalid")
+	}
+	return port, nil
+}
+
 func ParsePublicOrigin(raw string) (string, bool, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", false, nil
 	}
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Host == "" || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if err != nil || parsed.Host == "" || strings.HasSuffix(parsed.Host, ":") || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return "", false, errors.New("auth: PUBLIC_URL must be an HTTP(S) origin")
 	}
 	if parsed.Path != "" && parsed.Path != "/" {
 		return "", false, errors.New("auth: PUBLIC_URL must not contain a path")
 	}
-	return parsed.Scheme + "://" + parsed.Host, parsed.Scheme == "https", nil
+	port, err := validatedOriginPort(parsed.Scheme, parsed.Port())
+	if err != nil || parsed.Hostname() == "" {
+		return "", false, errors.New("auth: PUBLIC_URL port is invalid")
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if ip := net.ParseIP(host); ip != nil {
+		host = ip.String()
+	}
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	defaultPort := parsed.Scheme == "http" && port == 80 || parsed.Scheme == "https" && port == 443
+	if !defaultPort {
+		portHost := strings.ToLower(parsed.Hostname())
+		if ip := net.ParseIP(portHost); ip != nil {
+			portHost = ip.String()
+		}
+		host = net.JoinHostPort(portHost, strconv.Itoa(port))
+	}
+	return parsed.Scheme + "://" + host, parsed.Scheme == "https", nil
 }
 
 type loginRequest struct {

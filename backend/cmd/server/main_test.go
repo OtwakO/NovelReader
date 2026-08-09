@@ -152,7 +152,7 @@ func TestCredentialOriginMiddlewareAllowsOnlyConfiguredOrigin(t *testing.T) {
 		nextCalls++
 		w.WriteHeader(http.StatusNoContent)
 	})
-	handler, err := credentialOriginMiddleware("https://reader.example", false, next)
+	handler, err := credentialOriginMiddleware("https://reader.example", next)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,26 +180,23 @@ func TestCredentialOriginMiddlewareAllowsOnlyConfiguredOrigin(t *testing.T) {
 		t.Fatalf("foreign response status=%d calls=%d", foreignResponse.Code, nextCalls)
 	}
 
-	if _, err := credentialOriginMiddleware("", false, next); err == nil {
-		t.Fatal("missing production PUBLIC_URL was accepted")
-	}
-	development, err := credentialOriginMiddleware("", true, next)
+	dynamic, err := credentialOriginMiddleware("", next)
 	if err != nil {
 		t.Fatal(err)
 	}
-	developmentRequest := httptest.NewRequest(http.MethodPost, "http://reader.local/api/auth/login", nil)
-	developmentRequest.Header.Set("Origin", "http://reader.local")
-	developmentResponse := httptest.NewRecorder()
-	development.ServeHTTP(developmentResponse, developmentRequest)
-	if developmentResponse.Code != http.StatusNoContent || developmentResponse.Header().Get("Access-Control-Allow-Origin") != "http://reader.local" {
-		t.Fatalf("development same-origin status=%d headers=%v", developmentResponse.Code, developmentResponse.Header())
+	dynamicRequest := httptest.NewRequest(http.MethodPost, "http://reader.example-tailnet.ts.net/api/auth/login", nil)
+	dynamicRequest.Header.Set("Origin", "https://reader.example-tailnet.ts.net")
+	dynamicResponse := httptest.NewRecorder()
+	dynamic.ServeHTTP(dynamicResponse, dynamicRequest)
+	if dynamicResponse.Code != http.StatusNoContent || dynamicResponse.Header().Get("Access-Control-Allow-Origin") != "https://reader.example-tailnet.ts.net" {
+		t.Fatalf("dynamic proxy origin status=%d headers=%v", dynamicResponse.Code, dynamicResponse.Header())
 	}
-	developmentForeign := httptest.NewRequest(http.MethodPost, "http://reader.local/api/auth/login", nil)
-	developmentForeign.Header.Set("Origin", "http://evil.local")
-	developmentForeignResponse := httptest.NewRecorder()
-	development.ServeHTTP(developmentForeignResponse, developmentForeign)
-	if developmentForeignResponse.Code != http.StatusForbidden {
-		t.Fatalf("development foreign status=%d", developmentForeignResponse.Code)
+	dynamicForeign := httptest.NewRequest(http.MethodPost, "http://reader.example-tailnet.ts.net/api/auth/login", nil)
+	dynamicForeign.Header.Set("Origin", "https://evil.example")
+	dynamicForeignResponse := httptest.NewRecorder()
+	dynamic.ServeHTTP(dynamicForeignResponse, dynamicForeign)
+	if dynamicForeignResponse.Code != http.StatusForbidden {
+		t.Fatalf("dynamic foreign status=%d", dynamicForeignResponse.Code)
 	}
 }
 

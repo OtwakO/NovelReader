@@ -229,6 +229,105 @@ func TestHTTPHandlerBoundsSessionCreationWhileRevocationBarrierIsBusy(t *testing
 	store.sessionGuard.unlock()
 }
 
+func TestParsePublicOriginCanonicalizesAndValidates(t *testing.T) {
+	for _, test := range []struct {
+		raw       string
+		canonical string
+		valid     bool
+	}{
+		{raw: "https://READER.example:443", canonical: "https://reader.example", valid: true},
+		{raw: "http://reader.example:080", canonical: "http://reader.example", valid: true},
+		{raw: "https://[FD7A:115C:A1E0:0:0:0:0:1]:8443", canonical: "https://[fd7a:115c:a1e0::1]:8443", valid: true},
+		{raw: "https://reader.example:", valid: false},
+		{raw: "https://reader.example:99999", valid: false},
+	} {
+		canonical, _, err := ParsePublicOrigin(test.raw)
+		if test.valid && (err != nil || canonical != test.canonical) {
+			t.Fatalf("ParsePublicOrigin(%q)=%q,%v want %q", test.raw, canonical, err, test.canonical)
+		}
+		if !test.valid && err == nil {
+			t.Fatalf("ParsePublicOrigin(%q) accepted as %q", test.raw, canonical)
+		}
+	}
+}
+
+func TestMatchRequestOriginNormalizesAuthorities(t *testing.T) {
+	tests := []struct {
+		name       string
+		origin     string
+		requestURL string
+		host       string
+		matches    bool
+	}{
+		{name: "https default port omitted", origin: "https://reader.example", requestURL: "http://reader.example/", host: "reader.example:443", matches: true},
+		{name: "http default port explicit", origin: "http://reader.example:080", requestURL: "http://reader.example/", host: "reader.example", matches: true},
+		{name: "case insensitive hostname", origin: "https://READER.example", requestURL: "http://reader.example/", host: "reader.EXAMPLE:443", matches: true},
+		{name: "bracketed ipv6", origin: "https://[fd7a:115c:a1e0::1]:8443", requestURL: "http://[fd7a:115c:a1e0::1]/", host: "[fd7a:115c:a1e0:0:0:0:0:1]:8443", matches: true},
+		{name: "non-default port differs", origin: "https://reader.example:8443", requestURL: "http://reader.example/", host: "reader.example:9443", matches: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, test.requestURL, nil)
+			request.Host = test.host
+			request.Header.Set("Origin", test.origin)
+			_, _, matches := MatchRequestOrigin("", request)
+			if matches != test.matches {
+				t.Fatalf("matches=%t want=%t origin=%q host=%q", matches, test.matches, test.origin, test.host)
+			}
+		})
+	}
+}
+
+func TestMatchRequestOriginCanonicalizesConfiguredIPv6(t *testing.T) {
+	configured, _, err := ParsePublicOrigin("https://[0:0:0:0:0:0:0:1]")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "http://internal:8888/api/auth/login", nil)
+	request.Header.Set("Origin", "https://[::1]")
+	_, _, matches := MatchRequestOrigin(configured, request)
+	if !matches {
+		t.Fatalf("configured IPv6 %q did not match compressed browser origin", configured)
+	}
+}
+
+func TestMatchRequestOriginCanonicalizesConfiguredOverride(t *testing.T) {
+	configured, _, err := ParsePublicOrigin("https://READER.example:443")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "http://internal:8888/api/auth/login", nil)
+	request.Header.Set("Origin", "https://reader.example")
+	origin, secure, matches := MatchRequestOrigin(configured, request)
+	if !matches || !secure || origin != "https://reader.example" {
+		t.Fatalf("configured match origin=%q secure=%t matches=%t", origin, secure, matches)
+	}
+}
+
+func TestHTTPHandlerUsesBrowserOriginForDynamicSecureCookie(t *testing.T) {
+	store := openTestStore(t)
+	defer store.Close()
+	accounts := NewAccountService(store)
+	if _, err := accounts.CreateReaderAccount(context.Background(), testUserID, "Alice", "correct horse battery staple", 100); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := NewHTTPHandler(store, HTTPConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "http://reader.example-tailnet.ts.net/api/auth/login", bytes.NewBufferString(`{"username":"alice","password":"correct horse battery staple"}`))
+	request.Header.Set("Origin", "https://reader.example-tailnet.ts.net")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("login status=%d body=%s", response.Code, response.Body.String())
+	}
+	cookies := response.Result().Cookies()
+	if len(cookies) != 1 || !cookies[0].Secure {
+		t.Fatalf("tailscale proxy cookie=%#v", cookies)
+	}
+}
+
 func TestHTTPHandlerKeepsDeviceSessionsIndependentAndLogoutIdempotent(t *testing.T) {
 	store := openTestStore(t)
 	defer store.Close()

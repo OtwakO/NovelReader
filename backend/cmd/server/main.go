@@ -146,7 +146,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      mustCredentialOriginMiddleware(cfg.PublicURL, cfg.DevelopmentMode, apiSrv),
+		Handler:      mustCredentialOriginMiddleware(cfg.PublicURL, apiSrv),
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: 0, // no write timeout for long reads
 	}
@@ -208,43 +208,32 @@ func serve(ctx context.Context, server *http.Server, listener net.Listener) erro
 	}
 }
 
-func mustCredentialOriginMiddleware(publicURL string, developmentMode bool, next http.Handler) http.Handler {
-	handler, err := credentialOriginMiddleware(publicURL, developmentMode, next)
+func mustCredentialOriginMiddleware(publicURL string, next http.Handler) http.Handler {
+	handler, err := credentialOriginMiddleware(publicURL, next)
 	if err != nil {
 		log.Fatalf("origin policy: %v", err)
 	}
 	return handler
 }
 
-func credentialOriginMiddleware(publicURL string, developmentMode bool, next http.Handler) (http.Handler, error) {
+func credentialOriginMiddleware(publicURL string, next http.Handler) (http.Handler, error) {
 	origin, _, err := auth.ParsePublicOrigin(publicURL)
 	if err != nil {
 		return nil, err
 	}
-	if origin == "" && !developmentMode {
-		return nil, errors.New("PUBLIC_URL is required unless DEVELOPMENT_MODE=1")
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestOrigin := r.Header.Get("Origin")
-		expectedOrigin := origin
-		if expectedOrigin == "" {
-			scheme := "http"
-			if r.TLS != nil {
-				scheme = "https"
-			}
-			expectedOrigin = scheme + "://" + r.Host
-		}
-		if requestOrigin != "" && requestOrigin == expectedOrigin {
-			w.Header().Set("Access-Control-Allow-Origin", expectedOrigin)
+		matchedOrigin, _, matches := auth.MatchRequestOrigin(origin, r)
+		if matches {
+			w.Header().Set("Access-Control-Allow-Origin", matchedOrigin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Add("Vary", "Origin")
 		}
-		if isUnsafeMethod(r.Method) && requestOrigin != expectedOrigin {
+		if isUnsafeMethod(r.Method) && !matches {
 			http.Error(w, "origin not allowed", http.StatusForbidden)
 			return
 		}
 		if r.Method == http.MethodOptions {
-			if requestOrigin == "" || requestOrigin != expectedOrigin {
+			if !matches {
 				http.Error(w, "origin not allowed", http.StatusForbidden)
 				return
 			}

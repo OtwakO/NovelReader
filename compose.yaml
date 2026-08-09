@@ -13,7 +13,7 @@ services:
       - novelreader-data:/data
     environment:
       TZ: ${TZ:-UTC}
-      PUBLIC_URL: ${PUBLIC_URL:-http://127.0.0.1:8888}
+      PUBLIC_URL: ${PUBLIC_URL:-}
       SEARCH_CONCURRENCY: ${SEARCH_CONCURRENCY:-16}
       GLOBAL_SEARCH_CONCURRENCY: ${GLOBAL_SEARCH_CONCURRENCY:-32}
       JS_POOL_SIZE: ${JS_POOL_SIZE:-4}

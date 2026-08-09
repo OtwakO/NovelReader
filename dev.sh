@@ -24,7 +24,7 @@ case "$ACTION" in
     shift 2>/dev/null || true
     echo "==> Starting server on port ${PORT:-8888}..."
     cd "$ROOT/backend"
-    DEBUG=1 DEVELOPMENT_MODE=1 exec go run ./cmd/server/ "$@"
+    DEBUG=1 exec go run ./cmd/server/ "$@"
     ;;
   build)
     "$0" build-backend
@@ -44,7 +44,7 @@ case "$ACTION" in
     echo "  PORT             Server port (default: 8888)"
     echo "  DATABASE_PATH    SQLite path (default: ./data/novelreader.db)"
     echo "  DEBUG=0          Disable debug-level logging (on by default in dev mode)"
-    echo "  PUBLIC_URL       Required outside DEVELOPMENT_MODE=1 (for example https://reader.example)"
+    echo "  PUBLIC_URL       Optional canonical browser origin for proxies that rewrite Host"
     echo ""
     echo "Examples:"
     echo "  $0 server              # Start dev server"

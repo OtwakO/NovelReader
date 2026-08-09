@@ -14,7 +14,6 @@ type Config struct {
 	DataDir                 string
 	ReadTimeout             time.Duration
 	PublicURL               string
-	DevelopmentMode         bool
 	WebViewEndpoint         string
 	SearchConcurrency       int
 	GlobalSearchConcurrency int
@@ -32,7 +31,6 @@ func Load() *Config {
 		DataDir:                 dataDir,
 		ReadTimeout:             time.Duration(getEnvInt("READ_TIMEOUT_SECONDS", 30)) * time.Second,
 		PublicURL:               getEnv("PUBLIC_URL", ""),
-		DevelopmentMode:         getEnv("DEVELOPMENT_MODE", "") == "1",
 		WebViewEndpoint:         getEnv("WEBVIEW_ENDPOINT", ""),
 		SearchConcurrency:       getEnvPositiveInt("SEARCH_CONCURRENCY", 16),
 		GlobalSearchConcurrency: getEnvPositiveInt("GLOBAL_SEARCH_CONCURRENCY", 32),

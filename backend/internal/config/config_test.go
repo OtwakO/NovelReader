@@ -8,10 +8,9 @@ import (
 
 func TestLoadReadsPublicOriginConfiguration(t *testing.T) {
 	t.Setenv("PUBLIC_URL", "https://reader.example")
-	t.Setenv("DEVELOPMENT_MODE", "1")
 	cfg := Load()
-	if cfg.PublicURL != "https://reader.example" || !cfg.DevelopmentMode {
-		t.Fatalf("origin config=%q development=%t", cfg.PublicURL, cfg.DevelopmentMode)
+	if cfg.PublicURL != "https://reader.example" {
+		t.Fatalf("public URL=%q", cfg.PublicURL)
 	}
 }
 

@@ -189,7 +189,7 @@ Each successful login creates one independent persistent session. The browser re
 - `REGISTRATION_INVITE_CODE` — optional deployment admission secret; never persisted or logged.
 - `ADMIN_BOOTSTRAP_TOKEN` — temporary first-Administrator setup authority.
 - `ADMIN_RECOVERY_TOKEN` — temporary disaster-recovery authority.
-- `PUBLIC_URL` — canonical external origin for secure cookies and origin checks.
+- `PUBLIC_URL` — optional canonical external origin override for proxies that rewrite `Host`, deployments that intentionally pin one browser URL, or services reachable from untrusted browser networks.
 - `NOVELREADER_SECRET_KEY` — versioned 32-byte source-credential encryption key.
 
 Secrets are compared in constant time. Setup and recovery routes are rate-limited, same-origin, and unavailable unless their corresponding environment secret is configured.
@@ -217,7 +217,7 @@ Public routes are limited to health, setup policy/setup, registration policy/reg
 
 All source, search, Explore, book, chapter, bookmark, progress, cover/image, font, preference, export/import, logout, and account-self-service routes require identity. Account management routes require Administrator authority.
 
-Before cookie authentication is enabled, replace permissive wildcard CORS behavior. Unsafe methods require a matching `Origin` from `PUBLIC_URL` or explicit development origins, and credentialed CORS is emitted only for those origins. This same-origin check plus `SameSite=Lax` is the initial CSRF defense.
+Before cookie authentication is enabled, replace permissive wildcard CORS behavior. By default, unsafe methods require the browser `Origin` host and effective port to match the request `Host`; this supports trusted localhost, LAN, and Tailscale HTTPS even when a proxy uses plain HTTP upstream. Dynamic mode inherently trusts the requested hostname and is therefore not a DNS-rebinding defense. Optional `PUBLIC_URL` pins one exact origin for proxies that rewrite `Host` or deployments exposed to untrusted browser networks. Credentialed CORS is emitted only for the accepted origin. This check plus `SameSite=Lax` is the initial CSRF defense.
 
 ## System schema
 

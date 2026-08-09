@@ -13,7 +13,7 @@ cd .. && ./dev.sh run
 
 On Windows, double-click `run-local.bat` (or run it from Command Prompt) to install dependencies, build the frontend, and start the server.
 
-The server listens on port `8888` by default. `./dev.sh run` enables explicit development mode; direct production starts must set `PUBLIC_URL` to the canonical HTTP(S) origin used by browsers. Set `PORT`, `DATABASE_PATH`, or `DATA_DIR` to override local settings. If startup rejects an old development data directory, follow [`docs/DEVELOPMENT_DATA_RESET.md`](docs/DEVELOPMENT_DATA_RESET.md); old global test state is intentionally reset rather than migrated.
+The server listens on port `8888` by default. Set `PORT`, `DATABASE_PATH`, or `DATA_DIR` to override local settings. `PUBLIC_URL` is optional: normally NovelReader accepts the same host and effective port the browser used, including Tailscale HTTPS in front of a plain-HTTP container upstream. This dynamic mode is intended for trusted localhost, LAN, and tailnet access. Set `PUBLIC_URL` to pin one canonical HTTP(S) browser origin when a reverse proxy rewrites `Host` or the app is reachable from an untrusted browser network. If startup rejects an old development data directory, follow [`docs/DEVELOPMENT_DATA_RESET.md`](docs/DEVELOPMENT_DATA_RESET.md); old global test state is intentionally reset rather than migrated.
 
 Capacity defaults target a 2-vCPU/4-GB container: 16 source requests per search, 32 process-wide, 4 JavaScript runtimes, 1,024 workflow sessions with a 30-minute idle TTL, and 2 browser pages with 8 queued requests; the browser recycles after 100 contexts. Explore page fetches have a 30-second per-source deadline. Override capacity and workflow settings with `SEARCH_CONCURRENCY`, `GLOBAL_SEARCH_CONCURRENCY`, `JS_POOL_SIZE`, `MAX_WORKFLOW_SESSIONS`, `SESSION_TTL_MINUTES`, `EXPLORE_SOURCE_TIMEOUT_SECONDS` (a positive integer), `WEBVIEW_MAX_PAGES`, `WEBVIEW_MAX_PENDING`, or `WEBVIEW_MAX_CONTEXTS_PER_BROWSER`. A 4-vCPU/8-GB starting profile is `32`, `64`, `8`, `2048`, `60`, `4`, `16`, and `250` respectively; measure before increasing further.
 
@@ -92,7 +92,7 @@ docker compose --profile webview pull
 docker compose --profile webview up -d --no-build
 ```
 
-The worker has no host port. Do not add one: `POST /execute` can navigate arbitrary URLs. The default app origin is `http://127.0.0.1:8888`; set `PUBLIC_URL` to the exact browser-facing HTTP(S) origin when changing the host, port, or reverse-proxy URL. Override the host app port with `APP_PORT`, image references with `NOVELREADER_IMAGE` and `NOVELREADER_WEBVIEW_IMAGE`, and measured resource ceilings with the variables in `compose.yaml`.
+The worker has no host port. Do not add one: `POST /execute` can navigate arbitrary URLs. NovelReader normally derives origin policy from the browser `Origin` and preserved request `Host`; this is ergonomic for trusted LAN/tailnet deployments but inherently trusts the requested hostname. Set optional `PUBLIC_URL` to the exact browser-facing HTTP(S) origin if a reverse proxy rewrites `Host`, you want one access URL, or the service is exposed to untrusted browser networks. Override the host app port with `APP_PORT`, image references with `NOVELREADER_IMAGE` and `NOVELREADER_WEBVIEW_IMAGE`, and measured resource ceilings with the variables in `compose.yaml`.
 
 To build locally instead of pulling GHCR:
 
