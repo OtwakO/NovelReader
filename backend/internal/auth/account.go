@@ -124,6 +124,8 @@ func (s *AccountService) ReplacePassword(ctx context.Context, userID readerstore
 	if err != nil {
 		return err
 	}
+	s.store.sessionGuard.mutex.Lock()
+	defer s.store.sessionGuard.mutex.Unlock()
 	tx, err := s.store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("auth: begin password replacement: %w", err)
@@ -150,9 +152,7 @@ func (s *AccountService) ReplacePassword(ctx context.Context, userID readerstore
 		}
 		return ErrAccountNotActive
 	}
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE auth_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL
-	`, now, string(userID)); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM auth_sessions WHERE user_id = ?`, string(userID)); err != nil {
 		return fmt.Errorf("auth: revoke sessions after password replacement: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -188,13 +188,57 @@ func (s *AccountService) accountByNormalizedUsername(ctx context.Context, normal
 	if err != nil {
 		return Account{}, "", fmt.Errorf("%w: account ID: %v", ErrInvalidAccountRecord, err)
 	}
-	if account.Role != RoleReader && account.Role != RoleAdmin {
-		return Account{}, "", fmt.Errorf("%w: role %q", ErrInvalidAccountRecord, account.Role)
-	}
-	if account.Status != StatusActive && account.Status != StatusDisabled && account.Status != StatusDeleting {
-		return Account{}, "", fmt.Errorf("%w: status %q", ErrInvalidAccountRecord, account.Status)
+	if err := validateStoredAccount(account); err != nil {
+		return Account{}, "", err
 	}
 	return account, passwordHash, nil
+}
+
+func validateStoredAccount(account Account) error {
+	username, err := NormalizeUsername(account.Username)
+	if err != nil || username.Display != account.Username || username.Normalized != account.UsernameNormalized {
+		return fmt.Errorf("%w: username fields", ErrInvalidAccountRecord)
+	}
+	if account.Role != RoleReader && account.Role != RoleAdmin {
+		return fmt.Errorf("%w: role %q", ErrInvalidAccountRecord, account.Role)
+	}
+	if account.Status != StatusActive && account.Status != StatusDisabled && account.Status != StatusDeleting {
+		return fmt.Errorf("%w: status %q", ErrInvalidAccountRecord, account.Status)
+	}
+	return nil
+}
+
+func accountByID(ctx context.Context, queryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, userID readerstore.UserID) (Account, error) {
+	var account Account
+	var id string
+	err := queryer.QueryRowContext(ctx, `
+		SELECT id, username, username_normalized, role, status, created_at, updated_at
+		FROM users WHERE id = ?
+	`, string(userID)).Scan(
+		&id,
+		&account.Username,
+		&account.UsernameNormalized,
+		&account.Role,
+		&account.Status,
+		&account.CreatedAt,
+		&account.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Account{}, ErrAccountNotFound
+	}
+	if err != nil {
+		return Account{}, fmt.Errorf("auth: read account: %w", err)
+	}
+	account.ID, err = readerstore.ParseUserID(id)
+	if err != nil {
+		return Account{}, fmt.Errorf("%w: account ID: %v", ErrInvalidAccountRecord, err)
+	}
+	if err := validateStoredAccount(account); err != nil {
+		return Account{}, err
+	}
+	return account, nil
 }
 
 func sqliteConstraintCode(err error) int {

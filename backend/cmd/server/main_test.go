@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -121,7 +122,7 @@ func TestOpenDatabasesRejectsNewerSystemSchemaBeforeCreatingFeatureDatabase(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := systemDB.Exec(`PRAGMA user_version = 2`); err != nil {
+	if _, err := systemDB.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, auth.CurrentSystemSchemaVersion+1)); err != nil {
 		t.Fatal(err)
 	}
 	if err := systemDB.Close(); err != nil {

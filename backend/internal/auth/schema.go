@@ -15,18 +15,12 @@ CREATE TABLE users (
 CREATE TABLE auth_sessions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
-    current_token_hash BLOB NOT NULL UNIQUE,
-    previous_token_hash BLOB UNIQUE,
-    previous_token_expires_at INTEGER,
+    token_hash BLOB NOT NULL UNIQUE CHECK (typeof(token_hash) = 'blob' AND length(token_hash) = 32),
     created_at INTEGER NOT NULL,
     last_seen_at INTEGER NOT NULL,
-    rotated_at INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL,
-    revoked_at INTEGER,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX auth_sessions_user_id_idx ON auth_sessions(user_id);
-CREATE INDEX auth_sessions_expires_at_idx ON auth_sessions(expires_at);
 
 CREATE TABLE password_reset_tokens (
     token_hash BLOB PRIMARY KEY,

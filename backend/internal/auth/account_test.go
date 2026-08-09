@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"testing"
 
@@ -255,15 +256,16 @@ func TestAccountServiceReplacesPasswordAndRevokesSessionsAtomically(t *testing.T
 	if _, err := accounts.Authenticate(context.Background(), "alice", "replacement password value"); err != nil {
 		t.Fatalf("new password: %v", err)
 	}
-	var revokedAt, updatedAt int64
-	if err := store.db.QueryRow(`SELECT revoked_at FROM auth_sessions WHERE id = 'session-1'`).Scan(&revokedAt); err != nil {
+	var sessions int
+	if err := store.db.QueryRow(`SELECT count(*) FROM auth_sessions WHERE id = 'session-1'`).Scan(&sessions); err != nil {
 		t.Fatal(err)
 	}
+	var updatedAt int64
 	if err := store.db.QueryRow(`SELECT updated_at FROM users WHERE id = ?`, string(testUserID)).Scan(&updatedAt); err != nil {
 		t.Fatal(err)
 	}
-	if revokedAt != 200 || updatedAt != 200 {
-		t.Fatalf("revoked_at = %d, updated_at = %d", revokedAt, updatedAt)
+	if sessions != 0 || updatedAt != 200 {
+		t.Fatalf("sessions = %d, updated_at = %d", sessions, updatedAt)
 	}
 }
 
@@ -277,7 +279,7 @@ func TestAccountServicePasswordReplacementRollsBackIfRevocationFails(t *testing.
 	insertTestSession(t, store, "session-1")
 	if _, err := store.db.Exec(`
 		CREATE TRIGGER reject_session_revocation
-		BEFORE UPDATE OF revoked_at ON auth_sessions
+		BEFORE DELETE ON auth_sessions
 		BEGIN SELECT RAISE(ABORT, 'reject revocation'); END
 	`); err != nil {
 		t.Fatal(err)
@@ -316,6 +318,10 @@ func insertTestUserRecordValue(t *testing.T, store *Store, column string) {
 		value = string(RoleReader)
 	case "status":
 		value = string(StatusActive)
+	case "username":
+		value = "Alice"
+	case "username_normalized":
+		value = "alice"
 	default:
 		t.Fatalf("unsupported account column %q", column)
 	}
@@ -326,11 +332,11 @@ func insertTestUserRecordValue(t *testing.T, store *Store, column string) {
 
 func insertTestSession(t *testing.T, store *Store, id string) {
 	t.Helper()
+	hash := sha256.Sum256([]byte(id))
 	_, err := store.db.Exec(`
-		INSERT INTO auth_sessions (
-			id, user_id, current_token_hash, created_at, last_seen_at, rotated_at, expires_at
-		) VALUES (?, ?, ?, 100, 100, 100, 300)
-	`, id, string(testUserID), []byte(id))
+		INSERT INTO auth_sessions (id, user_id, token_hash, created_at, last_seen_at)
+		VALUES (?, ?, ?, 100, 100)
+	`, id, string(testUserID), hash[:])
 	if err != nil {
 		t.Fatal(err)
 	}

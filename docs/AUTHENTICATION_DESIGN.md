@@ -25,7 +25,7 @@ This is a pre-release structural change with no production users or irreplaceabl
 - Administrators may manage ordinary Reader Accounts. Administrator disable/reset/delete is not exposed through the web interface initially.
 - Administrators may disable/re-enable ordinary accounts, issue one-time password reset tokens, and permanently delete ordinary accounts and their Reader Data.
 - A temporary environment recovery token can create a replacement Administrator or reset an Administrator password without modifying Reader Data.
-- Browser sessions rotate during use and have a 30-day absolute lifetime.
+- Each successful login creates one persistent, independently revocable browser session. Sessions do not rotate or expire automatically.
 - Source credentials are never included in portable per-reader exports.
 
 ## Storage layout
@@ -174,14 +174,14 @@ Public registration cannot create an Administrator.
 
 ## Application sessions
 
-The browser receives a 32-random-byte opaque base64url token. `system.db` stores only SHA-256 hashes.
+Each successful login creates one independent persistent session. The browser receives a 32-random-byte opaque base64url token; `system.db` stores only its SHA-256 hash.
 
 - Cookie: `novelreader_session`, `HttpOnly`, `SameSite=Lax`, `Path=/`; `Secure` is required for HTTPS public deployments.
-- Absolute expiry is 30 days from login. Rotation after 24 hours does not extend absolute expiry.
-- Rotation stores a new current-token hash plus one previous-token hash with a fixed five-minute grace expiry. The grace token can authenticate the same session but cannot rotate again or create token families.
-- Logout, disable, password change/reset, and deletion revoke both current and previous hashes immediately.
-- Concurrent rotation, old-token replay, logout during grace, and disabled-account behavior require deterministic tests.
-- Raw tokens and request cookies are never logged.
+- Sessions have no automatic absolute or idle expiry and do not rotate. Normal use therefore never forces a periodic login.
+- Separate browsers/devices have separate sessions. Logout deletes only the presented session; “log out all devices,” password change/reset, disablement, and deletion delete every session for the account.
+- Session authentication requires an active account. Disabled or deleting accounts cannot use retained/concurrent credentials.
+- Raw tokens and request cookies are never persisted or logged.
+- Future device-management UI may list non-secret session IDs and activity timestamps, but must never expose token hashes.
 
 ## Registration, bootstrap, and recovery configuration
 
@@ -238,14 +238,9 @@ CREATE TABLE users (
 CREATE TABLE auth_sessions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
-    current_token_hash BLOB NOT NULL UNIQUE,
-    previous_token_hash BLOB UNIQUE,
-    previous_token_expires_at INTEGER,
+    token_hash BLOB NOT NULL UNIQUE,
     created_at INTEGER NOT NULL,
     last_seen_at INTEGER NOT NULL,
-    rotated_at INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL,
-    revoked_at INTEGER,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -351,7 +346,7 @@ The schema decision runs immediately after opening the data root and before curr
 
 1. **Storage foundation and cutover gate** — `readerstore`, data-root layout, manifests, reader schema versioning, clean development-reset guidance, cold-copy documentation, and fail-closed startup. No account routes are exposed yet.
 2. **Authentication plus ownership conversion as one release boundary** — setup, users, roles, Argon2 controls, sessions, middleware, origin policy, and conversion of every source/book/cache/font/session interface to the authenticated reader home. Existing Reader Data routes open only when both halves are complete.
-3. **Frontend account shell and administration** — setup/login/register, current account, logout/change-password, expiry recovery, ordinary-account management, environment recovery, and destructive confirmations.
+3. **Frontend account shell and administration** — setup/login/register, current account, logout/change-password, revocation recovery, ordinary-account management, environment recovery, and destructive confirmations.
 4. **Portable export/import and system-loss recovery** — per-reader bundles, conflict policies, directory validation/attachment, and documented cold restore.
 5. **LC-016 manual source login** — encrypted per-user cookie/login-header state, hydration, status, logout, key-loss behavior, and credential-store deletion.
 6. **Later login capabilities** — interactive browser login or source-defined `loginUi` only after separate capability and credential-execution designs.
@@ -364,7 +359,7 @@ The schema decision runs immediately after opening the data root and before curr
 - Source/credential crash, orphan, deletion, logout, and same-URL re-import tests proving stale credentials never hydrate.
 - Schema-newer and old-layout refusal tests proving startup does not modify unsupported data.
 - Password hashing/verification, Argon2 admission/overload, setup/bootstrap, registration invite, generic login failure, and recovery tests.
-- Session creation, concurrent rotation/grace, expiry, replay, revocation, logout, password change/reset, and disabled/deleting-account tests.
+- Independent session creation, concurrent authentication/revocation, logout-one, logout-all, password change/reset, and disabled/deleting-account tests.
 - Origin/CORS tests for safe and unsafe methods.
 - Cross-user isolation tests for every store and resource endpoint, including equal IDs/source URLs and filesystem traversal attempts.
 - Administrator protection, ordinary-account reset/disable/delete, issuer deletion, deletion-job crash/retry, and in-flight write-quiescence tests.

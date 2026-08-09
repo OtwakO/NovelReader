@@ -92,15 +92,30 @@ func TestSystemSchemaConstrainsRolesAndStatuses(t *testing.T) {
 	}
 }
 
+func TestSystemSchemaRequiresSHA256SizedSessionHashBlob(t *testing.T) {
+	store := openTestStore(t)
+	defer store.Close()
+	insertTestUser(t, store.db, StatusActive)
+
+	for _, tokenHash := range []any{"raw-token-text", []byte("short"), make([]byte, 33)} {
+		_, err := store.db.Exec(`
+			INSERT INTO auth_sessions (id, user_id, token_hash, created_at, last_seen_at)
+			VALUES (random(), ?, ?, 1, 1)
+		`, string(testUserID), tokenHash)
+		if err == nil {
+			t.Fatalf("token hash %#v was accepted", tokenHash)
+		}
+	}
+}
+
 func TestSystemForeignKeysCascadeButDeletionJobSurvivesAccountRemoval(t *testing.T) {
 	store := openTestStore(t)
 	defer store.Close()
 	insertTestUser(t, store.db, StatusActive)
 
 	if _, err := store.db.Exec(`
-		INSERT INTO auth_sessions (
-			id, user_id, current_token_hash, created_at, last_seen_at, rotated_at, expires_at
-		) VALUES ('session-1', ?, x'01', 1, 1, 1, 2)
+		INSERT INTO auth_sessions (id, user_id, token_hash, created_at, last_seen_at)
+		VALUES ('session-1', ?, zeroblob(32), 1, 1)
 	`, string(testUserID)); err != nil {
 		t.Fatal(err)
 	}
@@ -165,6 +180,53 @@ func TestTransitionAccountStatusAllowsOnlyLegalChanges(t *testing.T) {
 	}
 }
 
+func TestTransitionAccountStatusRevokesSessionsAtomically(t *testing.T) {
+	store := openTestStore(t)
+	defer store.Close()
+	insertTestUser(t, store.db, StatusActive)
+	if _, err := store.db.Exec(`
+		INSERT INTO auth_sessions (id, user_id, token_hash, created_at, last_seen_at)
+		VALUES ('session-1', ?, zeroblob(32), 1, 1)
+	`, string(testUserID)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.TransitionAccountStatus(testUserID, StatusDisabled, 10); err != nil {
+		t.Fatal(err)
+	}
+	var sessions int
+	if err := store.db.QueryRow(`SELECT count(*) FROM auth_sessions`).Scan(&sessions); err != nil {
+		t.Fatal(err)
+	}
+	if sessions != 0 {
+		t.Fatalf("sessions = %d", sessions)
+	}
+
+	setTestUserStatus(t, store.db, StatusActive)
+	if _, err := store.db.Exec(`
+		INSERT INTO auth_sessions (id, user_id, token_hash, created_at, last_seen_at)
+		VALUES ('session-2', ?, randomblob(32), 1, 1)
+	`, string(testUserID)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.Exec(`
+		CREATE TRIGGER reject_status_session_revocation
+		BEFORE DELETE ON auth_sessions
+		BEGIN SELECT RAISE(ABORT, 'reject revocation'); END
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.TransitionAccountStatus(testUserID, StatusDeleting, 20); err == nil {
+		t.Fatal("status transition succeeded despite failed revocation")
+	}
+	var status AccountStatus
+	if err := store.db.QueryRow(`SELECT status FROM users WHERE id = ?`, string(testUserID)).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != StatusActive {
+		t.Fatalf("status after rollback = %q", status)
+	}
+}
+
 func TestTransitionAccountStatusRejectsMissingAndInvalidUserIDs(t *testing.T) {
 	store := openTestStore(t)
 	defer store.Close()
@@ -184,7 +246,7 @@ func TestOpenSystemStoreRejectsNewerSchemaWithoutModifyingIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`PRAGMA user_version = 2`); err != nil {
+	if _, err := db.Exec(`PRAGMA user_version = 3`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -208,6 +270,44 @@ func TestOpenSystemStoreRejectsNewerSchemaWithoutModifyingIt(t *testing.T) {
 	}
 	if string(after) != string(before) {
 		t.Fatal("newer system database was modified")
+	}
+}
+
+func TestOpenSystemStoreRejectsVersionOneWithoutModifyingIt(t *testing.T) {
+	root := prepareTestRoot(t)
+	path := filepath.Join(root, SystemDatabaseName)
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE marker (value TEXT);
+		INSERT INTO marker VALUES ('version-one');
+		PRAGMA user_version = 1;
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := OpenSystemStore(root)
+	if store != nil {
+		store.Close()
+	}
+	if !errors.Is(err, ErrInvalidSystemSchema) {
+		t.Fatalf("error = %v", err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("version-one system database was modified")
 	}
 }
 
@@ -329,7 +429,7 @@ func TestOpenSystemStoreRejectsVersionedDatabaseWithWrongColumns(t *testing.T) {
 		`CREATE TABLE password_reset_tokens (token_hash BLOB PRIMARY KEY)`,
 		`CREATE TABLE setup_state (id INTEGER PRIMARY KEY)`,
 		`CREATE TABLE account_deletions (id TEXT PRIMARY KEY)`,
-		`PRAGMA user_version = 1`,
+		`PRAGMA user_version = 2`,
 	} {
 		if _, err := db.Exec(statement); err != nil {
 			t.Fatal(err)

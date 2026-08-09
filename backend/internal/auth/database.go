@@ -69,7 +69,7 @@ func initializeSystemDatabase(path string) error {
 		_ = db.Close()
 		return err
 	}
-	if _, err := tx.Exec(`PRAGMA user_version = 1`); err != nil {
+	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, CurrentSystemSchemaVersion)); err != nil {
 		_ = tx.Rollback()
 		_ = db.Close()
 		return err

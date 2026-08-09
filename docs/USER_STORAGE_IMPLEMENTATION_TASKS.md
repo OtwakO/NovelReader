@@ -101,13 +101,12 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 - [x] Enforce normalized username uniqueness in account storage.
 - [x] Implement Argon2id password hashing and verification with a process-wide admission limit.
 - [ ] Apply request-size limits, timeouts, generic login errors, and bounded rate limits.
-- [ ] Implement opaque server-side sessions with current-token hash, one previous-token hash, a
-      fixed five-minute grace period, and a 30-day absolute expiry.
+- [x] Implement persistent opaque server-side sessions with one hash-only token per login and no automatic expiry or rotation.
 - [ ] Implement login, logout, request-context identity, and browser-session token lifecycle.
 - [x] Implement storage-level credential lookup, generic credential failure, and privileged password replacement with transactional session revocation.
 - [ ] Replace wildcard credentialed CORS with the documented same-origin policy.
-- [ ] Add tests for password parameters, overload, session rotation/replay, logout, expiry,
-      revocation, and unsafe cross-origin requests.
+- [ ] Add tests for HTTP login/cookie behavior, request limits, rate limits, and unsafe cross-origin requests.
+- [x] Add storage-level tests for password parameters, overload, independent device sessions, logout-this-device, logout-all-devices, and concurrent revocation.
 
 ### 2.3 First Administrator setup and recovery
 
@@ -157,7 +156,7 @@ without revealing whether another reader's resource exists.
 - [ ] Add login and environment-controlled registration screens.
 - [ ] Load the current account before entering authenticated application routes.
 - [ ] Add logout and password change.
-- [ ] Handle session expiry without losing unsaved reader state.
+- [ ] Handle session revocation without losing unsaved reader state.
 - [ ] Add ordinary-account administration with explicit destructive confirmation.
 - [ ] Add the configured Administrator recovery page.
 - [ ] Verify keyboard use, error states, loading states, and narrow-screen behavior.
