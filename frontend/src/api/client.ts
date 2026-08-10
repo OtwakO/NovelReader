@@ -1,4 +1,6 @@
 // API client for NovelReader backend.
+import { isExploreErrorBody } from '../lib/apiErrors.mjs';
+
 const BASE = '/api';
 
 export class ExploreApiError extends Error {
@@ -39,7 +41,7 @@ export class ApiError extends Error {
   }
 }
 
-async function req<T>(path: string, options?: RequestInit): Promise<T> {
+async function req<T>(path: string, options?: RequestInit, errorKind: 'general' | 'explore' = 'general'): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
@@ -47,7 +49,7 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText })) as ExploreErrorBody;
     if (res.status === 401) authenticationLossListener?.();
-    if (err.code) throw new ExploreApiError(err);
+    if (errorKind === 'explore' && isExploreErrorBody(err)) throw new ExploreApiError(err);
     throw new ApiError(res.status, err.error || err.message || res.statusText);
   }
   if (res.status === 204) return undefined as T;
@@ -277,25 +279,25 @@ export interface ExplorePageResult {
 }
 
 export function listExploreSources(signal?: AbortSignal) {
-  return req<ExploreSource[]>('/explore/sources', { signal });
+  return req<ExploreSource[]>('/explore/sources', { signal }, 'explore');
 }
 
 export function openExplore(sourceId: string, signal?: AbortSignal) {
   return req<ExploreCatalog>('/explore/catalog', {
     method: 'POST', body: JSON.stringify({ sourceId }), signal,
-  });
+  }, 'explore');
 }
 
 export function updateExploreControl(sessionId: string, controlId: string, value: string | null, signal?: AbortSignal) {
   return req<ExploreCatalog>('/explore/control', {
     method: 'POST', body: JSON.stringify({ sessionId, controlId, value }), signal,
-  });
+  }, 'explore');
 }
 
 export function getExplorePage(sessionId: string, categoryId: string, page: number, signal?: AbortSignal) {
   return req<ExplorePageResult>('/explore/page', {
     method: 'POST', body: JSON.stringify({ sessionId, categoryId, page }), signal,
-  });
+  }, 'explore');
 }
 
 export function searchBooks(query: string) {

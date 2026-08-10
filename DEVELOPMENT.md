@@ -1,5 +1,11 @@
 # Development Notes
 
+### [2026-08-11] Shelf addition validates readability before navigation
+- **Context**: Adding `异度旅社` appeared to fail with “Explore request failed,” even though `/api/books/enrich` succeeded.
+- **Change**: Generic API failures can no longer become `ExploreApiError`; only Explore endpoints opt into that diagnostic type. Search and Explore now share a post-add readability gate that loads the TOC and first readable chapter. A failed primary stays on the shelf and exposes an inline alternate-source chooser; each selected alternate is switched and validated before navigation.
+- **Reason**: Search metadata success does not prove that a source's TOC/content rules still work, and concurrent source completion cannot rank readability reliably. The old generic coded-error check also mislabeled normal TOC failures as Explore failures.
+- **Verified**: Against a stopped-copy of real reader data, search found 65 exact `异度旅社` matches. The selected primary returned a real TOC 502; choosing `大唐小说（优+）` returned 100 chapters and readable first/middle/last content. A live browser run confirmed enrich 200 → primary TOC 502 → source switch 200 → TOC/content 200 → rendered chapter text. All 36 frontend tests and the production build pass.
+
 ### [2026-08-11] Static fallback must remain path-only beside the API prefix
 - **Context**: The first local startup after the authenticated ownership cutover panicked in Go 1.26 while registering `GET /` beside the method-agnostic `/api/` boundary.
 - **Change**: The SPA fallback now registers the path-only `/` pattern, explicitly permits only GET/HEAD, and leaves `/api/` as the more-specific route. The Windows launcher generates a temporary setup token on every run so a startup failure after `system.db` creation cannot strand unfinished first setup.

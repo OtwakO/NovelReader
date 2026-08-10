@@ -1,9 +1,12 @@
 <script lang="ts">
   import {
-    searchBooksBatchStream, addSearchResultToShelf, type SearchResult,
+    searchBooksBatchStream, addSearchResultToShelf, getChapters, getChapterContent,
+    switchBookSource, type AltSource, type Book, type SearchResult,
   } from '../api/client';
   import SearchControls from './SearchControls.svelte';
   import SearchResults from './SearchResults.svelte';
+  import SourceRecovery from './SourceRecovery.svelte';
+  import { alternateSourceOptions, validateReadableBook } from './bookReadability.mjs';
   import SearchStatus from './SearchStatus.svelte';
   import { mergeSearchResults } from './searchResults.js';
   import {
@@ -234,15 +237,54 @@
   }
 
   let adding = $state<string | null>(null);
+  let recovery = $state<{
+    book: Book;
+    failedSource: string;
+    error: string;
+    sources: AltSource[];
+  } | null>(null);
+  let tryingSource = $state<string | null>(null);
+
   async function addToShelf(result: SearchResult) {
     adding = result.bookUrl;
+    recovery = null;
     try {
       const book = await addSearchResultToShelf(result);
-      go(`book?id=${book.id}`);
+      try {
+        await validateReadableBook(book.id, { getChapters, getChapterContent });
+        go(`book?id=${book.id}`);
+      } catch (caught: unknown) {
+        recovery = {
+          book,
+          failedSource: result.sourceName || 'Selected source',
+          error: caught instanceof Error ? caught.message : 'This source could not be read.',
+          sources: alternateSourceOptions(result),
+        };
+      }
     } catch (caught: unknown) {
-      alert('Failed: ' + (caught as Error).message);
+      alert('Failed: ' + (caught instanceof Error ? caught.message : 'Could not add this book'));
+    } finally {
+      adding = null;
     }
-    adding = null;
+  }
+
+  async function tryAlternateSource(source: AltSource) {
+    if (!recovery) return;
+    tryingSource = source.bookUrl;
+    try {
+      const switched = await switchBookSource(recovery.book.id, source.sourceUrl, source.bookUrl);
+      await validateReadableBook(switched.book.id, { getChapters, getChapterContent });
+      go(`book?id=${switched.book.id}`);
+    } catch (caught: unknown) {
+      recovery = {
+        ...recovery,
+        failedSource: source.sourceName || 'Selected source',
+        error: caught instanceof Error ? caught.message : 'This source could not be read.',
+        sources: recovery.sources.filter((candidate) => candidate.sourceUrl !== source.sourceUrl || candidate.bookUrl !== source.bookUrl),
+      };
+    } finally {
+      tryingSource = null;
+    }
   }
 
 </script>
@@ -266,6 +308,18 @@
       {sourceFailures} {error} {storageWarning} {restartRequired}
       {retryRequired} {hasMore} {batchSize}
       onrestart={restartSearch} onretry={retryBatch} onmore={searchMore}
+    />
+  {/if}
+
+  {#if recovery}
+    <SourceRecovery
+      bookName={recovery.book.name}
+      trying={tryingSource}
+      failedSource={recovery.failedSource}
+      error={recovery.error}
+      sources={recovery.sources}
+      ontry={tryAlternateSource}
+      onclose={() => recovery = null}
     />
   {/if}
 

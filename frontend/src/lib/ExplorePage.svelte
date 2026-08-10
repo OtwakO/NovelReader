@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    ExploreApiError, addSearchResultToShelf, getExplorePage, listExploreSources,
-    openExplore, updateExploreControl, type ExploreCatalog, type ExploreEntry,
-    type ExploreSource, type SearchResult,
+    ExploreApiError, addSearchResultToShelf, getChapters, getChapterContent,
+    getExplorePage, listExploreSources, openExplore, switchBookSource,
+    updateExploreControl, type AltSource, type Book, type ExploreCatalog,
+    type ExploreEntry, type ExploreSource, type SearchResult,
   } from '../api/client';
   import ExploreControls from './ExploreControls.svelte';
   import SearchResults from './SearchResults.svelte';
+  import SourceRecovery from './SourceRecovery.svelte';
+  import { alternateSourceOptions, validateReadableBook } from './bookReadability.mjs';
   import { categorySelection, classifyExploreError, selectedCategoryAfterRefresh } from './exploreState.js';
 
   let { go }: { go: (path: string) => void } = $props();
@@ -21,6 +24,13 @@
   let error = $state('');
   let retry = $state<null | (() => void)>(null);
   let adding = $state<string | null>(null);
+  let recovery = $state<{
+    book: Book;
+    failedSource: string;
+    error: string;
+    sources: AltSource[];
+  } | null>(null);
+  let tryingSource = $state<string | null>(null);
   let diagnostics = $state<string[]>([]);
   let categoryCache = $state<Record<string, { results: SearchResult[]; nextPage: number; exhausted: boolean }>>({});
   let requestNumber = 0;
@@ -158,13 +168,43 @@
 
   async function addToShelf(result: SearchResult) {
     adding = result.bookUrl;
+    recovery = null;
     try {
       const book = await addSearchResultToShelf(result);
-      go(`book?id=${book.id}`);
+      try {
+        await validateReadableBook(book.id, { getChapters, getChapterContent });
+        go(`book?id=${book.id}`);
+      } catch (caught) {
+        recovery = {
+          book,
+          failedSource: result.sourceName || 'Selected source',
+          error: caught instanceof Error ? caught.message : 'This source could not be read.',
+          sources: alternateSourceOptions(result),
+        };
+      }
     } catch (caught) {
       error = caught instanceof Error ? caught.message : 'Could not add this book';
     } finally {
       adding = null;
+    }
+  }
+
+  async function tryAlternateSource(source: AltSource) {
+    if (!recovery) return;
+    tryingSource = source.bookUrl;
+    try {
+      const switched = await switchBookSource(recovery.book.id, source.sourceUrl, source.bookUrl);
+      await validateReadableBook(switched.book.id, { getChapters, getChapterContent });
+      go(`book?id=${switched.book.id}`);
+    } catch (caught) {
+      recovery = {
+        ...recovery,
+        failedSource: source.sourceName || 'Selected source',
+        error: caught instanceof Error ? caught.message : 'This source could not be read.',
+        sources: recovery.sources.filter((candidate) => candidate.sourceUrl !== source.sourceUrl || candidate.bookUrl !== source.bookUrl),
+      };
+    } finally {
+      tryingSource = null;
     }
   }
 </script>
@@ -218,6 +258,17 @@
   {/if}
   {#if diagnostics.length > 0}
     <ul class="diagnostics">{#each diagnostics as message}<li>{message}</li>{/each}</ul>
+  {/if}
+  {#if recovery}
+    <SourceRecovery
+      bookName={recovery.book.name}
+      trying={tryingSource}
+      failedSource={recovery.failedSource}
+      error={recovery.error}
+      sources={recovery.sources}
+      ontry={tryAlternateSource}
+      onclose={() => recovery = null}
+    />
   {/if}
   {#if results.length > 0}<SearchResults {results} {adding} onadd={addToShelf} />{/if}
   {#if categoryId && results.length > 0 && !exhausted}
