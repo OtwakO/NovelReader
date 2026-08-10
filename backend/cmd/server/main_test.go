@@ -20,20 +20,18 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestOpenDatabasesGatesLegacyRootBeforeCreatingDatabase(t *testing.T) {
+func TestOpenStoresGatesLegacyRootBeforeCreatingSystemStore(t *testing.T) {
 	root := t.TempDir()
 	legacyPath := filepath.Join(root, "legacy.txt")
 	if err := os.WriteFile(legacyPath, []byte("keep"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	databasePath := filepath.Join(root, "novelreader.db")
-
-	systemStore, db, err := openDatabases(root, databasePath)
+	systemStore, readers, err := openStores(root)
 	if systemStore != nil {
 		systemStore.Close()
 	}
-	if db != nil {
-		db.Close()
+	if readers != nil {
+		readers.Close()
 	}
 	if !errors.Is(err, readerstore.ErrLegacyRoot) {
 		t.Fatalf("err = %v", err)
@@ -43,98 +41,47 @@ func TestOpenDatabasesGatesLegacyRootBeforeCreatingDatabase(t *testing.T) {
 			t.Errorf("error %q does not contain %q", err, instruction)
 		}
 	}
-	if _, statErr := os.Stat(databasePath); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("database unexpectedly created: %v", statErr)
-	}
 }
 
-func TestOpenDatabasesRejectsPathOutsideDataRoot(t *testing.T) {
-	parent := t.TempDir()
-	root := filepath.Join(parent, "data")
-	databasePath := filepath.Join(parent, "outside.db")
-
-	systemStore, db, err := openDatabases(root, databasePath)
-	if systemStore != nil {
-		systemStore.Close()
-	}
-	if db != nil {
-		db.Close()
-	}
-	if err == nil {
-		t.Fatal("expected database path rejection")
-	}
-	if _, statErr := os.Stat(root); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("data root unexpectedly created: %v", statErr)
-	}
-	if _, statErr := os.Stat(databasePath); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("database unexpectedly created: %v", statErr)
-	}
-}
-
-func TestOpenDatabasesRejectsSymlinkEscape(t *testing.T) {
-	root := t.TempDir()
-	outside := t.TempDir()
-	link := filepath.Join(root, "database-link")
-	if err := os.Symlink(outside, link); err != nil {
-		t.Skipf("symlinks unavailable: %v", err)
-	}
-	databasePath := filepath.Join(link, "novelreader.db")
-
-	systemStore, db, err := openDatabases(root, databasePath)
-	if systemStore != nil {
-		systemStore.Close()
-	}
-	if db != nil {
-		db.Close()
-	}
-	if err == nil {
-		t.Fatal("expected symlink escape rejection")
-	}
-	if _, statErr := os.Stat(databasePath); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("outside database unexpectedly created: %v", statErr)
-	}
-}
-
-func TestOpenDatabasesInitializesEmptyRoot(t *testing.T) {
+func TestOpenStoresInitializesEmptyRootWithoutLegacyDatabase(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "data")
-	databasePath := filepath.Join(root, "novelreader.db")
-
-	systemStore, db, err := openDatabases(root, databasePath)
+	systemStore, readers, err := openStores(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer systemStore.Close()
-	defer db.Close()
-	if _, err := os.Stat(filepath.Join(root, readerstore.RootManifestName)); err != nil {
-		t.Fatal(err)
+	defer readers.Close()
+	for _, path := range []string{readerstore.RootManifestName, auth.SystemDatabaseName} {
+		if _, err := os.Stat(filepath.Join(root, path)); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if _, err := os.Stat(filepath.Join(root, auth.SystemDatabaseName)); err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(filepath.Join(root, "novelreader.db")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy database exists: %v", err)
 	}
 }
 
-func TestOpenDatabasesExcludesSecondServerForSameDataRoot(t *testing.T) {
+func TestOpenStoresExcludesSecondServerForSameDataRoot(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "data")
-	featurePath := filepath.Join(root, "novelreader.db")
-	firstStore, firstDB, err := openDatabases(root, featurePath)
+	firstStore, firstReaders, err := openStores(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer firstStore.Close()
-	defer firstDB.Close()
-	secondStore, secondDB, err := openDatabases(root, featurePath)
+	defer firstReaders.Close()
+	secondStore, secondReaders, err := openStores(root)
 	if secondStore != nil {
 		secondStore.Close()
 	}
-	if secondDB != nil {
-		secondDB.Close()
+	if secondReaders != nil {
+		secondReaders.Close()
 	}
 	if !errors.Is(err, readerstore.ErrRootInUse) {
 		t.Fatalf("second open error=%v", err)
 	}
 }
 
-func TestOpenDatabasesRejectsNewerSystemSchemaBeforeCreatingFeatureDatabase(t *testing.T) {
+func TestOpenStoresRejectsNewerSystemSchema(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "data")
 	if _, err := readerstore.PrepareRoot(root); err != nil {
 		t.Fatal(err)
@@ -150,20 +97,15 @@ func TestOpenDatabasesRejectsNewerSystemSchemaBeforeCreatingFeatureDatabase(t *t
 	if err := systemDB.Close(); err != nil {
 		t.Fatal(err)
 	}
-	featurePath := filepath.Join(root, "novelreader.db")
-
-	systemStore, featureDB, err := openDatabases(root, featurePath)
+	systemStore, readers, err := openStores(root)
 	if systemStore != nil {
 		systemStore.Close()
 	}
-	if featureDB != nil {
-		featureDB.Close()
+	if readers != nil {
+		readers.Close()
 	}
 	if !errors.Is(err, auth.ErrNewerSystemSchema) {
 		t.Fatalf("error = %v", err)
-	}
-	if _, statErr := os.Stat(featurePath); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("feature database unexpectedly created: %v", statErr)
 	}
 }
 

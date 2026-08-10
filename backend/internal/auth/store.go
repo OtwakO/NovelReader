@@ -167,6 +167,13 @@ func (s *Store) Path() string {
 	return s.path
 }
 
+func (s *Store) PingContext(ctx context.Context) error {
+	if s == nil || s.db == nil {
+		return errors.New("auth: system store is unavailable")
+	}
+	return s.db.PingContext(ctx)
+}
+
 // HoldRootLock transfers lifetime ownership of the server's exclusive data-root lock to the store.
 func (s *Store) HoldRootLock(lock *readerstore.RootLock) {
 	s.rootLock = lock

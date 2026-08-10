@@ -93,7 +93,7 @@ type Searcher struct {
 	exploreSourceTimeout    time.Duration
 	concurrentPerSearch     int
 	searchSlots             chan struct{}
-	capacity                capacityCounters
+	capacity                *capacityCounters
 	// per-source rate limiting (concurrentRate)
 	rateMu     sync.Mutex
 	lastAccess map[string]time.Time // keyed by BookSourceURL
@@ -153,9 +153,45 @@ func NewSearcherWithLimits(
 		exploreSourceTimeout: limits.ExploreSourceTimeout,
 		concurrentPerSearch:  limits.ConcurrentPerSearch,
 		searchSlots:          make(chan struct{}, limits.ConcurrentGlobal),
+		capacity:             &capacityCounters{},
 		rateMu:               sync.Mutex{},
 		lastAccess:           make(map[string]time.Time),
 	}
+}
+
+// ForkReader shares process admission and transport policy while isolating reader-owned state.
+func (s *Searcher) ForkReader(jsVM *analyzer.JSVM, cache *analyzer.CacheManager, sourceStore sourceLister, bookStore *Store, limits SearcherLimits) *Searcher {
+	if limits.MaxSessions < 1 {
+		limits.MaxSessions = defaultMaxSessions
+	}
+	if limits.SessionTTL <= 0 {
+		limits.SessionTTL = defaultSessionTTL
+	}
+	return &Searcher{
+		fetcher:                 s.fetcher,
+		transportFactory:        s.transportFactory,
+		webViewTransportFactory: s.webViewTransportFactory,
+		jsVM:                    jsVM,
+		cache:                   cache,
+		sourceStore:             sourceStore,
+		bookStore:               bookStore,
+		sessions:                sourceexec.NewSessionRegistryWithLimits(limits.MaxSessions, limits.SessionTTL),
+		explore:                 newExploreRegistry(limits.MaxSessions, limits.SessionTTL),
+		workflowTimeout:         s.workflowTimeout,
+		exploreSourceTimeout:    s.exploreSourceTimeout,
+		concurrentPerSearch:     s.concurrentPerSearch,
+		searchSlots:             s.searchSlots,
+		capacity:                s.capacity,
+		lastAccess:              make(map[string]time.Time),
+	}
+}
+
+// SharedFetcher exposes the process-owned stateless fetcher to the HTTP composition root.
+func (s *Searcher) SharedFetcher() *fetcher.Client {
+	if s == nil {
+		return nil
+	}
+	return s.fetcher
 }
 
 // SetTransportFactory injects normal transport policy without coupling book workflows to clients.

@@ -42,7 +42,7 @@ case "$ACTION" in
     echo ""
     echo "Environment:"
     echo "  PORT             Server port (default: 8888)"
-    echo "  DATABASE_PATH    SQLite path (default: ./data/novelreader.db)"
+    echo "  DATA_DIR         Identity and per-reader storage root (default: ./data)"
     echo "  DEBUG=0          Disable debug-level logging (on by default in dev mode)"
     echo "  PUBLIC_URL       Optional canonical browser origin for proxies that rewrite Host"
     echo ""

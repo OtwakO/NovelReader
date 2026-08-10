@@ -11,7 +11,7 @@ The following are hard architectural invariants:
 3. **Cold copy is a supported backup.** With NovelReader stopped, copying the complete `data/` directory must produce a restorable deployment backup without running NovelReader.
 4. **Each reader directory is independently recoverable.** Losing authentication state or the source-credential encryption key must not make `reader.db` or ordinary files unreadable.
 5. **Ownership is enforced at the storage seam.** HTTP input never supplies authoritative user IDs, and feature code never constructs reader paths.
-6. **Authentication and ownership ship atomically.** Existing globally keyed Reader Data routes remain unavailable until per-user storage is active; authentication-looking routes must never front global stores.
+6. **Authentication and ownership shipped atomically.** Per-user storage is active before any Reader Data handler runs; authentication routes never front global stores and no production fallback remains.
 7. **The cutover removes the legacy architecture.** This pre-release project has no production users, so completed replacement slices delete superseded global schemas, startup wiring, stores, paths, configuration, adapters, and tests instead of maintaining dual modes or compatibility remnants.
 
 This is a pre-release structural change with no production users or irreplaceable legacy Reader Data. Existing unowned development state is discarded by stopping NovelReader, optionally copying it for manual inspection, deleting or renaming `DATA_DIR`, and re-importing test BookSources. NovelReader intentionally provides no legacy migration or automatic reset machinery. Temporary transition code is permitted only when a phase cannot remain runnable without it, must be explicitly marked, and is removed at the Phase 2 atomic cutover.
@@ -193,6 +193,8 @@ Each successful login creates one independent persistent session. The browser re
 - `NOVELREADER_SECRET_KEY` — versioned 32-byte source-credential encryption key.
 
 Secrets are compared in constant time. Setup and recovery routes are rate-limited, same-origin, and unavailable unless their corresponding environment secret is configured. NovelReader holds an OS-level exclusive lock for the lifetime of a server process, so only one process may write a data root; this makes setup/recovery claims, reader-home publication, and session revocation linearizable across the supported deployment topology.
+
+The recovery HTTP route is mounted only while `ADMIN_RECOVERY_TOKEN` is configured; removing the variable removes the route on restart.
 
 The recovery flow can create a replacement Administrator or reset an existing Administrator password. It cannot browse, decrypt, claim, export, rewrite, or delete Reader Data. Successful reset revokes that account’s sessions. Successful creation allocates a new empty reader directory. Recovery actions do not silently attach existing directories; attachment after `system.db` loss is a separate explicit recovery/import operation with directory inspection and confirmation.
 

@@ -29,12 +29,17 @@ import (
 // JSVM provides a pool of goja runtimes for JavaScript evaluation in book source rules.
 // Each eval borrows a runtime, executes, and returns it.
 type JSVM struct {
-	pool        chan *goja.Runtime
-	initCode    string
+	executor    *jsExecutor
 	mu          sync.Mutex
-	hc          fetcher.HTTPClient     // for java.get/java.post from JS
 	cacheData   map[string]string      // java.put/java.get storage
 	memoryCache map[string]interface{} // cache.putMemory/cache.getFromMemory
+}
+
+type jsExecutor struct {
+	pool     chan *goja.Runtime
+	mu       sync.Mutex
+	initCode string
+	hc       fetcher.HTTPClient // for java.get/java.post from JS
 }
 
 // JSBridge exposes workflow-scoped JavaScript helpers without coupling analyzer to callers.
@@ -55,7 +60,7 @@ func NewJSVMWithPoolSize(poolSize int) *JSVM {
 	for range poolSize {
 		pool <- goja.New()
 	}
-	return &JSVM{pool: pool}
+	return &JSVM{executor: &jsExecutor{pool: pool}}
 }
 
 // SourceState is the session surface exposed to Legado JavaScript bindings.
@@ -75,7 +80,17 @@ type SourceState interface {
 
 // SetFetcher provides an HTTP client for java.get/java.post calls from JS.
 func (vm *JSVM) SetFetcher(hc fetcher.HTTPClient) {
-	vm.hc = hc
+	vm.executor.mu.Lock()
+	vm.executor.hc = hc
+	vm.executor.mu.Unlock()
+}
+
+// ForkState shares bounded JavaScript execution capacity while isolating mutable compatibility state.
+func (vm *JSVM) ForkState() *JSVM {
+	if vm == nil {
+		return nil
+	}
+	return &JSVM{executor: vm.executor}
 }
 
 // LoadLib validates and sets shared JavaScript library code for every fresh runtime.
@@ -86,25 +101,25 @@ func (vm *JSVM) LoadLib(code string) error {
 	if _, err := goja.New().RunString(code); err != nil {
 		return fmt.Errorf("js: load lib: %w", err)
 	}
-	vm.mu.Lock()
-	vm.initCode = code
-	vm.mu.Unlock()
+	vm.executor.mu.Lock()
+	vm.executor.initCode = code
+	vm.executor.mu.Unlock()
 
-	available := len(vm.pool)
+	available := len(vm.executor.pool)
 	for range available {
-		<-vm.pool
+		<-vm.executor.pool
 	}
 	for range available {
-		vm.pool <- vm.newRuntime()
+		vm.executor.pool <- vm.newRuntime()
 	}
 	return nil
 }
 
 func (vm *JSVM) newRuntime() *goja.Runtime {
 	rt := goja.New()
-	vm.mu.Lock()
-	code := vm.initCode
-	vm.mu.Unlock()
+	vm.executor.mu.Lock()
+	code := vm.executor.initCode
+	vm.executor.mu.Unlock()
 	if code != "" {
 		_, _ = rt.RunString(code)
 	}
@@ -121,7 +136,7 @@ func (vm *JSVM) Eval(script string, content interface{}, baseURL string, extra .
 func (vm *JSVM) EvalContext(ctx context.Context, script string, content interface{}, baseURL string, extra ...map[string]interface{}) (interface{}, error) {
 	var rt *goja.Runtime
 	select {
-	case rt = <-vm.pool:
+	case rt = <-vm.executor.pool:
 	case <-ctx.Done():
 		return "", fmt.Errorf("js eval: %w", ctx.Err())
 	}
@@ -135,7 +150,7 @@ func (vm *JSVM) EvalContext(ctx context.Context, script string, content interfac
 			<-interruptDone
 		}
 		rt.ClearInterrupt()
-		vm.pool <- vm.newRuntime()
+		vm.executor.pool <- vm.newRuntime()
 	}()
 
 	// Bootstrap polyfills that legado's Rhino supports but goja doesn't.
@@ -177,13 +192,15 @@ Map = function(a) {
 	// Bind standard objects
 	// java MUST be a map with lowercase keys — goja exposes Go struct methods capitalized
 	// (EncodeURI, not encodeURI). Following legado's JsExtensions naming convention.
-	hc := vm.hc
+	vm.executor.mu.Lock()
+	hc := vm.executor.hc
+	vm.executor.mu.Unlock()
 	if session, ok := sourceState.(fetcher.CookieSession); ok && hc != nil {
 		const clientMemoryKey = "__novelreader_js_http_client"
 		if cached, ok := sourceState.GetMemory(clientMemoryKey).(fetcher.HTTPClient); ok {
 			hc = cached
 		} else {
-			if factory, ok := vm.hc.(interface {
+			if factory, ok := hc.(interface {
 				ForSource(fetcher.CookieSession) fetcher.HTTPClient
 			}); ok {
 				hc = factory.ForSource(session)

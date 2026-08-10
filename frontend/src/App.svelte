@@ -1,128 +1,123 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import Bookshelf from './lib/Bookshelf.svelte';
-  import SourceList from './lib/SourceList.svelte';
-  import SearchPage from './lib/SearchPage.svelte';
-  import ExplorePage from './lib/ExplorePage.svelte';
-  import BookDetail from './lib/BookDetail.svelte';
-  import Reader from './lib/Reader.svelte';
-  import Settings from './lib/Settings.svelte';
+  import { ApiError, getCurrentAccount, getRecoveryStatus, getSetupStatus, logout, onAuthenticationLoss, type AuthAccount } from './api/client';
+  import AuthenticatedApp from './lib/AuthenticatedApp.svelte';
+  import LoginPage from './lib/LoginPage.svelte';
+  import SetupPage from './lib/SetupPage.svelte';
+  import RecoveryPage from './lib/RecoveryPage.svelte';
 
-  let route = $state('shelf');
-  let params = $state<Record<string, string>>({});
+  type Gate = 'loading' | 'setup' | 'setup-unavailable' | 'login' | 'logout-failed' | 'recovery' | 'recovery-unavailable' | 'authenticated' | 'error';
+  let gate: Gate = $state('loading');
+  let account: AuthAccount | null = $state(null);
+  let message = $state('');
+  let requestedHash = '';
 
-  function navigate(hash: string) {
-    const [path, ...rest] = hash.replace(/^#\//, '').split('?');
-    route = path || 'shelf';
-    params = {};
-    if (rest.length) {
-      rest.join('?').split('&').forEach(p => {
-        const [k, v] = p.split('=');
-        if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
-      });
+  onMount(() => {
+    const stopListening = onAuthenticationLoss(() => {
+      if (gate === 'authenticated') {
+        requestedHash = window.location.hash || '#/shelf';
+        account = null;
+        gate = 'login';
+        message = 'Your session ended. Sign in again to continue.';
+        window.location.hash = '#/login';
+      }
+    });
+    void bootstrap();
+    return stopListening;
+  });
+
+  async function bootstrap() {
+    gate = 'loading';
+    message = '';
+    requestedHash = window.location.hash && !['#/login', '#/recovery'].includes(window.location.hash) ? window.location.hash : '#/shelf';
+    try {
+      const setup = await getSetupStatus();
+      if (setup.status !== 'closed') {
+        gate = setup.available ? 'setup' : 'setup-unavailable';
+        return;
+      }
+      if (window.location.hash === '#/recovery') {
+        await showRecovery();
+        return;
+      }
+      try {
+        account = await getCurrentAccount();
+        gate = 'authenticated';
+      } catch (cause) {
+        if (cause instanceof ApiError && cause.status === 401) gate = 'login';
+        else throw cause;
+      }
+    } catch (cause) {
+      message = cause instanceof Error ? cause.message : 'NovelReader could not start.';
+      gate = 'error';
     }
   }
 
-  onMount(() => {
-    const onHash = () => navigate(window.location.hash);
-    window.addEventListener('hashchange', onHash);
-    if (window.location.hash) onHash();
-    else window.location.hash = '#/shelf';
-    return () => window.removeEventListener('hashchange', onHash);
-  });
-
-  function go(path: string) {
-    window.location.hash = '#/' + path;
+  function signedIn(next: AuthAccount) {
+    message = '';
+    account = next;
+    gate = 'authenticated';
+    window.location.hash = requestedHash || '#/shelf';
   }
 
-  function goBack() {
-    if (route === 'read' || route === 'book') history.back();
-    else go('shelf');
+  async function showRecovery() {
+    try {
+      const status = await getRecoveryStatus();
+      gate = status.available ? 'recovery' : 'recovery-unavailable';
+      window.location.hash = '#/recovery';
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 404) gate = 'recovery-unavailable';
+      else {
+        message = cause instanceof Error ? cause.message : 'Recovery status could not be loaded.';
+        gate = 'error';
+      }
+    }
+  }
+
+  async function signOut() {
+    requestedHash = '#/shelf';
+    account = null;
+    gate = 'loading';
+    try {
+      await logout();
+      message = '';
+      gate = 'login';
+      window.location.hash = '#/login';
+    } catch (cause) {
+      message = cause instanceof Error ? cause.message : 'The server could not revoke this session.';
+      gate = 'logout-failed';
+    }
   }
 </script>
 
-<div class="app">
-  <header class="app-header">
-    <button class="back" onclick={goBack} aria-label="Go back">←</button>
-    <h1><button class="brand" onclick={() => go('shelf')}>NovelReader</button></h1>
-    <nav aria-label="Primary">
-      <button class="nav-btn" class:active={route==='shelf'} aria-current={route==='shelf' ? 'page' : undefined} onclick={() => go('shelf')} aria-label="Shelf">📖</button>
-      <button class="nav-btn" class:active={route==='explore'} aria-current={route==='explore' ? 'page' : undefined} onclick={() => go('explore')} aria-label="Explore">🧭</button>
-      <button class="nav-btn" class:active={route==='search'} aria-current={route==='search' ? 'page' : undefined} onclick={() => go('search')} aria-label="Search">🔍</button>
-      <button class="nav-btn" class:active={route==='sources'} aria-current={route==='sources' ? 'page' : undefined} onclick={() => go('sources')} aria-label="Sources">📚</button>
-      <button class="nav-btn" class:active={route==='settings'} aria-current={route==='settings' ? 'page' : undefined} onclick={() => go('settings')} aria-label="Settings">⚙️</button>
-    </nav>
-  </header>
-
-  <main class="app-main">
-    {#if route === 'shelf'}
-      <Bookshelf {go} />
-    {:else if route === 'explore'}
-      <ExplorePage {go} />
-    {:else if route === 'search'}
-      <SearchPage {go} />
-    {:else if route === 'sources'}
-      <SourceList {go} />
-    {:else if route === 'book'}
-      <BookDetail bookId={params.id || ''} {go} />
-    {:else if route === 'read'}
-      <Reader bookId={params.id || ''} chapterIdx={params.chapter === undefined ? undefined : parseInt(params.chapter)}
-        locationPos={params.position === undefined ? undefined : parseFloat(params.position)} {go} />
-    {:else if route === 'settings'}
-      <Settings />
-    {:else}
-      <Bookshelf {go} />
-    {/if}
-  </main>
-</div>
+{#if gate === 'loading'}
+  <main class="gate-message" aria-busy="true"><p>Opening NovelReader…</p></main>
+{:else if gate === 'setup'}
+  <SetupPage onComplete={signedIn} />
+{:else if gate === 'setup-unavailable'}
+  <main class="gate-message"><section><h1>Setup requires server configuration</h1><p>Set <code>ADMIN_BOOTSTRAP_TOKEN</code>, restart NovelReader, and reload this page.</p></section></main>
+{:else if gate === 'login'}
+  {#if message}<p class="session-message" role="status">{message}</p>{/if}
+  <LoginPage onLogin={signedIn} onRecovery={showRecovery} />
+{:else if gate === 'logout-failed'}
+  <main class="gate-message"><section><h1>Sign out could not be confirmed</h1><p role="alert">Your private pages are closed, but the server may still recognize this browser session. Retry while connected before another person uses this browser.</p><p>{message}</p><button onclick={signOut}>Retry sign out</button></section></main>
+{:else if gate === 'recovery'}
+  <RecoveryPage onRecovered={signedIn} />
+{:else if gate === 'recovery-unavailable'}
+  <main class="gate-message"><section><h1>Recovery is unavailable</h1><p>Configure <code>ADMIN_RECOVERY_TOKEN</code> temporarily, restart NovelReader, and return to <button onclick={() => { gate = 'login'; window.location.hash = '#/login'; }}>sign in</button>.</p></section></main>
+{:else if gate === 'authenticated' && account}
+  <AuthenticatedApp {account} onLogout={signOut} />
+{:else}
+  <main class="gate-message"><section><h1>NovelReader could not start</h1><p role="alert">{message}</p><button onclick={bootstrap}>Try again</button></section></main>
+{/if}
 
 <style>
-  :root {
-    --bg: #f5f0eb;
-    --fg: #3a3a3a;
-    --accent: #8b5cf6;
-    --card-bg: #ffffff;
-    --border: #e5e0db;
-    --nav-bg: #ffffff;
-  }
-
-  :global(*) { box-sizing: border-box; margin: 0; padding: 0; }
-  :global(body) { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--fg); }
-  :global(img) { max-width: 100%; }
-
-  .app {
-    height: 100dvh; overflow: hidden; display: flex; flex-direction: column;
-  }
-
-  .app-header {
-    display: flex; align-items: center; gap: 0.5rem;
-    padding: 0.5rem 1rem; background: var(--nav-bg);
-    border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 10;
-  }
-
-  .app-header h1 { font-size: 1.1rem; font-weight: 600; flex: 1; }
-  .brand, .back {
-    background: none; border: none; color: inherit; cursor: pointer;
-  }
-  .brand { font: inherit; font-weight: inherit; }
-  .back { font-size: 1.2rem; padding: 0.25rem; }
-
-  nav { display: flex; gap: 0.25rem; }
-
-  .nav-btn {
-    background: none; border: none; font-size: 1.2rem;
-    cursor: pointer; padding: 0.4rem 0.5rem; border-radius: 8px;
-  }
-  .nav-btn:hover { background: var(--bg); }
-  .nav-btn.active { background: var(--accent); color: white; }
-  .brand:focus-visible, .back:focus-visible, .nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  .app-main { flex: 1; overflow-y: auto; }
-
-  @media (max-width: 360px) {
-    .app-header { padding-inline: 0.5rem; }
-    .app-header h1 { display: none; }
-    nav { margin-left: auto; }
-  }
+  :global(*) { box-sizing: border-box; }
+  :global(body) { margin: 0; }
+  .gate-message { min-height:100dvh; display:grid; place-items:center; padding:1.5rem; background:#f5f0eb; color:#3a3a3a; font-family:system-ui,sans-serif; text-align:center; }
+  .gate-message section { width:min(100%,32rem); padding:2rem; border:1px solid #e5e0db; border-radius:1rem; background:white; }
+  h1 { margin:0 0 .75rem; }
+  p { line-height:1.55; }
+  button { border:0; background:none; color:#5d35c7; font:inherit; font-weight:700; cursor:pointer; }
+  .session-message { position:fixed; z-index:2; inset:1rem 1rem auto; margin:auto; width:min(calc(100% - 2rem),28rem); padding:.7rem; border-radius:.5rem; background:#fff2d8; color:#704b13; text-align:center; font:600 .9rem system-ui,sans-serif; }
 </style>

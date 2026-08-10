@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -21,7 +20,6 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/config"
-	"github.com/otwako/novelreader/internal/database"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/fingerprint"
 	"github.com/otwako/novelreader/internal/fontstore"
@@ -44,29 +42,13 @@ func main() {
 		slog.Info("Debug logging enabled (to disable: unset DEBUG)")
 	}
 
-	// Classify the complete data root and validate identity storage before any feature store opens.
-	systemStore, db, err := openDatabases(cfg.DataDir, cfg.DatabasePath)
+	// Classify the complete data root and validate identity storage before any reader store opens.
+	systemStore, readers, err := openStores(cfg.DataDir)
 	if err != nil {
-		log.Fatalf("database: %v", err)
+		log.Fatalf("storage: %v", err)
 	}
 	defer systemStore.Close()
-	defer db.Close()
-
-	// Init stores
-	sourceStore := booksource.NewStore(db)
-	if err := sourceStore.Init(); err != nil {
-		log.Fatalf("booksource store: %v", err)
-	}
-
-	bookStore := book.NewStore(db)
-	if err := bookStore.Init(); err != nil {
-		log.Fatalf("book store: %v", err)
-	}
-
-	fStore := fontstore.NewStore(db, cfg.DataDir)
-	if err := fStore.Init(); err != nil {
-		log.Fatalf("font store: %v", err)
-	}
+	defer readers.Close()
 
 	// Engine components
 	// ponytail: use insecure TLS for content fetcher too — same reason as search:
@@ -93,7 +75,7 @@ func main() {
 	limits.MaxSessions = cfg.MaxSessions
 	limits.SessionTTL = cfg.SessionTTL
 	limits.ExploreSourceTimeout = cfg.ExploreSourceTimeout
-	searcher := book.NewSearcherWithLimits(httpContent, jsVM, cache, sourceStore, bookStore, limits)
+	searcher := book.NewSearcherWithLimits(httpContent, jsVM, cache, nil, nil, limits)
 	regularFingerprintConfig := fingerprintConfig
 	regularFingerprintConfig.Timeout = 5 * time.Second // leave room for normal fallback within per-source timeout
 	searcher.SetTransportFactory(func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {
@@ -120,8 +102,22 @@ func main() {
 	// Set up time function for API
 	api.TimeNowMillis = func() int64 { return time.Now().UnixMilli() }
 
-	// Create API server
-	apiSrv := api.NewServer(sourceStore, bookStore, searcher, fStore, httpContent, jsVM, cache, procCfg, cfg.DataDir, db)
+	// Mount public authentication/setup/recovery and protect every Reader Data route.
+	authHandler, err := auth.NewHTTPHandler(systemStore, auth.HTTPConfig{PublicURL: cfg.PublicURL})
+	if err != nil {
+		log.Fatalf("authentication HTTP: %v", err)
+	}
+	setupHandler, err := auth.NewSetupHTTPHandler(systemStore, readers, auth.SetupHTTPConfig{PublicURL: cfg.PublicURL, BootstrapToken: cfg.AdminBootstrapToken})
+	if err != nil {
+		log.Fatalf("setup HTTP: %v", err)
+	}
+	recoveryHandler, err := auth.NewRecoveryHTTPHandler(systemStore, readers, auth.RecoveryHTTPConfig{PublicURL: cfg.PublicURL, RecoveryToken: cfg.AdminRecoveryToken})
+	if err != nil {
+		log.Fatalf("recovery HTTP: %v", err)
+	}
+	apiSrv := api.NewAuthenticatedServer(authHandler, readers, searcher, jsVM, limits, procCfg, systemStore)
+	defer apiSrv.Close()
+	rootMux := applicationMux(apiSrv, authHandler, setupHandler, recoveryHandler, cfg.AdminRecoveryToken != "")
 
 	// Serve frontend static files from the project frontend dist
 	staticDir := "../frontend/dist"
@@ -134,7 +130,7 @@ func main() {
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	log.Printf("NovelReader server starting on %s", addr)
-	log.Printf("Database: %s", cfg.DatabasePath)
+	log.Printf("Data root: %s", cfg.DataDir)
 	slog.Info("capacity limits",
 		"searchConcurrency", cfg.SearchConcurrency,
 		"globalSearchConcurrency", cfg.GlobalSearchConcurrency,
@@ -146,7 +142,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      mustCredentialOriginMiddleware(cfg.PublicURL, apiSrv),
+		Handler:      mustCredentialOriginMiddleware(cfg.PublicURL, rootMux),
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: 0, // no write timeout for long reads
 	}
@@ -162,14 +158,23 @@ func main() {
 	}
 }
 
-func openDatabases(dataDir, databasePath string) (*auth.Store, *sql.DB, error) {
-	inside, err := readerstore.ContainsPath(dataDir, databasePath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("data root: resolve database path: %w", err)
+func applicationMux(apiHandler, authHandler, setupHandler, recoveryHandler http.Handler, recoveryEnabled bool) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle("/api/auth/", authHandler)
+	mux.Handle("/api/setup", setupHandler)
+	mux.Handle("/api/setup/", setupHandler)
+	if recoveryEnabled {
+		mux.Handle("/api/recovery", recoveryHandler)
+		mux.Handle("/api/recovery/", recoveryHandler)
+	} else {
+		mux.HandleFunc("/api/recovery", http.NotFound)
+		mux.HandleFunc("/api/recovery/", http.NotFound)
 	}
-	if !inside {
-		return nil, nil, fmt.Errorf("data root: database path must be inside DATA_DIR")
-	}
+	mux.Handle("/", apiHandler)
+	return mux
+}
+
+func openStores(dataDir string) (*auth.Store, *readerstore.Manager, error) {
 	if _, err := readerstore.PrepareRoot(dataDir); err != nil {
 		return nil, nil, fmt.Errorf("data root: %w", err)
 	}
@@ -183,12 +188,12 @@ func openDatabases(dataDir, databasePath string) (*auth.Store, *sql.DB, error) {
 		return nil, nil, fmt.Errorf("system database: %w", err)
 	}
 	systemStore.HoldRootLock(rootLock)
-	db, err := database.Open(databasePath)
+	readers, err := readerstore.NewManager(dataDir, 32, booksource.ReaderMigration(), book.ReaderMigration(), fontstore.ReaderMigration())
 	if err != nil {
 		_ = systemStore.Close()
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("reader stores: %w", err)
 	}
-	return systemStore, db, nil
+	return systemStore, readers, nil
 }
 
 func serve(ctx context.Context, server *http.Server, listener net.Listener) error {

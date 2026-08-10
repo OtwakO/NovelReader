@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { createInitialAdministrator } from '../api/client';
+  import { createInitialAdministrator, type AuthAccount } from '../api/client';
 
-  let { onComplete = () => {} }: { onComplete?: (username: string) => void } = $props();
+  let { onComplete = () => {} }: { onComplete?: (account: AuthAccount) => void } = $props();
 
   let token = $state('');
   let username = $state('');
@@ -23,7 +23,7 @@
       token = '';
       password = '';
       confirmPassword = '';
-      onComplete(account.username);
+      onComplete(account);
     } catch (requestError) {
       error = requestError instanceof Error ? requestError.message : 'Setup could not be completed.';
     } finally {

@@ -26,7 +26,6 @@ WORKDIR /app
 COPY --from=backend-build --chown=10001:10001 /out/novelreader ./novelreader
 COPY --from=frontend-build --chown=10001:10001 /src/frontend/dist ./frontend/dist
 ENV PORT=8888 \
-    DATABASE_PATH=/data/novelreader.db \
     DATA_DIR=/data \
     TZ=UTC
 USER 10001:10001

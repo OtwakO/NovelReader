@@ -1,11 +1,18 @@
 # Development Notes
 
+### [2026-08-10] Authentication and Reader Data ownership mounted atomically
+- **Context**: Login/setup/recovery could not be exposed while production routes still used one global feature database and process-global workflow state.
+- **Change**: Production now mounts public auth/setup/configured-recovery beside an authenticated Reader Data server. Identity selects a bounded per-reader runtime backed by `users/<UserID>/reader.db` and `files/`; reader migrations are centralized and ordered; Search/Explore/source sessions/analyzer cache/JavaScript compatibility state are reader-local while process admission remains shared. `novelreader.db` startup, `DATABASE_PATH`, and global font paths were removed. The frontend resolves setup/account before mounting private routes.
+- **Reason**: Resource IDs are locators, not authorization. Selecting the authenticated home before any handler/store lookup makes equal IDs across accounts safe without scattered ownership checks or a legacy fallback.
+- **Verified**: Full backend tests, targeted equal-ID/anonymous/font isolation regressions, frontend tests/build, vet/race/cross-platform checks recorded with the commit. Production search confirms no global feature database constructor or `DATABASE_PATH` use remains. Docker Compose and shell configuration validate; the Docker E2E build could not start in the sandbox because Docker Buildx could not write its read-only activity directory.
+- **Watch out**: `api.NewServer` and `internal/database` remain isolated test seams for feature tests; production must use `api.NewAuthenticatedServer` and `openStores`. Account disable/delete must later purge the reader runtime before removing a home.
+
 ### [2026-08-10] Recovery required one-process data-root ownership
 - **Context**: Administrator recovery must revoke sessions atomically and create a replacement Administrator only with a genuinely new empty reader home. Process-local guards cannot prove either property when two server processes share one writable data root.
 - **Change**: Server startup now acquires an OS-level exclusive lock for `DATA_DIR` and holds it through `auth.Store` lifetime. Recovery uses a generation-bound durable claim, rejects homes that predate provisioning authorization, resumes its own interrupted home creation, and supersedes an open or claimed initial-setup authority when replacement creation commits.
 - **Reason**: The single-process-per-root constraint already existed operationally; enforcing it is simpler and safer than adding distributed filesystem/SQLite coordination to a self-hosted application that does not support active-active deployment.
 - **Verified**: Unix and Windows lock implementations cross-compile; a second server open fails until the first store closes; repeated recovery tests cover stale claim generations, pre-existing-home rejection, interrupted provisioning, setup-claim supersession, password/session revocation, and retry-safe auto-login.
-- **Watch out**: Do not bypass `openDatabases` in another production entry point. Direct `OpenSystemStore` calls are test/library seams and do not acquire the process lock themselves.
+- **Watch out**: Do not bypass `openStores` in another production entry point. Direct `OpenSystemStore` calls are test/library seams and do not acquire the process lock themselves.
 
 ### [2026-08-07] Setup HTTP and UI remain unmounted until ownership cutover
 - **Context**: The one-time first-Administrator flow now has a strict HTTP handler and a Svelte setup form, but Reader Data routes still use global stores.

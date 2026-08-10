@@ -3,14 +3,12 @@ package config
 
 import (
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 )
 
 type Config struct {
 	Port                    int
-	DatabasePath            string
 	DataDir                 string
 	ReadTimeout             time.Duration
 	PublicURL               string
@@ -26,10 +24,9 @@ type Config struct {
 }
 
 func Load() *Config {
-	dataDir, databasePath := storagePaths()
+	dataDir := getEnv("DATA_DIR", "./data")
 	return &Config{
 		Port:                    getEnvInt("PORT", 8888),
-		DatabasePath:            databasePath,
 		DataDir:                 dataDir,
 		ReadTimeout:             time.Duration(getEnvInt("READ_TIMEOUT_SECONDS", 30)) * time.Second,
 		PublicURL:               getEnv("PUBLIC_URL", ""),
@@ -43,25 +40,6 @@ func Load() *Config {
 		SessionTTL:              time.Duration(getEnvPositiveInt("SESSION_TTL_MINUTES", 30)) * time.Minute,
 		ExploreSourceTimeout:    time.Duration(getEnvPositiveInt("EXPLORE_SOURCE_TIMEOUT_SECONDS", 30)) * time.Second,
 	}
-}
-
-func storagePaths() (string, string) {
-	dataDir := os.Getenv("DATA_DIR")
-	databasePath := os.Getenv("DATABASE_PATH")
-	if dataDir == "" {
-		if databasePath != "" && filepath.Dir(databasePath) != "." {
-			dataDir = filepath.Dir(databasePath)
-		} else {
-			dataDir = "./data"
-			if databasePath != "" {
-				databasePath = filepath.Join(dataDir, databasePath)
-			}
-		}
-	}
-	if databasePath == "" {
-		databasePath = filepath.Join(dataDir, "novelreader.db")
-	}
-	return dataDir, databasePath
 }
 
 func getEnv(key, fallback string) string {

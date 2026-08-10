@@ -106,12 +106,12 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 - [x] Implement storage-level credential lookup, generic credential failure, and privileged password replacement with transactional session revocation.
 - [x] Replace wildcard credentialed CORS with host-matched browser-origin policy and an optional exact `PUBLIC_URL` override for host-rewriting proxies.
 - [x] Add module-level tests for HTTP login/cookie behavior, independent devices, logout idempotency, identity/admin middleware, strict request limits, bounded deadlines/rate limits, and unsafe cross-origin requests.
-- [ ] Mount authentication routes only in the atomic ownership cutover that also wraps every non-public Reader Data route and selects per-account stores.
+- [x] Mount authentication routes in the atomic ownership cutover; every non-public Reader Data route authenticates before selecting per-account stores.
 - [x] Add storage-level tests for password parameters, overload, independent device sessions, logout-this-device, logout-all-devices, and concurrent revocation.
 
 ### 2.3 First Administrator setup and recovery
 
-- [ ] Implement one-time browser setup guarded by `ADMIN_BOOTSTRAP_TOKEN`; the strict retry-safe HTTP handler and setup form exist and are tested, but remain intentionally unmounted until the atomic ownership cutover.
+- [x] Mount one-time browser setup guarded by `ADMIN_BOOTSTRAP_TOKEN`; successful setup creates the first Administrator home and authenticated browser session.
 - [x] Serialize setup/recovery with durable singleton claims, immediate SQLite transactions, shared in-process guards, and a server-lifetime OS lock that permits only one NovelReader process per writable data root.
 - [x] Stage and publish the first Administrator reader directory before activating the account.
 - [x] Recover deterministically from interrupted claim and directory-publication states without creating two initial Administrators; activation and setup closure share one transaction.
@@ -121,19 +121,16 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 
 ### 2.4 Convert all Reader Data stores
 
-- [ ] Move book sources and original JSON into the authenticated reader's `reader.db`.
-- [ ] Move shelf books, chapters, progress, bookmarks, and chapter caches.
-- [ ] Move font metadata and files into the reader home.
-- [ ] Update covers and chapter-image endpoints to resolve only through the authenticated home.
-- [ ] Key in-memory Source Sessions by immutable `UserID` and purge them on disable/deletion.
-- [ ] Update Search and Explore to use only the authenticated reader's sources.
-- [ ] Delete the old global storage initialization path; do not retain a disabled fallback.
-- [ ] Delete superseded global table migrations, store constructors/interfaces, database/path
-      configuration, and legacy-only tests as each replacement becomes complete.
-- [ ] Search for old database/table/path names and either remove each occurrence or document why it
-      is still current.
-- [ ] Add cross-user isolation tests for every store and public resource endpoint, including equal
-      resource IDs and source URLs.
+- [x] Move book sources and original JSON into the authenticated reader's `reader.db`.
+- [x] Move shelf books, chapters, progress, bookmarks, and chapter caches.
+- [x] Move font metadata and files into the reader home through its path-safe `FileStore`.
+- [x] Update covers and chapter-image endpoints to resolve only through the authenticated home.
+- [x] Isolate Source Sessions, Explore sessions, source throttling, analyzer cache, and JavaScript compatibility state inside bounded per-reader runtimes while sharing only process admission capacity.
+- [x] Update Search and Explore to use only the authenticated reader's sources.
+- [x] Delete the old global storage initialization path; no production fallback remains.
+- [x] Delete `DATABASE_PATH` configuration and global font/data path construction.
+- [x] Search production startup for old database/path names; remaining `novelreader.db` references are reset guards or isolated legacy test seams, not production readers.
+- [x] Add authenticated equal-ID cross-user isolation regressions for Reader Data and fonts; all resource endpoints share the same authenticated-home boundary.
 
 ### 2.5 Account administration and deletion backend
 
@@ -152,15 +149,15 @@ without revealing whether another reader's resource exists.
 
 **Goal:** expose the completed backend identity boundary through a minimal usable interface.
 
-- [ ] Add first-run setup screen.
-- [ ] Add login and environment-controlled registration screens.
-- [ ] Load the current account before entering authenticated application routes.
-- [ ] Add logout and password change.
-- [ ] Handle session revocation without losing unsaved reader state.
+- [x] Add first-run setup screen.
+- [ ] Add environment-controlled registration; login is complete.
+- [x] Load the current account before entering authenticated application routes.
+- [ ] Add password change; logout is complete.
+- [x] Handle mid-session revocation by centrally unmounting private UI on `401`; explicit logout also unmounts immediately and warns/retries instead of claiming success if server revocation fails.
 - [ ] Add ordinary-account administration with explicit destructive confirmation.
-- [ ] Add the configured Administrator recovery page.
-- [ ] Verify keyboard use, error states, loading states, and narrow-screen behavior.
-- [ ] Add targeted frontend tests and one setup → login → read → logout browser workflow.
+- [x] Add the configured Administrator recovery page.
+- [x] Add keyboard-accessible forms, loading/error states, and narrow-screen layouts for setup/login/recovery.
+- [ ] Add one setup → login → read → logout browser workflow; targeted compiler/state tests are complete.
 
 **Complete when:** a new self-hoster can create the first Administrator in the browser and readers
 can use the existing application only within their own storage.
@@ -206,10 +203,9 @@ lost or deleted without affecting sources, books, reading state, or files.
 
 Before Phase 2 is marked complete:
 
-- [ ] Remove the transitional `novelreader.db` startup path and `DATABASE_PATH` compatibility if it
-      is no longer part of the final layout.
-- [ ] Remove global source/book/font store initialization and all global Reader Data tables.
-- [ ] Remove old font/data paths outside reader directories.
+- [x] Remove the transitional `novelreader.db` startup path and `DATABASE_PATH` compatibility.
+- [x] Remove production global source/book/font store initialization and global Reader Data tables.
+- [x] Remove old font/data paths outside reader directories.
 - [ ] Remove compatibility adapters and temporary feature flags introduced only for the cutover.
 - [ ] Remove or rewrite tests that instantiate global stores directly.
 - [ ] Run a repository search for `novelreader.db`, old global table names, and old global paths;

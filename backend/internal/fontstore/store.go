@@ -3,9 +3,8 @@ package fontstore
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/otwako/novelreader/internal/readerstore"
@@ -22,12 +21,12 @@ type Font struct {
 
 // Store handles font persistence and file storage.
 type Store struct {
-	db      *sql.DB
-	dataDir string
+	db    *sql.DB
+	files readerstore.FileStore
 }
 
-func NewStore(db *sql.DB, dataDir string) *Store {
-	return &Store{db: db, dataDir: dataDir}
+func NewStore(db *sql.DB, files readerstore.FileStore) *Store {
+	return &Store{db: db, files: files}
 }
 
 // ReaderMigration initializes font metadata inside one reader home.
@@ -37,12 +36,7 @@ func ReaderMigration() readerstore.ReaderMigration {
 	}}
 }
 
-func (s *Store) Init() error {
-	if err := initSchema(s.db); err != nil {
-		return err
-	}
-	return os.MkdirAll(s.fontDir(), 0755)
-}
+func (s *Store) Init() error { return initSchema(s.db) }
 
 type schemaExecutor interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -62,14 +56,9 @@ func initSchema(db schemaExecutor) error {
 	return nil
 }
 
-func (s *Store) fontDir() string {
-	return filepath.Join(s.dataDir, "fonts")
-}
-
 // Add saves a font file and adds a DB record.
 func (s *Store) Add(name, id string, data []byte) (*Font, error) {
-	fontPath := filepath.Join(s.fontDir(), id)
-	if err := os.WriteFile(fontPath, data, 0644); err != nil {
+	if err := s.files.WriteFile(data, 0o600, readerstore.FontsDirectory, id); err != nil {
 		return nil, fmt.Errorf("fontstore: write: %w", err)
 	}
 
@@ -84,7 +73,7 @@ func (s *Store) Add(name, id string, data []byte) (*Font, error) {
 	_, err := s.db.Exec(`INSERT OR REPLACE INTO fonts (id, name, file_name, file_size, created_at) VALUES (?,?,?,?,?)`,
 		f.ID, f.Name, f.FileName, f.FileSize, f.CreatedAt)
 	if err != nil {
-		os.Remove(fontPath) // cleanup file on DB failure
+		_ = s.files.Remove(readerstore.FontsDirectory, id) // cleanup file on DB failure
 		return nil, fmt.Errorf("fontstore: db: %w", err)
 	}
 	return f, nil
@@ -112,27 +101,32 @@ func (s *Store) List() ([]Font, error) {
 	return list, rows.Err()
 }
 
-// GetPath returns the filesystem path for a font by its ID.
-func (s *Store) GetPath(id string) (string, error) {
+// Read returns font metadata and bytes by ID.
+func (s *Store) Read(id string) (Font, []byte, error) {
 	var f Font
 	err := s.db.QueryRow(`SELECT `+fontColumns+` FROM fonts WHERE id = ?`, id).Scan(&f.ID, &f.Name, &f.FileName, &f.FileSize, &f.CreatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil
+		if errors.Is(err, sql.ErrNoRows) {
+			return Font{}, nil, nil
 		}
-		return "", err
+		return Font{}, nil, err
 	}
-	return filepath.Join(s.fontDir(), f.FileName), nil
+	data, err := s.files.ReadFile(readerstore.FontsDirectory, f.FileName)
+	if err != nil {
+		return Font{}, nil, err
+	}
+	return f, data, nil
 }
 
 // Delete removes a font.
 func (s *Store) Delete(id string) error {
-	path, err := s.GetPath(id)
-	if err != nil {
+	var fileName string
+	err := s.db.QueryRow(`SELECT file_name FROM fonts WHERE id = ?`, id).Scan(&fileName)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	if path != "" {
-		os.Remove(path)
+	if fileName != "" {
+		_ = s.files.Remove(readerstore.FontsDirectory, fileName)
 	}
 	_, err = s.db.Exec(`DELETE FROM fonts WHERE id = ?`, id)
 	return err

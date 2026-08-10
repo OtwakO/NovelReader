@@ -19,6 +19,26 @@ export class ExploreApiError extends Error {
   }
 }
 
+type AuthenticationLossListener = () => void;
+let authenticationLossListener: AuthenticationLossListener | undefined;
+
+export function onAuthenticationLoss(listener?: AuthenticationLossListener) {
+  authenticationLossListener = listener;
+  return () => {
+    if (authenticationLossListener === listener) authenticationLossListener = undefined;
+  };
+}
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -26,9 +46,11 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText })) as ExploreErrorBody;
+    if (res.status === 401) authenticationLossListener?.();
     if (err.code) throw new ExploreApiError(err);
-    throw new Error(err.error || err.message || res.statusText);
+    throw new ApiError(res.status, err.error || err.message || res.statusText);
   }
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
@@ -53,6 +75,21 @@ export function createInitialAdministrator(token: string, username: string, pass
     method: 'POST',
     body: JSON.stringify({ token, username, password }),
   });
+}
+
+export function getCurrentAccount() {
+  return req<AuthAccount>('/auth/account');
+}
+
+export function login(username: string, password: string) {
+  return req<AuthAccount>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+export function logout() {
+  return req<void>('/auth/logout', { method: 'POST' });
 }
 
 // --- Administrator recovery ---

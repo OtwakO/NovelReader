@@ -19,11 +19,13 @@ import (
 	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
+	"github.com/otwako/novelreader/internal/auth"
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/readerstore"
 )
 
 // Server holds API dependencies.
@@ -39,11 +41,22 @@ type Server struct {
 	processorCfg processor.Config
 	dataDir      string
 	mux          *http.ServeMux
+	auth         *auth.HTTPHandler
+	runtimes     *readerRuntimeManager
+	health       interface{ PingContext(context.Context) error }
 }
 
 // Mux exposes the underlying ServeMux for static file mounting.
 func (s *Server) Mux() *http.ServeMux {
 	return s.mux
+}
+
+// Close releases cached reader-home leases owned by the authenticated server.
+func (s *Server) Close() error {
+	if s == nil || s.runtimes == nil {
+		return nil
+	}
+	return s.runtimes.Close()
 }
 
 // NewServer creates and wires up the API server.
@@ -92,7 +105,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/healthz", s.handleHealth)
+	s.registerRoutesWithoutHealth()
+}
 
+func (s *Server) registerRoutesWithoutHealth() {
 	// Book sources — URLs with slashes can't go in path segments, use query param
 	s.mux.HandleFunc("GET /api/sources", s.handleListSources)
 	s.mux.HandleFunc("POST /api/sources", s.handleImportSources)
@@ -137,6 +153,49 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("DELETE /api/fonts/{id}", s.handleDeleteFont)
 	s.mux.HandleFunc("GET /api/fonts/{id}/file", s.handleGetFontFile)
 }
+
+// NewAuthenticatedServer creates the production Reader Data boundary.
+func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }) *Server {
+	s := &Server{
+		fetcher: rootSearcherFetcher(rootSearcher), jsVM: jsVM, cache: analyzer.NewCacheManager(),
+		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health,
+	}
+	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, limits, 32, limits.SessionTTL)
+	s.registerAuthenticatedRoutes()
+	return s
+}
+
+func rootSearcherFetcher(searcher *book.Searcher) *fetcher.Client {
+	return searcher.SharedFetcher()
+}
+
+func (s *Server) registerAuthenticatedRoutes() {
+	s.mux.HandleFunc("GET /api/healthz", s.handleHealth)
+	s.mux.Handle("/api/", s.auth.RequireIdentity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		account, ok := auth.IdentityFromContext(r.Context())
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
+		runtime, release, err := s.runtimes.acquire(r.Context(), account.ID)
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "reader storage unavailable")
+			return
+		}
+		defer release()
+		requestServer := *s
+		requestServer.mux = http.NewServeMux()
+		requestServer.db = runtime.home.DB()
+		requestServer.sourceStore = runtime.sourceStore
+		requestServer.bookStore = runtime.bookStore
+		requestServer.searcher = runtime.searcher
+		requestServer.fontStore = runtime.fontStore
+		requestServer.registerRoutesWithoutHealth()
+		requestServer.mux.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), readerHomeContextKey{}, runtime.home)))
+	})))
+}
+
+type readerHomeContextKey struct{}
 
 // --- Book Sources ---
 
@@ -877,14 +936,15 @@ func (s *Server) handleDeleteFont(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetFontFile(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	path, err := s.fontStore.GetPath(id)
-	if err != nil || path == "" {
+	font, data, err := s.fontStore.Read(id)
+	if err != nil || data == nil {
 		writeError(w, http.StatusNotFound, "font not found")
 		return
 	}
-
-	// ponytail: ServeFile sets Content-Type from extension; don't force woff2.
-	http.ServeFile(w, r, path)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename=%q`, font.Name))
+	w.Header().Set("Content-Type", http.DetectContentType(data))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 // --- Static files (frontend) ---

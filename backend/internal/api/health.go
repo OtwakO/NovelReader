@@ -9,13 +9,17 @@ import (
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if s.db == nil {
+	health := s.health
+	if health == nil && s.db != nil {
+		health = s.db
+	}
+	if health == nil {
 		writeError(w, http.StatusServiceUnavailable, "service not ready")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
-	if err := s.db.PingContext(ctx); err != nil {
+	if err := health.PingContext(ctx); err != nil {
 		slog.Error("readiness check failed", "error", err)
 		writeError(w, http.StatusServiceUnavailable, "service not ready")
 		return
