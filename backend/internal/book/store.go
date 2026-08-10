@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"github.com/otwako/novelreader/internal/readerstore"
 )
 
 var (
@@ -94,7 +96,19 @@ func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
-func (s *Store) Init() error {
+// ReaderMigration initializes bookshelf, progress, bookmark, and chapter-cache persistence.
+func ReaderMigration() readerstore.ReaderMigration {
+	return readerstore.ReaderMigration{Name: "books", Apply: func(tx *sql.Tx) error { return initSchema(tx) }}
+}
+
+func (s *Store) Init() error { return initSchema(s.db) }
+
+type schemaDatabase interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
+}
+
+func initSchema(db schemaDatabase) error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS books (
 			id TEXT PRIMARY KEY,
@@ -162,7 +176,7 @@ func (s *Store) Init() error {
 		`CREATE INDEX IF NOT EXISTS idx_chapter_cache_book_lru ON chapter_cache(book_id, last_accessed)`,
 	}
 	for _, stmt := range stmts {
-		if _, err := s.db.Exec(stmt); err != nil {
+		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("book: init: %w", err)
 		}
 	}
@@ -170,7 +184,7 @@ func (s *Store) Init() error {
 		{"alternate_sources", "TEXT DEFAULT '[]'"},
 		{"state_version", "INTEGER DEFAULT 0"},
 	} {
-		if err := ensureColumn(s.db, "books", column.name, column.definition); err != nil {
+		if err := ensureColumn(db, "books", column.name, column.definition); err != nil {
 			return fmt.Errorf("book: init column %s: %w", column.name, err)
 		}
 	}
@@ -180,11 +194,11 @@ func (s *Store) Init() error {
 		{"tag", "TEXT DEFAULT ''"},
 		{"word_count", "TEXT DEFAULT ''"},
 	} {
-		if err := ensureColumn(s.db, "chapters", column.name, column.definition); err != nil {
+		if err := ensureColumn(db, "chapters", column.name, column.definition); err != nil {
 			return fmt.Errorf("book: init chapter column %s: %w", column.name, err)
 		}
 	}
-	if err := ensureColumn(s.db, "chapter_cache", "blocks", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
+	if err := ensureColumn(db, "chapter_cache", "blocks", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
 		return fmt.Errorf("book: init chapter cache column blocks: %w", err)
 	}
 	return nil
@@ -405,7 +419,7 @@ func scanChapters(rows *sql.Rows) ([]Chapter, error) {
 	return list, rows.Err()
 }
 
-func ensureColumn(db *sql.DB, table, column, definition string) error {
+func ensureColumn(db schemaDatabase, table, column, definition string) error {
 	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
 	if err != nil {
 		return err

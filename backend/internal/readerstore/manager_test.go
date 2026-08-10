@@ -79,6 +79,113 @@ func TestManagerSupportsHostileButValidDataRootNames(t *testing.T) {
 	}
 }
 
+func TestManagerAppliesAndValidatesOrderedReaderMigrations(t *testing.T) {
+	root := t.TempDir()
+	first := ReaderMigration{Name: "sources", Apply: func(db *sql.Tx) error {
+		_, err := db.Exec(`CREATE TABLE migrated_sources (id TEXT PRIMARY KEY)`)
+		return err
+	}}
+	second := ReaderMigration{Name: "books", Apply: func(db *sql.Tx) error {
+		_, err := db.Exec(`CREATE TABLE migrated_books (id TEXT PRIMARY KEY)`)
+		return err
+	}}
+	manager, err := NewManager(root, 1, first, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Create(context.Background(), testUserAlice); err != nil {
+		t.Fatal(err)
+	}
+	home, err := manager.Open(context.Background(), testUserAlice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var version int
+	if err := home.DB().QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != InitialDatabaseVersion+2 {
+		t.Fatalf("reader database version = %d", version)
+	}
+	var applied int
+	if err := home.DB().QueryRow(`SELECT count(*) FROM readerstore_migrations`).Scan(&applied); err != nil {
+		t.Fatal(err)
+	}
+	if applied != 2 {
+		t.Fatalf("applied migrations = %d", applied)
+	}
+	if err := home.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reordered, err := NewManager(root, 1, second, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reordered.Close()
+	if _, err := reordered.Open(context.Background(), testUserAlice); !errors.Is(err, ErrMigrationOrder) {
+		t.Fatalf("reordered migrations error = %v", err)
+	}
+}
+
+func TestManagerOpenUpgradesAnOlderReaderHome(t *testing.T) {
+	root := t.TempDir()
+	first := ReaderMigration{Name: "sources", Apply: func(db *sql.Tx) error {
+		_, err := db.Exec(`CREATE TABLE migrated_sources (id TEXT PRIMARY KEY)`)
+		return err
+	}}
+	second := ReaderMigration{Name: "books", Apply: func(db *sql.Tx) error {
+		_, err := db.Exec(`CREATE TABLE migrated_books (id TEXT PRIMARY KEY)`)
+		return err
+	}}
+	oldManager, err := NewManager(root, 1, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := oldManager.Create(context.Background(), testUserAlice); err != nil {
+		t.Fatal(err)
+	}
+	if err := oldManager.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	upgradedManager, err := NewManager(root, 1, first, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer upgradedManager.Close()
+	home, err := upgradedManager.Open(context.Background(), testUserAlice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer home.Close()
+	var version int
+	if err := home.DB().QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != InitialDatabaseVersion+2 {
+		t.Fatalf("upgraded reader database version = %d", version)
+	}
+}
+
+func TestManagerRejectsDuplicateOrInvalidReaderMigrations(t *testing.T) {
+	apply := func(*sql.Tx) error { return nil }
+	for name, migrations := range map[string][]ReaderMigration{
+		"missing name":   {{Apply: apply}},
+		"missing apply":  {{Name: "books"}},
+		"duplicate name": {{Name: "books", Apply: apply}, {Name: "books", Apply: apply}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := NewManager(t.TempDir(), 1, migrations...); err == nil {
+				t.Fatal("expected invalid migration error")
+			}
+		})
+	}
+}
+
 func TestManagerCreateIsIdempotentAndProducesPortableHome(t *testing.T) {
 	manager := newTestManager(t, 2)
 	ctx := context.Background()
@@ -142,7 +249,7 @@ func TestManagerRecoversCompleteAndIncompleteStaging(t *testing.T) {
 			homePath := filepath.Join(manager.root, UsersDirectory, string(testUserAlice))
 			stagingPath := homePath + homeStagingSuffix
 			if complete {
-				if err := createStagedHome(stagingPath, testUserAlice); err != nil {
+				if err := createStagedHome(stagingPath, testUserAlice, nil); err != nil {
 					t.Fatal(err)
 				}
 			} else {
@@ -157,7 +264,7 @@ func TestManagerRecoversCompleteAndIncompleteStaging(t *testing.T) {
 			if err := manager.Create(context.Background(), testUserAlice); err != nil {
 				t.Fatal(err)
 			}
-			if err := validateHome(homePath, testUserAlice); err != nil {
+			if err := validateHome(homePath, testUserAlice, nil); err != nil {
 				t.Fatalf("published home: %v", err)
 			}
 			if _, err := os.Lstat(stagingPath); !errors.Is(err, os.ErrNotExist) {
@@ -171,7 +278,7 @@ func TestManagerRebuildsStructurallyCompleteVersionZeroStaging(t *testing.T) {
 	manager := newTestManager(t, 2)
 	homePath := filepath.Join(manager.root, UsersDirectory, string(testUserAlice))
 	stagingPath := homePath + homeStagingSuffix
-	if err := createStagedHome(stagingPath, testUserAlice); err != nil {
+	if err := createStagedHome(stagingPath, testUserAlice, nil); err != nil {
 		t.Fatal(err)
 	}
 	databasePath := filepath.Join(stagingPath, CredentialsDatabaseName)
@@ -189,7 +296,7 @@ func TestManagerRebuildsStructurallyCompleteVersionZeroStaging(t *testing.T) {
 	if err := manager.Create(context.Background(), testUserAlice); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateHome(homePath, testUserAlice); err != nil {
+	if err := validateHome(homePath, testUserAlice, nil); err != nil {
 		t.Fatalf("recovered home: %v", err)
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/otwako/novelreader/internal/readerstore"
 )
 
 // Store handles BookSource persistence.
@@ -16,13 +18,24 @@ func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
+// ReaderMigration initializes book-source persistence inside one reader home.
+func ReaderMigration() readerstore.ReaderMigration {
+	return readerstore.ReaderMigration{Name: "book-sources", Apply: func(tx *sql.Tx) error { return initSchema(tx) }}
+}
+
 // Init creates the table if it doesn't exist.
-func (s *Store) Init() error {
-	if _, err := s.db.Exec(ColumnDefs()); err != nil {
+func (s *Store) Init() error { return initSchema(s.db) }
+
+type schemaExecutor interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+func initSchema(db schemaExecutor) error {
+	if _, err := db.Exec(ColumnDefs()); err != nil {
 		return err
 	}
 	// Add the lossless import column to databases created before source_json existed.
-	if _, err := s.db.Exec(`ALTER TABLE book_sources ADD COLUMN source_json TEXT NOT NULL DEFAULT ''`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+	if _, err := db.Exec(`ALTER TABLE book_sources ADD COLUMN source_json TEXT NOT NULL DEFAULT ''`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
 		return fmt.Errorf("booksource: migrate source_json: %w", err)
 	}
 	return nil

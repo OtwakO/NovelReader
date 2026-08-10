@@ -20,9 +20,10 @@ type Manager struct {
 	capacity int
 	notify   chan struct{}
 
-	mu      sync.Mutex
-	closed  bool
-	entries map[UserID]*homeEntry
+	mu         sync.Mutex
+	closed     bool
+	entries    map[UserID]*homeEntry
+	migrations []ReaderMigration
 }
 
 type homeEntry struct {
@@ -39,9 +40,19 @@ type Home struct {
 	once    sync.Once
 }
 
-func NewManager(root string, capacity int) (*Manager, error) {
+func NewManager(root string, capacity int, migrations ...ReaderMigration) (*Manager, error) {
 	if capacity < 1 {
 		return nil, fmt.Errorf("readerstore: capacity must be positive")
+	}
+	migrationNames := make(map[string]struct{}, len(migrations))
+	for _, migration := range migrations {
+		if migration.Name == "" || migration.Apply == nil {
+			return nil, fmt.Errorf("readerstore: migration name and apply function are required")
+		}
+		if _, exists := migrationNames[migration.Name]; exists {
+			return nil, fmt.Errorf("readerstore: duplicate migration %q", migration.Name)
+		}
+		migrationNames[migration.Name] = struct{}{}
 	}
 	state, err := PrepareRoot(root)
 	if err != nil {
@@ -55,10 +66,11 @@ func NewManager(root string, capacity int) (*Manager, error) {
 		return nil, fmt.Errorf("readerstore: resolve data root: %w", err)
 	}
 	return &Manager{
-		root:     absoluteRoot,
-		capacity: capacity,
-		notify:   make(chan struct{}),
-		entries:  make(map[UserID]*homeEntry),
+		root:       absoluteRoot,
+		capacity:   capacity,
+		notify:     make(chan struct{}),
+		entries:    make(map[UserID]*homeEntry),
+		migrations: append([]ReaderMigration(nil), migrations...),
 	}, nil
 }
 
@@ -108,27 +120,27 @@ func (m *Manager) Create(ctx context.Context, userID UserID) error {
 		return err
 	}
 	if _, err := os.Lstat(homePath); err == nil {
-		return validateHome(homePath, userID)
+		return validateHome(homePath, userID, m.migrations)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("readerstore: inspect reader home: %w", err)
 	}
 
 	stagingPath := homePath + homeStagingSuffix
 	if _, err := os.Lstat(stagingPath); err == nil {
-		if err := recoverStagedHome(stagingPath, homePath, userID); err != nil {
+		if err := recoverStagedHome(stagingPath, homePath, userID, m.migrations); err != nil {
 			return err
 		}
 		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("readerstore: inspect staged reader home: %w", err)
 	}
-	if err := createStagedHome(stagingPath, userID); err != nil {
+	if err := createStagedHome(stagingPath, userID, m.migrations); err != nil {
 		_ = os.RemoveAll(stagingPath)
 		return err
 	}
 	if err := os.Rename(stagingPath, homePath); err != nil {
 		_ = os.RemoveAll(stagingPath)
-		if validateErr := validateHome(homePath, userID); validateErr == nil {
+		if validateErr := validateHome(homePath, userID, m.migrations); validateErr == nil {
 			return nil
 		}
 		return fmt.Errorf("readerstore: publish reader home: %w", err)
@@ -222,11 +234,15 @@ func (m *Manager) openEntry(userID UserID) (*homeEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := validateHome(homePath, userID); err != nil {
+	if err := validateHomeForOpen(homePath, userID, m.migrations); err != nil {
 		return nil, err
 	}
 	readerDB, err := openHomeDatabase(filepath.Join(homePath, ReaderDatabaseName))
 	if err != nil {
+		return nil, err
+	}
+	if err := applyReaderMigrations(readerDB, m.migrations); err != nil {
+		_ = readerDB.Close()
 		return nil, err
 	}
 	credentialsDB, err := openHomeDatabase(filepath.Join(homePath, CredentialsDatabaseName))

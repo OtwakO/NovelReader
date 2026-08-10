@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/otwako/novelreader/internal/readerstore"
 )
 
 // Font represents an uploaded font file.
@@ -20,16 +22,34 @@ type Font struct {
 
 // Store handles font persistence and file storage.
 type Store struct {
-	db       *sql.DB
-	dataDir  string
+	db      *sql.DB
+	dataDir string
 }
 
 func NewStore(db *sql.DB, dataDir string) *Store {
 	return &Store{db: db, dataDir: dataDir}
 }
 
+// ReaderMigration initializes font metadata inside one reader home.
+func ReaderMigration() readerstore.ReaderMigration {
+	return readerstore.ReaderMigration{Name: "fonts", Apply: func(tx *sql.Tx) error {
+		return initSchema(tx)
+	}}
+}
+
 func (s *Store) Init() error {
-	_, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS fonts (
+	if err := initSchema(s.db); err != nil {
+		return err
+	}
+	return os.MkdirAll(s.fontDir(), 0755)
+}
+
+type schemaExecutor interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+func initSchema(db schemaExecutor) error {
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS fonts (
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL UNIQUE,
 		file_name TEXT NOT NULL,
@@ -39,7 +59,7 @@ func (s *Store) Init() error {
 	if err != nil {
 		return fmt.Errorf("fontstore: init: %w", err)
 	}
-	return os.MkdirAll(s.fontDir(), 0755)
+	return nil
 }
 
 func (s *Store) fontDir() string {
