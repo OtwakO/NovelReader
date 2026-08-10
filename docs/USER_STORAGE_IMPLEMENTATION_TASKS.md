@@ -135,12 +135,11 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 ### 2.5 Account administration and deletion backend
 
 - [x] Allow Administrators to list and disable/re-enable ordinary accounts only, with protected Administrator targets, atomic session revocation, and idempotent desired-state retries.
-- [ ] Allow Administrators to reset and delete ordinary accounts only.
-- [ ] Implement one-time 30-minute reader password-reset tokens.
+- [x] Allow Administrators to reset ordinary accounts only; deletion remains pending.
+- [x] Implement one-time 30-minute reader password-reset tokens with hash-only storage, issuer audit metadata, supersession, single-use completion, and atomic all-session revocation.
 - [ ] Implement durable, retryable account deletion with write quiescence and Source Session purge.
 - [ ] Resolve deletion paths only through immutable `UserID` and `readerstore`.
-- [ ] Add tests for protected Administrator accounts, issuer deletion, reset replay/expiry,
-      in-flight writes, filesystem failure, and deletion retry.
+- [ ] Add remaining deletion tests for in-flight writes, filesystem failure, and retry; reset tests now cover protected Administrators, issuer deletion, supersession, replay/expiry, concurrent completion, and revocation rollback.
 
 **Complete when:** every non-public route requires identity, no global Reader Data store or
 fallback remains, obsolete schema/configuration/tests are removed, and cross-user access fails
@@ -155,7 +154,7 @@ without revealing whether another reader's resource exists.
 - [x] Load the current account before entering authenticated application routes.
 - [x] Add authenticated current-password change with optimistic credential matching, all-session revocation, forced re-login, and an account page; logout is complete.
 - [x] Handle mid-session revocation by centrally unmounting private UI on `401`; explicit logout also unmounts immediately and warns/retries instead of claiming success if server revocation fails.
-- [x] Add ordinary-account list and disable/re-enable controls with explicit disable confirmation; reset/delete controls remain pending their backend slices.
+- [x] Add ordinary-account list, disable/re-enable controls with explicit disable confirmation, one-time reset-token issuance, and public reset completion; delete controls remain pending their backend slice.
 - [x] Add the configured Administrator recovery page.
 - [x] Add keyboard-accessible forms, loading/error states, and narrow-screen layouts for setup/login/recovery.
 - [ ] Add one setup → login → read → logout browser workflow; targeted compiler/state tests are complete.
@@ -234,4 +233,5 @@ Before Phase 2 is marked complete:
 - [x] Environment-controlled ordinary-reader registration complete.
 - [x] Authenticated password change complete.
 - [x] Administrator list/disable/re-enable for ordinary readers.
-- [ ] Next core account slice: Administrator-issued one-time reader password reset.
+- [x] Administrator-issued one-time reader password reset complete.
+- [ ] Next core account slice: durable ordinary-reader deletion.

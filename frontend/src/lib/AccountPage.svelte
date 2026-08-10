@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { changePassword, listReaderAccounts, setReaderEnabled, type AdminReaderAccount, type AuthAccount } from '../api/client';
+  import { changePassword, issueReaderPasswordReset, listReaderAccounts, setReaderEnabled, type AdminReaderAccount, type AuthAccount } from '../api/client';
   import { clearedPasswordFields } from './accountGate.mjs';
   import { mayManageReaders, readerStatusControl } from './readerAdministration.mjs';
+  import { resetDelivery } from './passwordReset.mjs';
 
   let { account, onPasswordChanged, onLogout }: { account: AuthAccount; onPasswordChanged?: () => void; onLogout?: () => void } = $props();
   let currentPassword = $state('');
@@ -14,6 +15,8 @@
   let readersLoading = $state(false);
   let readersError = $state('');
   let changingReaderID = $state('');
+  let issuingResetID = $state('');
+  let issuedReset: { readerID: string; username: string; token: string; expiresAt: number } | null = $state(null);
 
   onMount(() => {
     if (mayManageReaders(account.role)) loadReaders();
@@ -45,6 +48,20 @@
       readersError = cause instanceof Error ? cause.message : 'Reader account could not be updated.';
     } finally {
       changingReaderID = '';
+    }
+  }
+
+  async function issuePasswordReset(reader: AdminReaderAccount) {
+    if (reader.status === 'deleting' || changingReaderID !== '' || issuingResetID !== '') return;
+    issuingResetID = reader.id;
+    issuedReset = null;
+    readersError = '';
+    try {
+      issuedReset = resetDelivery(reader, await issueReaderPasswordReset(reader.id));
+    } catch (cause) {
+      readersError = cause instanceof Error ? cause.message : 'Password reset token could not be issued.';
+    } finally {
+      issuingResetID = '';
     }
   }
 
@@ -99,6 +116,13 @@
         <button class="secondary compact" type="button" onclick={loadReaders} disabled={readersLoading}>Refresh</button>
       </div>
       {#if readersError}<p class="error" role="alert">{readersError}</p>{/if}
+      {#if issuedReset}
+        <div class="reset-delivery" role="status">
+          <div><strong>One-time reset token for {issuedReset.username}</strong><p>Deliver this token securely. It expires at {new Date(issuedReset.expiresAt * 1000).toLocaleString()} and will not be shown again after this panel is closed.</p></div>
+          <code>{issuedReset.token}</code>
+          <button class="secondary compact" type="button" onclick={() => issuedReset = null}>Close token</button>
+        </div>
+      {/if}
       {#if readersLoading}
         <p class="muted">Loading reader accounts…</p>
       {:else if readers.length === 0}
@@ -109,9 +133,14 @@
             {@const control = readerStatusControl(reader.status)}
             <li>
               <div><strong>{reader.username}</strong><span class:disabled-status={reader.status === 'disabled'}>{reader.status}</span></div>
-              <button class:danger={control.confirmDisable} class="compact" type="button" disabled={changingReaderID !== '' || !control.available} onclick={() => changeReaderStatus(reader)}>
-                {changingReaderID === reader.id ? 'Updating…' : control.label}
-              </button>
+              <div class="reader-actions">
+                <button class="secondary compact" type="button" disabled={changingReaderID !== '' || issuingResetID !== '' || reader.status === 'deleting'} onclick={() => issuePasswordReset(reader)}>
+                  {issuingResetID === reader.id ? 'Issuing…' : 'Reset password'}
+                </button>
+                <button class:danger={control.confirmDisable} class="compact" type="button" disabled={changingReaderID !== '' || issuingResetID !== '' || !control.available} onclick={() => changeReaderStatus(reader)}>
+                  {changingReaderID === reader.id ? 'Updating…' : control.label}
+                </button>
+              </div>
             </li>
           {/each}
         </ul>
@@ -147,10 +176,14 @@
   .section-heading p, .muted { color:#746e69; line-height:1.45; }
   .reader-list { display:grid; gap:.65rem; margin:1rem 0 0; padding:0; list-style:none; }
   .reader-list li { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.8rem; border:1px solid var(--border); border-radius:.6rem; }
-  .reader-list li div { display:grid; gap:.2rem; min-width:0; }
+  .reader-list li > div:first-child { display:grid; gap:.2rem; min-width:0; }
   .reader-list span { color:#39704a; font-size:.78rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
   .reader-list .disabled-status { color:#8b5a24; }
   .compact { min-height:2.25rem; padding:.4rem .75rem; }
+  .reader-actions { display:flex; gap:.5rem; }
+  .reset-delivery { display:grid; gap:.65rem; margin-top:1rem; padding:.85rem; border:1px solid #b89d60; border-radius:.6rem; background:#fff8e7; }
+  .reset-delivery p { margin:.25rem 0 0; color:#746e69; line-height:1.45; }
+  .reset-delivery code { overflow-wrap:anywhere; padding:.65rem; border-radius:.4rem; background:white; font-size:.82rem; user-select:all; }
   .danger { background:#8a2f2f; }
-  @media (max-width: 30rem) { .section-heading, .reader-list li { align-items:stretch; flex-direction:column; } .compact { width:100%; } }
+  @media (max-width: 30rem) { .section-heading, .reader-list li { align-items:stretch; flex-direction:column; } .reader-actions { flex-direction:column; } .compact { width:100%; } }
 </style>

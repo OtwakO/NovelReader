@@ -1,7 +1,7 @@
 <script lang="ts">
   import { login, type AuthAccount } from '../api/client';
 
-  let { registrationEnabled, onLogin, onRegister, onRecovery }: { registrationEnabled?: boolean; onLogin?: (account: AuthAccount) => void; onRegister?: () => void; onRecovery?: () => void } = $props();
+  let { registrationEnabled, onLogin, onRegister, onRecovery, onPasswordReset }: { registrationEnabled?: boolean; onLogin?: (account: AuthAccount) => void; onRegister?: () => void; onRecovery?: () => void; onPasswordReset?: () => void } = $props();
   let username = $state('');
   let password = $state('');
   let error = $state('');
@@ -39,6 +39,7 @@
     </form>
     <div class="secondary-actions">
       {#if registrationEnabled}<button type="button" onclick={() => onRegister?.()}>Create account</button>{/if}
+      <button type="button" onclick={() => onPasswordReset?.()}>Use reset token</button>
       <button type="button" onclick={() => onRecovery?.()}>Administrator recovery</button>
     </div>
   </section>

@@ -6,7 +6,7 @@ import { compile } from 'svelte/compiler';
 
 const root = path.resolve(import.meta.dirname, '..');
 
-for (const file of ['App.svelte', 'lib/LoginPage.svelte', 'lib/RegistrationPage.svelte', 'lib/AccountPage.svelte', 'lib/AuthenticatedApp.svelte']) {
+for (const file of ['App.svelte', 'lib/LoginPage.svelte', 'lib/RegistrationPage.svelte', 'lib/PasswordResetPage.svelte', 'lib/AccountPage.svelte', 'lib/AuthenticatedApp.svelte']) {
   test(`${file} compiles`, () => {
     const source = fs.readFileSync(path.join(root, file), 'utf8');
     const result = compile(source, { filename: file, generate: 'client' });
@@ -20,7 +20,9 @@ test('administrator account page exposes bounded reader status controls', () => 
   assert.match(source, /await listReaderAccounts\(\)/);
   assert.match(source, /window\.confirm/);
   assert.match(source, /await setReaderEnabled\(reader\.id, enabled\)/);
-  assert.doesNotMatch(source, /password-reset|deleteReader|Delete account/);
+  assert.match(source, /await issueReaderPasswordReset\(reader\.id\)/);
+  assert.match(source, /will not be shown again/);
+  assert.doesNotMatch(source, /deleteReader|Delete account/);
 });
 
 test('root gate resolves setup and account before private app mount', () => {
@@ -34,4 +36,6 @@ test('root gate resolves setup and account before private app mount', () => {
   assert.match(source, /await getRegistrationPolicy\(\)/);
   assert.match(source, /<RegistrationPage/);
   assert.match(source, /onPasswordChanged/);
+  assert.match(source, /gate === 'password-reset'/);
+  assert.match(source, /<PasswordResetPage/);
 });

@@ -43,12 +43,16 @@ type HTTPHandler struct {
 	loginTimeout       time.Duration
 	loginLimiter       *loginRateLimiter
 	passwordLimiter    *loginRateLimiter
+	resetLimiter       *loginRateLimiter
 	now                func() time.Time
 	afterSessionCreate func(SessionCredential)
 	registration       *RegistrationService
 	registerAccount    func(context.Context, string, string, string, time.Time) (Account, error)
 	changePassword     func(context.Context, readerstore.UserID, string, string, int64) error
 	setReaderEnabled   func(context.Context, readerstore.UserID, bool, int64) (Account, error)
+	passwordResets     *PasswordResetService
+	issuePasswordReset func(context.Context, readerstore.UserID, Account, int64) (PasswordResetCredential, error)
+	completeReset      func(context.Context, string, string) error
 }
 
 type loginRateLimiter struct {
@@ -85,10 +89,20 @@ type readerStatusRequest struct {
 	Enabled *bool
 }
 
+type passwordResetCompleteRequest struct {
+	Token       string
+	NewPassword string
+}
+
 type accountResponse struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 	Role     Role   `json:"role"`
+}
+
+type passwordResetIssueResponse struct {
+	Token     string `json:"token"`
+	ExpiresAt int64  `json:"expiresAt"`
 }
 
 type adminAccountResponse struct {
@@ -130,10 +144,19 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 			limit:    config.LoginAttempts,
 			window:   config.LoginWindow,
 		},
+		resetLimiter: &loginRateLimiter{
+			attempts: make(map[string]loginAttemptWindow),
+			limit:    config.LoginAttempts,
+			window:   config.LoginWindow,
+		},
 		now: time.Now,
 	}
 	handler.changePassword = handler.accounts.ChangePassword
 	handler.setReaderEnabled = handler.accounts.SetReaderEnabled
+	handler.passwordResets = NewPasswordResetService(store)
+	handler.passwordResets.now = func() int64 { return handler.now().Unix() }
+	handler.issuePasswordReset = handler.passwordResets.Issue
+	handler.completeReset = handler.passwordResets.Complete
 	if config.Readers != nil {
 		handler.registration = NewRegistrationService(store, config.Readers, config.RegistrationEnabled, config.RegistrationInviteCode)
 		handler.registerAccount = handler.registration.Register
@@ -144,8 +167,10 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 	handler.mux.HandleFunc("POST /api/auth/register", handler.handleRegister)
 	handler.mux.Handle("GET /api/auth/account", handler.RequireIdentity(http.HandlerFunc(handler.handleAccount)))
 	handler.mux.Handle("POST /api/auth/password", handler.RequireIdentity(http.HandlerFunc(handler.handlePasswordChange)))
+	handler.mux.HandleFunc("POST /api/auth/password-reset", handler.handlePasswordResetComplete)
 	handler.mux.Handle("GET /api/auth/admin/readers", handler.RequireAdmin(http.HandlerFunc(handler.handleListReaders)))
 	handler.mux.Handle("PUT /api/auth/admin/readers/{userID}/status", handler.RequireAdmin(http.HandlerFunc(handler.handleReaderStatus)))
+	handler.mux.Handle("POST /api/auth/admin/readers/{userID}/password-reset", handler.RequireAdmin(http.HandlerFunc(handler.handlePasswordResetIssue)))
 	return handler, nil
 }
 
@@ -485,6 +510,98 @@ func (h *HTTPHandler) changePasswordWithinDeadline(ctx context.Context, userID r
 	}
 }
 
+func (h *HTTPHandler) handlePasswordResetIssue(w http.ResponseWriter, r *http.Request) {
+	if !h.allowUnsafeRequest(w, r) {
+		return
+	}
+	userID, err := readerstore.ParseUserID(r.PathValue("userID"))
+	if err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid reader account")
+		return
+	}
+	issuer, ok := IdentityFromContext(r.Context())
+	if !ok {
+		writeAuthError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.loginTimeout)
+	defer cancel()
+	credential, err := h.issuePasswordReset(ctx, userID, issuer, h.now().Unix())
+	switch {
+	case errors.Is(err, ErrProtectedAccount):
+		writeAuthError(w, http.StatusForbidden, "protected account")
+	case errors.Is(err, ErrAccountNotFound):
+		writeAuthError(w, http.StatusNotFound, "reader account not found")
+	case errors.Is(err, ErrAccountNotActive):
+		writeAuthError(w, http.StatusConflict, "reader account unavailable")
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "password reset temporarily unavailable")
+	case err != nil:
+		writeAuthError(w, http.StatusInternalServerError, "password reset unavailable")
+	default:
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Pragma", "no-cache")
+		writeAuthJSON(w, http.StatusCreated, passwordResetIssueResponse{Token: credential.Token, ExpiresAt: credential.ExpiresAt})
+	}
+}
+
+func (h *HTTPHandler) handlePasswordResetComplete(w http.ResponseWriter, r *http.Request) {
+	if !h.allowUnsafeRequest(w, r) {
+		return
+	}
+	if retryAfter, allowed := h.resetLimiter.allow(directPeerAddress(r.RemoteAddr), h.now()); !allowed {
+		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retryAfter.Seconds()))))
+		writeAuthError(w, http.StatusTooManyRequests, "too many password reset attempts")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.loginTimeout)
+	defer cancel()
+	request, err := readPasswordResetCompleteWithinDeadline(ctx, r)
+	if errors.Is(err, errLoginRequestTooLarge) {
+		writeAuthError(w, http.StatusRequestEntityTooLarge, "request body is too large")
+		return
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "password reset temporarily unavailable")
+		return
+	}
+	if err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	err = h.completePasswordResetWithinDeadline(ctx, request)
+	switch {
+	case errors.Is(err, ErrInvalidPasswordReset):
+		writeAuthError(w, http.StatusBadRequest, "invalid or expired password reset")
+	case errors.Is(err, ErrInvalidPassword):
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		writeAuthError(w, http.StatusConflict, "password reset outcome is uncertain; try signing in with the new password")
+	case errors.Is(err, ErrPasswordWorkOverloaded):
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "password reset temporarily unavailable")
+	case err != nil:
+		writeAuthError(w, http.StatusInternalServerError, "password reset unavailable")
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func (h *HTTPHandler) completePasswordResetWithinDeadline(ctx context.Context, request passwordResetCompleteRequest) error {
+	result := make(chan error, 1)
+	go func() {
+		result <- h.completeReset(ctx, request.Token, request.NewPassword)
+	}()
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (h *HTTPHandler) handleListReaders(w http.ResponseWriter, r *http.Request) {
 	accounts, err := h.accounts.ListReaderAccounts(r.Context())
 	if err != nil {
@@ -781,6 +898,48 @@ func readPasswordChangeWithinDeadline(ctx context.Context, r *http.Request) (pas
 	}
 	if _, err := decoder.Token(); err != io.EOF {
 		return passwordChangeRequest{}, errInvalidLoginRequest
+	}
+	return request, nil
+}
+
+func readPasswordResetCompleteWithinDeadline(ctx context.Context, r *http.Request) (passwordResetCompleteRequest, error) {
+	body, err := readAuthBodyWithinDeadline(ctx, r)
+	if err != nil {
+		return passwordResetCompleteRequest{}, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return passwordResetCompleteRequest{}, errInvalidLoginRequest
+	}
+	var request passwordResetCompleteRequest
+	seen := map[string]bool{}
+	for decoder.More() {
+		field, err := decoder.Token()
+		name, ok := field.(string)
+		if err != nil || !ok || seen[name] {
+			return passwordResetCompleteRequest{}, errInvalidLoginRequest
+		}
+		seen[name] = true
+		switch name {
+		case "token":
+			if err := decoder.Decode(&request.Token); err != nil {
+				return passwordResetCompleteRequest{}, errInvalidLoginRequest
+			}
+		case "newPassword":
+			if err := decoder.Decode(&request.NewPassword); err != nil {
+				return passwordResetCompleteRequest{}, errInvalidLoginRequest
+			}
+		default:
+			return passwordResetCompleteRequest{}, errInvalidLoginRequest
+		}
+	}
+	closing, err := decoder.Token()
+	if err != nil || closing != json.Delim('}') || request.Token == "" || request.NewPassword == "" {
+		return passwordResetCompleteRequest{}, errInvalidLoginRequest
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return passwordResetCompleteRequest{}, errInvalidLoginRequest
 	}
 	return request, nil
 }

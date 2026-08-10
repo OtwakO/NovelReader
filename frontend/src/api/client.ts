@@ -131,6 +131,22 @@ export function setReaderEnabled(userID: string, enabled: boolean) {
   });
 }
 
+export interface PasswordResetCredential {
+  token: string;
+  expiresAt: number;
+}
+
+export function issueReaderPasswordReset(userID: string) {
+  return req<PasswordResetCredential>(`/auth/admin/readers/${encodeURIComponent(userID)}/password-reset`, { method: 'POST' });
+}
+
+export function completePasswordReset(token: string, newPassword: string) {
+  return req<void>('/auth/password-reset', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword }),
+  });
+}
+
 export function logout() {
   return req<void>('/auth/logout', { method: 'POST' });
 }

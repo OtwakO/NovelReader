@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-07] Reader reset separates password work from token consumption
+- **Context**: Added Administrator-issued one-time password resets for ordinary reader accounts.
+- **Change**: Issuance stores only a SHA-256 token hash, retains issuer username metadata, expires after 30 minutes, and deletes earlier unused tokens. Completion performs bounded Argon2 work before taking the session guard, then re-checks and consumes the token in the same transaction as password replacement, authentication-version increment, and all-session revocation. Active/disabled status is preserved.
+- **Reason**: Holding the session barrier during password hashing would stall unrelated authentication, while trusting the pre-hash token lookup would permit concurrent replay. The second transactional lookup provides single-use behavior without a long authentication lock.
+- **Verified**: Regressions cover hash-only storage, non-cacheable plaintext issuance, supersession, exact expiry including expiry during Argon2 work, replay, concurrent completion, protected Administrators, disabled-status preservation, issuer deletion metadata, session revocation, rollback on revocation failure, strict public parsing/origin/size boundaries, Administrator authorization, and public reset routing that clears private account state before any session lookup.
+- **Watch out**: A deadline after reset dispatch can be ambiguous because successful completion necessarily consumes the token. The HTTP response tells the reader to try signing in with the new password instead of blindly retrying.
+
 ### [2026-08-07] Reader disable is a transactional authentication boundary
 - **Context**: Added the first Administrator account-management slice: ordinary-reader list and active/disabled controls.
 - **Change**: The AccountService permits only ordinary reader active↔disabled changes. Role validation, status/version update, and all-session revocation occur under the shared session guard and one transaction; desired-state retries are idempotent. The Account page confirms disable and never exposes Administrator targets.

@@ -6,9 +6,11 @@
   import SetupPage from './lib/SetupPage.svelte';
   import RecoveryPage from './lib/RecoveryPage.svelte';
   import RegistrationPage from './lib/RegistrationPage.svelte';
+  import PasswordResetPage from './lib/PasswordResetPage.svelte';
   import { passwordChangeSucceeded } from './lib/accountGate.mjs';
+  import { publicResetGate } from './lib/passwordReset.mjs';
 
-  type Gate = 'loading' | 'setup' | 'setup-unavailable' | 'login' | 'registration' | 'logout-failed' | 'recovery' | 'recovery-unavailable' | 'authenticated' | 'error';
+  type Gate = 'loading' | 'setup' | 'setup-unavailable' | 'login' | 'registration' | 'password-reset' | 'logout-failed' | 'recovery' | 'recovery-unavailable' | 'authenticated' | 'error';
   let gate: Gate = $state('loading');
   let account: AuthAccount | null = $state(null);
   let message = $state('');
@@ -33,7 +35,7 @@
   async function bootstrap() {
     gate = 'loading';
     message = '';
-    requestedHash = window.location.hash && !['#/login', '#/register', '#/recovery'].includes(window.location.hash) ? window.location.hash : '#/shelf';
+    requestedHash = window.location.hash && !['#/login', '#/register', '#/password-reset', '#/recovery'].includes(window.location.hash) ? window.location.hash : '#/shelf';
     try {
       const setup = await getSetupStatus();
       if (setup.status !== 'closed') {
@@ -43,6 +45,12 @@
       const registration = await getRegistrationPolicy();
       registrationEnabled = registration.enabled;
       registrationInviteRequired = registration.inviteRequired;
+      const publicReset = publicResetGate(window.location.hash);
+      if (publicReset) {
+        account = publicReset.account;
+        gate = publicReset.gate;
+        return;
+      }
       try {
         account = await getCurrentAccount();
         gate = 'authenticated';
@@ -82,6 +90,16 @@
   function showLogin() {
     gate = 'login';
     window.location.hash = '#/login';
+  }
+
+  function showPasswordReset() {
+    gate = 'password-reset';
+    window.location.hash = '#/password-reset';
+  }
+
+  function passwordResetComplete() {
+    message = 'Password reset complete. Sign in with your new password.';
+    showLogin();
   }
 
   async function showRecovery() {
@@ -131,9 +149,11 @@
   <main class="gate-message"><section><h1>Setup requires server configuration</h1><p>Set <code>ADMIN_BOOTSTRAP_TOKEN</code>, restart NovelReader, and reload this page.</p></section></main>
 {:else if gate === 'login'}
   {#if message}<p class="session-message" role="status">{message}</p>{/if}
-  <LoginPage {registrationEnabled} onLogin={signedIn} onRegister={showRegistration} onRecovery={showRecovery} />
+  <LoginPage {registrationEnabled} onLogin={signedIn} onRegister={showRegistration} onRecovery={showRecovery} onPasswordReset={showPasswordReset} />
 {:else if gate === 'registration'}
   <RegistrationPage inviteRequired={registrationInviteRequired} onComplete={signedIn} onCancel={showLogin} />
+{:else if gate === 'password-reset'}
+  <PasswordResetPage onComplete={passwordResetComplete} onCancel={showLogin} />
 {:else if gate === 'logout-failed'}
   <main class="gate-message"><section><h1>Sign out could not be confirmed</h1><p role="alert">Your private pages are closed, but the server may still recognize this browser session. Retry while connected before another person uses this browser.</p><p>{message}</p><button onclick={signOut}>Retry sign out</button></section></main>
 {:else if gate === 'recovery'}
