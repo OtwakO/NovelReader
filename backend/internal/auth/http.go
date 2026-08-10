@@ -53,6 +53,8 @@ type HTTPHandler struct {
 	passwordResets     *PasswordResetService
 	issuePasswordReset func(context.Context, readerstore.UserID, Account, int64) (PasswordResetCredential, error)
 	completeReset      func(context.Context, string, string) error
+	deletions          *DeletionService
+	deleteReader       func(context.Context, readerstore.UserID, string, Account, int64) (DeletionJob, error)
 }
 
 type loginRateLimiter struct {
@@ -92,6 +94,10 @@ type readerStatusRequest struct {
 type passwordResetCompleteRequest struct {
 	Token       string
 	NewPassword string
+}
+
+type readerDeletionRequest struct {
+	Username string
 }
 
 type accountResponse struct {
@@ -171,7 +177,14 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 	handler.mux.Handle("GET /api/auth/admin/readers", handler.RequireAdmin(http.HandlerFunc(handler.handleListReaders)))
 	handler.mux.Handle("PUT /api/auth/admin/readers/{userID}/status", handler.RequireAdmin(http.HandlerFunc(handler.handleReaderStatus)))
 	handler.mux.Handle("POST /api/auth/admin/readers/{userID}/password-reset", handler.RequireAdmin(http.HandlerFunc(handler.handlePasswordResetIssue)))
+	handler.mux.Handle("DELETE /api/auth/admin/readers/{userID}", handler.RequireAdmin(http.HandlerFunc(handler.handleReaderDeletion)))
 	return handler, nil
+}
+
+// ConfigureDeletionQuiescer completes deletion wiring after the API runtime manager exists.
+func (h *HTTPHandler) ConfigureDeletionQuiescer(readers *readerstore.Manager, quiesce func(context.Context, readerstore.UserID) error) {
+	h.deletions = NewDeletionService(h.accounts.store, readers, quiesce)
+	h.deleteReader = h.deletions.Delete
 }
 
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -507,6 +520,58 @@ func (h *HTTPHandler) changePasswordWithinDeadline(ctx context.Context, userID r
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+func (h *HTTPHandler) handleReaderDeletion(w http.ResponseWriter, r *http.Request) {
+	if !h.allowUnsafeRequest(w, r) {
+		return
+	}
+	if h.deleteReader == nil {
+		writeAuthError(w, http.StatusServiceUnavailable, "account deletion unavailable")
+		return
+	}
+	userID, err := readerstore.ParseUserID(r.PathValue("userID"))
+	if err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid reader account")
+		return
+	}
+	issuer, ok := IdentityFromContext(r.Context())
+	if !ok {
+		writeAuthError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.loginTimeout)
+	defer cancel()
+	request, err := readReaderDeletionWithinDeadline(ctx, r)
+	if errors.Is(err, errLoginRequestTooLarge) {
+		writeAuthError(w, http.StatusRequestEntityTooLarge, "request body is too large")
+		return
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		writeAuthError(w, http.StatusServiceUnavailable, "account deletion temporarily unavailable")
+		return
+	}
+	if err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	job, err := h.deleteReader(ctx, userID, request.Username, issuer, h.now().Unix())
+	switch {
+	case errors.Is(err, ErrProtectedAccount):
+		writeAuthError(w, http.StatusForbidden, "protected account")
+	case errors.Is(err, ErrUsernameConfirmation):
+		writeAuthError(w, http.StatusBadRequest, "username confirmation does not match")
+	case errors.Is(err, ErrAccountNotFound):
+		writeAuthError(w, http.StatusNotFound, "reader account not found")
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "account deletion continues; retry to check completion")
+	case err != nil:
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "account deletion failed; retry to continue")
+	default:
+		writeAuthJSON(w, http.StatusOK, map[string]any{"status": job.Status})
 	}
 }
 
@@ -898,6 +963,39 @@ func readPasswordChangeWithinDeadline(ctx context.Context, r *http.Request) (pas
 	}
 	if _, err := decoder.Token(); err != io.EOF {
 		return passwordChangeRequest{}, errInvalidLoginRequest
+	}
+	return request, nil
+}
+
+func readReaderDeletionWithinDeadline(ctx context.Context, r *http.Request) (readerDeletionRequest, error) {
+	body, err := readAuthBodyWithinDeadline(ctx, r)
+	if err != nil {
+		return readerDeletionRequest{}, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return readerDeletionRequest{}, errInvalidLoginRequest
+	}
+	var request readerDeletionRequest
+	seen := false
+	for decoder.More() {
+		field, err := decoder.Token()
+		name, ok := field.(string)
+		if err != nil || !ok || seen || name != "username" {
+			return readerDeletionRequest{}, errInvalidLoginRequest
+		}
+		seen = true
+		if err := decoder.Decode(&request.Username); err != nil {
+			return readerDeletionRequest{}, errInvalidLoginRequest
+		}
+	}
+	closing, err := decoder.Token()
+	if err != nil || closing != json.Delim('}') || !seen || request.Username == "" {
+		return readerDeletionRequest{}, errInvalidLoginRequest
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return readerDeletionRequest{}, errInvalidLoginRequest
 	}
 	return request, nil
 }

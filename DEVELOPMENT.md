@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-07] Reader deletion is durable roll-forward, never rollback
+- **Context**: Added permanent Administrator deletion of ordinary readers and their isolated Reader Data homes.
+- **Change**: Exact username confirmation atomically marks the reader `deleting`, increments authentication version, revokes sessions, and creates an independent job. The API runtime manager then rejects new acquisitions, drains in-flight references, and discards the forked Search/Explore/Source Session state. `readerstore` independently blocks open/create, drains home leases, closes databases, eagerly freezes and verifies the prepared data-root identity before retaining an `os.Root`, rejects later configured-root replacement for path-based operations, opens `users/` only relative to the retained handle, and atomically renames the immutable-ID home to a root-relative quarantine name before validating/removing it. Account removal and job completion share the final system transaction.
+- **Reason**: Filesystem deletion cannot be rolled back safely. A durable non-authenticating identity plus independent job makes every crash/failure state retryable without ever claiming restored or complete data incorrectly.
+- **Verified**: Regressions cover exact confirmation, protected Administrators, job-creation rollback, atomic session revocation/status transition, in-flight runtime and home draining, racing acquisition rejection, per-reader runtime purge, contained-path/symlink protection, deterministic filesystem failure and retry, concurrent retry convergence, account/job finalization, strict UUID/body/origin/size HTTP boundaries, and frontend retry/confirmation states.
+- **Watch out**: Persisted deletion errors are generic and never contain host paths. An ambiguous client failure keeps its previous UI status and requires refresh before retry, preventing typed confirmation from being bypassed by a client-side guess.
+
 ### [2026-08-07] Reader reset separates password work from token consumption
 - **Context**: Added Administrator-issued one-time password resets for ordinary reader accounts.
 - **Change**: Issuance stores only a SHA-256 token hash, retains issuer username metadata, expires after 30 minutes, and deletes earlier unused tokens. Completion performs bounded Argon2 work before taking the session guard, then re-checks and consumes the token in the same transaction as password replacement, authentication-version increment, and all-session revocation. Active/disabled status is preserved.

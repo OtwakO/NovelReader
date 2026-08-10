@@ -39,6 +39,50 @@ func TestParseUserIDRequiresCanonicalUUIDV4(t *testing.T) {
 	}
 }
 
+func TestPrepareAnchoredRootRejectsOrdinaryDirectorySwapBeforeHandleOpen(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "data")
+	if state, err := PrepareRoot(root); err != nil || state != RootCurrent {
+		t.Fatalf("prepare root: state=%q error=%v", state, err)
+	}
+	replacement := filepath.Join(t.TempDir(), "replacement")
+	if state, err := PrepareRoot(replacement); err != nil || state != RootCurrent {
+		t.Fatalf("prepare replacement: state=%q error=%v", state, err)
+	}
+	replacementHome := filepath.Join(replacement, UsersDirectory, string(testUserAlice))
+	if err := os.Mkdir(replacementHome, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(replacementHome, "keep")
+	if err := os.WriteFile(marker, []byte("safe"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	movedRoot := root + ".moved"
+	openAfterSwap := func(name string) (*os.Root, error) {
+		if err := os.Rename(root, movedRoot); err != nil {
+			return nil, err
+		}
+		if err := os.Rename(replacement, root); err != nil {
+			return nil, err
+		}
+		return os.OpenRoot(name)
+	}
+
+	rootHandle, _, err := prepareAnchoredRoot(root, openAfterSwap)
+	if rootHandle != nil {
+		_ = rootHandle.Close()
+		t.Fatal("anchored preparation accepted swapped data root")
+	}
+	if !errors.Is(err, ErrInvalidRoot) {
+		t.Fatalf("prepare anchored root error=%v", err)
+	}
+	if value, err := os.ReadFile(filepath.Join(root, UsersDirectory, string(testUserAlice), "keep")); err != nil || string(value) != "safe" {
+		t.Fatalf("replacement target changed: %q error=%v", value, err)
+	}
+	if _, err := os.Stat(filepath.Join(movedRoot, RootManifestName)); err != nil {
+		t.Fatalf("genuine root changed: %v", err)
+	}
+}
+
 func TestManagerSupportsHostileButValidDataRootNames(t *testing.T) {
 	for _, name := range []string{"data?query", "data#fragment", "data with spaces", "数据"} {
 		t.Run(name, func(t *testing.T) {
@@ -554,6 +598,230 @@ func TestManagerWakesMultipleWaitingOpens(t *testing.T) {
 		if err := <-result; err != nil {
 			t.Fatalf("waiting open: %v", err)
 		}
+	}
+}
+
+func TestManagerRemoveDrainsOpenHomesRejectsNewOpensAndDeletesContainedPath(t *testing.T) {
+	manager := newTestManager(t, 2)
+	if err := manager.Create(context.Background(), testUserAlice); err != nil {
+		t.Fatal(err)
+	}
+	home, err := manager.Open(context.Background(), testUserAlice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeDone := make(chan error, 1)
+	go func() { removeDone <- manager.Remove(context.Background(), testUserAlice) }()
+	deadline := time.Now().Add(time.Second)
+	for {
+		probe, err := manager.Open(context.Background(), testUserAlice)
+		if errors.Is(err, ErrHomeDeleting) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("probe open: %v", err)
+		}
+		if err := probe.Close(); err != nil {
+			t.Fatalf("probe close: %v", err)
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("remove did not block new opens")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	select {
+	case err := <-removeDone:
+		t.Fatalf("remove completed before open home drained: %v", err)
+	default:
+	}
+	if err := home.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-removeDone; err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(manager.root, UsersDirectory, string(testUserAlice))
+	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("reader home remains: %v", err)
+	}
+	if _, err := manager.Open(context.Background(), testUserAlice); !errors.Is(err, ErrHomeDeleting) {
+		t.Fatalf("post-delete open error=%v", err)
+	}
+	if err := manager.Remove(context.Background(), testUserAlice); err != nil {
+		t.Fatalf("idempotent remove: %v", err)
+	}
+}
+
+func TestManagerRemoveRetriesAfterFilesystemFailure(t *testing.T) {
+	manager := newTestManager(t, 2)
+	if err := manager.Create(context.Background(), testUserAlice); err != nil {
+		t.Fatal(err)
+	}
+	realRemoveHome := manager.removeHome
+	failed := true
+	manager.removeHome = func(root *os.Root, name string) error {
+		if failed {
+			return errors.New("simulated filesystem failure")
+		}
+		return realRemoveHome(root, name)
+	}
+	if err := manager.Remove(context.Background(), testUserAlice); err == nil {
+		t.Fatal("remove unexpectedly succeeded")
+	}
+	path := filepath.Join(manager.root, UsersDirectory, string(testUserAlice))
+	quarantinePath := path + ".deleting"
+	if _, err := os.Stat(quarantinePath); err != nil {
+		t.Fatalf("quarantined home missing after failed remove: %v", err)
+	}
+	if err := manager.Create(context.Background(), testUserAlice); !errors.Is(err, ErrHomeDeleting) {
+		t.Fatalf("create while deleting error=%v", err)
+	}
+	failed = false
+	if err := manager.Remove(context.Background(), testUserAlice); err != nil {
+		t.Fatalf("retry remove: %v", err)
+	}
+	if _, err := os.Lstat(quarantinePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("quarantined home remains after retry: %v", err)
+	}
+}
+
+func TestManagerRejectsPostConstructionDataRootSwap(t *testing.T) {
+	manager := newTestManager(t, 2)
+	root := manager.root
+	movedRoot := root + ".moved"
+	replacement := t.TempDir()
+	if state, err := PrepareRoot(replacement); err != nil || state != RootCurrent {
+		t.Fatalf("prepare replacement: state=%q error=%v", state, err)
+	}
+	if err := os.Rename(root, movedRoot); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(replacement, root); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Create(context.Background(), testUserAlice); !errors.Is(err, ErrInvalidRoot) {
+		t.Fatalf("create after root swap error=%v", err)
+	}
+	if _, err := manager.Open(context.Background(), testUserAlice); !errors.Is(err, ErrInvalidRoot) {
+		t.Fatalf("open after root swap error=%v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(root, UsersDirectory, string(testUserAlice))); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("replacement root was modified: %v", err)
+	}
+}
+
+func TestManagerRemoveQuarantineDoesNotDeleteLaterCanonicalReplacement(t *testing.T) {
+	manager := newTestManager(t, 2)
+	if err := manager.Create(context.Background(), testUserAlice); err != nil {
+		t.Fatal(err)
+	}
+	usersPath := filepath.Join(manager.root, UsersDirectory)
+	homePath := filepath.Join(usersPath, string(testUserAlice))
+	marker := filepath.Join(homePath, "replacement-marker")
+	realRenameHome := manager.renameHome
+	manager.renameHome = func(root *os.Root, oldName, newName string) error {
+		if err := realRenameHome(root, oldName, newName); err != nil {
+			return err
+		}
+		if err := os.Mkdir(homePath, 0o700); err != nil {
+			return err
+		}
+		return os.WriteFile(marker, []byte("safe"), 0o600)
+	}
+	if err := manager.Remove(context.Background(), testUserAlice); !errors.Is(err, ErrInvalidHome) {
+		t.Fatalf("remove with canonical replacement error=%v", err)
+	}
+	if value, err := os.ReadFile(marker); err != nil || string(value) != "safe" {
+		t.Fatalf("later canonical replacement changed: %q error=%v", value, err)
+	}
+}
+
+func TestManagerRemoveRejectsParentSymlinkBeforeUsersHandleOpens(t *testing.T) {
+	manager := newTestManager(t, 2)
+	if err := manager.Create(context.Background(), testUserAlice); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	outsideHome := filepath.Join(outside, string(testUserAlice))
+	if err := os.Mkdir(outsideHome, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(outsideHome, "keep")
+	if err := os.WriteFile(marker, []byte("safe"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	usersPath := filepath.Join(manager.root, UsersDirectory)
+	movedUsersPath := usersPath + ".moved"
+	if err := os.Rename(usersPath, movedUsersPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, usersPath); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := manager.Remove(context.Background(), testUserAlice); err == nil {
+		t.Fatal("remove followed outside users symlink")
+	}
+	if value, err := os.ReadFile(marker); err != nil || string(value) != "safe" {
+		t.Fatalf("outside target changed: %q error=%v", value, err)
+	}
+	if _, err := os.Stat(filepath.Join(movedUsersPath, string(testUserAlice))); err != nil {
+		t.Fatalf("genuine home changed: %v", err)
+	}
+}
+
+func TestManagerRemoveAnchorsDeletionAgainstParentSymlinkSwap(t *testing.T) {
+	manager := newTestManager(t, 2)
+	if err := manager.Create(context.Background(), testUserAlice); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	outsideHome := filepath.Join(outside, string(testUserAlice))
+	if err := os.Mkdir(outsideHome, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(outsideHome, "keep")
+	if err := os.WriteFile(marker, []byte("safe"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	usersPath := filepath.Join(manager.root, UsersDirectory)
+	movedUsersPath := usersPath + ".moved"
+	realRemoveHome := manager.removeHome
+	manager.removeHome = func(root *os.Root, name string) error {
+		if err := os.Rename(usersPath, movedUsersPath); err != nil {
+			return err
+		}
+		if err := os.Symlink(outside, usersPath); err != nil {
+			return err
+		}
+		return realRemoveHome(root, name)
+	}
+	if err := manager.Remove(context.Background(), testUserAlice); err != nil {
+		t.Fatal(err)
+	}
+	if value, err := os.ReadFile(marker); err != nil || string(value) != "safe" {
+		t.Fatalf("outside target changed: %q error=%v", value, err)
+	}
+	if _, err := os.Lstat(filepath.Join(movedUsersPath, string(testUserAlice))); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("anchored home remains: %v", err)
+	}
+}
+
+func TestManagerRemoveRejectsSymlinkWithoutTouchingTarget(t *testing.T) {
+	manager := newTestManager(t, 2)
+	outside := t.TempDir()
+	marker := filepath.Join(outside, "keep")
+	if err := os.WriteFile(marker, []byte("safe"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	homePath := filepath.Join(manager.root, UsersDirectory, string(testUserAlice))
+	if err := os.Symlink(outside, homePath); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := manager.Remove(context.Background(), testUserAlice); !errors.Is(err, ErrInvalidHome) {
+		t.Fatalf("remove error=%v", err)
+	}
+	if value, err := os.ReadFile(marker); err != nil || string(value) != "safe" {
+		t.Fatalf("outside target changed: %q error=%v", value, err)
 	}
 }
 

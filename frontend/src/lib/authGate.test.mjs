@@ -22,7 +22,8 @@ test('administrator account page exposes bounded reader status controls', () => 
   assert.match(source, /await setReaderEnabled\(reader\.id, enabled\)/);
   assert.match(source, /await issueReaderPasswordReset\(reader\.id\)/);
   assert.match(source, /will not be shown again/);
-  assert.doesNotMatch(source, /deleteReader|Delete account/);
+  assert.match(source, /await deleteReaderAccount\(reader\.id, confirmation\)/);
+  assert.match(source, /Permanently delete/);
 });
 
 test('root gate resolves setup and account before private app mount', () => {

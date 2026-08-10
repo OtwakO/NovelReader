@@ -14,7 +14,10 @@ import (
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
-var ErrReaderRuntimeCapacity = errors.New("api: reader runtime capacity is exhausted")
+var (
+	ErrReaderRuntimeCapacity = errors.New("api: reader runtime capacity is exhausted")
+	ErrReaderRuntimeDeleting = errors.New("api: reader runtime is being deleted")
+)
 
 type readerRuntime struct {
 	home        *readerstore.Home
@@ -35,7 +38,9 @@ type readerRuntimeManager struct {
 	idleTTL  time.Duration
 	now      func() time.Time
 	mu       sync.Mutex
+	changed  chan struct{}
 	runtimes map[readerstore.UserID]*readerRuntime
+	deleting map[readerstore.UserID]bool
 }
 
 func newReaderRuntimeManager(readers *readerstore.Manager, searcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, capacity int, idleTTL time.Duration) *readerRuntimeManager {
@@ -48,13 +53,17 @@ func newReaderRuntimeManager(readers *readerstore.Manager, searcher *book.Search
 	limits.MaxSessions = max(1, limits.MaxSessions/capacity)
 	return &readerRuntimeManager{
 		readers: readers, searcher: searcher, jsVM: jsVM, limits: limits,
-		capacity: capacity, idleTTL: idleTTL, now: time.Now,
-		runtimes: make(map[readerstore.UserID]*readerRuntime),
+		capacity: capacity, idleTTL: idleTTL, now: time.Now, changed: make(chan struct{}),
+		runtimes: make(map[readerstore.UserID]*readerRuntime), deleting: make(map[readerstore.UserID]bool),
 	}
 }
 
 func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.UserID) (*readerRuntime, func(), error) {
 	m.mu.Lock()
+	if m.deleting[userID] {
+		m.mu.Unlock()
+		return nil, nil, ErrReaderRuntimeDeleting
+	}
 	now := m.now()
 	m.evictIdleLocked(now)
 	if runtime := m.runtimes[userID]; runtime != nil {
@@ -83,6 +92,11 @@ func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.U
 	}
 
 	m.mu.Lock()
+	if m.deleting[userID] {
+		m.mu.Unlock()
+		_ = home.Close()
+		return nil, nil, ErrReaderRuntimeDeleting
+	}
 	if existing := m.runtimes[userID]; existing != nil {
 		existing.references++
 		existing.lastUsed = m.now()
@@ -108,6 +122,9 @@ func (m *readerRuntimeManager) release(userID readerstore.UserID, runtime *reade
 	}
 	runtime.references--
 	runtime.lastUsed = m.now()
+	if runtime.references == 0 {
+		m.signalLocked()
+	}
 }
 
 func (m *readerRuntimeManager) evictOldestIdleLocked() bool {
@@ -133,6 +150,41 @@ func (m *readerRuntimeManager) evictIdleLocked(now time.Time) {
 			_ = runtime.home.Close()
 		}
 	}
+}
+
+// quiesce rejects new work, drains in-flight requests, and drops all per-reader runtime state.
+func (m *readerRuntimeManager) quiesce(ctx context.Context, userID readerstore.UserID) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		m.mu.Lock()
+		m.deleting[userID] = true
+		runtime := m.runtimes[userID]
+		if runtime != nil && runtime.references > 0 {
+			changed := m.changed
+			m.mu.Unlock()
+			select {
+			case <-changed:
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		if runtime != nil {
+			delete(m.runtimes, userID)
+		}
+		m.mu.Unlock()
+		if runtime != nil {
+			return runtime.home.Close()
+		}
+		return nil
+	}
+}
+
+func (m *readerRuntimeManager) signalLocked() {
+	close(m.changed)
+	m.changed = make(chan struct{})
 }
 
 func (m *readerRuntimeManager) Close() error {

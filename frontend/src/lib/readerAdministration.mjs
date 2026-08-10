@@ -9,6 +9,16 @@ export function readerStatusControl(status) {
   }
 }
 
+export function deletionControl(status) {
+  return status === 'deleting'
+    ? { label: 'Retry deletion', requiresConfirmation: false }
+    : { label: 'Delete account', requiresConfirmation: true };
+}
+
+export function deletionConfirmationMatches(username, confirmation) {
+  return username === confirmation;
+}
+
 export function mayManageReaders(role) {
   return role === 'admin';
 }

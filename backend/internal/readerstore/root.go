@@ -44,6 +44,146 @@ type RootManifest struct {
 	Version int    `json:"version"`
 }
 
+// prepareAnchoredRoot creates or opens root, verifies that the opened handle
+// references the exact non-symlink directory inspected by path, and prepares
+// the storage layout exclusively through that retained handle.
+func prepareAnchoredRoot(root string, openRoot func(string) (*os.Root, error)) (*os.Root, RootState, error) {
+	rootInitializationMu.Lock()
+	defer rootInitializationMu.Unlock()
+
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return nil, RootInvalid, fmt.Errorf("readerstore: create data root: %w", err)
+	}
+	pathInfo, err := os.Lstat(root)
+	if err != nil {
+		return nil, RootInvalid, fmt.Errorf("readerstore: inspect data root: %w", err)
+	}
+	if !pathInfo.IsDir() || pathInfo.Mode()&os.ModeSymlink != 0 {
+		return nil, RootInvalid, ErrInvalidRoot
+	}
+	// On Windows, Lstat may defer loading the file ID until SameFile.
+	// Compare the value with itself now so its identity cannot follow a later
+	// pathname replacement when it is compared with the anchored handle.
+	if !os.SameFile(pathInfo, pathInfo) {
+		return nil, RootInvalid, ErrInvalidRoot
+	}
+	rootHandle, err := openRoot(root)
+	if err != nil {
+		return nil, RootInvalid, fmt.Errorf("readerstore: anchor data root: %w", err)
+	}
+	anchoredInfo, err := rootHandle.Stat(".")
+	if err != nil {
+		_ = rootHandle.Close()
+		return nil, RootInvalid, fmt.Errorf("readerstore: inspect anchored data root: %w", err)
+	}
+	if !os.SameFile(pathInfo, anchoredInfo) {
+		_ = rootHandle.Close()
+		return nil, RootInvalid, ErrInvalidRoot
+	}
+
+	state, err := inspectAnchoredRoot(rootHandle)
+	if err != nil {
+		_ = rootHandle.Close()
+		return nil, state, err
+	}
+	if state == RootEmpty {
+		if err := initializeAnchoredRoot(rootHandle); err != nil {
+			_ = rootHandle.Close()
+			return nil, RootEmpty, err
+		}
+		state, err = inspectAnchoredRoot(rootHandle)
+	}
+	if err != nil {
+		_ = rootHandle.Close()
+		return nil, state, err
+	}
+	if state != RootCurrent {
+		_ = rootHandle.Close()
+		return nil, state, fmt.Errorf("readerstore: unexpected root state %q", state)
+	}
+	return rootHandle, state, nil
+}
+
+func inspectAnchoredRoot(root *os.Root) (RootState, error) {
+	directory, err := root.Open(".")
+	if err != nil {
+		return RootInvalid, fmt.Errorf("readerstore: read data root: %w", err)
+	}
+	entries, readErr := directory.ReadDir(-1)
+	closeErr := directory.Close()
+	if readErr != nil {
+		return RootInvalid, fmt.Errorf("readerstore: read data root: %w", readErr)
+	}
+	if closeErr != nil {
+		return RootInvalid, fmt.Errorf("readerstore: close data root: %w", closeErr)
+	}
+
+	if manifestInfo, err := root.Lstat(RootManifestName); err == nil {
+		if !manifestInfo.Mode().IsRegular() || manifestInfo.Mode()&os.ModeSymlink != 0 {
+			return RootInvalid, ErrInvalidRoot
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return RootInvalid, fmt.Errorf("readerstore: inspect root manifest: %w", err)
+	}
+	if _, err := root.Lstat(rootManifestStagingName); err == nil {
+		return RootInterrupted, ErrInterruptedRoot
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return RootInvalid, fmt.Errorf("readerstore: inspect staging manifest: %w", err)
+	}
+
+	contents, err := root.ReadFile(RootManifestName)
+	if errors.Is(err, os.ErrNotExist) {
+		if len(entries) == 0 {
+			return RootEmpty, nil
+		}
+		return RootLegacy, ErrLegacyRoot
+	}
+	if err != nil {
+		return RootInvalid, fmt.Errorf("%w: %v", ErrInvalidRoot, err)
+	}
+	var manifest RootManifest
+	if err := json.Unmarshal(contents, &manifest); err != nil {
+		return RootInvalid, fmt.Errorf("%w: %v", ErrInvalidRoot, err)
+	}
+	if manifest.Format != RootFormat || manifest.Version < 1 {
+		return RootInvalid, ErrInvalidRoot
+	}
+	if manifest.Version > CurrentRootVersion {
+		return RootNewer, ErrNewerRoot
+	}
+	if manifest.Version < CurrentRootVersion {
+		return RootLegacy, ErrLegacyRoot
+	}
+	usersInfo, err := root.Lstat(UsersDirectory)
+	if err != nil || !usersInfo.IsDir() || usersInfo.Mode()&os.ModeSymlink != 0 {
+		return RootInvalid, ErrInvalidRoot
+	}
+	return RootCurrent, nil
+}
+
+func initializeAnchoredRoot(root *os.Root) error {
+	manifest := RootManifest{Format: RootFormat, Version: CurrentRootVersion}
+	encoded, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return fmt.Errorf("readerstore: encode root manifest: %w", err)
+	}
+	encoded = append(encoded, '\n')
+	if err := root.WriteFile(rootManifestStagingName, encoded, 0o600); err != nil {
+		return fmt.Errorf("readerstore: stage root manifest: %w", err)
+	}
+	if err := root.Mkdir(UsersDirectory, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("readerstore: create users directory: %w", err)
+	}
+	usersInfo, err := root.Lstat(UsersDirectory)
+	if err != nil || !usersInfo.IsDir() || usersInfo.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("readerstore: users path must be a directory inside the data root")
+	}
+	if err := root.Rename(rootManifestStagingName, RootManifestName); err != nil {
+		return fmt.Errorf("readerstore: publish root manifest: %w", err)
+	}
+	return nil
+}
+
 // PrepareRoot classifies the data root and initializes it only when it is empty.
 // Refused roots are never modified.
 func PrepareRoot(root string) (RootState, error) {

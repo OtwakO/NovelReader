@@ -1,10 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mayManageReaders, readerStatusControl } from './readerAdministration.mjs';
+import { deletionConfirmationMatches, deletionControl, mayManageReaders, readerStatusControl } from './readerAdministration.mjs';
 
 test('only Administrators may see reader management', () => {
   assert.equal(mayManageReaders('admin'), true);
   assert.equal(mayManageReaders('reader'), false);
+});
+
+test('deletion requires exact username once and becomes retry-only while deleting', () => {
+  assert.equal(deletionConfirmationMatches('Bob', 'Bob'), true);
+  assert.equal(deletionConfirmationMatches('Bob', 'bob'), false);
+  assert.deepEqual(deletionControl('active'), { label: 'Delete account', requiresConfirmation: true });
+  assert.deepEqual(deletionControl('deleting'), { label: 'Retry deletion', requiresConfirmation: false });
 });
 
 test('reader status maps to bounded account actions', () => {

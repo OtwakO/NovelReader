@@ -161,6 +161,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health,
 	}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, limits, 32, limits.SessionTTL)
+	authHandler.ConfigureDeletionQuiescer(readers, s.runtimes.quiesce)
 	s.registerAuthenticatedRoutes()
 	return s
 }

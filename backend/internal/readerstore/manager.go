@@ -12,18 +12,25 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-var ErrManagerClosed = errors.New("readerstore: manager is closed")
+var (
+	ErrManagerClosed = errors.New("readerstore: manager is closed")
+	ErrHomeDeleting  = errors.New("readerstore: reader home is being deleted")
+)
 
 // Manager owns bounded reader database handles and all reader-home paths.
 type Manager struct {
-	root     string
-	capacity int
-	notify   chan struct{}
+	root       string
+	rootHandle *os.Root
+	capacity   int
+	notify     chan struct{}
 
 	mu         sync.Mutex
 	closed     bool
 	entries    map[UserID]*homeEntry
+	deleting   map[UserID]bool
 	migrations []ReaderMigration
+	renameHome func(*os.Root, string, string) error
+	removeHome func(*os.Root, string) error
 }
 
 type homeEntry struct {
@@ -54,23 +61,28 @@ func NewManager(root string, capacity int, migrations ...ReaderMigration) (*Mana
 		}
 		migrationNames[migration.Name] = struct{}{}
 	}
-	state, err := PrepareRoot(root)
-	if err != nil {
-		return nil, err
-	}
-	if state != RootCurrent {
-		return nil, fmt.Errorf("readerstore: root state %q", state)
-	}
 	absoluteRoot, err := filepath.Abs(root)
 	if err != nil {
 		return nil, fmt.Errorf("readerstore: resolve data root: %w", err)
 	}
+	rootHandle, state, err := prepareAnchoredRoot(absoluteRoot, os.OpenRoot)
+	if err != nil {
+		return nil, err
+	}
+	if state != RootCurrent {
+		_ = rootHandle.Close()
+		return nil, fmt.Errorf("readerstore: root state %q", state)
+	}
 	return &Manager{
 		root:       absoluteRoot,
+		rootHandle: rootHandle,
 		capacity:   capacity,
 		notify:     make(chan struct{}),
 		entries:    make(map[UserID]*homeEntry),
+		deleting:   make(map[UserID]bool),
 		migrations: append([]ReaderMigration(nil), migrations...),
+		renameHome: func(root *os.Root, oldName, newName string) error { return root.Rename(oldName, newName) },
+		removeHome: func(root *os.Root, name string) error { return root.RemoveAll(name) },
 	}, nil
 }
 
@@ -86,6 +98,9 @@ func (m *Manager) Exists(ctx context.Context, userID UserID) (bool, error) {
 	defer m.mu.Unlock()
 	if m.closed {
 		return false, ErrManagerClosed
+	}
+	if err := m.validateRootPath(); err != nil {
+		return false, err
 	}
 	homePath, err := m.homePath(userID)
 	if err != nil {
@@ -113,6 +128,12 @@ func (m *Manager) Create(ctx context.Context, userID UserID) error {
 	defer m.mu.Unlock()
 	if m.closed {
 		return ErrManagerClosed
+	}
+	if m.deleting[userID] {
+		return ErrHomeDeleting
+	}
+	if err := m.validateRootPath(); err != nil {
+		return err
 	}
 
 	homePath, err := m.homePath(userID)
@@ -162,10 +183,18 @@ func (m *Manager) Open(ctx context.Context, userID UserID) (*Home, error) {
 			m.mu.Unlock()
 			return nil, ErrManagerClosed
 		}
+		if m.deleting[userID] {
+			m.mu.Unlock()
+			return nil, ErrHomeDeleting
+		}
 		if entry := m.entries[userID]; entry != nil {
 			entry.references++
 			m.mu.Unlock()
 			return &Home{manager: m, entry: entry}, nil
+		}
+		if err := m.validateRootPath(); err != nil {
+			m.mu.Unlock()
+			return nil, err
 		}
 		if len(m.entries) >= m.capacity {
 			if idle := m.removeIdleEntry(); idle != nil {
@@ -193,6 +222,83 @@ func (m *Manager) Open(ctx context.Context, userID UserID) (*Home, error) {
 	}
 }
 
+// Remove permanently deletes the immutable-ID reader home after all open leases drain.
+// Once removal begins, new opens for that identity fail for the lifetime of this manager.
+func (m *Manager) Remove(ctx context.Context, userID UserID) error {
+	if err := validateUserID(userID); err != nil {
+		return err
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			return ErrManagerClosed
+		}
+		m.deleting[userID] = true
+		entry := m.entries[userID]
+		if entry != nil && entry.references > 0 {
+			notify := m.notify
+			m.mu.Unlock()
+			select {
+			case <-notify:
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		if entry != nil {
+			delete(m.entries, userID)
+		}
+		m.mu.Unlock()
+		if entry != nil {
+			if err := errors.Join(entry.readerDB.Close(), entry.credentialsDB.Close()); err != nil {
+				return fmt.Errorf("readerstore: close reader home before deletion: %w", err)
+			}
+		}
+		usersRoot, err := m.rootHandle.OpenRoot(UsersDirectory)
+		if err != nil {
+			return fmt.Errorf("readerstore: anchor users root for deletion: %w", err)
+		}
+		defer usersRoot.Close()
+		homeName := string(userID)
+		quarantineName := homeName + ".deleting"
+		if _, err := usersRoot.Lstat(quarantineName); errors.Is(err, os.ErrNotExist) {
+			if err := m.renameHome(usersRoot, homeName, quarantineName); errors.Is(err, os.ErrNotExist) {
+				return nil
+			} else if err != nil {
+				return fmt.Errorf("readerstore: quarantine reader home: %w", err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("readerstore: inspect quarantined reader home: %w", err)
+		}
+		info, err := usersRoot.Lstat(quarantineName)
+		if err != nil {
+			return fmt.Errorf("readerstore: inspect quarantined reader home: %w", err)
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return ErrInvalidHome
+		}
+		if err := m.removeHome(usersRoot, quarantineName); err != nil {
+			return fmt.Errorf("readerstore: remove reader home: %w", err)
+		}
+		if _, err := usersRoot.Lstat(quarantineName); !errors.Is(err, os.ErrNotExist) {
+			if err == nil {
+				return fmt.Errorf("readerstore: reader home remains after deletion")
+			}
+			return fmt.Errorf("readerstore: verify reader home deletion: %w", err)
+		}
+		if _, err := usersRoot.Lstat(homeName); err == nil {
+			return ErrInvalidHome
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("readerstore: verify canonical reader home absence: %w", err)
+		}
+		return nil
+	}
+}
+
 func (m *Manager) Close() error {
 	m.mu.Lock()
 	if m.closed {
@@ -211,6 +317,9 @@ func (m *Manager) Close() error {
 	var closeErr error
 	for _, entry := range entries {
 		closeErr = errors.Join(closeErr, entry.readerDB.Close(), entry.credentialsDB.Close())
+	}
+	if m.rootHandle != nil {
+		closeErr = errors.Join(closeErr, m.rootHandle.Close())
 	}
 	return closeErr
 }
@@ -279,6 +388,21 @@ func (m *Manager) removeIdleEntry() *homeEntry {
 func (m *Manager) signalLocked() {
 	close(m.notify)
 	m.notify = make(chan struct{})
+}
+
+func (m *Manager) validateRootPath() error {
+	pathInfo, err := os.Lstat(m.root)
+	if err != nil || !pathInfo.IsDir() || pathInfo.Mode()&os.ModeSymlink != 0 {
+		return ErrInvalidRoot
+	}
+	if !os.SameFile(pathInfo, pathInfo) {
+		return ErrInvalidRoot
+	}
+	anchoredInfo, err := m.rootHandle.Stat(".")
+	if err != nil || !os.SameFile(pathInfo, anchoredInfo) {
+		return ErrInvalidRoot
+	}
+	return nil
 }
 
 func (m *Manager) homePath(userID UserID) (string, error) {

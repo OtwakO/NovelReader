@@ -140,6 +140,13 @@ export function issueReaderPasswordReset(userID: string) {
   return req<PasswordResetCredential>(`/auth/admin/readers/${encodeURIComponent(userID)}/password-reset`, { method: 'POST' });
 }
 
+export function deleteReaderAccount(userID: string, username: string) {
+  return req<{ status: 'complete' }>(`/auth/admin/readers/${encodeURIComponent(userID)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ username }),
+  });
+}
+
 export function completePasswordReset(token: string, newPassword: string) {
   return req<void>('/auth/password-reset', {
     method: 'POST',

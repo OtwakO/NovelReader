@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { changePassword, issueReaderPasswordReset, listReaderAccounts, setReaderEnabled, type AdminReaderAccount, type AuthAccount } from '../api/client';
+  import { changePassword, deleteReaderAccount, issueReaderPasswordReset, listReaderAccounts, setReaderEnabled, type AdminReaderAccount, type AuthAccount } from '../api/client';
   import { clearedPasswordFields } from './accountGate.mjs';
-  import { mayManageReaders, readerStatusControl } from './readerAdministration.mjs';
+  import { deletionConfirmationMatches, deletionControl, mayManageReaders, readerStatusControl } from './readerAdministration.mjs';
   import { resetDelivery } from './passwordReset.mjs';
 
   let { account, onPasswordChanged, onLogout }: { account: AuthAccount; onPasswordChanged?: () => void; onLogout?: () => void } = $props();
@@ -16,6 +16,7 @@
   let readersError = $state('');
   let changingReaderID = $state('');
   let issuingResetID = $state('');
+  let deletingReaderID = $state('');
   let issuedReset: { readerID: string; username: string; token: string; expiresAt: number } | null = $state(null);
 
   onMount(() => {
@@ -62,6 +63,30 @@
       readersError = cause instanceof Error ? cause.message : 'Password reset token could not be issued.';
     } finally {
       issuingResetID = '';
+    }
+  }
+
+  async function deleteReader(reader: AdminReaderAccount) {
+    const control = deletionControl(reader.status);
+    let confirmation = reader.username;
+    if (control.requiresConfirmation) {
+      confirmation = window.prompt(`Permanently delete ${reader.username} and all Reader Data? This cannot be undone. Type the exact username to continue.`) ?? '';
+      if (!deletionConfirmationMatches(reader.username, confirmation)) {
+        if (confirmation !== '') readersError = 'Username confirmation did not match.';
+        return;
+      }
+    }
+    if (changingReaderID !== '' || issuingResetID !== '' || deletingReaderID !== '') return;
+    deletingReaderID = reader.id;
+    issuedReset = issuedReset?.readerID === reader.id ? null : issuedReset;
+    readersError = '';
+    try {
+      await deleteReaderAccount(reader.id, confirmation);
+      readers = readers.filter((candidate) => candidate.id !== reader.id);
+    } catch (cause) {
+      readersError = cause instanceof Error ? cause.message : 'Reader deletion did not complete. Refresh to check its durable status before retrying.';
+    } finally {
+      deletingReaderID = '';
     }
   }
 
@@ -131,14 +156,18 @@
         <ul class="reader-list">
           {#each readers as reader (reader.id)}
             {@const control = readerStatusControl(reader.status)}
+            {@const deletion = deletionControl(reader.status)}
             <li>
               <div><strong>{reader.username}</strong><span class:disabled-status={reader.status === 'disabled'}>{reader.status}</span></div>
               <div class="reader-actions">
-                <button class="secondary compact" type="button" disabled={changingReaderID !== '' || issuingResetID !== '' || reader.status === 'deleting'} onclick={() => issuePasswordReset(reader)}>
+                <button class="secondary compact" type="button" disabled={changingReaderID !== '' || issuingResetID !== '' || deletingReaderID !== '' || reader.status === 'deleting'} onclick={() => issuePasswordReset(reader)}>
                   {issuingResetID === reader.id ? 'Issuing…' : 'Reset password'}
                 </button>
-                <button class:danger={control.confirmDisable} class="compact" type="button" disabled={changingReaderID !== '' || issuingResetID !== '' || !control.available} onclick={() => changeReaderStatus(reader)}>
+                <button class:danger={control.confirmDisable} class="compact" type="button" disabled={changingReaderID !== '' || issuingResetID !== '' || deletingReaderID !== '' || !control.available} onclick={() => changeReaderStatus(reader)}>
                   {changingReaderID === reader.id ? 'Updating…' : control.label}
+                </button>
+                <button class="danger compact" type="button" disabled={changingReaderID !== '' || issuingResetID !== '' || deletingReaderID !== ''} onclick={() => deleteReader(reader)}>
+                  {deletingReaderID === reader.id ? 'Deleting…' : deletion.label}
                 </button>
               </div>
             </li>
