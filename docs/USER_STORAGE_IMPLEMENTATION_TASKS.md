@@ -150,7 +150,7 @@ without revealing whether another reader's resource exists.
 **Goal:** expose the completed backend identity boundary through a minimal usable interface.
 
 - [x] Add first-run setup screen.
-- [ ] Add environment-controlled registration; login is complete.
+- [x] Add environment-controlled ordinary-reader registration with an optional deployment invite code, durable retry-safe reader-home provisioning, automatic login, and a minimal frontend form.
 - [x] Load the current account before entering authenticated application routes.
 - [ ] Add password change; logout is complete.
 - [x] Handle mid-session revocation by centrally unmounting private UI on `401`; explicit logout also unmounts immediately and warns/retries instead of claiming success if server revocation fails.
@@ -228,4 +228,7 @@ Before Phase 2 is marked complete:
 - [x] Domain glossary and ADR recorded.
 - [x] Independent architecture review completed without blockers.
 - [x] Phase 1.1 data-root classifier and startup gate complete.
-- [ ] Phase 1.2 minimal `readerstore` module started.
+- [x] Phase 1.2 minimal `readerstore` module complete.
+- [x] Atomic authentication/Reader Data ownership cutover complete.
+- [x] Environment-controlled ordinary-reader registration complete.
+- [ ] Next core account slice: authenticated password change.

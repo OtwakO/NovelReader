@@ -9,9 +9,11 @@ func TestLoadReadsPublicOriginConfiguration(t *testing.T) {
 	t.Setenv("PUBLIC_URL", "https://reader.example")
 	t.Setenv("ADMIN_BOOTSTRAP_TOKEN", "temporary-setup-authority")
 	t.Setenv("ADMIN_RECOVERY_TOKEN", "temporary-recovery-authority")
+	t.Setenv("REGISTRATION_ENABLED", "true")
+	t.Setenv("REGISTRATION_INVITE_CODE", "private-admission")
 	cfg := Load()
-	if cfg.PublicURL != "https://reader.example" || cfg.AdminBootstrapToken != "temporary-setup-authority" || cfg.AdminRecoveryToken != "temporary-recovery-authority" {
-		t.Fatalf("origin/bootstrap/recovery config=%q/%q/%q", cfg.PublicURL, cfg.AdminBootstrapToken, cfg.AdminRecoveryToken)
+	if cfg.PublicURL != "https://reader.example" || cfg.AdminBootstrapToken != "temporary-setup-authority" || cfg.AdminRecoveryToken != "temporary-recovery-authority" || !cfg.RegistrationEnabled || cfg.RegistrationInviteCode != "private-admission" {
+		t.Fatalf("auth config=%q/%q/%q/%v/%q", cfg.PublicURL, cfg.AdminBootstrapToken, cfg.AdminRecoveryToken, cfg.RegistrationEnabled, cfg.RegistrationInviteCode)
 	}
 }
 

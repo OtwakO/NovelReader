@@ -1,7 +1,7 @@
 <script lang="ts">
   import { login, type AuthAccount } from '../api/client';
 
-  let { onLogin, onRecovery }: { onLogin?: (account: AuthAccount) => void; onRecovery?: () => void } = $props();
+  let { registrationEnabled, onLogin, onRegister, onRecovery }: { registrationEnabled?: boolean; onLogin?: (account: AuthAccount) => void; onRegister?: () => void; onRecovery?: () => void } = $props();
   let username = $state('');
   let password = $state('');
   let error = $state('');
@@ -37,7 +37,10 @@
       {#if error}<p class="error" role="alert">{error}</p>{/if}
       <button type="submit" disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</button>
     </form>
-    <button class="recovery" type="button" onclick={() => onRecovery?.()}>Administrator recovery</button>
+    <div class="secondary-actions">
+      {#if registrationEnabled}<button type="button" onclick={() => onRegister?.()}>Create account</button>{/if}
+      <button type="button" onclick={() => onRecovery?.()}>Administrator recovery</button>
+    </div>
   </section>
 </main>
 
@@ -54,5 +57,6 @@
   button { min-height: 2.75rem; border: 0; border-radius: .55rem; background: #8b5cf6; color: white; font: inherit; font-weight: 750; cursor: pointer; }
   button:disabled { opacity: .65; cursor: wait; }
   .error { margin: .3rem 0; padding: .7rem; border-radius: .5rem; background: #fff2f2; color: #852c2c; }
-  .recovery { display: block; min-height: auto; margin: 1rem auto 0; padding: .25rem; background: transparent; color: #5d35c7; font-weight: 650; }
+  .secondary-actions { display:flex; justify-content:center; gap:1rem; flex-wrap:wrap; margin-top:1rem; }
+  .secondary-actions button { min-height:auto; padding:.25rem; background:transparent; color:#5d35c7; font-weight:650; }
 </style>

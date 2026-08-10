@@ -14,6 +14,8 @@ type Config struct {
 	PublicURL               string
 	AdminBootstrapToken     string
 	AdminRecoveryToken      string
+	RegistrationEnabled     bool
+	RegistrationInviteCode  string
 	WebViewEndpoint         string
 	SearchConcurrency       int
 	GlobalSearchConcurrency int
@@ -32,6 +34,8 @@ func Load() *Config {
 		PublicURL:               getEnv("PUBLIC_URL", ""),
 		AdminBootstrapToken:     getEnv("ADMIN_BOOTSTRAP_TOKEN", ""),
 		AdminRecoveryToken:      getEnv("ADMIN_RECOVERY_TOKEN", ""),
+		RegistrationEnabled:     getEnvBool("REGISTRATION_ENABLED", false),
+		RegistrationInviteCode:  getEnv("REGISTRATION_INVITE_CODE", ""),
 		WebViewEndpoint:         getEnv("WEBVIEW_ENDPOINT", ""),
 		SearchConcurrency:       getEnvPositiveInt("SEARCH_CONCURRENCY", 16),
 		GlobalSearchConcurrency: getEnvPositiveInt("GLOBAL_SEARCH_CONCURRENCY", 32),
@@ -45,6 +49,16 @@ func Load() *Config {
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	if value := os.Getenv(key); value != "" {
+		parsed, err := strconv.ParseBool(value)
+		if err == nil {
+			return parsed
+		}
 	}
 	return fallback
 }

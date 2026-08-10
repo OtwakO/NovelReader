@@ -81,6 +81,22 @@ export function getCurrentAccount() {
   return req<AuthAccount>('/auth/account');
 }
 
+export interface RegistrationPolicy {
+  enabled: boolean;
+  inviteRequired: boolean;
+}
+
+export function getRegistrationPolicy() {
+  return req<RegistrationPolicy>('/auth/registration');
+}
+
+export function register(username: string, password: string, inviteCode: string) {
+  return req<AuthAccount>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ username, password, inviteCode }),
+  });
+}
+
 export function login(username: string, password: string) {
   return req<AuthAccount>('/auth/login', {
     method: 'POST',

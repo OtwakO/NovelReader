@@ -42,6 +42,10 @@ func NewAccountService(store *Store) *AccountService {
 
 // CreateReaderAccount creates only an ordinary reader account. Administrator creation belongs to setup/recovery workflows.
 func (s *AccountService) CreateReaderAccount(ctx context.Context, userID readerstore.UserID, rawUsername, password string, now int64) (Account, error) {
+	return s.createAccount(ctx, userID, rawUsername, password, RoleReader, StatusActive, now, now)
+}
+
+func (s *AccountService) createAccount(ctx context.Context, userID readerstore.UserID, rawUsername, password string, role Role, status AccountStatus, createdAt, updatedAt int64) (Account, error) {
 	if err := s.store.setupGuard.readLock(ctx); err != nil {
 		return Account{}, err
 	}
@@ -78,7 +82,7 @@ func (s *AccountService) CreateReaderAccount(ctx context.Context, userID readers
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO users (id, username, username_normalized, role, password_hash, status, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, string(userID), username.Display, username.Normalized, string(RoleReader), passwordHash, string(StatusActive), now, now)
+	`, string(userID), username.Display, username.Normalized, string(role), passwordHash, string(status), createdAt, updatedAt)
 	if err != nil {
 		if sqliteConstraintCode(err) == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
 			return Account{}, ErrUsernameUnavailable
@@ -92,10 +96,10 @@ func (s *AccountService) CreateReaderAccount(ctx context.Context, userID readers
 		ID:                 userID,
 		Username:           username.Display,
 		UsernameNormalized: username.Normalized,
-		Role:               RoleReader,
-		Status:             StatusActive,
-		CreatedAt:          now,
-		UpdatedAt:          now,
+		Role:               role,
+		Status:             status,
+		CreatedAt:          createdAt,
+		UpdatedAt:          updatedAt,
 		AuthVersion:        1,
 	}, nil
 }

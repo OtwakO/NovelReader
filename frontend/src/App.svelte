@@ -1,16 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { ApiError, getCurrentAccount, getRecoveryStatus, getSetupStatus, logout, onAuthenticationLoss, type AuthAccount } from './api/client';
+  import { ApiError, getCurrentAccount, getRecoveryStatus, getRegistrationPolicy, getSetupStatus, logout, onAuthenticationLoss, type AuthAccount } from './api/client';
   import AuthenticatedApp from './lib/AuthenticatedApp.svelte';
   import LoginPage from './lib/LoginPage.svelte';
   import SetupPage from './lib/SetupPage.svelte';
   import RecoveryPage from './lib/RecoveryPage.svelte';
+  import RegistrationPage from './lib/RegistrationPage.svelte';
 
-  type Gate = 'loading' | 'setup' | 'setup-unavailable' | 'login' | 'logout-failed' | 'recovery' | 'recovery-unavailable' | 'authenticated' | 'error';
+  type Gate = 'loading' | 'setup' | 'setup-unavailable' | 'login' | 'registration' | 'logout-failed' | 'recovery' | 'recovery-unavailable' | 'authenticated' | 'error';
   let gate: Gate = $state('loading');
   let account: AuthAccount | null = $state(null);
   let message = $state('');
   let requestedHash = '';
+  let registrationEnabled = $state(false);
+  let registrationInviteRequired = $state(false);
 
   onMount(() => {
     const stopListening = onAuthenticationLoss(() => {
@@ -29,24 +32,33 @@
   async function bootstrap() {
     gate = 'loading';
     message = '';
-    requestedHash = window.location.hash && !['#/login', '#/recovery'].includes(window.location.hash) ? window.location.hash : '#/shelf';
+    requestedHash = window.location.hash && !['#/login', '#/register', '#/recovery'].includes(window.location.hash) ? window.location.hash : '#/shelf';
     try {
       const setup = await getSetupStatus();
       if (setup.status !== 'closed') {
         gate = setup.available ? 'setup' : 'setup-unavailable';
         return;
       }
+      const registration = await getRegistrationPolicy();
+      registrationEnabled = registration.enabled;
+      registrationInviteRequired = registration.inviteRequired;
+      try {
+        account = await getCurrentAccount();
+        gate = 'authenticated';
+        window.location.hash = requestedHash;
+        return;
+      } catch (cause) {
+        if (!(cause instanceof ApiError) || cause.status !== 401) throw cause;
+      }
+      if (window.location.hash === '#/register' && registrationEnabled) {
+        gate = 'registration';
+        return;
+      }
       if (window.location.hash === '#/recovery') {
         await showRecovery();
         return;
       }
-      try {
-        account = await getCurrentAccount();
-        gate = 'authenticated';
-      } catch (cause) {
-        if (cause instanceof ApiError && cause.status === 401) gate = 'login';
-        else throw cause;
-      }
+      gate = 'login';
     } catch (cause) {
       message = cause instanceof Error ? cause.message : 'NovelReader could not start.';
       gate = 'error';
@@ -58,6 +70,17 @@
     account = next;
     gate = 'authenticated';
     window.location.hash = requestedHash || '#/shelf';
+  }
+
+  function showRegistration() {
+    if (!registrationEnabled) return;
+    gate = 'registration';
+    window.location.hash = '#/register';
+  }
+
+  function showLogin() {
+    gate = 'login';
+    window.location.hash = '#/login';
   }
 
   async function showRecovery() {
@@ -98,7 +121,9 @@
   <main class="gate-message"><section><h1>Setup requires server configuration</h1><p>Set <code>ADMIN_BOOTSTRAP_TOKEN</code>, restart NovelReader, and reload this page.</p></section></main>
 {:else if gate === 'login'}
   {#if message}<p class="session-message" role="status">{message}</p>{/if}
-  <LoginPage onLogin={signedIn} onRecovery={showRecovery} />
+  <LoginPage {registrationEnabled} onLogin={signedIn} onRegister={showRegistration} onRecovery={showRecovery} />
+{:else if gate === 'registration'}
+  <RegistrationPage inviteRequired={registrationInviteRequired} onComplete={signedIn} onCancel={showLogin} />
 {:else if gate === 'logout-failed'}
   <main class="gate-message"><section><h1>Sign out could not be confirmed</h1><p role="alert">Your private pages are closed, but the server may still recognize this browser session. Retry while connected before another person uses this browser.</p><p>{message}</p><button onclick={signOut}>Retry sign out</button></section></main>
 {:else if gate === 'recovery'}

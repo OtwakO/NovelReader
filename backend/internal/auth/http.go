@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/otwako/novelreader/internal/readerstore"
 )
 
 const (
@@ -23,10 +25,13 @@ const (
 )
 
 type HTTPConfig struct {
-	PublicURL     string
-	LoginTimeout  time.Duration
-	LoginAttempts int
-	LoginWindow   time.Duration
+	PublicURL              string
+	LoginTimeout           time.Duration
+	LoginAttempts          int
+	LoginWindow            time.Duration
+	Readers                *readerstore.Manager
+	RegistrationEnabled    bool
+	RegistrationInviteCode string
 }
 
 type HTTPHandler struct {
@@ -39,6 +44,8 @@ type HTTPHandler struct {
 	loginLimiter       *loginRateLimiter
 	now                func() time.Time
 	afterSessionCreate func(SessionCredential)
+	registration       *RegistrationService
+	registerAccount    func(context.Context, string, string, string, time.Time) (Account, error)
 }
 
 type loginRateLimiter struct {
@@ -54,6 +61,17 @@ type loginAttemptWindow struct {
 }
 
 type identityContextKey struct{}
+
+type registrationPolicyResponse struct {
+	Enabled        bool `json:"enabled"`
+	InviteRequired bool `json:"inviteRequired"`
+}
+
+type registrationRequest struct {
+	Username   string
+	Password   string
+	InviteCode string
+}
 
 type accountResponse struct {
 	ID       string `json:"id"`
@@ -89,8 +107,14 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 		},
 		now: time.Now,
 	}
+	if config.Readers != nil {
+		handler.registration = NewRegistrationService(store, config.Readers, config.RegistrationEnabled, config.RegistrationInviteCode)
+		handler.registerAccount = handler.registration.Register
+	}
 	handler.mux.HandleFunc("POST /api/auth/login", handler.handleLogin)
 	handler.mux.HandleFunc("POST /api/auth/logout", handler.handleLogout)
+	handler.mux.HandleFunc("GET /api/auth/registration", handler.handleRegistrationPolicy)
+	handler.mux.HandleFunc("POST /api/auth/register", handler.handleRegister)
 	handler.mux.Handle("GET /api/auth/account", handler.RequireIdentity(http.HandlerFunc(handler.handleAccount)))
 	return handler, nil
 }
@@ -261,6 +285,91 @@ func (h *HTTPHandler) revokeEventuallyCreatedSession(result <-chan struct {
 			return
 		case <-timer.C:
 		}
+	}
+}
+
+func (h *HTTPHandler) handleRegistrationPolicy(w http.ResponseWriter, _ *http.Request) {
+	enabled, inviteRequired := false, false
+	if h.registration != nil {
+		enabled, inviteRequired = h.registration.Policy()
+	}
+	writeAuthJSON(w, http.StatusOK, registrationPolicyResponse{Enabled: enabled, InviteRequired: inviteRequired})
+}
+
+func (h *HTTPHandler) handleRegister(w http.ResponseWriter, r *http.Request) {
+	if !h.allowUnsafeRequest(w, r) {
+		return
+	}
+	if h.registration == nil {
+		writeAuthError(w, http.StatusNotFound, "registration unavailable")
+		return
+	}
+	if retryAfter, allowed := h.loginLimiter.allow(directPeerAddress(r.RemoteAddr), h.now()); !allowed {
+		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retryAfter.Seconds()))))
+		writeAuthError(w, http.StatusTooManyRequests, "too many registration attempts")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.loginTimeout)
+	defer cancel()
+	request, err := readRegistrationWithinDeadline(ctx, r)
+	if errors.Is(err, errLoginRequestTooLarge) {
+		writeAuthError(w, http.StatusRequestEntityTooLarge, "request body is too large")
+		return
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "registration temporarily unavailable")
+		return
+	}
+	if err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	account, err := h.registerWithinDeadline(ctx, request, h.now())
+	switch {
+	case errors.Is(err, ErrRegistrationUnavailable):
+		writeAuthError(w, http.StatusForbidden, "registration unavailable")
+		return
+	case errors.Is(err, ErrUsernameUnavailable):
+		writeAuthError(w, http.StatusConflict, "username unavailable")
+		return
+	case errors.Is(err, ErrInvalidUsername), errors.Is(err, ErrInvalidPassword):
+		writeAuthError(w, http.StatusBadRequest, "invalid username or password")
+		return
+	case errors.Is(err, ErrPasswordWorkOverloaded), errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "registration temporarily unavailable")
+		return
+	case err != nil:
+		writeAuthError(w, http.StatusInternalServerError, "registration unavailable")
+		return
+	}
+	credential, err := h.createSessionWithinDeadline(ctx, account, h.now().Unix())
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "registration unavailable")
+		return
+	}
+	h.setSessionCookie(w, r, credential.Token, 0)
+	writeAuthJSON(w, http.StatusCreated, publicAccount(account))
+}
+
+func (h *HTTPHandler) registerWithinDeadline(ctx context.Context, request registrationRequest, now time.Time) (Account, error) {
+	result := make(chan struct {
+		account Account
+		err     error
+	}, 1)
+	go func() {
+		account, err := h.registerAccount(ctx, request.Username, request.Password, request.InviteCode, now)
+		result <- struct {
+			account Account
+			err     error
+		}{account: account, err: err}
+	}()
+	select {
+	case completed := <-result:
+		return completed.account, completed.err
+	case <-ctx.Done():
+		return Account{}, ctx.Err()
 	}
 }
 
@@ -479,6 +588,74 @@ func readLoginWithinDeadline(ctx context.Context, r *http.Request) (loginRequest
 		_ = r.Body.Close()
 		return loginRequest{}, ctx.Err()
 	}
+}
+
+func readRegistrationWithinDeadline(ctx context.Context, r *http.Request) (registrationRequest, error) {
+	result := make(chan struct {
+		request registrationRequest
+		err     error
+	}, 1)
+	go func() {
+		defer r.Body.Close()
+		body, err := io.ReadAll(io.LimitReader(r.Body, maxLoginRequestSize+1))
+		if err == nil && len(body) > maxLoginRequestSize {
+			err = errLoginRequestTooLarge
+		}
+		var request registrationRequest
+		if err == nil {
+			request, err = decodeRegistrationJSON(body)
+		}
+		result <- struct {
+			request registrationRequest
+			err     error
+		}{request, err}
+	}()
+	select {
+	case decoded := <-result:
+		return decoded.request, decoded.err
+	case <-ctx.Done():
+		_ = r.Body.Close()
+		return registrationRequest{}, ctx.Err()
+	}
+}
+
+func decodeRegistrationJSON(body []byte) (registrationRequest, error) {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return registrationRequest{}, errInvalidLoginRequest
+	}
+	var request registrationRequest
+	seen := make(map[string]bool, 3)
+	for decoder.More() {
+		field, err := decoder.Token()
+		name, ok := field.(string)
+		if err != nil || !ok || seen[name] {
+			return registrationRequest{}, errInvalidLoginRequest
+		}
+		seen[name] = true
+		switch name {
+		case "username":
+			err = decoder.Decode(&request.Username)
+		case "password":
+			err = decoder.Decode(&request.Password)
+		case "inviteCode":
+			err = decoder.Decode(&request.InviteCode)
+		default:
+			return registrationRequest{}, errInvalidLoginRequest
+		}
+		if err != nil {
+			return registrationRequest{}, errInvalidLoginRequest
+		}
+	}
+	closing, err := decoder.Token()
+	if err != nil || closing != json.Delim('}') || !seen["username"] || !seen["password"] {
+		return registrationRequest{}, errInvalidLoginRequest
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return registrationRequest{}, errInvalidLoginRequest
+	}
+	return request, nil
 }
 
 func decodeLoginJSON(body []byte) (loginRequest, error) {

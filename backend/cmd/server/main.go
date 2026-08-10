@@ -103,7 +103,10 @@ func main() {
 	api.TimeNowMillis = func() int64 { return time.Now().UnixMilli() }
 
 	// Mount public authentication/setup/recovery and protect every Reader Data route.
-	authHandler, err := auth.NewHTTPHandler(systemStore, auth.HTTPConfig{PublicURL: cfg.PublicURL})
+	authHandler, err := auth.NewHTTPHandler(systemStore, auth.HTTPConfig{
+		PublicURL: cfg.PublicURL, Readers: readers,
+		RegistrationEnabled: cfg.RegistrationEnabled, RegistrationInviteCode: cfg.RegistrationInviteCode,
+	})
 	if err != nil {
 		log.Fatalf("authentication HTTP: %v", err)
 	}

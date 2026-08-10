@@ -6,7 +6,7 @@ import { compile } from 'svelte/compiler';
 
 const root = path.resolve(import.meta.dirname, '..');
 
-for (const file of ['App.svelte', 'lib/LoginPage.svelte', 'lib/AuthenticatedApp.svelte']) {
+for (const file of ['App.svelte', 'lib/LoginPage.svelte', 'lib/RegistrationPage.svelte', 'lib/AuthenticatedApp.svelte']) {
   test(`${file} compiles`, () => {
     const source = fs.readFileSync(path.join(root, file), 'utf8');
     const result = compile(source, { filename: file, generate: 'client' });
@@ -22,4 +22,6 @@ test('root gate resolves setup and account before private app mount', () => {
   assert.match(source, /<AuthenticatedApp/);
   assert.match(source, /onAuthenticationLoss/);
   assert.match(source, /gate = 'logout-failed'/);
+  assert.match(source, /await getRegistrationPolicy\(\)/);
+  assert.match(source, /<RegistrationPage/);
 });

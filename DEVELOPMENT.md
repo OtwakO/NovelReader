@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-07] Registration activates only after reader-home publication
+- **Context**: Added optional public ordinary-reader registration after the authenticated ownership cutover.
+- **Change**: Registration reserves a recognizable disabled account, creates the immutable-ID reader home, then activates the account and creates a browser session. A retry with the same normalized username and password resumes the same reservation after interruption; normal Administrator-disabled accounts are not resumable.
+- **Reason**: No credential may authenticate before its isolated Reader Data home exists; the flow stays small by reusing `readerstore.Manager` rather than introducing a general workflow framework.
+- **Verified**: HTTP regressions cover disabled/invite policy, malformed and duplicate requests, provisioning failure retry, home publication, and authenticated session identity; frontend compiler/gate tests and production build cover the registration form.
+- **Watch out**: Session issuance is not part of provisioning authority. If a response/session fails after activation, the account and home remain valid and the reader signs in normally; registration does not become an alternate login endpoint.
+
 ### [2026-08-10] Authentication and Reader Data ownership mounted atomically
 - **Context**: Login/setup/recovery could not be exposed while production routes still used one global feature database and process-global workflow state.
 - **Change**: Production now mounts public auth/setup/configured-recovery beside an authenticated Reader Data server. Identity selects a bounded per-reader runtime backed by `users/<UserID>/reader.db` and `files/`; reader migrations are centralized and ordered; Search/Explore/source sessions/analyzer cache/JavaScript compatibility state are reader-local while process admission remains shared. `novelreader.db` startup, `DATABASE_PATH`, and global font paths were removed. The frontend resolves setup/account before mounting private routes.
