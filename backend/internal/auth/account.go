@@ -41,12 +41,23 @@ func NewAccountService(store *Store) *AccountService {
 
 // CreateReaderAccount creates only an ordinary reader account. Administrator creation belongs to setup/recovery workflows.
 func (s *AccountService) CreateReaderAccount(ctx context.Context, userID readerstore.UserID, rawUsername, password string, now int64) (Account, error) {
+	if err := s.store.setupGuard.readLock(ctx); err != nil {
+		return Account{}, err
+	}
+	defer s.store.setupGuard.readUnlock()
 	if _, err := readerstore.ParseUserID(string(userID)); err != nil {
 		return Account{}, err
 	}
 	username, err := NormalizeUsername(rawUsername)
 	if err != nil {
 		return Account{}, err
+	}
+	var setupStatus string
+	if err := s.store.db.QueryRowContext(ctx, `SELECT status FROM setup_state WHERE id = 1`).Scan(&setupStatus); err != nil {
+		return Account{}, fmt.Errorf("auth: inspect setup before account creation: %w", err)
+	}
+	if setupStatus != "closed" {
+		return Account{}, ErrSetupInProgress
 	}
 	passwordHash, err := s.passwords.Hash(ctx, password)
 	if err != nil {

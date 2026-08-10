@@ -155,7 +155,7 @@ When no Administrator exists, normal registration and all Reader Data routes fai
 - The browser form chooses the first Administrator username and password; actual account passwords are never environment variables.
 - Setup uses a singleton row in `system.db` and `BEGIN IMMEDIATE` to serialize claims. The transaction rechecks that no active Administrator or claimed setup exists, records one immutable proposed user ID, and rejects every concurrent loser.
 - Reader storage is created under a staging directory for that proposed ID, initialized and validated, then published by same-filesystem rename. A second system transaction activates the Administrator and closes setup only after the directory is published.
-- Crash recovery is state-driven and idempotent: an unexpired claim with valid published storage rolls forward to activation; a staged/incomplete directory is retried or quarantined; an active Administrator permanently closes setup. No second initial Administrator can be admitted because a durable claim remains authoritative until completed or explicitly recovered.
+- Crash recovery is state-driven and idempotent: a valid durable claim remains authoritative and rolls forward under bootstrap authority even after its advisory expiry; a staged/incomplete directory is retried or quarantined; an active Administrator permanently closes setup. No second initial Administrator can be admitted because the claim remains authoritative until completed or explicitly recovered.
 - The bootstrap token cannot sign in, access the admin interface, or be reused as an account credential.
 - Operators remove the token after setup. NovelReader never persists or logs it.
 

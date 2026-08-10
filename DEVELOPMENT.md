@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-06] Writable data roots have one server owner
+- **Context**: First-Administrator setup spans a durable SQLite claim and atomic publication of a reader-home directory.
+- **Decision**: One NovelReader server process exclusively owns a writable `DATA_DIR`. In-process guards coordinate multiple Store/Manager instances, but shared writable multi-process access is unsupported.
+- **Reason**: SQLite transactions serialize database records, not adjacent staged filesystem publication. A setup-only file lock would imply safety that the rest of the reader-storage workflows do not provide.
+- **Verified**: Setup concurrency tests cover separate Store and Manager instances in one process; README and PLAN document the deployment constraint.
+- **Watch out**: If multi-process deployment is ever required, add a root-wide startup ownership lock and subprocess tests rather than local workflow locks.
+
 ### [2026-08-06] Chapter image decoder context differs from normal rule evaluation
 - **Context**: LC-015 added stored chapter-image fetching and portable `imageDecode` execution.
 - **Change**: Chapter image scripts receive downloaded bytes as `result` and the resolved image URL as `src`. JSON-object `jsLib` values that map library names to remote URLs are treated as metadata rather than executable JavaScript for this boundary.

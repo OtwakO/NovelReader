@@ -8,9 +8,10 @@ import (
 
 func TestLoadReadsPublicOriginConfiguration(t *testing.T) {
 	t.Setenv("PUBLIC_URL", "https://reader.example")
+	t.Setenv("ADMIN_BOOTSTRAP_TOKEN", "temporary-setup-authority")
 	cfg := Load()
-	if cfg.PublicURL != "https://reader.example" {
-		t.Fatalf("public URL=%q", cfg.PublicURL)
+	if cfg.PublicURL != "https://reader.example" || cfg.AdminBootstrapToken != "temporary-setup-authority" {
+		t.Fatalf("origin/bootstrap config=%q/%q", cfg.PublicURL, cfg.AdminBootstrapToken)
 	}
 }
 

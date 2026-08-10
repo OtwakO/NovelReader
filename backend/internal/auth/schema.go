@@ -40,13 +40,16 @@ CREATE TABLE setup_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     status TEXT NOT NULL CHECK (status IN ('open', 'claimed', 'closed')),
     proposed_user_id TEXT,
+    username TEXT,
+    username_normalized TEXT,
+    password_hash TEXT,
     claimed_at INTEGER,
     claim_expires_at INTEGER,
     closed_at INTEGER,
     CHECK (
-        (status = 'open' AND proposed_user_id IS NULL AND claimed_at IS NULL AND claim_expires_at IS NULL AND closed_at IS NULL)
-        OR (status = 'claimed' AND proposed_user_id IS NOT NULL AND claimed_at IS NOT NULL AND claim_expires_at IS NOT NULL AND closed_at IS NULL)
-        OR (status = 'closed' AND proposed_user_id IS NOT NULL AND claimed_at IS NOT NULL AND claim_expires_at IS NOT NULL AND closed_at IS NOT NULL)
+        (status = 'open' AND proposed_user_id IS NULL AND username IS NULL AND username_normalized IS NULL AND password_hash IS NULL AND claimed_at IS NULL AND claim_expires_at IS NULL AND closed_at IS NULL)
+        OR (status = 'claimed' AND proposed_user_id IS NOT NULL AND username IS NOT NULL AND username_normalized IS NOT NULL AND password_hash IS NOT NULL AND claimed_at IS NOT NULL AND claim_expires_at IS NOT NULL AND closed_at IS NULL)
+        OR (status = 'closed' AND proposed_user_id IS NOT NULL AND username IS NULL AND username_normalized IS NULL AND password_hash IS NULL AND claimed_at IS NOT NULL AND claim_expires_at IS NOT NULL AND closed_at IS NOT NULL)
     )
 );
 INSERT INTO setup_state (id, status) VALUES (1, 'open');

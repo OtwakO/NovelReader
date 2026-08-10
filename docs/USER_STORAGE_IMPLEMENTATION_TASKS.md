@@ -111,14 +111,13 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 
 ### 2.3 First Administrator setup and recovery
 
-- [ ] Implement one-time browser setup guarded by `ADMIN_BOOTSTRAP_TOKEN`.
-- [ ] Serialize setup with a durable singleton claim and `BEGIN IMMEDIATE`.
-- [ ] Stage and publish the first Administrator reader directory before activating the account.
-- [ ] Recover deterministically from every interrupted setup state without creating two initial
-      Administrators.
+- [ ] Implement one-time browser setup guarded by `ADMIN_BOOTSTRAP_TOKEN`; configuration and backend validation exist, but no route is mounted yet.
+- [x] Serialize setup with a durable singleton claim, immediate SQLite transactions, and a shared in-process setup guard.
+- [x] Stage and publish the first Administrator reader directory before activating the account.
+- [x] Recover deterministically from interrupted claim and directory-publication states without creating two initial Administrators; activation and setup closure share one transaction.
 - [ ] Implement environment-token Administrator recovery without reading or modifying Reader Data.
-- [ ] Ensure public registration can create only `reader` accounts.
-- [ ] Add concurrent setup, crash recovery, token redaction, and recovery-session revocation tests.
+- [x] Ensure public registration can create only `reader` accounts and fails closed until initial setup closes.
+- [ ] Add recovery-session revocation tests. Concurrent setup, interruption recovery, expiry recovery, malformed-state rejection, and bootstrap-token non-persistence are covered.
 
 ### 2.4 Convert all Reader Data stores
 

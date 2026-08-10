@@ -246,7 +246,7 @@ func TestOpenSystemStoreRejectsNewerSchemaWithoutModifyingIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`PRAGMA user_version = 3`); err != nil {
+	if _, err := db.Exec(`PRAGMA user_version = 4`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -501,6 +501,14 @@ func openTestStore(t *testing.T) *Store {
 	t.Helper()
 	store, err := OpenSystemStore(prepareTestRoot(t))
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.Exec(`
+		UPDATE setup_state
+		SET status = 'closed', proposed_user_id = ?, claimed_at = 1, claim_expires_at = 2, closed_at = 2
+		WHERE id = 1 AND status = 'open'
+	`, string(testUserID)); err != nil {
+		store.Close()
 		t.Fatal(err)
 	}
 	return store

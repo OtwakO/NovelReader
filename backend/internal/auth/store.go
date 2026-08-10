@@ -14,7 +14,7 @@ import (
 
 const (
 	SystemDatabaseName         = "system.db"
-	CurrentSystemSchemaVersion = 2
+	CurrentSystemSchemaVersion = 3
 	systemDatabaseStagingName  = ".system.db.staging"
 )
 
@@ -40,6 +40,10 @@ var (
 	ErrAccountNotFound         = errors.New("auth: account not found")
 
 	sessionGuards = struct {
+		sync.Mutex
+		byPath map[string]*sharedSessionGuard
+	}{byPath: make(map[string]*sharedSessionGuard)}
+	setupGuards = struct {
 		sync.Mutex
 		byPath map[string]*sharedSessionGuard
 	}{byPath: make(map[string]*sharedSessionGuard)}
@@ -123,6 +127,7 @@ type Store struct {
 	db           *sql.DB
 	path         string
 	sessionGuard *sharedSessionGuard
+	setupGuard   *sharedSessionGuard
 	closeOnce    sync.Once
 	closeErr     error
 }
@@ -154,7 +159,7 @@ func OpenSystemStore(root string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Store{db: db, path: path, sessionGuard: acquireSessionGuard(path)}, nil
+	return &Store{db: db, path: path, sessionGuard: acquireSharedGuard(&sessionGuards, path), setupGuard: acquireSharedGuard(&setupGuards, path)}, nil
 }
 
 func (s *Store) Path() string {
@@ -223,13 +228,16 @@ func (s *Store) TransitionAccountStatus(userID readerstore.UserID, next AccountS
 	return nil
 }
 
-func acquireSessionGuard(path string) *sharedSessionGuard {
-	sessionGuards.Lock()
-	defer sessionGuards.Unlock()
-	guard := sessionGuards.byPath[path]
+func acquireSharedGuard(registry *struct {
+	sync.Mutex
+	byPath map[string]*sharedSessionGuard
+}, path string) *sharedSessionGuard {
+	registry.Lock()
+	defer registry.Unlock()
+	guard := registry.byPath[path]
 	if guard == nil {
 		guard = newSharedSessionGuard()
-		sessionGuards.byPath[path] = guard
+		registry.byPath[path] = guard
 	}
 	return guard
 }
