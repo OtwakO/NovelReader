@@ -134,7 +134,8 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 
 ### 2.5 Account administration and deletion backend
 
-- [ ] Allow Administrators to list, disable/re-enable, reset, and delete ordinary accounts only.
+- [x] Allow Administrators to list and disable/re-enable ordinary accounts only, with protected Administrator targets, atomic session revocation, and idempotent desired-state retries.
+- [ ] Allow Administrators to reset and delete ordinary accounts only.
 - [ ] Implement one-time 30-minute reader password-reset tokens.
 - [ ] Implement durable, retryable account deletion with write quiescence and Source Session purge.
 - [ ] Resolve deletion paths only through immutable `UserID` and `readerstore`.
@@ -154,7 +155,7 @@ without revealing whether another reader's resource exists.
 - [x] Load the current account before entering authenticated application routes.
 - [x] Add authenticated current-password change with optimistic credential matching, all-session revocation, forced re-login, and an account page; logout is complete.
 - [x] Handle mid-session revocation by centrally unmounting private UI on `401`; explicit logout also unmounts immediately and warns/retries instead of claiming success if server revocation fails.
-- [ ] Add ordinary-account administration with explicit destructive confirmation.
+- [x] Add ordinary-account list and disable/re-enable controls with explicit disable confirmation; reset/delete controls remain pending their backend slices.
 - [x] Add the configured Administrator recovery page.
 - [x] Add keyboard-accessible forms, loading/error states, and narrow-screen layouts for setup/login/recovery.
 - [ ] Add one setup → login → read → logout browser workflow; targeted compiler/state tests are complete.
@@ -232,4 +233,5 @@ Before Phase 2 is marked complete:
 - [x] Atomic authentication/Reader Data ownership cutover complete.
 - [x] Environment-controlled ordinary-reader registration complete.
 - [x] Authenticated password change complete.
-- [ ] Next core account slice: Administrator list/disable/re-enable for ordinary readers.
+- [x] Administrator list/disable/re-enable for ordinary readers.
+- [ ] Next core account slice: Administrator-issued one-time reader password reset.

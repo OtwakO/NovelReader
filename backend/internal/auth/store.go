@@ -196,14 +196,18 @@ func (s *Store) Close() error {
 
 // TransitionAccountStatus applies only legal state changes and revokes sessions when leaving active status.
 func (s *Store) TransitionAccountStatus(userID readerstore.UserID, next AccountStatus, updatedAt int64) error {
+	return s.transitionAccountStatus(context.Background(), userID, next, updatedAt, "")
+}
+
+func (s *Store) transitionAccountStatus(ctx context.Context, userID readerstore.UserID, next AccountStatus, updatedAt int64, requiredRole Role) error {
 	if _, err := readerstore.ParseUserID(string(userID)); err != nil {
 		return err
 	}
-	if err := s.setupGuard.readLock(context.Background()); err != nil {
+	if err := s.setupGuard.readLock(ctx); err != nil {
 		return err
 	}
 	defer s.setupGuard.readUnlock()
-	if err := s.sessionGuard.lock(context.Background()); err != nil {
+	if err := s.sessionGuard.lock(ctx); err != nil {
 		return err
 	}
 	defer s.sessionGuard.unlock()
@@ -211,25 +215,32 @@ func (s *Store) TransitionAccountStatus(userID readerstore.UserID, next AccountS
 		return ErrInvalidStatusTransition
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("auth: begin account status transition: %w", err)
 	}
 	defer tx.Rollback()
 	var current AccountStatus
-	if err := tx.QueryRow(`SELECT status FROM users WHERE id = ?`, string(userID)).Scan(&current); err != nil {
+	var role Role
+	if err := tx.QueryRowContext(ctx, `SELECT status, role FROM users WHERE id = ?`, string(userID)).Scan(&current, &role); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrAccountNotFound
 		}
 		return fmt.Errorf("auth: read account status: %w", err)
 	}
+	if requiredRole != "" && role != requiredRole {
+		return ErrProtectedAccount
+	}
+	if requiredRole != "" && current == next {
+		return tx.Commit()
+	}
 	if !legalStatusTransition(current, next) {
 		return fmt.Errorf("%w: %s -> %s", ErrInvalidStatusTransition, current, next)
 	}
-	result, err := tx.Exec(`
+	result, err := tx.ExecContext(ctx, `
 		UPDATE users SET status = ?, updated_at = ?, auth_version = auth_version + 1
-		WHERE id = ? AND status = ?
-	`, string(next), updatedAt, string(userID), string(current))
+		WHERE id = ? AND status = ? AND role = ?
+	`, string(next), updatedAt, string(userID), string(current), string(role))
 	if err != nil {
 		return fmt.Errorf("auth: update account status: %w", err)
 	}
@@ -241,7 +252,7 @@ func (s *Store) TransitionAccountStatus(userID readerstore.UserID, next AccountS
 		return fmt.Errorf("auth: account status changed concurrently")
 	}
 	if current == StatusActive && next != StatusActive {
-		if _, err := tx.Exec(`DELETE FROM auth_sessions WHERE user_id = ?`, string(userID)); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM auth_sessions WHERE user_id = ?`, string(userID)); err != nil {
 			return fmt.Errorf("auth: revoke sessions after account status change: %w", err)
 		}
 	}

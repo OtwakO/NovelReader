@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-07] Reader disable is a transactional authentication boundary
+- **Context**: Added the first Administrator account-management slice: ordinary-reader list and active/disabled controls.
+- **Change**: The AccountService permits only ordinary reader active↔disabled changes. Role validation, status/version update, and all-session revocation occur under the shared session guard and one transaction; desired-state retries are idempotent. The Account page confirms disable and never exposes Administrator targets.
+- **Reason**: A role preflight followed by the existing generic lifecycle transition would create a future check/use gap, while treating a timed-out retry as a conflict would make a successful disable look failed.
+- **Verified**: Service and HTTP regressions cover filtered listing, protected Administrators, atomic revocation and rollback, preserved credentials/data semantics, re-enable, a committed-timeout idempotent retry, strict UUID/duplicate/missing/wrong-type/trailing/oversized body parsing, origin checks, and Administrator authorization. Frontend behavioral tests cover role visibility and active/disabled/deleting actions; mutations are serialized, while compiler tests and a warning-free production build cover the Account-page controls and confirmation.
+- **Watch out**: The lower-level `TransitionAccountStatus` remains strict because registration and future deletion use lifecycle transitions; only the Administrator desired-state operation is idempotent.
+
 ### [2026-08-07] Self-service password change rejects stale credentials
 - **Context**: Added authenticated password change after controlled reader registration.
 - **Change**: The current password is verified, then the replacement commits only if the stored hash and authentication version still match the verified values; every session is deleted in the same transaction. The browser clears its cookie, unmounts private UI, and requires login with the new password.

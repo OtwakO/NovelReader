@@ -48,6 +48,7 @@ type HTTPHandler struct {
 	registration       *RegistrationService
 	registerAccount    func(context.Context, string, string, string, time.Time) (Account, error)
 	changePassword     func(context.Context, readerstore.UserID, string, string, int64) error
+	setReaderEnabled   func(context.Context, readerstore.UserID, bool, int64) (Account, error)
 }
 
 type loginRateLimiter struct {
@@ -80,10 +81,22 @@ type passwordChangeRequest struct {
 	NewPassword     string
 }
 
+type readerStatusRequest struct {
+	Enabled *bool
+}
+
 type accountResponse struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 	Role     Role   `json:"role"`
+}
+
+type adminAccountResponse struct {
+	ID        string        `json:"id"`
+	Username  string        `json:"username"`
+	Status    AccountStatus `json:"status"`
+	CreatedAt int64         `json:"createdAt"`
+	UpdatedAt int64         `json:"updatedAt"`
 }
 
 func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
@@ -120,6 +133,7 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 		now: time.Now,
 	}
 	handler.changePassword = handler.accounts.ChangePassword
+	handler.setReaderEnabled = handler.accounts.SetReaderEnabled
 	if config.Readers != nil {
 		handler.registration = NewRegistrationService(store, config.Readers, config.RegistrationEnabled, config.RegistrationInviteCode)
 		handler.registerAccount = handler.registration.Register
@@ -130,6 +144,8 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 	handler.mux.HandleFunc("POST /api/auth/register", handler.handleRegister)
 	handler.mux.Handle("GET /api/auth/account", handler.RequireIdentity(http.HandlerFunc(handler.handleAccount)))
 	handler.mux.Handle("POST /api/auth/password", handler.RequireIdentity(http.HandlerFunc(handler.handlePasswordChange)))
+	handler.mux.Handle("GET /api/auth/admin/readers", handler.RequireAdmin(http.HandlerFunc(handler.handleListReaders)))
+	handler.mux.Handle("PUT /api/auth/admin/readers/{userID}/status", handler.RequireAdmin(http.HandlerFunc(handler.handleReaderStatus)))
 	return handler, nil
 }
 
@@ -469,6 +485,62 @@ func (h *HTTPHandler) changePasswordWithinDeadline(ctx context.Context, userID r
 	}
 }
 
+func (h *HTTPHandler) handleListReaders(w http.ResponseWriter, r *http.Request) {
+	accounts, err := h.accounts.ListReaderAccounts(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "account administration unavailable")
+		return
+	}
+	response := make([]adminAccountResponse, 0, len(accounts))
+	for _, account := range accounts {
+		response = append(response, adminPublicAccount(account))
+	}
+	writeAuthJSON(w, http.StatusOK, map[string]any{"accounts": response})
+}
+
+func (h *HTTPHandler) handleReaderStatus(w http.ResponseWriter, r *http.Request) {
+	if !h.allowUnsafeRequest(w, r) {
+		return
+	}
+	userID, err := readerstore.ParseUserID(r.PathValue("userID"))
+	if err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid reader account")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.loginTimeout)
+	defer cancel()
+	request, err := readReaderStatusWithinDeadline(ctx, r)
+	if errors.Is(err, errLoginRequestTooLarge) {
+		writeAuthError(w, http.StatusRequestEntityTooLarge, "request body is too large")
+		return
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "account administration temporarily unavailable")
+		return
+	}
+	if err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	account, err := h.setReaderEnabled(ctx, userID, *request.Enabled, h.now().Unix())
+	switch {
+	case errors.Is(err, ErrProtectedAccount):
+		writeAuthError(w, http.StatusForbidden, "protected account")
+	case errors.Is(err, ErrAccountNotFound):
+		writeAuthError(w, http.StatusNotFound, "reader account not found")
+	case errors.Is(err, ErrInvalidStatusTransition):
+		writeAuthError(w, http.StatusConflict, "reader account status changed")
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "account administration temporarily unavailable")
+	case err != nil:
+		writeAuthError(w, http.StatusInternalServerError, "account administration unavailable")
+	default:
+		writeAuthJSON(w, http.StatusOK, adminPublicAccount(account))
+	}
+}
+
 func (h *HTTPHandler) handleAccount(w http.ResponseWriter, r *http.Request) {
 	account, ok := IdentityFromContext(r.Context())
 	if !ok {
@@ -713,6 +785,41 @@ func readPasswordChangeWithinDeadline(ctx context.Context, r *http.Request) (pas
 	return request, nil
 }
 
+func readReaderStatusWithinDeadline(ctx context.Context, r *http.Request) (readerStatusRequest, error) {
+	body, err := readAuthBodyWithinDeadline(ctx, r)
+	if err != nil {
+		return readerStatusRequest{}, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return readerStatusRequest{}, errInvalidLoginRequest
+	}
+	var request readerStatusRequest
+	seen := false
+	for decoder.More() {
+		field, err := decoder.Token()
+		name, ok := field.(string)
+		if err != nil || !ok || seen || name != "enabled" {
+			return readerStatusRequest{}, errInvalidLoginRequest
+		}
+		seen = true
+		var enabled bool
+		if err := decoder.Decode(&enabled); err != nil {
+			return readerStatusRequest{}, errInvalidLoginRequest
+		}
+		request.Enabled = &enabled
+	}
+	closing, err := decoder.Token()
+	if err != nil || closing != json.Delim('}') || request.Enabled == nil {
+		return readerStatusRequest{}, errInvalidLoginRequest
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return readerStatusRequest{}, errInvalidLoginRequest
+	}
+	return request, nil
+}
+
 func readAuthBodyWithinDeadline(ctx context.Context, r *http.Request) ([]byte, error) {
 	result := make(chan struct {
 		body []byte
@@ -845,6 +952,13 @@ func decodeLoginJSON(body []byte) (loginRequest, error) {
 
 func publicAccount(account Account) accountResponse {
 	return accountResponse{ID: string(account.ID), Username: account.Username, Role: account.Role}
+}
+
+func adminPublicAccount(account Account) adminAccountResponse {
+	return adminAccountResponse{
+		ID: string(account.ID), Username: account.Username, Status: account.Status,
+		CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
+	}
 }
 
 func writeAuthJSON(w http.ResponseWriter, status int, value interface{}) {

@@ -111,6 +111,26 @@ export function changePassword(currentPassword: string, newPassword: string) {
   });
 }
 
+export interface AdminReaderAccount {
+  id: string;
+  username: string;
+  status: 'active' | 'disabled' | 'deleting';
+  createdAt: number;
+  updatedAt: number;
+}
+
+export async function listReaderAccounts() {
+  const response = await req<{ accounts: AdminReaderAccount[] }>('/auth/admin/readers');
+  return response.accounts;
+}
+
+export function setReaderEnabled(userID: string, enabled: boolean) {
+  return req<AdminReaderAccount>(`/auth/admin/readers/${encodeURIComponent(userID)}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ enabled }),
+  });
+}
+
 export function logout() {
   return req<void>('/auth/logout', { method: 'POST' });
 }

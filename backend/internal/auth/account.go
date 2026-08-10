@@ -17,6 +17,7 @@ var (
 	ErrInvalidCredentials   = errors.New("auth: invalid credentials")
 	ErrAccountNotActive     = errors.New("auth: account is not active")
 	ErrInvalidAccountRecord = errors.New("auth: invalid stored account record")
+	ErrProtectedAccount     = errors.New("auth: protected account")
 )
 
 type Account struct {
@@ -103,6 +104,50 @@ func (s *AccountService) createAccount(ctx context.Context, userID readerstore.U
 		UpdatedAt:          updatedAt,
 		AuthVersion:        1,
 	}, nil
+}
+
+// ListReaderAccounts returns ordinary accounts in stable username order without credential material.
+func (s *AccountService) ListReaderAccounts(ctx context.Context) ([]Account, error) {
+	rows, err := s.store.db.QueryContext(ctx, `
+		SELECT id, username, username_normalized, role, status, created_at, updated_at, auth_version
+		FROM users WHERE role = ? ORDER BY username_normalized, id
+	`, string(RoleReader))
+	if err != nil {
+		return nil, fmt.Errorf("auth: list reader accounts: %w", err)
+	}
+	defer rows.Close()
+	accounts := make([]Account, 0)
+	for rows.Next() {
+		var account Account
+		var id string
+		if err := rows.Scan(&id, &account.Username, &account.UsernameNormalized, &account.Role, &account.Status, &account.CreatedAt, &account.UpdatedAt, &account.AuthVersion); err != nil {
+			return nil, fmt.Errorf("auth: scan reader account: %w", err)
+		}
+		account.ID, err = readerstore.ParseUserID(id)
+		if err != nil {
+			return nil, fmt.Errorf("%w: account ID: %v", ErrInvalidAccountRecord, err)
+		}
+		if err := validateStoredAccount(account); err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, account)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("auth: read reader accounts: %w", err)
+	}
+	return accounts, nil
+}
+
+// SetReaderEnabled permits only active/disabled transitions for ordinary reader accounts.
+func (s *AccountService) SetReaderEnabled(ctx context.Context, userID readerstore.UserID, enabled bool, now int64) (Account, error) {
+	next := StatusDisabled
+	if enabled {
+		next = StatusActive
+	}
+	if err := s.store.transitionAccountStatus(ctx, userID, next, now, RoleReader); err != nil {
+		return Account{}, err
+	}
+	return accountByID(ctx, s.store.db, userID)
 }
 
 func (s *AccountService) Authenticate(ctx context.Context, rawUsername, password string) (Account, error) {

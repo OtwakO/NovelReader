@@ -14,6 +14,15 @@ for (const file of ['App.svelte', 'lib/LoginPage.svelte', 'lib/RegistrationPage.
   });
 }
 
+test('administrator account page exposes bounded reader status controls', () => {
+  const source = fs.readFileSync(path.join(root, 'lib/AccountPage.svelte'), 'utf8');
+  assert.match(source, /mayManageReaders\(account\.role\)/);
+  assert.match(source, /await listReaderAccounts\(\)/);
+  assert.match(source, /window\.confirm/);
+  assert.match(source, /await setReaderEnabled\(reader\.id, enabled\)/);
+  assert.doesNotMatch(source, /password-reset|deleteReader|Delete account/);
+});
+
 test('root gate resolves setup and account before private app mount', () => {
   const source = fs.readFileSync(path.join(root, 'App.svelte'), 'utf8');
   assert.match(source, /await getSetupStatus\(\)/);
