@@ -1,5 +1,11 @@
 # Development Notes
 
+### [2026-08-11] Static fallback must remain path-only beside the API prefix
+- **Context**: The first local startup after the authenticated ownership cutover panicked in Go 1.26 while registering `GET /` beside the method-agnostic `/api/` boundary.
+- **Change**: The SPA fallback now registers the path-only `/` pattern, explicitly permits only GET/HEAD, and leaves `/api/` as the more-specific route. The Windows launcher generates a temporary setup token on every run so a startup failure after `system.db` creation cannot strand unfinished first setup.
+- **Reason**: Go's ServeMux rejects patterns where one is more specific by method while the other is more specific by path. Setup completion—not database-file existence—is the authority for whether the bootstrap token is still needed.
+- **Verified**: A regression reproduces the exact pattern conflict and proves API precedence, SPA fallback, and static-method rejection. API/server/auth tests pass, and a fresh temporary-data process serves `/api/healthz` and `/` without panic.
+
 ### [2026-08-07] Reader deletion is durable roll-forward, never rollback
 - **Context**: Added permanent Administrator deletion of ordinary readers and their isolated Reader Data homes.
 - **Change**: Exact username confirmation atomically marks the reader `deleting`, increments authentication version, revokes sessions, and creates an independent job. The API runtime manager then rejects new acquisitions, drains in-flight references, and discards the forked Search/Explore/Source Session state. `readerstore` independently blocks open/create, drains home leases, closes databases, eagerly freezes and verifies the prepared data-root identity before retaining an `os.Root`, rejects later configured-root replacement for path-based operations, opens `users/` only relative to the retained handle, and atomically renames the immutable-ID home to a root-relative quarantine name before validating/removing it. Account removal and job completion share the final system transaction.

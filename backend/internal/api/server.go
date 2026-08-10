@@ -953,7 +953,12 @@ func (s *Server) handleGetFontFile(w http.ResponseWriter, r *http.Request) {
 // ServeStatic serves the Svelte frontend build output.
 // Should be mounted at / with a fallback to index.html for SPA routing.
 func (s *Server) ServeStatic(mux *http.ServeMux, staticDir string, fs http.Handler) {
-	mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Allow", "GET, HEAD")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		path := filepath.Join(staticDir, r.URL.Path)
 		if _, err := os.Stat(path); err == nil {
 			fs.ServeHTTP(w, r)
