@@ -1,5 +1,11 @@
 # Development Notes
 
+### [2026-08-06] Renamed the active branch for its actual scope
+- **Context**: The branch began as `audit/explore-live-compat`, then the compatibility queue was deliberately paused while the accepted reader-storage and authentication prerequisite was implemented on the same unpushed branch.
+- **Change**: Renamed the branch in place to `feat/user-storage-auth` rather than merging an intentionally incomplete authentication cutover into `main` and branching again.
+- **Reason**: Renaming preserves the coherent commit sequence and hashes while making the branch and future PR accurately describe the work. Authentication/setup routes remain intentionally unmounted until the ownership cutover.
+- **Watch out**: Before opening the PR, verify whether the inherited Explore-audit organization commit belongs in this branch or should be integrated separately.
+
 ### [2026-08-06] Writable data roots have one server owner
 - **Context**: First-Administrator setup spans a durable SQLite claim and atomic publication of a reader-home directory.
 - **Decision**: One NovelReader server process exclusively owns a writable `DATA_DIR`. In-process guards coordinate multiple Store/Manager instances, but shared writable multi-process access is unsupported.
