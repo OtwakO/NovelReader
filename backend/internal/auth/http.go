@@ -42,10 +42,12 @@ type HTTPHandler struct {
 	secureCookie       bool
 	loginTimeout       time.Duration
 	loginLimiter       *loginRateLimiter
+	passwordLimiter    *loginRateLimiter
 	now                func() time.Time
 	afterSessionCreate func(SessionCredential)
 	registration       *RegistrationService
 	registerAccount    func(context.Context, string, string, string, time.Time) (Account, error)
+	changePassword     func(context.Context, readerstore.UserID, string, string, int64) error
 }
 
 type loginRateLimiter struct {
@@ -71,6 +73,11 @@ type registrationRequest struct {
 	Username   string
 	Password   string
 	InviteCode string
+}
+
+type passwordChangeRequest struct {
+	CurrentPassword string
+	NewPassword     string
 }
 
 type accountResponse struct {
@@ -105,8 +112,14 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 			limit:    config.LoginAttempts,
 			window:   config.LoginWindow,
 		},
+		passwordLimiter: &loginRateLimiter{
+			attempts: make(map[string]loginAttemptWindow),
+			limit:    config.LoginAttempts,
+			window:   config.LoginWindow,
+		},
 		now: time.Now,
 	}
+	handler.changePassword = handler.accounts.ChangePassword
 	if config.Readers != nil {
 		handler.registration = NewRegistrationService(store, config.Readers, config.RegistrationEnabled, config.RegistrationInviteCode)
 		handler.registerAccount = handler.registration.Register
@@ -116,6 +129,7 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 	handler.mux.HandleFunc("GET /api/auth/registration", handler.handleRegistrationPolicy)
 	handler.mux.HandleFunc("POST /api/auth/register", handler.handleRegister)
 	handler.mux.Handle("GET /api/auth/account", handler.RequireIdentity(http.HandlerFunc(handler.handleAccount)))
+	handler.mux.Handle("POST /api/auth/password", handler.RequireIdentity(http.HandlerFunc(handler.handlePasswordChange)))
 	return handler, nil
 }
 
@@ -387,6 +401,74 @@ func (h *HTTPHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *HTTPHandler) handlePasswordChange(w http.ResponseWriter, r *http.Request) {
+	if !h.allowUnsafeRequest(w, r) {
+		return
+	}
+	account, ok := IdentityFromContext(r.Context())
+	if !ok {
+		writeAuthError(w, http.StatusInternalServerError, "authentication unavailable")
+		return
+	}
+	limitKey := string(account.ID) + "@" + directPeerAddress(r.RemoteAddr)
+	if retryAfter, allowed := h.passwordLimiter.allow(limitKey, h.now()); !allowed {
+		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retryAfter.Seconds()))))
+		writeAuthError(w, http.StatusTooManyRequests, "too many password change attempts")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.loginTimeout)
+	defer cancel()
+	request, err := readPasswordChangeWithinDeadline(ctx, r)
+	if errors.Is(err, errLoginRequestTooLarge) {
+		writeAuthError(w, http.StatusRequestEntityTooLarge, "request body is too large")
+		return
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "password change temporarily unavailable")
+		return
+	}
+	if err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	err = h.changePasswordWithinDeadline(ctx, account.ID, request, h.now().Unix())
+	switch {
+	case errors.Is(err, ErrInvalidCredentials):
+		writeAuthError(w, http.StatusForbidden, "invalid current password")
+		return
+	case errors.Is(err, ErrInvalidPassword):
+		writeAuthError(w, http.StatusBadRequest, "invalid new password")
+		return
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		h.setSessionCookie(w, r, "", -1)
+		writeAuthError(w, http.StatusUnauthorized, "password change outcome requires sign in")
+		return
+	case errors.Is(err, ErrPasswordWorkOverloaded):
+		w.Header().Set("Retry-After", "1")
+		writeAuthError(w, http.StatusServiceUnavailable, "password change temporarily unavailable")
+		return
+	case err != nil:
+		writeAuthError(w, http.StatusInternalServerError, "password change unavailable")
+		return
+	}
+	h.setSessionCookie(w, r, "", -1)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *HTTPHandler) changePasswordWithinDeadline(ctx context.Context, userID readerstore.UserID, request passwordChangeRequest, now int64) error {
+	result := make(chan error, 1)
+	go func() {
+		result <- h.changePassword(ctx, userID, request.CurrentPassword, request.NewPassword, now)
+	}()
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (h *HTTPHandler) handleAccount(w http.ResponseWriter, r *http.Request) {
 	account, ok := IdentityFromContext(r.Context())
 	if !ok {
@@ -587,6 +669,72 @@ func readLoginWithinDeadline(ctx context.Context, r *http.Request) (loginRequest
 	case <-ctx.Done():
 		_ = r.Body.Close()
 		return loginRequest{}, ctx.Err()
+	}
+}
+
+func readPasswordChangeWithinDeadline(ctx context.Context, r *http.Request) (passwordChangeRequest, error) {
+	body, err := readAuthBodyWithinDeadline(ctx, r)
+	if err != nil {
+		return passwordChangeRequest{}, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return passwordChangeRequest{}, errInvalidLoginRequest
+	}
+	var request passwordChangeRequest
+	seen := make(map[string]bool, 2)
+	for decoder.More() {
+		field, err := decoder.Token()
+		name, ok := field.(string)
+		if err != nil || !ok || seen[name] {
+			return passwordChangeRequest{}, errInvalidLoginRequest
+		}
+		seen[name] = true
+		switch name {
+		case "currentPassword":
+			err = decoder.Decode(&request.CurrentPassword)
+		case "newPassword":
+			err = decoder.Decode(&request.NewPassword)
+		default:
+			return passwordChangeRequest{}, errInvalidLoginRequest
+		}
+		if err != nil {
+			return passwordChangeRequest{}, errInvalidLoginRequest
+		}
+	}
+	closing, err := decoder.Token()
+	if err != nil || closing != json.Delim('}') || !seen["currentPassword"] || !seen["newPassword"] {
+		return passwordChangeRequest{}, errInvalidLoginRequest
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return passwordChangeRequest{}, errInvalidLoginRequest
+	}
+	return request, nil
+}
+
+func readAuthBodyWithinDeadline(ctx context.Context, r *http.Request) ([]byte, error) {
+	result := make(chan struct {
+		body []byte
+		err  error
+	}, 1)
+	go func() {
+		defer r.Body.Close()
+		body, err := io.ReadAll(io.LimitReader(r.Body, maxLoginRequestSize+1))
+		if err == nil && len(body) > maxLoginRequestSize {
+			err = errLoginRequestTooLarge
+		}
+		result <- struct {
+			body []byte
+			err  error
+		}{body, err}
+	}()
+	select {
+	case read := <-result:
+		return read.body, read.err
+	case <-ctx.Done():
+		_ = r.Body.Close()
+		return nil, ctx.Err()
 	}
 }
 

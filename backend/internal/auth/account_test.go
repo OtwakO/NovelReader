@@ -238,6 +238,37 @@ func TestAccountServiceStoredRecordFailuresAreNotHiddenAsBadCredentials(t *testi
 	}
 }
 
+func TestAccountServiceChangePasswordRejectsStaleVerifiedCredential(t *testing.T) {
+	store := openTestStore(t)
+	defer store.Close()
+	accounts := NewAccountService(store)
+	if _, err := accounts.CreateReaderAccount(context.Background(), testUserID, "Alice", "correct horse battery staple", 100); err != nil {
+		t.Fatal(err)
+	}
+	verified := make(chan struct{})
+	release := make(chan struct{})
+	accounts.afterPasswordVerify = func() {
+		close(verified)
+		<-release
+	}
+	result := make(chan error, 1)
+	go func() {
+		result <- accounts.ChangePassword(context.Background(), testUserID, "correct horse battery staple", "stale replacement password", 200)
+	}()
+	<-verified
+	if err := NewAccountService(store).ReplacePassword(context.Background(), testUserID, "authoritative replacement password", 201); err != nil {
+		close(release)
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-result; !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("stale change error=%v", err)
+	}
+	if _, err := NewAccountService(store).Authenticate(context.Background(), "alice", "authoritative replacement password"); err != nil {
+		t.Fatalf("authoritative password err=%v", err)
+	}
+}
+
 func TestAccountServiceReplacesPasswordAndRevokesSessionsAtomically(t *testing.T) {
 	store := openTestStore(t)
 	defer store.Close()

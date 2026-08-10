@@ -32,8 +32,9 @@ type Account struct {
 
 // AccountService owns account credentials and persistence in system.db.
 type AccountService struct {
-	store     *Store
-	passwords *PasswordHasher
+	store               *Store
+	passwords           *PasswordHasher
+	afterPasswordVerify func()
 }
 
 func NewAccountService(store *Store) *AccountService {
@@ -133,6 +134,65 @@ func (s *AccountService) Authenticate(ctx context.Context, rawUsername, password
 	return account, nil
 }
 
+// ChangePassword verifies the current credential and atomically replaces it while revoking every session.
+func (s *AccountService) ChangePassword(ctx context.Context, userID readerstore.UserID, currentPassword, newPassword string, now int64) error {
+	if _, err := readerstore.ParseUserID(string(userID)); err != nil {
+		return err
+	}
+	if err := s.store.setupGuard.readLock(ctx); err != nil {
+		return err
+	}
+	defer s.store.setupGuard.readUnlock()
+	account, currentHash, err := s.accountByIDWithPassword(ctx, userID)
+	if err != nil {
+		return err
+	}
+	valid, err := s.passwords.Verify(ctx, currentPassword, currentHash)
+	if err != nil {
+		return err
+	}
+	if s.afterPasswordVerify != nil {
+		s.afterPasswordVerify()
+	}
+	if !valid || account.Status != StatusActive {
+		return ErrInvalidCredentials
+	}
+	newHash, err := s.passwords.Hash(ctx, newPassword)
+	if err != nil {
+		return err
+	}
+	if err := s.store.sessionGuard.lock(ctx); err != nil {
+		return err
+	}
+	defer s.store.sessionGuard.unlock()
+	tx, err := s.store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("auth: begin password change: %w", err)
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `
+		UPDATE users SET password_hash = ?, updated_at = ?, auth_version = auth_version + 1
+		WHERE id = ? AND status = ? AND auth_version = ? AND password_hash = ?
+	`, newHash, now, string(userID), string(StatusActive), account.AuthVersion, currentHash)
+	if err != nil {
+		return fmt.Errorf("auth: change password: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("auth: inspect password change: %w", err)
+	}
+	if changed != 1 {
+		return ErrInvalidCredentials
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM auth_sessions WHERE user_id = ?`, string(userID)); err != nil {
+		return fmt.Errorf("auth: revoke sessions after password change: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("auth: commit password change: %w", err)
+	}
+	return nil
+}
+
 func (s *AccountService) ReplacePassword(ctx context.Context, userID readerstore.UserID, password string, now int64) error {
 	if _, err := readerstore.ParseUserID(string(userID)); err != nil {
 		return err
@@ -182,6 +242,29 @@ func (s *AccountService) ReplacePassword(ctx context.Context, userID readerstore
 		return fmt.Errorf("auth: commit password replacement: %w", err)
 	}
 	return nil
+}
+
+func (s *AccountService) accountByIDWithPassword(ctx context.Context, userID readerstore.UserID) (Account, string, error) {
+	var account Account
+	var id, passwordHash string
+	err := s.store.db.QueryRowContext(ctx, `
+		SELECT id, username, username_normalized, role, password_hash, status, created_at, updated_at, auth_version
+		FROM users WHERE id = ?
+	`, string(userID)).Scan(&id, &account.Username, &account.UsernameNormalized, &account.Role, &passwordHash, &account.Status, &account.CreatedAt, &account.UpdatedAt, &account.AuthVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Account{}, "", ErrAccountNotFound
+	}
+	if err != nil {
+		return Account{}, "", fmt.Errorf("auth: read account for password change: %w", err)
+	}
+	account.ID, err = readerstore.ParseUserID(id)
+	if err != nil {
+		return Account{}, "", fmt.Errorf("%w: account ID: %v", ErrInvalidAccountRecord, err)
+	}
+	if err := validateStoredAccount(account); err != nil {
+		return Account{}, "", err
+	}
+	return account, passwordHash, nil
 }
 
 func (s *AccountService) accountByNormalizedUsername(ctx context.Context, normalized string) (Account, string, error) {

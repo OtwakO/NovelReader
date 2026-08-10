@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-07] Self-service password change rejects stale credentials
+- **Context**: Added authenticated password change after controlled reader registration.
+- **Change**: The current password is verified, then the replacement commits only if the stored hash and authentication version still match the verified values; every session is deleted in the same transaction. The browser clears its cookie, unmounts private UI, and requires login with the new password.
+- **Reason**: A simple verify-then-replace sequence could overwrite a concurrent Administrator recovery or another password change. Optimistic matching preserves the existing small account module without adding workflow state.
+- **Verified**: HTTP regressions cover current/other-session revocation, wrong-current rejection, authentication, strict/oversized bodies, ambiguous timeout fail-closed behavior, and old/new credential behavior; a deterministic concurrency regression proves stale verified credentials cannot overwrite an authoritative replacement. Frontend behavioral tests cover forced re-login and clearing every credential field, while compiler tests and the production build cover the Account page.
+- **Watch out**: Wrong current passwords return `403`, not `401`; only a lost application session may trigger the global frontend authentication-loss signal.
+
 ### [2026-08-07] Registration activates only after reader-home publication
 - **Context**: Added optional public ordinary-reader registration after the authenticated ownership cutover.
 - **Change**: Registration reserves a recognizable disabled account, creates the immutable-ID reader home, then activates the account and creates a browser session. A retry with the same normalized username and password resumes the same reservation after interruption; normal Administrator-disabled accounts are not resumable.

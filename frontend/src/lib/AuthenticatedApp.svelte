@@ -7,15 +7,16 @@
   import BookDetail from './BookDetail.svelte';
   import Reader from './Reader.svelte';
   import Settings from './Settings.svelte';
+  import AccountPage from './AccountPage.svelte';
   import type { AuthAccount } from '../api/client';
 
-  let { account, onLogout }: { account: AuthAccount; onLogout: () => void } = $props();
+  let { account, onLogout, onPasswordChanged }: { account: AuthAccount; onLogout: () => void; onPasswordChanged: () => void } = $props();
   let route = $state('shelf');
   let params = $state<Record<string, string>>({});
 
   function navigate(hash: string) {
     const [path, ...rest] = hash.replace(/^#\//, '').split('?');
-    route = path && path !== 'login' && path !== 'recovery' ? path : 'shelf';
+    route = path && !['login', 'register', 'recovery'].includes(path) ? path : 'shelf';
     params = {};
     if (rest.length) rest.join('?').split('&').forEach(p => {
       const [k, v] = p.split('=');
@@ -43,7 +44,7 @@
       <button class="nav-btn" class:active={route==='sources'} onclick={() => go('sources')} aria-label="Sources">📚</button>
       <button class="nav-btn" class:active={route==='settings'} onclick={() => go('settings')} aria-label="Settings">⚙️</button>
     </nav>
-    <button class="account" onclick={onLogout} aria-label={`Sign out ${account.username}`} title={`Sign out ${account.username}`}>{account.username}</button>
+    <button class="account" class:active={route==='account'} onclick={() => go('account')} aria-label={`Account settings for ${account.username}`}>{account.username}</button>
   </header>
   <main class="app-main">
     {#if route === 'shelf'}<Bookshelf {go} />
@@ -53,6 +54,7 @@
     {:else if route === 'book'}<BookDetail bookId={params.id || ''} {go} />
     {:else if route === 'read'}<Reader bookId={params.id || ''} chapterIdx={params.chapter === undefined ? undefined : parseInt(params.chapter)} locationPos={params.position === undefined ? undefined : parseFloat(params.position)} {go} />
     {:else if route === 'settings'}<Settings />
+    {:else if route === 'account'}<AccountPage {account} {onLogout} {onPasswordChanged} />
     {:else}<Bookshelf {go} />{/if}
   </main>
 </div>

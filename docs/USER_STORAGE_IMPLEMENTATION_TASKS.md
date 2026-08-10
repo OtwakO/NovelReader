@@ -152,7 +152,7 @@ without revealing whether another reader's resource exists.
 - [x] Add first-run setup screen.
 - [x] Add environment-controlled ordinary-reader registration with an optional deployment invite code, durable retry-safe reader-home provisioning, automatic login, and a minimal frontend form.
 - [x] Load the current account before entering authenticated application routes.
-- [ ] Add password change; logout is complete.
+- [x] Add authenticated current-password change with optimistic credential matching, all-session revocation, forced re-login, and an account page; logout is complete.
 - [x] Handle mid-session revocation by centrally unmounting private UI on `401`; explicit logout also unmounts immediately and warns/retries instead of claiming success if server revocation fails.
 - [ ] Add ordinary-account administration with explicit destructive confirmation.
 - [x] Add the configured Administrator recovery page.
@@ -231,4 +231,5 @@ Before Phase 2 is marked complete:
 - [x] Phase 1.2 minimal `readerstore` module complete.
 - [x] Atomic authentication/Reader Data ownership cutover complete.
 - [x] Environment-controlled ordinary-reader registration complete.
-- [ ] Next core account slice: authenticated password change.
+- [x] Authenticated password change complete.
+- [ ] Next core account slice: Administrator list/disable/re-enable for ordinary readers.

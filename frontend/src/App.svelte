@@ -6,6 +6,7 @@
   import SetupPage from './lib/SetupPage.svelte';
   import RecoveryPage from './lib/RecoveryPage.svelte';
   import RegistrationPage from './lib/RegistrationPage.svelte';
+  import { passwordChangeSucceeded } from './lib/accountGate.mjs';
 
   type Gate = 'loading' | 'setup' | 'setup-unavailable' | 'login' | 'registration' | 'logout-failed' | 'recovery' | 'recovery-unavailable' | 'authenticated' | 'error';
   let gate: Gate = $state('loading');
@@ -97,6 +98,15 @@
     }
   }
 
+  function passwordChanged() {
+    const next = passwordChangeSucceeded();
+    requestedHash = '#/shelf';
+    account = next.account;
+    gate = next.gate;
+    message = next.message;
+    window.location.hash = next.hash;
+  }
+
   async function signOut() {
     requestedHash = '#/shelf';
     account = null;
@@ -131,7 +141,7 @@
 {:else if gate === 'recovery-unavailable'}
   <main class="gate-message"><section><h1>Recovery is unavailable</h1><p>Configure <code>ADMIN_RECOVERY_TOKEN</code> temporarily, restart NovelReader, and return to <button onclick={() => { gate = 'login'; window.location.hash = '#/login'; }}>sign in</button>.</p></section></main>
 {:else if gate === 'authenticated' && account}
-  <AuthenticatedApp {account} onLogout={signOut} />
+  <AuthenticatedApp {account} onLogout={signOut} onPasswordChanged={passwordChanged} />
 {:else}
   <main class="gate-message"><section><h1>NovelReader could not start</h1><p role="alert">{message}</p><button onclick={bootstrap}>Try again</button></section></main>
 {/if}

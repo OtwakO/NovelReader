@@ -104,6 +104,13 @@ export function login(username: string, password: string) {
   });
 }
 
+export function changePassword(currentPassword: string, newPassword: string) {
+  return req<void>('/auth/password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
 export function logout() {
   return req<void>('/auth/logout', { method: 'POST' });
 }
