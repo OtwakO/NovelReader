@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-07] Setup HTTP and UI remain unmounted until ownership cutover
+- **Context**: The one-time first-Administrator flow now has a strict HTTP handler and a Svelte setup form, but Reader Data routes still use global stores.
+- **Decision**: Keep `/api/setup`, authentication routes, and the setup screen unmounted until the same atomic change selects Reader Data by authenticated account identity.
+- **Reason**: Mounting setup/authentication before protecting all non-public Reader Data would create authentication theater. The dormant boundary is compiled and fully tested so the cutover can be wiring rather than new security logic.
+- **Verified**: Setup tests cover strict request parsing/origin policy, token admission, claim recovery, closed-state rate limiting, response deadlines, immutable-initial-admin retry, persistent cookie creation, and bounded late-session revocation. A targeted Svelte compiler test protects the unmounted setup component.
+- **Watch out**: Successful setup auto-login is retry-safe only with the valid bootstrap token plus the immutable initial Administrator credentials; remove `ADMIN_BOOTSTRAP_TOKEN` after setup is complete.
+
 ### [2026-08-06] Renamed the active branch for its actual scope
 - **Context**: The branch began as `audit/explore-live-compat`, then the compatibility queue was deliberately paused while the accepted reader-storage and authentication prerequisite was implemented on the same unpushed branch.
 - **Change**: Renamed the branch in place to `feat/user-storage-auth` rather than merging an intentionally incomplete authentication cutover into `main` and branching again.

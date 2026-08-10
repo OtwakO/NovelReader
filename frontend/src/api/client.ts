@@ -32,6 +32,29 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// --- Initial setup ---
+export interface SetupStatus {
+  status: 'open' | 'claimed' | 'closed';
+  available: boolean;
+}
+
+export interface AuthAccount {
+  id: string;
+  username: string;
+  role: 'reader' | 'admin';
+}
+
+export function getSetupStatus() {
+  return req<SetupStatus>('/setup/status');
+}
+
+export function createInitialAdministrator(token: string, username: string, password: string) {
+  return req<AuthAccount>('/setup', {
+    method: 'POST',
+    body: JSON.stringify({ token, username, password }),
+  });
+}
+
 // --- Book Sources ---
 export interface BookSource {
   bookSourceUrl: string;

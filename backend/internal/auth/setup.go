@@ -53,6 +53,38 @@ func NewSetupService(store *Store, readers *readerstore.Manager, bootstrapToken 
 	}
 }
 
+// SetupStatus reports the durable one-time setup state without exposing claim details.
+func (s *SetupService) SetupStatus(ctx context.Context) (string, error) {
+	if s == nil || s.store == nil {
+		return "", ErrSetupUnavailable
+	}
+	return s.setupStatus(ctx)
+}
+
+// AuthenticateInitialAdministrator validates credentials only for the Administrator that closed setup.
+func (s *SetupService) AuthenticateInitialAdministrator(ctx context.Context, rawUsername, password string) (Account, error) {
+	if s == nil || s.store == nil {
+		return Account{}, ErrSetupUnavailable
+	}
+	var status, initialUserID string
+	if err := s.store.db.QueryRowContext(ctx, `
+		SELECT status, COALESCE(proposed_user_id, '') FROM setup_state WHERE id = 1
+	`).Scan(&status, &initialUserID); err != nil {
+		return Account{}, fmt.Errorf("auth: read completed setup identity: %w", err)
+	}
+	if status != "closed" {
+		return Account{}, ErrSetupInProgress
+	}
+	account, err := NewAccountService(s.store).Authenticate(ctx, rawUsername, password)
+	if err != nil {
+		return Account{}, err
+	}
+	if account.Role != RoleAdmin || string(account.ID) != initialUserID {
+		return Account{}, ErrInvalidCredentials
+	}
+	return account, nil
+}
+
 // CreateInitialAdministrator claims setup, publishes the claimed reader home, then atomically
 // activates the Administrator and closes setup. A retry resumes the durable claim rather than
 // accepting replacement credentials.
