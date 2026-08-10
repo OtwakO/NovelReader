@@ -53,6 +53,25 @@ func TestSessionServiceCreatesIndependentHashOnlySessions(t *testing.T) {
 	}
 }
 
+func TestSessionServiceRejectsStaleAuthenticatedAccountAfterPasswordReplacement(t *testing.T) {
+	store := openTestStore(t)
+	defer store.Close()
+	accounts := NewAccountService(store)
+	if _, err := accounts.CreateReaderAccount(context.Background(), testUserID, "Alice", "correct horse battery staple", 100); err != nil {
+		t.Fatal(err)
+	}
+	authenticated, err := accounts.Authenticate(context.Background(), "Alice", "correct horse battery staple")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := accounts.ReplacePassword(context.Background(), testUserID, "replacement password value", 200); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewSessionService(store).CreateAuthenticated(context.Background(), authenticated, 201); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("stale credential session error = %v", err)
+	}
+}
+
 func TestSessionServiceRequiresActiveAccountWhenCreating(t *testing.T) {
 	store := openTestStore(t)
 	defer store.Close()

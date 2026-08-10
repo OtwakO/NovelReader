@@ -113,6 +113,27 @@ func TestOpenDatabasesInitializesEmptyRoot(t *testing.T) {
 	}
 }
 
+func TestOpenDatabasesExcludesSecondServerForSameDataRoot(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "data")
+	featurePath := filepath.Join(root, "novelreader.db")
+	firstStore, firstDB, err := openDatabases(root, featurePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer firstStore.Close()
+	defer firstDB.Close()
+	secondStore, secondDB, err := openDatabases(root, featurePath)
+	if secondStore != nil {
+		secondStore.Close()
+	}
+	if secondDB != nil {
+		secondDB.Close()
+	}
+	if !errors.Is(err, readerstore.ErrRootInUse) {
+		t.Fatalf("second open error=%v", err)
+	}
+}
+
 func TestOpenDatabasesRejectsNewerSystemSchemaBeforeCreatingFeatureDatabase(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "data")
 	if _, err := readerstore.PrepareRoot(root); err != nil {

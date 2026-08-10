@@ -27,6 +27,7 @@ type Account struct {
 	Status             AccountStatus
 	CreatedAt          int64
 	UpdatedAt          int64
+	AuthVersion        int64
 }
 
 // AccountService owns account credentials and persistence in system.db.
@@ -95,6 +96,7 @@ func (s *AccountService) CreateReaderAccount(ctx context.Context, userID readers
 		Status:             StatusActive,
 		CreatedAt:          now,
 		UpdatedAt:          now,
+		AuthVersion:        1,
 	}, nil
 }
 
@@ -131,6 +133,10 @@ func (s *AccountService) ReplacePassword(ctx context.Context, userID readerstore
 	if _, err := readerstore.ParseUserID(string(userID)); err != nil {
 		return err
 	}
+	if err := s.store.setupGuard.readLock(ctx); err != nil {
+		return err
+	}
+	defer s.store.setupGuard.readUnlock()
 	passwordHash, err := s.passwords.Hash(ctx, password)
 	if err != nil {
 		return err
@@ -146,7 +152,7 @@ func (s *AccountService) ReplacePassword(ctx context.Context, userID readerstore
 	defer tx.Rollback()
 
 	result, err := tx.ExecContext(ctx, `
-		UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ? AND status = ?
+		UPDATE users SET password_hash = ?, updated_at = ?, auth_version = auth_version + 1 WHERE id = ? AND status = ?
 	`, passwordHash, now, string(userID), string(StatusActive))
 	if err != nil {
 		return fmt.Errorf("auth: replace password: %w", err)
@@ -179,7 +185,7 @@ func (s *AccountService) accountByNormalizedUsername(ctx context.Context, normal
 	var id string
 	var passwordHash string
 	err := s.store.db.QueryRowContext(ctx, `
-		SELECT id, username, username_normalized, role, password_hash, status, created_at, updated_at
+		SELECT id, username, username_normalized, role, password_hash, status, created_at, updated_at, auth_version
 		FROM users WHERE username_normalized = ?
 	`, normalized).Scan(
 		&id,
@@ -190,6 +196,7 @@ func (s *AccountService) accountByNormalizedUsername(ctx context.Context, normal
 		&account.Status,
 		&account.CreatedAt,
 		&account.UpdatedAt,
+		&account.AuthVersion,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Account{}, "", ErrAccountNotFound
@@ -218,6 +225,9 @@ func validateStoredAccount(account Account) error {
 	if account.Status != StatusActive && account.Status != StatusDisabled && account.Status != StatusDeleting {
 		return fmt.Errorf("%w: status %q", ErrInvalidAccountRecord, account.Status)
 	}
+	if account.AuthVersion < 1 {
+		return fmt.Errorf("%w: authentication version", ErrInvalidAccountRecord)
+	}
 	return nil
 }
 
@@ -227,7 +237,7 @@ func accountByID(ctx context.Context, queryer interface {
 	var account Account
 	var id string
 	err := queryer.QueryRowContext(ctx, `
-		SELECT id, username, username_normalized, role, status, created_at, updated_at
+		SELECT id, username, username_normalized, role, status, created_at, updated_at, auth_version
 		FROM users WHERE id = ?
 	`, string(userID)).Scan(
 		&id,
@@ -237,6 +247,7 @@ func accountByID(ctx context.Context, queryer interface {
 		&account.Status,
 		&account.CreatedAt,
 		&account.UpdatedAt,
+		&account.AuthVersion,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Account{}, ErrAccountNotFound

@@ -394,7 +394,7 @@ func TestSetupHTTPHandlerRetriesLateSessionRevocation(t *testing.T) {
 	defer cancel()
 	result := make(chan error, 1)
 	go func() {
-		_, err := handler.createSessionWithinDeadline(ctx, account.ID, 101)
+		_, err := handler.createSessionWithinDeadline(ctx, account, 101)
 		result <- err
 	}()
 	credential := <-created

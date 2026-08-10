@@ -62,6 +62,33 @@ func NewManager(root string, capacity int) (*Manager, error) {
 	}, nil
 }
 
+// Exists reports whether a published or staged reader home already exists for the identity.
+func (m *Manager) Exists(ctx context.Context, userID UserID) (bool, error) {
+	if err := validateUserID(userID); err != nil {
+		return false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return false, ErrManagerClosed
+	}
+	homePath, err := m.homePath(userID)
+	if err != nil {
+		return false, err
+	}
+	for _, path := range []string{homePath, homePath + homeStagingSuffix} {
+		if _, err := os.Lstat(path); err == nil {
+			return true, nil
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return false, fmt.Errorf("readerstore: inspect reader home: %w", err)
+		}
+	}
+	return false, nil
+}
+
 func (m *Manager) Create(ctx context.Context, userID UserID) error {
 	if err := validateUserID(userID); err != nil {
 		return err

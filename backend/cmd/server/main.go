@@ -173,10 +173,16 @@ func openDatabases(dataDir, databasePath string) (*auth.Store, *sql.DB, error) {
 	if _, err := readerstore.PrepareRoot(dataDir); err != nil {
 		return nil, nil, fmt.Errorf("data root: %w", err)
 	}
+	rootLock, err := readerstore.LockRoot(dataDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("data root: %w", err)
+	}
 	systemStore, err := auth.OpenSystemStore(dataDir)
 	if err != nil {
+		_ = rootLock.Close()
 		return nil, nil, fmt.Errorf("system database: %w", err)
 	}
+	systemStore.HoldRootLock(rootLock)
 	db, err := database.Open(databasePath)
 	if err != nil {
 		_ = systemStore.Close()

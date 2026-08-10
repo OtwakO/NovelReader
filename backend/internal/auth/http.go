@@ -14,8 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/otwako/novelreader/internal/readerstore"
 )
 
 const (
@@ -176,7 +174,7 @@ func (h *HTTPHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusInternalServerError, "login unavailable")
 		return
 	}
-	credential, err := h.createSessionWithinDeadline(ctx, account.ID, h.now().Unix())
+	credential, err := h.createSessionWithinDeadline(ctx, account, h.now().Unix())
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		w.Header().Set("Retry-After", "1")
 		writeAuthError(w, http.StatusServiceUnavailable, "login temporarily unavailable")
@@ -210,13 +208,13 @@ func (h *HTTPHandler) authenticateWithinDeadline(ctx context.Context, username, 
 	}
 }
 
-func (h *HTTPHandler) createSessionWithinDeadline(ctx context.Context, userID readerstore.UserID, now int64) (SessionCredential, error) {
+func (h *HTTPHandler) createSessionWithinDeadline(ctx context.Context, account Account, now int64) (SessionCredential, error) {
 	result := make(chan struct {
 		credential SessionCredential
 		err        error
 	}, 1)
 	go func() {
-		credential, err := h.sessions.Create(ctx, userID, now)
+		credential, err := h.sessions.CreateAuthenticated(ctx, account, now)
 		if err == nil && h.afterSessionCreate != nil {
 			h.afterSessionCreate(credential)
 		}

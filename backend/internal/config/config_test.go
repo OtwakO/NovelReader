@@ -9,9 +9,10 @@ import (
 func TestLoadReadsPublicOriginConfiguration(t *testing.T) {
 	t.Setenv("PUBLIC_URL", "https://reader.example")
 	t.Setenv("ADMIN_BOOTSTRAP_TOKEN", "temporary-setup-authority")
+	t.Setenv("ADMIN_RECOVERY_TOKEN", "temporary-recovery-authority")
 	cfg := Load()
-	if cfg.PublicURL != "https://reader.example" || cfg.AdminBootstrapToken != "temporary-setup-authority" {
-		t.Fatalf("origin/bootstrap config=%q/%q", cfg.PublicURL, cfg.AdminBootstrapToken)
+	if cfg.PublicURL != "https://reader.example" || cfg.AdminBootstrapToken != "temporary-setup-authority" || cfg.AdminRecoveryToken != "temporary-recovery-authority" {
+		t.Fatalf("origin/bootstrap/recovery config=%q/%q/%q", cfg.PublicURL, cfg.AdminBootstrapToken, cfg.AdminRecoveryToken)
 	}
 }
 

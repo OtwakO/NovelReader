@@ -345,16 +345,21 @@ func (s *SetupService) activate(ctx context.Context, claim setupClaim, now int64
 		Status:             StatusActive,
 		CreatedAt:          now,
 		UpdatedAt:          now,
+		AuthVersion:        1,
 	}, nil
 }
 
-func validBootstrapToken(configured, presented string) bool {
+func validEnvironmentToken(configured, presented string) bool {
 	if configured == "" || presented == "" {
 		return false
 	}
 	configuredHash := sha256.Sum256([]byte(configured))
 	presentedHash := sha256.Sum256([]byte(presented))
 	return subtle.ConstantTimeCompare(configuredHash[:], presentedHash[:]) == 1
+}
+
+func validBootstrapToken(configured, presented string) bool {
+	return validEnvironmentToken(configured, presented)
 }
 
 func randomUserID() (readerstore.UserID, error) {

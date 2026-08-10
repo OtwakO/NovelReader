@@ -145,7 +145,7 @@ func (h *SetupHTTPHandler) handleSetup(w http.ResponseWriter, r *http.Request) {
 
 	sessionCtx, sessionCancel := context.WithTimeout(r.Context(), h.timeout)
 	defer sessionCancel()
-	credential, err := h.createSessionWithinDeadline(sessionCtx, account.ID, now.Unix())
+	credential, err := h.createSessionWithinDeadline(sessionCtx, account, now.Unix())
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		w.Header().Set("Retry-After", "1")
 		writeAuthError(w, http.StatusServiceUnavailable, "setup temporarily unavailable")
@@ -188,13 +188,13 @@ func (h *SetupHTTPHandler) performSetupWithinDeadline(ctx context.Context, reque
 	}
 }
 
-func (h *SetupHTTPHandler) createSessionWithinDeadline(ctx context.Context, userID readerstore.UserID, now int64) (SessionCredential, error) {
+func (h *SetupHTTPHandler) createSessionWithinDeadline(ctx context.Context, account Account, now int64) (SessionCredential, error) {
 	result := make(chan struct {
 		credential SessionCredential
 		err        error
 	}, 1)
 	go func() {
-		credential, err := h.sessions.Create(ctx, userID, now)
+		credential, err := h.sessions.CreateAuthenticated(ctx, account, now)
 		if err == nil && h.afterSessionCreate != nil {
 			h.afterSessionCreate(credential)
 		}

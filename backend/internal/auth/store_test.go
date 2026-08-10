@@ -246,7 +246,7 @@ func TestOpenSystemStoreRejectsNewerSchemaWithoutModifyingIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`PRAGMA user_version = 4`); err != nil {
+	if _, err := db.Exec(`PRAGMA user_version = 5`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -445,6 +445,28 @@ func TestOpenSystemStoreRejectsVersionedDatabaseWithWrongColumns(t *testing.T) {
 	}
 	if !errors.Is(err, ErrInvalidSystemSchema) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestOpenSystemStoreRejectsMissingRecoverySingleton(t *testing.T) {
+	root := prepareTestRoot(t)
+	store, err := OpenSystemStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := store.Path()
+	if _, err := store.db.Exec(`DELETE FROM admin_recovery_state`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenSystemStore(root)
+	if store != nil {
+		store.Close()
+	}
+	if !errors.Is(err, ErrInvalidSystemSchema) {
+		t.Fatalf("path=%s error=%v", path, err)
 	}
 }
 

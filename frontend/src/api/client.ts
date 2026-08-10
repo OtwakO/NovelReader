@@ -55,6 +55,24 @@ export function createInitialAdministrator(token: string, username: string, pass
   });
 }
 
+// --- Administrator recovery ---
+export type RecoveryAction = 'reset_existing' | 'create_replacement';
+
+export interface RecoveryStatus {
+  available: boolean;
+}
+
+export function getRecoveryStatus() {
+  return req<RecoveryStatus>('/recovery/status');
+}
+
+export function recoverAdministrator(token: string, action: RecoveryAction, username: string, password: string) {
+  return req<AuthAccount>('/recovery', {
+    method: 'POST',
+    body: JSON.stringify({ token, action, username, password }),
+  });
+}
+
 // --- Book Sources ---
 export interface BookSource {
   bookSourceUrl: string;

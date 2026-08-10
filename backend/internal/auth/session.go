@@ -39,6 +39,19 @@ func NewSessionService(store *Store) *SessionService {
 }
 
 func (s *SessionService) Create(ctx context.Context, userID readerstore.UserID, now int64) (SessionCredential, error) {
+	return s.create(ctx, userID, 0, now)
+}
+
+// CreateAuthenticated creates a session only while the account credential version still matches
+// the authentication result. Password recovery can therefore revoke an in-flight old-password login.
+func (s *SessionService) CreateAuthenticated(ctx context.Context, account Account, now int64) (SessionCredential, error) {
+	if account.AuthVersion < 1 {
+		return SessionCredential{}, ErrInvalidAccountRecord
+	}
+	return s.create(ctx, account.ID, account.AuthVersion, now)
+}
+
+func (s *SessionService) create(ctx context.Context, userID readerstore.UserID, expectedAuthVersion, now int64) (SessionCredential, error) {
 	if err := ctx.Err(); err != nil {
 		return SessionCredential{}, err
 	}
@@ -71,6 +84,9 @@ func (s *SessionService) Create(ctx context.Context, userID readerstore.UserID, 
 	if account.Status != StatusActive {
 		return SessionCredential{}, ErrAccountNotActive
 	}
+	if expectedAuthVersion != 0 && account.AuthVersion != expectedAuthVersion {
+		return SessionCredential{}, ErrInvalidCredentials
+	}
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO auth_sessions (id, user_id, token_hash, created_at, last_seen_at)
 		VALUES (?, ?, ?, ?, ?)
@@ -101,7 +117,7 @@ func (s *SessionService) Authenticate(ctx context.Context, token string, now int
 	var lastSeenAt int64
 	err := s.store.db.QueryRowContext(ctx, `
 		SELECT users.id, users.username, users.username_normalized, users.role, users.status, users.created_at, users.updated_at,
-		       auth_sessions.last_seen_at
+		       users.auth_version, auth_sessions.last_seen_at
 		FROM auth_sessions
 		JOIN users ON users.id = auth_sessions.user_id
 		WHERE auth_sessions.token_hash = ?
@@ -113,6 +129,7 @@ func (s *SessionService) Authenticate(ctx context.Context, token string, now int
 		&account.Status,
 		&account.CreatedAt,
 		&account.UpdatedAt,
+		&account.AuthVersion,
 		&lastSeenAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {

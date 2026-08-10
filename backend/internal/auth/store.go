@@ -14,7 +14,7 @@ import (
 
 const (
 	SystemDatabaseName         = "system.db"
-	CurrentSystemSchemaVersion = 3
+	CurrentSystemSchemaVersion = 4
 	systemDatabaseStagingName  = ".system.db.staging"
 )
 
@@ -128,6 +128,7 @@ type Store struct {
 	path         string
 	sessionGuard *sharedSessionGuard
 	setupGuard   *sharedSessionGuard
+	rootLock     *readerstore.RootLock
 	closeOnce    sync.Once
 	closeErr     error
 }
@@ -166,6 +167,11 @@ func (s *Store) Path() string {
 	return s.path
 }
 
+// HoldRootLock transfers lifetime ownership of the server's exclusive data-root lock to the store.
+func (s *Store) HoldRootLock(lock *readerstore.RootLock) {
+	s.rootLock = lock
+}
+
 func (s *Store) Close() error {
 	if s == nil {
 		return nil
@@ -173,6 +179,9 @@ func (s *Store) Close() error {
 	s.closeOnce.Do(func() {
 		if s.db != nil {
 			s.closeErr = s.db.Close()
+		}
+		if s.rootLock != nil {
+			s.closeErr = errors.Join(s.closeErr, s.rootLock.Close())
 		}
 	})
 	return s.closeErr
@@ -183,6 +192,10 @@ func (s *Store) TransitionAccountStatus(userID readerstore.UserID, next AccountS
 	if _, err := readerstore.ParseUserID(string(userID)); err != nil {
 		return err
 	}
+	if err := s.setupGuard.readLock(context.Background()); err != nil {
+		return err
+	}
+	defer s.setupGuard.readUnlock()
 	if err := s.sessionGuard.lock(context.Background()); err != nil {
 		return err
 	}
@@ -206,7 +219,10 @@ func (s *Store) TransitionAccountStatus(userID readerstore.UserID, next AccountS
 	if !legalStatusTransition(current, next) {
 		return fmt.Errorf("%w: %s -> %s", ErrInvalidStatusTransition, current, next)
 	}
-	result, err := tx.Exec(`UPDATE users SET status = ?, updated_at = ? WHERE id = ? AND status = ?`, string(next), updatedAt, string(userID), string(current))
+	result, err := tx.Exec(`
+		UPDATE users SET status = ?, updated_at = ?, auth_version = auth_version + 1
+		WHERE id = ? AND status = ?
+	`, string(next), updatedAt, string(userID), string(current))
 	if err != nil {
 		return fmt.Errorf("auth: update account status: %w", err)
 	}

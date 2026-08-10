@@ -146,6 +146,13 @@ func validateOpenSystemDatabase(db *sql.DB) error {
 	if setupRows != 1 {
 		return fmt.Errorf("%w: singleton setup state is missing", ErrInvalidSystemSchema)
 	}
+	var recoveryRows int
+	if err := db.QueryRow(`SELECT count(*) FROM admin_recovery_state WHERE id = 1 AND status IN ('idle', 'claimed', 'completed')`).Scan(&recoveryRows); err != nil {
+		return classifySchemaError("validate administrator recovery state", err)
+	}
+	if recoveryRows != 1 {
+		return fmt.Errorf("%w: singleton administrator recovery state is missing", ErrInvalidSystemSchema)
+	}
 	for _, pragma := range []string{"integrity_check", "foreign_key_check"} {
 		rows, err := db.Query(`PRAGMA ` + pragma)
 		if err != nil {

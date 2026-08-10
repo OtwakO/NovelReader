@@ -112,12 +112,12 @@ boundary. Existing Reader Data routes remain closed until the entire phase is co
 ### 2.3 First Administrator setup and recovery
 
 - [ ] Implement one-time browser setup guarded by `ADMIN_BOOTSTRAP_TOKEN`; the strict retry-safe HTTP handler and setup form exist and are tested, but remain intentionally unmounted until the atomic ownership cutover.
-- [x] Serialize setup with a durable singleton claim, immediate SQLite transactions, and a shared in-process setup guard.
+- [x] Serialize setup/recovery with durable singleton claims, immediate SQLite transactions, shared in-process guards, and a server-lifetime OS lock that permits only one NovelReader process per writable data root.
 - [x] Stage and publish the first Administrator reader directory before activating the account.
 - [x] Recover deterministically from interrupted claim and directory-publication states without creating two initial Administrators; activation and setup closure share one transaction.
-- [ ] Implement environment-token Administrator recovery without reading or modifying Reader Data.
+- [x] Implement environment-token Administrator recovery without reading or modifying existing Reader Data; reset reactivates an Administrator and revokes sessions, while replacement creation allocates a new empty home through a generation-bound durable claim.
 - [x] Ensure public registration can create only `reader` accounts and fails closed until initial setup closes.
-- [ ] Add environment-token recovery-session revocation tests. Initial setup now covers concurrent setup, interruption/expiry recovery, malformed-state rejection, bootstrap-token non-persistence, bounded request deadlines, closed-state rate limiting, retry-safe auto-login, and late-session revocation.
+- [x] Add environment-token recovery and session-revocation tests covering active/disabled/deleting targets, stale credential/session races, durable claim generations, interrupted replacement-home provisioning, pre-existing-home rejection, setup-claim supersession, strict/rate-limited HTTP requests, bounded deadlines, retry-safe auto-login, and late-session cleanup.
 
 ### 2.4 Convert all Reader Data stores
 

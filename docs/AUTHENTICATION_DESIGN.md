@@ -192,7 +192,7 @@ Each successful login creates one independent persistent session. The browser re
 - `PUBLIC_URL` — optional canonical external origin override for proxies that rewrite `Host`, deployments that intentionally pin one browser URL, or services reachable from untrusted browser networks.
 - `NOVELREADER_SECRET_KEY` — versioned 32-byte source-credential encryption key.
 
-Secrets are compared in constant time. Setup and recovery routes are rate-limited, same-origin, and unavailable unless their corresponding environment secret is configured.
+Secrets are compared in constant time. Setup and recovery routes are rate-limited, same-origin, and unavailable unless their corresponding environment secret is configured. NovelReader holds an OS-level exclusive lock for the lifetime of a server process, so only one process may write a data root; this makes setup/recovery claims, reader-home publication, and session revocation linearizable across the supported deployment topology.
 
 The recovery flow can create a replacement Administrator or reset an existing Administrator password. It cannot browse, decrypt, claim, export, rewrite, or delete Reader Data. Successful reset revokes that account’s sessions. Successful creation allocates a new empty reader directory. Recovery actions do not silently attach existing directories; attachment after `system.db` loss is a separate explicit recovery/import operation with directory inspection and confirmation.
 

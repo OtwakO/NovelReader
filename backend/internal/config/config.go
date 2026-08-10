@@ -15,6 +15,7 @@ type Config struct {
 	ReadTimeout             time.Duration
 	PublicURL               string
 	AdminBootstrapToken     string
+	AdminRecoveryToken      string
 	WebViewEndpoint         string
 	SearchConcurrency       int
 	GlobalSearchConcurrency int
@@ -33,6 +34,7 @@ func Load() *Config {
 		ReadTimeout:             time.Duration(getEnvInt("READ_TIMEOUT_SECONDS", 30)) * time.Second,
 		PublicURL:               getEnv("PUBLIC_URL", ""),
 		AdminBootstrapToken:     getEnv("ADMIN_BOOTSTRAP_TOKEN", ""),
+		AdminRecoveryToken:      getEnv("ADMIN_RECOVERY_TOKEN", ""),
 		WebViewEndpoint:         getEnv("WEBVIEW_ENDPOINT", ""),
 		SearchConcurrency:       getEnvPositiveInt("SEARCH_CONCURRENCY", 16),
 		GlobalSearchConcurrency: getEnvPositiveInt("GLOBAL_SEARCH_CONCURRENCY", 32),

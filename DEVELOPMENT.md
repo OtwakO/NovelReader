@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-10] Recovery required one-process data-root ownership
+- **Context**: Administrator recovery must revoke sessions atomically and create a replacement Administrator only with a genuinely new empty reader home. Process-local guards cannot prove either property when two server processes share one writable data root.
+- **Change**: Server startup now acquires an OS-level exclusive lock for `DATA_DIR` and holds it through `auth.Store` lifetime. Recovery uses a generation-bound durable claim, rejects homes that predate provisioning authorization, resumes its own interrupted home creation, and supersedes an open or claimed initial-setup authority when replacement creation commits.
+- **Reason**: The single-process-per-root constraint already existed operationally; enforcing it is simpler and safer than adding distributed filesystem/SQLite coordination to a self-hosted application that does not support active-active deployment.
+- **Verified**: Unix and Windows lock implementations cross-compile; a second server open fails until the first store closes; repeated recovery tests cover stale claim generations, pre-existing-home rejection, interrupted provisioning, setup-claim supersession, password/session revocation, and retry-safe auto-login.
+- **Watch out**: Do not bypass `openDatabases` in another production entry point. Direct `OpenSystemStore` calls are test/library seams and do not acquire the process lock themselves.
+
 ### [2026-08-07] Setup HTTP and UI remain unmounted until ownership cutover
 - **Context**: The one-time first-Administrator flow now has a strict HTTP handler and a Svelte setup form, but Reader Data routes still use global stores.
 - **Decision**: Keep `/api/setup`, authentication routes, and the setup screen unmounted until the same atomic change selects Reader Data by authenticated account identity.
