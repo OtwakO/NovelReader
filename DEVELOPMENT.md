@@ -76,6 +76,13 @@
 - **Verified**: Full backend tests, targeted equal-ID/anonymous/font isolation regressions, frontend tests/build, vet/race/cross-platform checks recorded with the commit. Production search confirms no global feature database constructor or `DATABASE_PATH` use remains. Docker Compose and shell configuration validate; the Docker E2E build could not start in the sandbox because Docker Buildx could not write its read-only activity directory.
 - **Watch out**: `api.NewServer` and `internal/database` remain isolated test seams for feature tests; production must use `api.NewAuthenticatedServer` and `openStores`. Account disable/delete must later purge the reader runtime before removing a home.
 
+### [2026-08-11] Search and Book Info audit separated engine gaps from dead sources
+- **Context**: Many imported sources appeared to fail during search or Book Info, but stale sites, WAFs, authenticated APIs, and parser incompatibilities needed different treatment.
+- **Change**: Ran a deterministic 25-identity sample from `test_booksource3.json` with one fixed query, production search, detail-only follow-up, and sequential replay of every non-pass. Preserved complete evidence under `testdata/booksource/search-bookinfo-live-audit-v1-2026-08-11.{json,md}`.
+- **Reason**: One live working source proved a shared lenient URL-option parsing gap; the other failures were not valid reasons for source-specific fixes. A whole-URL `<js>` difference remains only an observation because its sampled source requires login and denied anonymous access.
+- **Verified**: 10 credible Search → Book Info passes, 1 confirmed detail engine gap, and 14 upstream/blocked/stale/drift/empty outcomes. The verifier checks all 25 identities, all 15 sequential replays, corpus SHA-256, frozen indices, and summary counts.
+- **Watch out**: Fix only the shared lenient option parser after approval. Do not use raw 151 as working-source proof while its correctly formed upstream POST returns 500, and do not add whole-URL `<js>` support from raw 50 alone.
+
 ### [2026-08-10] Recovery required one-process data-root ownership
 - **Context**: Administrator recovery must revoke sessions atomically and create a replacement Administrator only with a genuinely new empty reader home. Process-local guards cannot prove either property when two server processes share one writable data root.
 - **Change**: Server startup now acquires an OS-level exclusive lock for `DATA_DIR` and holds it through `auth.Store` lifetime. Recovery uses a generation-bound durable claim, rejects homes that predate provisioning authorization, resumes its own interrupted home creation, and supersedes an open or claimed initial-setup authority when replacement creation commits.
