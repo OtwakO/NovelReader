@@ -1,8 +1,12 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import { getBook, getChapterContent, getChapterImageUrl, getChapters, listFonts, getFontUrl, type Chapter, type ChapterContent } from '../api/client';
+  import {
+    getBook, getChapterContent, getChapterImageUrl, getChapters, listFonts, getFontUrl,
+    switchBookSource, type AltSource, type Book, type Chapter, type ChapterContent,
+  } from '../api/client';
   import { adjacentChapterIndex, clampProgress, normalizedScroll, resolveChapterIndex, scrollTopForProgress } from './readingProgress.js';
   import { getProgressVersion, queueProgressWrite, setProgressVersion, waitForProgressWrites } from './progressWriter';
+  import BookSourceSwitcher from './BookSourceSwitcher.svelte';
   import ReaderBookmarks from './ReaderBookmarks.svelte';
   import ReaderSettings from './ReaderSettings.svelte';
 
@@ -12,7 +16,8 @@
   let fontFamily = $state("'Georgia', 'Noto Serif SC', serif"), showSettings = $state(false);
   let content = $state<ChapterContent | null>(null), chapters = $state<Chapter[]>([]);
   let currentIdx = $state(0), loading = $state(true), error = $state(''), progressError = $state('');
-  let showBookmarks = $state(false);
+  let showBookmarks = $state(false), showSources = $state(false);
+  let book = $state<Book | null>(null), switchingSource = $state(false), sourceMessage = $state('');
   let fonts = $state<{ id: string; name: string; url: string }[]>([]);
   let root: HTMLElement, scrollHost: HTMLElement | null = null, loadedRoute = '';
   let sourceURL = $state('');
@@ -49,14 +54,15 @@
     try {
       await waitForProgressWrites(bookId);
       if (request !== generation || route !== loadedRoute) return;
-      const [book, nextChapters] = await Promise.all([getBook(bookId), getChapters(bookId)]);
+      const [nextBook, nextChapters] = await Promise.all([getBook(bookId), getChapters(bookId)]);
       if (request !== generation || route !== loadedRoute) return;
+      book = nextBook;
       chapters = nextChapters;
-      sourceURL = book.sourceUrl;
-      setProgressVersion(bookId, book.stateVersion);
-      const index = resolveChapterIndex(nextChapters, chapterIdx, book.durChapterIndex);
+      sourceURL = nextBook.sourceUrl;
+      setProgressVersion(bookId, nextBook.stateVersion);
+      const index = resolveChapterIndex(nextChapters, chapterIdx, nextBook.durChapterIndex);
       if (index === null) throw new Error('This book has no readable chapters');
-      const position = Number.isFinite(locationPos) ? clampProgress(locationPos) : index === book.durChapterIndex ? book.durChapterPos || 0 : 0;
+      const position = Number.isFinite(locationPos) ? clampProgress(locationPos) : index === nextBook.durChapterIndex ? nextBook.durChapterPos || 0 : 0;
       lastPosition = position;
       const nextContent = await getChapterContent(bookId, index);
       if (request !== generation || route !== loadedRoute) return;
@@ -64,7 +70,7 @@
       content = nextContent;
       loading = false;
       await restoreProgress(position, request);
-      if (index !== book.durChapterIndex) await queueProgress(index, position);
+      if (index !== nextBook.durChapterIndex) await queueProgress(index, position);
     } catch (caught) {
       if (request !== generation) return;
       error = caught instanceof Error ? caught.message : 'Could not load this chapter';
@@ -120,6 +126,44 @@
     go(`read?id=${bookId}&chapter=${index}`);
   }
 
+  async function switchSource(source: AltSource) {
+    if (!book || switchingSource) return;
+    switchingSource = true;
+    sourceMessage = '';
+    if (progressTimer) clearTimeout(progressTimer);
+    try {
+      await persistProgress();
+      await waitForProgressWrites(bookId);
+      const result = await switchBookSource(bookId, source.sourceUrl, source.bookUrl);
+      book = result.book;
+      sourceURL = result.book.sourceUrl;
+      setProgressVersion(bookId, result.book.stateVersion);
+      content = null;
+      const nextChapters = await getChapters(bookId);
+      chapters = nextChapters;
+      const mappedIndex = resolveChapterIndex(nextChapters, result.book.durChapterIndex, result.book.durChapterIndex);
+      if (mappedIndex === null) throw new Error('This source has no readable chapters');
+      currentIdx = mappedIndex;
+      lastPosition = result.book.durChapterPos || 0;
+      sourceMessage = result.mapping === 'title'
+        ? 'Source switched at the matching chapter.'
+        : 'Source switched using the nearest chapter index.';
+      if (mappedIndex !== chapterIdx) {
+        go(`read?id=${bookId}&chapter=${mappedIndex}`);
+        return;
+      }
+      content = await getChapterContent(bookId, mappedIndex);
+      error = '';
+      await restoreProgress(lastPosition, generation);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Could not switch source';
+      sourceMessage = message;
+      if (!content) error = message;
+    } finally {
+      switchingSource = false;
+    }
+  }
+
   async function loadFonts() {
     try {
       const list = await listFonts();
@@ -134,6 +178,18 @@
     bind:bgColor bind:textColor bind:fontFamily {fonts} />
   <ReaderBookmarks bind:show={showBookmarks} {bookId} sourceUrl={sourceURL} chapterIndex={currentIdx}
     capture={captureBookmark} open={(index, position) => go(`read?id=${bookId}&chapter=${index}&position=${position}`)} />
+
+  {#if showSources && book}
+    <div class="reader-sources">
+      <BookSourceSwitcher
+        currentSource={book.origin || book.sourceUrl}
+        sources={book.alternateSources || []}
+        switching={switchingSource}
+        message={sourceMessage}
+        onselect={switchSource}
+      />
+    </div>
+  {/if}
 
   <!-- Reader content -->
   <div
@@ -183,6 +239,8 @@
 
     <button class="ctrl-btn settings-btn" onclick={() => showBookmarks = !showBookmarks} aria-label="Bookmarks">🔖</button>
 
+    <button class="ctrl-btn" class:active={showSources} onclick={() => showSources = !showSources} aria-label="Change reading source">Source</button>
+
     <button class="ctrl-btn" onclick={() => navigateChapter(nextIdx)} disabled={nextIdx === null}>Next →</button>
   </div>
 </div>
@@ -194,6 +252,14 @@
     flex-direction: column;
     position: relative;
     transition: background 0.2s, color 0.2s;
+  }
+
+  .reader-sources {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    width: min(680px, calc(100% - 2rem));
+    margin: 0.75rem auto 0;
   }
 
   .reader-content {
@@ -243,6 +309,8 @@
     position: sticky;
     bottom: 0;
   }
+
+  .ctrl-btn.active { border-color: var(--accent); color: var(--accent); }
 
   .ctrl-btn {
     background: none;

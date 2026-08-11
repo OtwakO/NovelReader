@@ -26,6 +26,19 @@ test('administrator account page exposes bounded reader status controls', () => 
   assert.match(source, /Permanently delete/);
 });
 
+test('shelved books can switch source from details and the reader', () => {
+  const detail = fs.readFileSync(path.join(root, 'lib/BookDetail.svelte'), 'utf8');
+  const reader = fs.readFileSync(path.join(root, 'lib/Reader.svelte'), 'utf8');
+  assert.match(detail, /<BookSourceSwitcher/);
+  assert.match(detail, /await switchBookSource\(bookId/);
+  assert.match(reader, /aria-label="Change reading source"/);
+  assert.match(reader, /<BookSourceSwitcher/);
+  assert.match(reader, /await persistProgress\(\)/);
+  assert.match(reader, /await switchBookSource\(bookId/);
+  assert.match(reader, /result\.book\.durChapterIndex/);
+  assert.match(reader, /go\(`read\?id=\$\{bookId\}&chapter=\$\{mappedIndex\}`\)/);
+});
+
 test('root gate resolves setup and account before private app mount', () => {
   const source = fs.readFileSync(path.join(root, 'App.svelte'), 'utf8');
   assert.match(source, /await getSetupStatus\(\)/);

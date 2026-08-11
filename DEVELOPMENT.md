@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-11] Shelved books keep source switching available while reading
+- **Context**: Source recovery existed during shelf addition and on book details, but an active reader had to leave the chapter to change source.
+- **Change**: Book details and the reader now share one source switcher. The reader saves pending progress, uses the existing atomic switch endpoint, follows backend title-first/index-fallback mapping, updates the chapter URL when the mapped index changes, and reloads content from the switched source. Failed choices preserve the current source when backend validation fails and keep the selector available for another choice.
+- **Reason**: Source availability changes over time; source choice is a continuing property of a shelved book, not only an import-time decision.
+- **Verified**: Frontend compile/regression checks cover both switch surfaces and progress-before-switch ordering; all 37 frontend tests and the production build pass. Existing backend source-switch and chapter-mapping tests pass, and the UI detector reports no findings.
+
+
 ### [2026-08-11] Shelf addition validates readability before navigation
 - **Context**: Adding `异度旅社` appeared to fail with “Explore request failed,” even though `/api/books/enrich` succeeded.
 - **Change**: Generic API failures can no longer become `ExploreApiError`; only Explore endpoints opt into that diagnostic type. Search and Explore now share a post-add readability gate that loads the TOC and first readable chapter. A failed primary stays on the shelf and exposes an inline alternate-source chooser; each selected alternate is switched and validated before navigation.
