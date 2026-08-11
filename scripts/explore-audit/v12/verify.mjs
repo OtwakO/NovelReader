@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-const path='testdata/booksource/explore-live-audit-v12-2026-07-31.json';
+const path='testdata/booksource/audits/explore/explore-live-audit-v12-2026-07-31.json';
 const audit=JSON.parse(fs.readFileSync(path,'utf8'));
 const corpusBytes=fs.readFileSync(audit.corpus.path);
 if(crypto.createHash('sha256').update(corpusBytes).digest('hex')!==audit.corpus.sha256)throw Error('corpus hash mismatch');
@@ -14,7 +14,7 @@ const counts={};for(const e of audit.entries)counts[e.classification]=(counts[e.
 if(JSON.stringify(counts)!==JSON.stringify(audit.summary.counts))throw Error('summary counts mismatch');
 const books=audit.entries.filter(e=>e.classification==='credible_nonempty').reduce((n,e)=>n+(e.sequential?.page?.distinctBookUrls??e.initial.page?.distinctBookUrls??0),0);
 if(books!==audit.summary.totalDistinctBooks||books!==2768)throw Error(`book total mismatch ${books}`);
-const prior=new Set();for(const name of audit.selection.priorManifests){const j=JSON.parse(fs.readFileSync(`testdata/booksource/${name}`,'utf8'));for(const e of j.entries??[])prior.add(`${e.rawIndex}\0${e.bookSourceUrl??e.sourceUrl}`)}
+const prior=new Set();for(const name of audit.selection.priorManifests){const j=JSON.parse(fs.readFileSync(`testdata/booksource/audits/explore/${name}`,'utf8'));for(const e of j.entries??[])prior.add(`${e.rawIndex}\0${e.bookSourceUrl??e.sourceUrl}`)}
 if(prior.size!==500)throw Error(`prior identity count ${prior.size}`);
 if(keys.some(k=>prior.has(k)))throw Error('sample overlaps prior audit');
 const corpus=JSON.parse(corpusBytes);

@@ -1,48 +1,43 @@
 ---
 name: search-bookinfo-live-audit
-description: Audit NovelReader Search and Book Info compatibility with a deterministic live-source sample. Use when asked to sample, validate, or find shared gaps in searching and fetching book details.
+description: Audit NovelReader Search and Book Info compatibility with a deterministic live-source sample. Use when sampling search/detail behavior or finding shared gaps in those stages.
 ---
 
 # Search → Book Info Live Audit
 
-Run a bounded funnel: deterministic search sampling, detail-only follow-up, sequential replay, focused diagnosis, then stop before fixes.
+Follow `.agents/skills/booksource-audit-workflow/SKILL.md`. This skill supplies only the Search → Book Info branch.
 
 ## 1. Freeze scope
 
-Use `test_booksource3.json`. Stable identity is `(rawIndex, bookSourceUrl)`, never source name. Eligible entries must be enabled text sources with non-blank `searchUrl` and `ruleSearch`. Rank identities by:
+Use `test_booksource3.json`. Eligible identities are enabled text sources with non-blank `searchUrl` and `ruleSearch`. Rank `(rawIndex, bookSourceUrl)` by:
 
 ```text
 SHA-256(seed + NUL + rawIndex + NUL + bookSourceUrl)
 ```
 
-Take the user-approved count without substitutions. Record seed, corpus SHA-256, query, eligibility rule, and selected identities.
+Take the approved count without substitutions. Record query, seed, corpus SHA-256, eligibility, and identities.
 
-## 2. Reset and import
+**Done when:** the exact ordered sample and query are reproducible without live access.
 
-Stop existing NovelReader processes. Remove the disposable development data root, start the current production server with an isolated bootstrap token, complete Administrator setup, and import the unmodified full corpus. Never migrate or preserve audit user data.
+## 2. Execute only both stages
 
-Preserve unrelated working-tree changes, especially generated frontend files.
+Use a fresh disposable data root, complete audit setup, and import the corpus unchanged. For each identity:
 
-## 3. Execute only the target workflow
+1. run page-1 production search with the frozen query;
+2. capture expanded request, redacted headers, status/final URL/body sample, results, duration, and diagnostics;
+3. choose the first result with non-blank name and book URL;
+4. fetch Book Info with the complete search-result context;
+5. stop before TOC/content.
 
-For every selected identity:
+Use bounded concurrency for the initial pass. Sequentially replay every non-pass.
 
-1. Run page-1 search with the frozen query through production transport/rules.
-2. Record exact expanded request, redacted headers, response status/final URL/body sample, parser output, duration, and diagnostics.
-3. If search returns results, choose the first result with non-blank name and book URL.
-4. Fetch Book Info only with that complete search-result context.
-5. Record enriched fields or the exact detail-stage failure.
+**Done when:** every identity has search evidence and each credible result has detail evidence or an exact detail failure.
 
-Do not fetch TOC or chapter content. Use bounded concurrency only for the initial pass. Rerun every non-pass sequentially.
+## 3. Diagnose and classify
 
-## 4. Classify conservatively
+The imported source is the contract to evaluate, not proof that its site remains valid. Consult the official rule documentation and `reference/legado`, following the shared smallest-tool ladder. Use Playwright when rendered DOM, browser JavaScript, session state, or anti-bot behavior can distinguish source drift from an engine gap.
 
-The imported BookSource contract is the source of truth, but a source need not still be valid or online. Consult both:
-
-- `https://mgz0227.github.io/The-tutorial-of-Legado/Rule/source.html`
-- `reference/legado`
-
-Use these classifications:
+Classify as:
 
 - `credible_search_and_detail`
 - `search_engine_gap`
@@ -55,13 +50,17 @@ Use these classifications:
 - `legitimate_empty`
 - `audit_infrastructure`
 
-An engine gap requires all three: a valid BookSource contract under documented/upstream Legado semantics, live compatible data, and a reusable NovelReader transport/parser/Java-bridge mismatch. Never patch or generalize from one broken source.
+Apply the shared-gap proof gate. Record unsupported syntax separately when the sampled source cannot prove current working impact.
 
-## 5. Preserve evidence and stop
+**Done when:** every non-pass has evidence separating source/upstream failure from a reusable NovelReader mismatch.
 
-Write:
+## 4. Preserve and stop
 
-- `testdata/booksource/search-bookinfo-live-audit-vN-YYYY-MM-DD.json`
-- `testdata/booksource/search-bookinfo-live-audit-vN-YYYY-MM-DD.md`
+Keep scripts under `scripts/search-bookinfo-audit/vN/`. Write:
 
-Keep scripts under `scripts/search-bookinfo-audit/vN/`. Validate counts, identities, corpus hash, JSON, and `git diff --check`. Report shared gaps and non-engine outcomes, explicitly state that no source/parser behavior changed, and stop for approval before fixes.
+- `testdata/booksource/audits/search-bookinfo/search-bookinfo-live-audit-vN-YYYY-MM-DD.json`
+- `testdata/booksource/audits/search-bookinfo/search-bookinfo-live-audit-vN-YYYY-MM-DD.md`
+
+Store targeted post-fix reruns in the same operation directory. Validate counts, identities, corpus hash, JSON, path ownership, and `git diff --check`. Report shared gaps, non-engine outcomes, Playwright use, and verification; state that sampling changed no source/parser behavior and stop for approval.
+
+**Done when:** evidence is reproducible and reviewable, and one bounded next action can be approved independently.

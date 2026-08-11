@@ -51,4 +51,4 @@ The live page returns HTTP 200 and contains 30 `.flex li` books. List selection 
 - `go test -race ./internal/analyzer ./internal/book` — pass
 - Temporary live-body probes were removed after confirming the two engine gaps.
 
-Machine-readable evidence: `testdata/booksource/explore-live-audit-v4-2026-07-21.json`.
+Machine-readable evidence: `testdata/booksource/audits/explore/explore-live-audit-v4-2026-07-21.json`.

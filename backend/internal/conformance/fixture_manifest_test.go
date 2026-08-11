@@ -27,7 +27,7 @@ func TestFixtureManifestCoversRequiredBooksourceContracts(t *testing.T) {
 	if !ok {
 		t.Fatal("cannot locate test file")
 	}
-	fixtureDir := filepath.Join(filepath.Dir(testFile), "..", "..", "..", "testdata", "booksource")
+	fixtureDir := filepath.Join(filepath.Dir(testFile), "..", "..", "..", "testdata", "booksource", "conformance", "core")
 	manifestBytes, err := os.ReadFile(filepath.Join(fixtureDir, "manifest.json"))
 	if err != nil {
 		t.Fatal(err)

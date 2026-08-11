@@ -52,7 +52,7 @@ GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go go run ./cmd/conformance \
 
 `-indices` is optional; omitting it runs every source. `-health-url` is optional but aborts the run if the target server stops responding. Add `-webview-endpoint http://127.0.0.1:8787` to execute `webView:true` requests through the Patchright worker. Add `-indices N -detail-result '{...}'` with one SearchResult JSON object to fetch Book Info only, or `-indices N -book-url URL` to run detail → TOC → first/middle/last non-volume chapter content. The CLI uses the production fingerprint transport. Site DNS, WAF, timeout, WebView, and stale-rule failures are reported separately rather than silently treated as parser failures.
 
-Deterministic response fixtures live in `testdata/booksource/`; their manifest test executes the declared rules offline.
+Deterministic response fixtures live under `testdata/booksource/conformance/`; dated live evidence is separated by operation under `testdata/booksource/audits/`. The core manifest test executes declared fixture rules offline.
 
 ## Headless WebView worker
 

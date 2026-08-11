@@ -47,7 +47,7 @@ func TestRawExploreFixturesKeepStableIdentityAndCoverage(t *testing.T) {
 	if !ok {
 		t.Fatal("cannot locate test file")
 	}
-	data, err := os.ReadFile(filepath.Join(filepath.Dir(testFile), "..", "..", "..", "testdata", "booksource", "explore-sources.json"))
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(testFile), "..", "..", "..", "testdata", "booksource", "conformance", "explore", "explore-sources.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

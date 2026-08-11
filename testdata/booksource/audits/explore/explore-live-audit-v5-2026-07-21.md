@@ -48,4 +48,4 @@ The valid generated-catalog script fails with `TypeError: Object has no member '
 
 Stop broad random auditing after these two focused compatibility gaps are resolved and regression-tested. Their fixes should be followed by targeted corpus reruns for `tbody@bareChild` and `java.t2s`, not another unrestricted sample.
 
-Machine-readable evidence: `testdata/booksource/explore-live-audit-v5-2026-07-21.json`.
+Machine-readable evidence: `testdata/booksource/audits/explore/explore-live-audit-v5-2026-07-21.json`.

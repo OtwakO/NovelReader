@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "verificationDate": "2026-07-21",
-  "parentManifest": "testdata/booksource/explore-live-audit-v5-2026-07-21.json",
+  "parentManifest": "testdata/booksource/audits/explore/explore-live-audit-v5-2026-07-21.json",
   "corpus": {
     "path": "test_booksource4.json",
     "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"

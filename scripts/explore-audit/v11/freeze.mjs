@@ -12,7 +12,7 @@ const priorManifests = fs.readdirSync('testdata/booksource')
   .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 const excluded = new Set();
 for (const name of priorManifests) {
-  const audit = JSON.parse(fs.readFileSync(`testdata/booksource/${name}`, 'utf8'));
+  const audit = JSON.parse(fs.readFileSync(`testdata/booksource/audits/explore/${name}`, 'utf8'));
   for (const entry of audit.entries ?? []) {
     excluded.add(`${entry.rawIndex}\0${entry.bookSourceUrl ?? entry.sourceUrl}`);
   }

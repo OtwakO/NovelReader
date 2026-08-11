@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-const evidence=JSON.parse(fs.readFileSync('testdata/booksource/explore-live-v11-fixes-rerun-2026-07-31.json','utf8'));
+const evidence=JSON.parse(fs.readFileSync('testdata/booksource/audits/explore/explore-live-v11-fixes-rerun-2026-07-31.json','utf8'));
 const corpus=JSON.parse(fs.readFileSync(evidence.corpus.path,'utf8'));
 const hash=crypto.createHash('sha256').update(fs.readFileSync(evidence.corpus.path)).digest('hex');
 if(hash!==evidence.corpus.sha256)throw Error('corpus hash mismatch');

@@ -175,7 +175,7 @@ func readFixture(t *testing.T, name string) string {
 	if !ok {
 		t.Fatal("cannot locate fixture test")
 	}
-	root := filepath.Join(filepath.Dir(testFile), "..", "..", "..", "testdata", "booksource")
+	root := filepath.Join(filepath.Dir(testFile), "..", "..", "..", "testdata", "booksource", "conformance", "core")
 	body, err := os.ReadFile(filepath.Join(root, name))
 	if err != nil {
 		t.Fatal(err)

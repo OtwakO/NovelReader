@@ -170,7 +170,7 @@ func exploreResponseFixture(t *testing.T, name string) string {
 	if !ok {
 		t.Fatal("cannot locate test file")
 	}
-	data, err := os.ReadFile(filepath.Join(filepath.Dir(testFile), "..", "..", "..", "testdata", "booksource", name))
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(testFile), "..", "..", "..", "testdata", "booksource", "conformance", "explore", name))
 	if err != nil {
 		t.Fatal(err)
 	}

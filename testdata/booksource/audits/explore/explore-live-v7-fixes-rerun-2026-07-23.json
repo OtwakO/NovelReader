@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "verificationDate": "2026-07-23",
-  "parentManifest": "testdata/booksource/explore-live-audit-v7-2026-07-22.json",
+  "parentManifest": "testdata/booksource/audits/explore/explore-live-audit-v7-2026-07-22.json",
   "corpus": {"path":"test_booksource4.json","sha256":"23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"},
   "method": "Fresh isolated production server/database, unmodified corpus import, first selectable category/page 1 for all four v7 engine-gap identities; deterministic public regressions and adjacent corpus inventory for affected syntax families.",
   "results": [

@@ -76,6 +76,13 @@
 - **Verified**: Full backend tests, targeted equal-ID/anonymous/font isolation regressions, frontend tests/build, vet/race/cross-platform checks recorded with the commit. Production search confirms no global feature database constructor or `DATABASE_PATH` use remains. Docker Compose and shell configuration validate; the Docker E2E build could not start in the sandbox because Docker Buildx could not write its read-only activity directory.
 - **Watch out**: `api.NewServer` and `internal/database` remain isolated test seams for feature tests; production must use `api.NewAuthenticatedServer` and `openStores`. Account disable/delete must later purge the reader runtime before removing a home.
 
+### [2026-08-11] BookSource test data gained operation ownership
+- **Context**: Core fixtures, pinned Explore fixtures, Explore audit history, and Search → Book Info evidence had accumulated in one flat directory.
+- **Change**: Moved deterministic inputs to `testdata/booksource/conformance/{core,explore}/` and dated observations to `testdata/booksource/audits/{explore,search-bookinfo}/`. Updated all executable and documentary paths and added a shared BookSource audit-workflow skill.
+- **Reason**: Purpose-first and operation-second ownership makes future placement obvious without adding a registry or audit framework.
+- **Verified**: Conformance tests and audit verifiers pass from the new paths; searches find no stale root-level operation references.
+- **Watch out**: New operations create their own conformance/audit subdirectory. Live evidence never becomes a deterministic fixture dependency.
+
 ### [2026-08-11] Lenient Legado URL options required preservation before parsing
 - **Context**: The Search → Book Info audit proved that a live source returned detail links ending in a valid lenient option object, but NovelReader requested a percent-encoded option suffix and received 404.
 - **Change**: Search-result URL resolution now preserves balanced trailing option objects verbatim. The shared URL builder normalizes single-quoted strings and bare object keys before its existing typed option decoder. It does not add general JSON5 or arbitrary expression support.
@@ -85,7 +92,7 @@
 
 ### [2026-08-11] Search and Book Info audit separated engine gaps from dead sources
 - **Context**: Many imported sources appeared to fail during search or Book Info, but stale sites, WAFs, authenticated APIs, and parser incompatibilities needed different treatment.
-- **Change**: Ran a deterministic 25-identity sample from `test_booksource3.json` with one fixed query, production search, detail-only follow-up, and sequential replay of every non-pass. Preserved complete evidence under `testdata/booksource/search-bookinfo-live-audit-v1-2026-08-11.{json,md}`.
+- **Change**: Ran a deterministic 25-identity sample from `test_booksource3.json` with one fixed query, production search, detail-only follow-up, and sequential replay of every non-pass. Preserved complete evidence under `testdata/booksource/audits/search-bookinfo/search-bookinfo-live-audit-v1-2026-08-11.{json,md}`.
 - **Reason**: One live working source proved a shared lenient URL-option parsing gap; the other failures were not valid reasons for source-specific fixes. A whole-URL `<js>` difference remains only an observation because its sampled source requires login and denied anonymous access.
 - **Verified**: 10 credible Search → Book Info passes, 1 confirmed detail engine gap, and 14 upstream/blocked/stale/drift/empty outcomes. The verifier checks all 25 identities, all 15 sequential replays, corpus SHA-256, frozen indices, and summary counts.
 - **Watch out**: Fix only the shared lenient option parser after approval. Do not use raw 151 as working-source proof while its correctly formed upstream POST returns 500, and do not add whole-URL `<js>` support from raw 50 alone.

@@ -1,7 +1,7 @@
 # Explore live-audit scripts
 
-These historical utilities produced and verified the deterministic Explore live-audit evidence in
-`testdata/booksource/`.
+These historical utilities produced and verified deterministic Explore live-audit evidence in
+`testdata/booksource/audits/explore/`.
 
 They are grouped by audit version:
 
@@ -27,5 +27,4 @@ The normal version flow is `freeze` → `run` → `rerun` → `build-evidence` �
 `rerun-fixes.mjs` and `verify-fixes.mjs` also record the targeted post-fix production replay.
 
 These scripts are evidence tooling, not application runtime code. New Explore audits should use the
-project audit skill in `.agents/skills/explore-live-audit/` and keep generated evidence under
-`testdata/booksource/`.
+project audit skills in `.agents/skills/booksource-audit-workflow/` and `.agents/skills/explore-live-audit/`, and keep generated evidence under `testdata/booksource/audits/explore/`.

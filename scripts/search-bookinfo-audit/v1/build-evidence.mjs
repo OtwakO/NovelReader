@@ -94,7 +94,7 @@ const evidence = {
   }],
   entries,
 };
-const jsonPath = 'testdata/booksource/search-bookinfo-live-audit-v1-2026-08-11.json';
+const jsonPath = 'testdata/booksource/audits/search-bookinfo/search-bookinfo-live-audit-v1-2026-08-11.json';
 fs.writeFileSync(jsonPath, `${JSON.stringify(evidence, null, 2)}\n`);
 
 const rows = entries.map((entry) => `| ${entry.identity.rawIndex} | ${entry.sourceName.replaceAll('|', '\\|')} | \`${entry.classification}\` | ${entry.rationale.replaceAll('|', '\\|')} |`).join('\n');
@@ -141,5 +141,5 @@ Raw 50 uses a whole-URL \`<js>…</js>\` search rule. Upstream \`AnalyzeUrl\` ex
 
 Approve one focused TDD fix for lenient trailing URL-option object keys at the shared URL builder, using reduced fixtures plus raw 267 as targeted live verification. Do not bundle whole-URL \`<js>\` support until a valid working source or deterministic upstream-contract priority justifies it. Do not patch any sampled source contract.
 `;
-fs.writeFileSync('testdata/booksource/search-bookinfo-live-audit-v1-2026-08-11.md', md);
+fs.writeFileSync('testdata/booksource/audits/search-bookinfo/search-bookinfo-live-audit-v1-2026-08-11.md', md);
 console.log(JSON.stringify(summary));

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
-const evidence = JSON.parse(fs.readFileSync('testdata/booksource/search-bookinfo-live-audit-v1-2026-08-11.json', 'utf8'));
+const evidence = JSON.parse(fs.readFileSync('testdata/booksource/audits/search-bookinfo/search-bookinfo-live-audit-v1-2026-08-11.json', 'utf8'));
 const corpusBytes = fs.readFileSync(evidence.corpus.path);
 const corpus = JSON.parse(corpusBytes);
 const digest = crypto.createHash('sha256').update(corpusBytes).digest('hex');
