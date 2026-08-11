@@ -4,13 +4,15 @@ import { setTimeout as delay } from 'node:timers/promises';
 const base = 'http://127.0.0.1:8899';
 const frozen = JSON.parse(fs.readFileSync('/tmp/explore-v13-frozen.json', 'utf8'));
 const output = '/tmp/explore-v13-initial.json';
+const cookie = process.env.AUDIT_COOKIE;
+if (!cookie) throw new Error('AUDIT_COOKIE is required');
 
 async function post(path, body, timeoutMs = 95_000) {
   const started = Date.now();
   try {
     const response = await fetch(base + path, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', cookie, origin: base },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });

@@ -9,7 +9,8 @@ They are grouped by audit version:
 scripts/explore-audit/
 ├── v10/
 ├── v11/
-└── v12/
+├── v12/
+└── v13/
 ```
 
 Run every script from the repository root because corpus, evidence, and `/tmp` paths are intentionally

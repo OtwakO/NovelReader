@@ -76,6 +76,13 @@
 - **Verified**: Full backend tests, targeted equal-ID/anonymous/font isolation regressions, frontend tests/build, vet/race/cross-platform checks recorded with the commit. Production search confirms no global feature database constructor or `DATABASE_PATH` use remains. Docker Compose and shell configuration validate; the Docker E2E build could not start in the sandbox because Docker Buildx could not write its read-only activity directory.
 - **Watch out**: `api.NewServer` and `internal/database` remain isolated test seams for feature tests; production must use `api.NewAuthenticatedServer` and `openStores`. Account disable/delete must later purge the reader runtime before removing a home.
 
+### [2026-08-11] Explore v13 found no shared compatibility gap
+- **Context**: Sampled another 50 unrestricted, deterministic, disjoint Explore identities after excluding all 550 prior samples.
+- **Change**: Preserved v13 JSON/Markdown evidence and versioned scripts under the Explore-owned audit directories. No production source/parser code changed.
+- **Reason**: Forty-two sources returned 1,211 distinct books; all eight non-passes were explained by incomplete/invalid imported contracts, broken DNS, upstream 521/522, or Cloudflare blocking.
+- **Verified**: Every non-pass and diagnostic was replayed sequentially. Direct HTTP/DNS and targeted Playwright checks confirmed the classifications; the verifier proves corpus hash, ranking, identity disjointness, counts, and evidence completeness.
+- **Watch out**: Authenticated audit POSTs must send both the session cookie and canonical `Origin`; omitting Origin yields pre-source HTTP 403 and is an invalid audit capture.
+
 ### [2026-08-11] BookSource test data gained operation ownership
 - **Context**: Core fixtures, pinned Explore fixtures, Explore audit history, and Search → Book Info evidence had accumulated in one flat directory.
 - **Change**: Moved deterministic inputs to `testdata/booksource/conformance/{core,explore}/` and dated observations to `testdata/booksource/audits/{explore,search-bookinfo}/`. Updated all executable and documentary paths and added a shared BookSource audit-workflow skill.
