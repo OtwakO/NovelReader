@@ -23,7 +23,7 @@ Take the first N without substitution. Record exclusions, corpus SHA-256, seed, 
 
 ## 2. Execute Explore only
 
-Use a fresh disposable database and the production Explore API. Import the corpus unchanged. For each identity:
+Use a fresh disposable database and the production Explore API. Build an import containing the exact frozen raw-index definitions and import it unchanged. Do not import the whole compilation: `bookSourceUrl` is the storage key, so a later duplicate URL can replace the sampled raw-index contract. Assert that the frozen import has N unique URLs. For each identity:
 
 1. open its catalog;
 2. choose the first selectable category;

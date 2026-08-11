@@ -396,6 +396,14 @@ Out of scope: unified cross-source feeds, recommendation ranking, cross-source d
 
 Completion gate: representative raw sources execute source selection → native category/screen → pagination → book result → existing detail/TOC/content workflow with deterministic and live evidence; unsupported source behavior fails explicitly rather than silently returning an empty feed.
 
+#### Fourteenth live compatibility audit (2026-08-11)
+
+A deterministic unrestricted 50-identity sample with seed `NovelReader-explore-random-v14-2026-08-11` excluded all 600 prior identities and selected from 121 eligible raw definitions. The authoritative run imported exactly the 50 frozen raw-index definitions because `bookSourceUrl` is the runtime storage key and whole-corpus import allowed duplicate URLs to overwrite sampled contracts. Thirty-one identities returned 710 distinct credible books.
+
+The audit confirmed one unresolved shared gap across raws 669, 703, and 80: NovelReader applies `bookUrlPattern` as a per-result Search/Explore filter, while upstream Legado uses that pattern for Search final-detail detection/manual URL association and does not discard parsed list results with it. Captured live bodies plus reduced parser counterfactuals produced `0 → 60`, `0 → 15`, and `0 → 30` results when only that filter was disabled. The next approved compatibility slice is public-seam TDD to remove per-result filtering while preserving final-detail detection, followed by targeted live reruns of those three frozen definitions. No source-specific branch is permitted.
+
+Evidence: `testdata/booksource/audits/explore/explore-live-audit-v14-2026-08-11.{json,md}` and the exact frozen import beside them.
+
 #### Live compatibility audit (2026-07-18)
 
 Manual testing found broad Explore failures despite the deterministic Phase 7 gate: parse errors, result-rule failures, empty pages, and list extraction collapsing multiple books into one. Before changing behavior, audit a deterministic stratified sample of 50 sources from hash-pinned `test_booksource4.json` (`23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c`) in a fresh isolated database. Include the reported `中文看书（优）` raw index 89, both `夜伴书屋` identities at indices 9 and 752, and duplicate-name `笔趣阁` sources by stable index/URL rather than display name.

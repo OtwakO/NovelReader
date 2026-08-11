@@ -39,7 +39,7 @@ Put deterministic regression inputs under `testdata/booksource/conformance/<oper
 
 ## 4. Run production behavior
 
-Use a fresh disposable data root and import the corpus unchanged. Capture every selected identity, including failures. Use bounded concurrency for the initial pass and sequentially replay every non-pass or suspicious result.
+Use a fresh disposable data root. Import the exact frozen raw definitions unchanged; when runtime storage is keyed by source URL, do not import a whole compilation whose later duplicate URLs can overwrite sampled contracts. Assert that the execution import preserves every frozen identity and has no duplicate storage keys. Capture every selected identity, including failures. Use bounded concurrency for the initial pass and sequentially replay every non-pass or suspicious result.
 
 Sampling is read-only with respect to source/parser behavior. Preserve unrelated working-tree changes.
 
