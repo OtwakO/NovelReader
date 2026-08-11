@@ -76,6 +76,13 @@
 - **Verified**: Full backend tests, targeted equal-ID/anonymous/font isolation regressions, frontend tests/build, vet/race/cross-platform checks recorded with the commit. Production search confirms no global feature database constructor or `DATABASE_PATH` use remains. Docker Compose and shell configuration validate; the Docker E2E build could not start in the sandbox because Docker Buildx could not write its read-only activity directory.
 - **Watch out**: `api.NewServer` and `internal/database` remain isolated test seams for feature tests; production must use `api.NewAuthenticatedServer` and `openStores`. Account disable/delete must later purge the reader runtime before removing a home.
 
+### [2026-08-11] Lenient Legado URL options required preservation before parsing
+- **Context**: The Search → Book Info audit proved that a live source returned detail links ending in a valid lenient option object, but NovelReader requested a percent-encoded option suffix and received 404.
+- **Change**: Search-result URL resolution now preserves balanced trailing option objects verbatim. The shared URL builder normalizes single-quoted strings and bare object keys before its existing typed option decoder. It does not add general JSON5 or arbitrary expression support.
+- **Reason**: Fixing only the parser was insufficient because `net/url` had already encoded the suffix during search-result resolution. Both changes belong to one shared URL-contract boundary; neither is source-specific.
+- **Verified**: Red-green regressions cover raw-267-style `{Cookie:"..."}` detail links and raw-151-style `{method:"post",body:"..."}` requests. A fresh raw-267 production search preserved the suffix and Book Info succeeded with live detail data. Playwright was unnecessary because ordinary HTTP returned the complete page.
+- **Watch out**: Whole-URL `<js>` remains separate and unimplemented; its sampled source required authentication, so it was not bundled without working-source evidence.
+
 ### [2026-08-11] Search and Book Info audit separated engine gaps from dead sources
 - **Context**: Many imported sources appeared to fail during search or Book Info, but stale sites, WAFs, authenticated APIs, and parser incompatibilities needed different treatment.
 - **Change**: Ran a deterministic 25-identity sample from `test_booksource3.json` with one fixed query, production search, detail-only follow-up, and sequential replay of every non-pass. Preserved complete evidence under `testdata/booksource/search-bookinfo-live-audit-v1-2026-08-11.{json,md}`.

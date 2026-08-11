@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-08-11",
+  "audit": "Search → Book Info live audit v1 targeted fix replay",
+  "gap": "lenient-url-option-object-keys",
+  "corpus": {
+    "path": "test_booksource3.json",
+    "sha256": "9928f8b217126804ea5ef9524d919f05cfafddfeff51ef9691e0edc308e13cdb"
+  },
+  "identity": {
+    "rawIndex": 267,
+    "bookSourceUrl": "http://www.xmanhua.com#♤Haxc",
+    "sourceName": "星际漫画（优）"
+  },
+  "query": "凡人修仙传",
+  "productionPath": "backend/cmd/conformance using production analyzer, source executor, and fingerprint transport",
+  "result": {
+    "searchClassification": "success",
+    "preservedBookUrl": "https://www.xmanhua.com/40192xm/,{Cookie:\"xmanhua_lang=2\"}",
+    "detailClassification": "success",
+    "detailName": "凡人雷神",
+    "detailAuthor": "Marvel Comics ",
+    "detailKind": "冒险科幻",
+    "detailBookUrl": "https://www.xmanhua.com/40192xm/,{Cookie:\"xmanhua_lang=2\"}",
+    "detailIntroNonBlank": true
+  },
+  "scope": {
+    "sourceContractModified": false,
+    "tocFetched": false,
+    "chapterContentFetched": false,
+    "playwrightRequired": false
+  }
+}

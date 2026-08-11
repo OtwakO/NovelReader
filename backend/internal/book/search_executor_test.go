@@ -33,6 +33,23 @@ func TestSearchSourceEvaluatesJavaScriptHeaders(t *testing.T) {
 	}
 }
 
+func TestParseSearchResultPreservesLenientBookURLOptions(t *testing.T) {
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, nil, nil)
+	source := booksource.BookSource{
+		BookSourceURL: "https://example.test",
+		RuleSearch:    `{"bookList":".book","name":".name@text","bookUrl":".name@href##$##,{Cookie:\"xmanhua_lang=2\"}"}`,
+	}
+	results, err := searcher.ParseSearchResultWithStateAtURL(source,
+		`<div class="book"><a class="name" href="/40192xm/">凡人雷神</a></div>`,
+		"https://example.test/search", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].BookURL != `https://example.test/40192xm/,{Cookie:"xmanhua_lang=2"}` {
+		t.Fatalf("results=%+v", results)
+	}
+}
+
 func TestSearchSourceUsesSessionBackedURLTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/search" {

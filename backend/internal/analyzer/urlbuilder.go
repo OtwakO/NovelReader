@@ -588,6 +588,64 @@ func normalizeJSONOption(raw string) (string, bool) {
 	if inDouble || inSingle || escaped {
 		return "", false
 	}
-	normalized := out.String()
+	normalized := quoteBareJSONKeys(out.String())
 	return normalized, json.Valid([]byte(normalized))
+}
+
+func quoteBareJSONKeys(value string) string {
+	var out strings.Builder
+	out.Grow(len(value))
+	inString, escaped := false, false
+	for index := 0; index < len(value); index++ {
+		char := value[index]
+		out.WriteByte(char)
+		if inString {
+			if escaped {
+				escaped = false
+			} else if char == '\\' {
+				escaped = true
+			} else if char == '"' {
+				inString = false
+			}
+			continue
+		}
+		if char == '"' {
+			inString = true
+			continue
+		}
+		if char != '{' && char != ',' {
+			continue
+		}
+		start := index + 1
+		for start < len(value) && isJSONWhitespace(value[start]) {
+			out.WriteByte(value[start])
+			start++
+		}
+		if start >= len(value) || value[start] == '"' || value[start] == '}' || value[start] == ']' {
+			index = start - 1
+			continue
+		}
+		end := start
+		for end < len(value) && !isJSONWhitespace(value[end]) && !strings.ContainsRune(`:{}[],"`, rune(value[end])) {
+			end++
+		}
+		colon := end
+		for colon < len(value) && isJSONWhitespace(value[colon]) {
+			colon++
+		}
+		if end > start && colon < len(value) && value[colon] == ':' {
+			out.WriteByte('"')
+			out.WriteString(value[start:end])
+			out.WriteByte('"')
+			out.WriteString(value[end : colon+1])
+			index = colon
+		} else {
+			index = start - 1
+		}
+	}
+	return out.String()
+}
+
+func isJSONWhitespace(char byte) bool {
+	return char == ' ' || char == '\t' || char == '\n' || char == '\r'
 }

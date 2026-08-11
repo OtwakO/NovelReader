@@ -19,6 +19,41 @@ func TestBuildURLPreservesAllLegadoRequestOptions(t *testing.T) {
 	}
 }
 
+func TestBuildURLAcceptsLenientLegadoOptionKeys(t *testing.T) {
+	tests := []struct {
+		name     string
+		template string
+		wantURL  string
+		method   string
+		body     string
+	}{
+		{
+			name:     "unknown legacy option is removed from detail URL",
+			template: `https://example.test/book,{Cookie:"xmanhua_lang=2"}`,
+			wantURL:  "https://example.test/book",
+			method:   "GET",
+		},
+		{
+			name:     "unquoted request keys configure search POST",
+			template: `https://example.test/search,{method:"post",body:"searchkey={{key}}"}`,
+			wantURL:  "https://example.test/search",
+			method:   "POST",
+			body:     "searchkey=凡人修仙传",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			meta, err := BuildURL(test.template, "凡人修仙传", 1, "https://example.test/", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if meta.URL != test.wantURL || meta.Method != test.method || meta.Body != test.body {
+				t.Fatalf("meta=%+v", meta)
+			}
+		})
+	}
+}
+
 func TestBuildURLPreservesStructuredJSONBody(t *testing.T) {
 	meta, err := BuildURL(`https://example.test/search,{"method":"POST","body":{"q":"{{key}}"}}`, "搜索", 1, "https://example.test/", nil)
 	if err != nil {

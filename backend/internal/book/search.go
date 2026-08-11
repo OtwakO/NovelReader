@@ -1165,8 +1165,7 @@ func splitURLOptionSuffix(value string) (string, string) {
 			}
 			k++
 		}
-		if depth == 0 && strings.TrimSpace(value[k:]) == "" &&
-			(json.Valid([]byte(value[j:k])) || strings.Contains(value[j:k], "'")) {
+		if depth == 0 && strings.TrimSpace(value[k:]) == "" {
 			return value[:i], value[i:]
 		}
 	}
