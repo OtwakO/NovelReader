@@ -23,7 +23,7 @@
 | 96 | 大唐小说（优+） | `credible_search_and_detail` | Production Search and Book Info both returned usable data. |
 | 402 | 九怀小说 | `upstream_http` | Sequential replay and direct HTTP both return HTTP 403 Forbidden from the authored search endpoint. |
 | 233 | 爱看漫画（优+） | `credible_search_and_detail` | Production Search and Book Info both returned usable data. |
-| 179 | 爱尚小说（优） | `search_engine_gap` | The authored POST redirects to a live detail page. Search list extraction returns zero, while the final response URL and the same source Book Info rules enrich 凡人修仙传 successfully. |
+| 179 | 爱尚小说（优） | `search_engine_gap` | The authored POST redirects to a live detail page. Its Search rules produce a named item but no `bookUrl`; NovelReader discards it instead of using the final response URL as Legado does. |
 | 49 | 有度轻说（优+） | `detail_engine_gap` | Search extracts two matching hrefs into one newline-concatenated bookUrl, so Book Info requests a malformed aggregate and fails. The first extracted href is live and enriches successfully. |
 | 174 | 南极小说（优） | `credible_search_and_detail` | Production Search and Book Info both returned usable data. |
 | 148 | 无线电子（优） | `upstream_http` | The live endpoint repeatedly redirects to the identical URL until the client reaches its redirect limit; direct HTTP reproduces the loop. |
@@ -48,17 +48,17 @@
 
 ## Confirmed shared gaps
 
-### URL-valued Search fields must keep the first extracted value
+### Default/JSoup Search `bookUrl` must keep the first extracted value
 
-Raw 49's broad `a@href` rule matches both the detail link and a chapter link. NovelReader joins them with a newline and passes the malformed aggregate to Book Info. Upstream Legado extracts Search `bookUrl` with URL semantics, whose Default/JSoup path keeps the first value.
+Raw 49's broad Default/JSoup `a@href` rule matches both the detail link and a chapter link. NovelReader joins them with a newline and passes the malformed aggregate to Book Info. Upstream Legado calls `AnalyzeRule.getString(..., isUrl = true)` for Search `bookUrl`; its Default/JSoup branch uses `AnalyzeByJSoup.getString0()` and keeps the first value.
 
-Both individual hrefs are live HTTP 200 pages. Replaying Book Info with the first extracted href succeeds and enriches `凡人修仙之仙界篇`. The fix belongs at URL-valued list-field extraction—not in this source.
+Both individual hrefs are live HTTP 200 pages. Replaying Book Info with the first extracted href succeeds and enriches `凡人修仙之仙界篇`. This is a genuine mode-specific compatibility gap even though the source could use a narrower selector. XPath and JSONPath retain their upstream ordinary string behavior, and intentionally plural URL fields continue using list semantics.
 
-### Empty Search list must support detail-page fallback
+### Empty Search `bookUrl` must default to the final response URL
 
-Raw 179's authored POST redirects to `https://www.23hh.la/book/3/3713/`. Its list selector is empty because the response is already a detail page. NovelReader reports zero results. The same final URL and body succeed through the source's Book Info rules and enrich `凡人修仙传`.
+Raw 179's authored POST redirects to `https://www.23hh.la/book/3/3713/`. Its Search `bookList` and `name` rules produce one valid item named `凡人修仙传`, but its `bookUrl` rule extracts no value on this detail-shaped response. NovelReader discards the item because it requires both name and URL.
 
-Upstream Legado attempts Book Info after empty Search list extraction when `bookUrlPattern` is absent. NovelReader needs the equivalent shared fallback while preserving the existing final response URL/body and source session.
+Upstream Legado's `BookList.getSearchItem` sets an empty Search `bookUrl` to `baseUrl`. Applying that shared behavior retains the item with the actual final response URL, after which the same source's Book Info rules enrich successfully.
 
 ## Deferred rather than promoted
 
@@ -70,4 +70,6 @@ Playwright was used only for raw 35, where direct HTTP left a browser-bypass amb
 
 ## Recommendation
 
-Approve two separate focused fix phases: first-value semantics for URL-valued Search/Explore fields, and empty-list Search-to-Book-Info fallback. Each should use a reduced public-boundary regression plus the corresponding frozen live source for post-fix evidence. Do not implement WebView support or patch sampled sources as part of either fix.
+Approved and resolved in a separate fix phase: reproduce Legado's mode-specific `isUrl` behavior for Default/JSoup Search `bookUrl`, and default an empty Search `bookUrl` to the final response URL. Each fix has a reduced public-boundary regression plus frozen live-source post-fix evidence. The implementation does not generalize first-value semantics to XPath/JSONPath or intentionally plural URL fields, implement WebView support, or patch sampled sources.
+
+Post-fix evidence: `search-bookinfo-live-v2-fixes-rerun-2026-08-12.json`.

@@ -201,7 +201,7 @@ Tasks:
 
 - [ ] Implement explicit Regex mode for `##...##...` rules.
 - [ ] Implement exact Default/JSoup grammar: selectors, getters, direct children, `@attr`, numeric selectors such as `.directoryArea.1`, CSS-compatible `:eq(n)` selectors such as `.directoryArea:eq(1)`, indexes, negative indexes, exclusions, arrays, ranges, steps, and reverse ranges.
-- [ ] Implement exact `&&`, `||`, and `%%` semantics for strings, elements, and lists.
+- [ ] Implement exact `&&`, `||`, and `%%` semantics for strings, elements, and lists. Search now matches Legado's mode-specific singular `bookUrl` behavior for Default/JSoup (first value only) without changing XPath/JSONPath or plural URL-list semantics, and named Search items with an empty `bookUrl` default to the actual final response URL.
 - [ ] Implement `<js>` chain semantics and result propagation at every documented position.
 - [ ] Preserve typed HTML/JSON intermediates and correct `outerHtml`, `html`, `text`, `textNodes`, `ownText`, `all`, `href`, and `src` behavior.
 - [ ] Handle plain JSON property access and JSONPath according to Legado’s object/list model.

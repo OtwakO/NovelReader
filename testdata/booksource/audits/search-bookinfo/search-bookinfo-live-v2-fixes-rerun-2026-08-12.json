@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "audit": "search-bookinfo-live-v2-fixes-rerun",
+  "date": "2026-08-12",
+  "sourceAudit": "search-bookinfo-live-audit-v2-2026-08-11.json",
+  "implementation": {
+    "defaultJsoupSingularBookUrl": "Select the first Default/JSoup Search bookUrl value before applying replacement rules. Do not change XPath, JSONPath, Explore, or plural URL-list behavior.",
+    "emptySearchBookUrl": "When a Search item has a name but its authored bookUrl is empty, default it to the actual final response URL before URL resolution and validation."
+  },
+  "entries": [
+    {
+      "rawIndex": 49,
+      "bookSourceUrl": "https://www.yodu.org/qingxiaoshuo",
+      "sourceName": "有度轻说（优+）",
+      "classification": "success",
+      "searchResultCount": 4,
+      "selectedName": "凡人修仙之仙界篇",
+      "selectedBookUrl": "https://www.yodu.org/book/17927/?for-search",
+      "bookInfoName": "凡人修仙之仙界篇",
+      "diagnostics": []
+    },
+    {
+      "rawIndex": 179,
+      "bookSourceUrl": "http://www.23hh.la/",
+      "sourceName": "爱尚小说（优）",
+      "classification": "success",
+      "searchResultCount": 1,
+      "selectedName": "凡人修仙传",
+      "selectedBookUrl": "https://www.23hh.la/book/3/3713/",
+      "bookInfoName": "凡人修仙传",
+      "diagnostics": []
+    }
+  ]
+}

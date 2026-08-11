@@ -238,7 +238,53 @@ func (a *Analyzer) GetStringStrict(ruleStr string) (string, error) {
 	return a.getFirstOrStrict(ruleStr)
 }
 
+// GetURLStringStrict evaluates a singular URL field with Legado's mode-specific semantics.
+// CSS/Default rules use JSoup semantics and keep their first extracted value before
+// applying replacement rules. Other modes retain GetStringStrict behavior.
+func (a *Analyzer) GetURLStringStrict(ruleStr string) (string, error) {
+	parts := splitTopLevel(ruleStr, "&&")
+	if len(parts) <= 1 {
+		return a.getFirstOrStrictMode(ruleStr, true)
+	}
+
+	// Legado combines Default/JSoup connector lists before getString0 selects
+	// the first value. This is equivalent to the first non-empty value from the
+	// ordered branches, not one value from every branch joined together.
+	for _, part := range parts {
+		if !usesJSoupURLSemantics(part, a.isJSON) {
+			return a.GetStringStrict(ruleStr)
+		}
+	}
+	for _, part := range parts {
+		value, err := a.getFirstOrStrictMode(part, true)
+		if err != nil && !errors.Is(err, ErrNoElements) {
+			return "", err
+		}
+		if value != "" {
+			return value, nil
+		}
+	}
+	return "", ErrNoElements
+}
+
+func usesJSoupURLSemantics(ruleStr string, isJSON bool) bool {
+	for _, branch := range splitTopLevel(ruleStr, "||") {
+		rules, err := ParseRules(strings.TrimSpace(branch), isJSON)
+		if err != nil || len(rules) == 0 {
+			return false
+		}
+		if rules[0].Mode != ModeCSS && rules[0].Mode != ModeDefault {
+			return false
+		}
+	}
+	return true
+}
+
 func (a *Analyzer) getFirstOrStrict(ruleStr string) (string, error) {
+	return a.getFirstOrStrictMode(ruleStr, false)
+}
+
+func (a *Analyzer) getFirstOrStrictMode(ruleStr string, singleDefaultValue bool) (string, error) {
 	var firstCompatibilityErr error
 	for _, segment := range splitTopLevel(ruleStr, "||") {
 		segment = strings.TrimSpace(segment)
@@ -249,7 +295,7 @@ func (a *Analyzer) getFirstOrStrict(ruleStr string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		value, err := a.evalString(rules)
+		value, err := a.evalStringMode(rules, singleDefaultValue)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return "", err
@@ -526,10 +572,18 @@ func (a *Analyzer) getElementsWithSharedPrefix(segments []string) ([]interface{}
 
 // evalString evaluates a chain of rules returning a single string.
 func (a *Analyzer) evalString(rules []Rule) (string, error) {
+	return a.evalStringMode(rules, false)
+}
+
+func (a *Analyzer) evalStringMode(rules []Rule, singleDefaultValue bool) (string, error) {
 	current := a.content
 	for index, rule := range rules {
 		var err error
-		current, err = a.applyRuleString(current, rule)
+		if singleDefaultValue && (rule.Mode == ModeCSS || rule.Mode == ModeDefault) {
+			current, err = a.applyRuleStringFirst(current, rule)
+		} else {
+			current, err = a.applyRuleString(current, rule)
+		}
 		if err != nil {
 			if errors.Is(err, errInvalidJSONInput) && rule.Mode == ModeJSON && index+1 < len(rules) && rules[index+1].Mode == ModeJS {
 				current = ""
@@ -542,6 +596,7 @@ func (a *Analyzer) evalString(rules []Rule) (string, error) {
 }
 
 // evalStringList evaluates a chain of rules returning a string list.
+
 func (a *Analyzer) evalStringList(rules []Rule) ([]string, error) {
 	current := a.content
 	for i, rule := range rules {
@@ -604,11 +659,42 @@ func (a *Analyzer) applyRuleString(content interface{}, rule Rule) (string, erro
 	if err != nil {
 		return "", err
 	}
-	s := ToString(result)
-	if rule.ReplaceRegex != "" {
-		return applyReplace(s, rule.ReplaceRegex, rule.Replacement, rule.ReplaceFirst)
+	return applyRuleReplacement(ToString(result), rule)
+}
+
+// applyRuleStringFirst applies JSoup's getString0 semantics before replacement.
+func (a *Analyzer) applyRuleStringFirst(content interface{}, rule Rule) (string, error) {
+	rule, err := a.prepareRuleForEvaluation(rule, content)
+	if err != nil {
+		return "", err
 	}
-	return s, nil
+	var result interface{}
+	switch {
+	case rule.Literal:
+		result = rule.Expression
+	case strings.TrimSpace(rule.Expression) == "":
+		result = content
+	default:
+		result, err = a.dispatch(rule.Mode, ToString(content), rule.Expression)
+	}
+	if err != nil {
+		return "", err
+	}
+	return applyRuleReplacement(firstLine(ToString(result)), rule)
+}
+
+func firstLine(value string) string {
+	if index := strings.IndexByte(value, '\n'); index >= 0 {
+		return value[:index]
+	}
+	return value
+}
+
+func applyRuleReplacement(value string, rule Rule) (string, error) {
+	if rule.ReplaceRegex != "" {
+		return applyReplace(value, rule.ReplaceRegex, rule.Replacement, rule.ReplaceFirst)
+	}
+	return value, nil
 }
 
 // applyRuleStringList runs a single rule returning a string list.

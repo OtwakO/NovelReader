@@ -536,7 +536,9 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		for _, f := range fieldRules {
 			var value string
 			var fieldErr error
-			if strictFields {
+			if f.key == "bookUrl" && limit > 0 {
+				value, fieldErr = elAn.GetURLStringStrict(f.rule)
+			} else if strictFields {
 				value, fieldErr = elAn.GetStringStrict(f.rule)
 			} else {
 				value, fieldErr = elAn.GetString(f.rule)
@@ -577,7 +579,10 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 			elAn.SetBookDataValues(bookData)
 		}
 
-		if r.Name != "" && r.BookURL != "" {
+		if r.Name != "" {
+			if r.BookURL == "" {
+				r.BookURL = baseURL
+			}
 			r.BookURL = resolveURL(r.BookURL, baseURL)
 			r.CoverURL = resolveURL(r.CoverURL, baseURL)
 			results = append(results, r)

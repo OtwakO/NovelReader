@@ -52,8 +52,12 @@ if (evidence.sharedGaps.length !== 2) throw new Error('expected two shared gaps'
 for (const gap of evidence.sharedGaps) {
   if (!gap.confirmedWorkingImpact.length || !gap.evidence || !gap.proposedSharedSeam) throw new Error(`incomplete shared gap ${gap.id}`);
 }
-if (!evidence.sharedGaps.find((gap) => gap.id === 'list-url-first-value-semantics')?.confirmedWorkingImpact.includes(49)) throw new Error('raw 49 gap evidence missing');
-if (!evidence.sharedGaps.find((gap) => gap.id === 'empty-search-list-detail-fallback')?.confirmedWorkingImpact.includes(179)) throw new Error('raw 179 gap evidence missing');
+const urlGap = evidence.sharedGaps.find((gap) => gap.id === 'default-jsoup-book-url-first-value-semantics');
+if (!urlGap?.confirmedWorkingImpact.includes(49)) throw new Error('raw 49 gap evidence missing');
+if (!urlGap.description.includes('Default/JSoup') || !urlGap.proposedSharedSeam.includes('XPath/JSONPath')) throw new Error('raw 49 gap is not mode-scoped');
+const responseURLGap = evidence.sharedGaps.find((gap) => gap.id === 'empty-search-book-url-response-url-fallback');
+if (!responseURLGap?.confirmedWorkingImpact.includes(179)) throw new Error('raw 179 gap evidence missing');
+if (!responseURLGap.description.includes('final response baseUrl') || !responseURLGap.proposedSharedSeam.includes('final response URL')) throw new Error('raw 179 gap is not response-URL scoped');
 if (!evidence.observedButDeferred.some((item) => item.id === 'java-webview-bridge' && item.rawIndices.includes(396))) throw new Error('WebView deferral missing');
 if (!evidence.browserEvidence.some((item) => item.rawIndex === 35)) throw new Error('browser evidence missing');
 console.log(`verified ${evidence.entries.length} disjoint exact identities; corpus ${digest}; exact import ${exactDigest}; ${summaryCount} classified; ${evidence.sharedGaps.length} shared gaps`);

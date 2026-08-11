@@ -227,7 +227,7 @@
     "legadoRepository": "reference/legado",
     "relevantUpstreamContracts": [
       "BookList.getSearchItem extracts bookUrl with AnalyzeRule.getString(..., isUrl=true); Default URL extraction uses JSoup getString0 and retains the first value.",
-      "BookList.analyzeBookList falls back to Book Info when Search list extraction is empty and bookUrlPattern is absent.",
+      "BookList.getSearchItem defaults an empty extracted bookUrl to the final response baseUrl.",
       "WebBook.searchBookAwait passes the final response URL to BookList as baseUrl."
     ]
   },
@@ -245,24 +245,24 @@
   },
   "sharedGaps": [
     {
-      "id": "list-url-first-value-semantics",
-      "stage": "Search list field extraction → Book Info",
+      "id": "default-jsoup-book-url-first-value-semantics",
+      "stage": "Default/JSoup Search bookUrl extraction → Book Info",
       "confirmedWorkingImpact": [
         49
       ],
-      "description": "NovelReader evaluates bookUrl with generic multi-value string semantics and joins matching hrefs with newlines. Legado evaluates list bookUrl as a URL field and keeps the first extracted value.",
-      "evidence": "Raw 49 Search produces two hrefs in one bookUrl and Book Info fails. Each individual href returns HTTP 200; using the first href in the production Book Info path succeeds and enriches the book.",
-      "proposedSharedSeam": "Give URL-valued list fields first-value URL semantics while leaving ordinary text fields unchanged."
+      "description": "NovelReader evaluates a Default/JSoup Search bookUrl with generic multi-value string semantics and joins matching hrefs with newlines. Legado calls AnalyzeRule.getString(..., isUrl = true); its Default/JSoup branch uses AnalyzeByJSoup.getString0() and keeps the first extracted value.",
+      "evidence": "Raw 49 Default/JSoup Search produces two hrefs in one bookUrl and Book Info fails. Each individual href returns HTTP 200; using the first href in the production Book Info path succeeds and enriches the book.",
+      "proposedSharedSeam": "Reproduce Legado mode-specific isUrl behavior for Default/JSoup Search bookUrl only; preserve XPath/JSONPath ordinary strings and plural URL-list semantics."
     },
     {
-      "id": "empty-search-list-detail-fallback",
-      "stage": "Search response classification",
+      "id": "empty-search-book-url-response-url-fallback",
+      "stage": "Search result URL finalization",
       "confirmedWorkingImpact": [
         179
       ],
-      "description": "NovelReader treats an empty Search list as zero results. Legado attempts Book Info on the Search response when list extraction is empty and bookUrlPattern is absent.",
-      "evidence": "Raw 179 POST redirects to a live detail URL. Search returns zero, but the final response URL with the same source Book Info rules succeeds and enriches 凡人修仙传.",
-      "proposedSharedSeam": "After empty Search list extraction, attempt the existing Book Info parser against the final response URL/body under the upstream fallback conditions."
+      "description": "NovelReader discards an otherwise valid Search item when its authored bookUrl rule extracts no value. Legado keeps the item and defaults the empty bookUrl to the final response baseUrl.",
+      "evidence": "Raw 179 POST redirects to a live detail URL. Its Search bookList and name rules produce one item named 凡人修仙传, but its bookUrl rule is empty on the detail-shaped response. Defaulting that URL to the final response URL makes Search and Book Info both succeed.",
+      "proposedSharedSeam": "Before validating a named Search result, default an empty bookUrl to the actual final response URL, matching BookList.getSearchItem."
     }
   ],
   "observedButDeferred": [
