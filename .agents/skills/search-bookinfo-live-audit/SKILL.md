@@ -21,7 +21,7 @@ Take the approved count without substitutions. Record query, seed, corpus SHA-25
 
 ## 2. Execute only both stages
 
-Use a fresh disposable data root, complete audit setup, and import the corpus unchanged. For each identity:
+Use a fresh disposable data root and execute the exact frozen raw definitions unchanged. Do not import the whole compilation when duplicate `bookSourceUrl` values could replace a sampled raw-index contract. If the conformance runner reads a frozen array directly, map each stable `(rawIndex, bookSourceUrl)` identity to its frozen-array position and verify the preserved definition byte-for-byte. For each identity:
 
 1. run page-1 production search with the frozen query;
 2. capture expanded request, redacted headers, status/final URL/body sample, results, duration, and diagnostics;
