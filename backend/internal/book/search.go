@@ -517,14 +517,6 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		}
 	}
 
-	// pre-compile bookUrlPattern regex if the source provides one
-	var urlRe *regexp.Regexp
-	if src.BookURLPattern != "" {
-		if re, err := regexp.Compile(src.BookURLPattern); err == nil {
-			urlRe = re
-		}
-	}
-
 	var results []SearchResult
 	for _, el := range elements {
 		elAn := analyzer.New(analyzer.ToString(el), baseURL, s.jsVM, s.cache)
@@ -588,9 +580,6 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		if r.Name != "" && r.BookURL != "" {
 			r.BookURL = resolveURL(r.BookURL, baseURL)
 			r.CoverURL = resolveURL(r.CoverURL, baseURL)
-			if urlRe != nil && !urlRe.MatchString(r.BookURL) {
-				continue // bookUrl doesn't match source's urlPattern
-			}
 			results = append(results, r)
 		}
 	}

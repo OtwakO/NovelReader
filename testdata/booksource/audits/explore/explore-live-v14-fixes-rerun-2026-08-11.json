@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-08-11",
+  "audit": "explore-live-audit-v14-2026-08-11.json",
+  "corpus": {
+    "path": "test_booksource4.json",
+    "sha256": "23d4db8fda293020843645ed3f29fb49236f5e1bff2f38286eac16caab54598c"
+  },
+  "execution": {
+    "dataRoot": "fresh disposable reader root",
+    "import": "exact three frozen raw-index definitions with unique bookSourceUrl storage keys",
+    "api": "authenticated production Explore catalog/page",
+    "category": "first selectable URL category, page 1",
+    "sourceChangesDuringRerun": false,
+    "parserChange": "removed bookUrlPattern as a per-result Search/Explore filter"
+  },
+  "results": [
+    {
+      "rawIndex": 669,
+      "sourceUrl": "http://m.lulushuwu.com",
+      "beforeDistinctBooks": 0,
+      "afterStatus": 200,
+      "afterDistinctBooks": 60,
+      "diagnostics": []
+    },
+    {
+      "rawIndex": 703,
+      "sourceUrl": "http://www.qudushu.com/#♤pb",
+      "beforeDistinctBooks": 0,
+      "afterStatus": 200,
+      "afterDistinctBooks": 15,
+      "diagnostics": []
+    },
+    {
+      "rawIndex": 80,
+      "sourceUrl": "https://www.yodu.org##破冰",
+      "beforeDistinctBooks": 0,
+      "afterStatus": 200,
+      "afterDistinctBooks": 30,
+      "diagnostics": []
+    }
+  ],
+  "conclusion": "The shared bookUrlPattern result-filter divergence is resolved for all three independent frozen identities. URL resolution and ordinary completeness requirements remain unchanged."
+}

@@ -67,6 +67,10 @@ This finding also means earlier audit reasoning that classified otherwise parsea
 
 Playwright was **not used**. Captured production observations, direct DNS/HTTP, current response bodies, upstream Legado inspection, and reduced production-runtime probes resolved all ambiguities. Browser rendering would not have added evidence needed for these classifications.
 
-## Recommendation
+## Resolution
 
-Fix the shared `bookUrlPattern` result-filter divergence next using public-seam TDD, then rerun raws 669, 703, and 80 against the preserved contracts. Do not add source-specific exceptions. Keep the exact-contract import rule for all future audits because the corpus contains duplicate `bookSourceUrl` values.
+After explicit approval, the shared `bookUrlPattern` result-filter divergence was fixed separately from the audit using public-seam TDD. The shared Search/Explore result parser no longer rejects complete list items by `bookUrlPattern`; no source-specific exceptions were added. A clean authenticated production replay against the exact frozen definitions returned 60, 15, and 30 distinct books for raws 669, 703, and 80 with no diagnostics.
+
+Post-fix evidence: `explore-live-v14-fixes-rerun-2026-08-11.json`.
+
+Keep the exact-contract import rule for all future audits because the corpus contains duplicate `bookSourceUrl` values.

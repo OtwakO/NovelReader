@@ -400,9 +400,9 @@ Completion gate: representative raw sources execute source selection → native 
 
 A deterministic unrestricted 50-identity sample with seed `NovelReader-explore-random-v14-2026-08-11` excluded all 600 prior identities and selected from 121 eligible raw definitions. The authoritative run imported exactly the 50 frozen raw-index definitions because `bookSourceUrl` is the runtime storage key and whole-corpus import allowed duplicate URLs to overwrite sampled contracts. Thirty-one identities returned 710 distinct credible books.
 
-The audit confirmed one unresolved shared gap across raws 669, 703, and 80: NovelReader applies `bookUrlPattern` as a per-result Search/Explore filter, while upstream Legado uses that pattern for Search final-detail detection/manual URL association and does not discard parsed list results with it. Captured live bodies plus reduced parser counterfactuals produced `0 → 60`, `0 → 15`, and `0 → 30` results when only that filter was disabled. The next approved compatibility slice is public-seam TDD to remove per-result filtering while preserving final-detail detection, followed by targeted live reruns of those three frozen definitions. No source-specific branch is permitted.
+The audit confirmed and the approved follow-up resolved one shared gap across raws 669, 703, and 80: NovelReader applied `bookUrlPattern` as a per-result Search/Explore filter, while upstream Legado does not discard parsed list results with it. Public-boundary Search and Explore regressions now require complete list items to survive stale patterns; the shared parser still resolves book and cover URLs and enforces non-empty name/book URL. No source-specific branch was added. A clean authenticated production replay using exactly the three frozen definitions returned `0 → 60`, `0 → 15`, and `0 → 30` distinct books with no diagnostics.
 
-Evidence: `testdata/booksource/audits/explore/explore-live-audit-v14-2026-08-11.{json,md}` and the exact frozen import beside them.
+Evidence: `testdata/booksource/audits/explore/explore-live-audit-v14-2026-08-11.{json,md}`, the exact frozen import beside them, and `explore-live-v14-fixes-rerun-2026-08-11.json`.
 
 #### Live compatibility audit (2026-07-18)
 

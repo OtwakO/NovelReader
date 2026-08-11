@@ -200,3 +200,9 @@
 - **Reason**: A preliminary whole-corpus import let duplicate source URLs replace raws 107 and 126, so raw-index identity did not guarantee the executed contract. After correcting execution, three independent live bodies (raws 669, 703, and 80) parsed 60, 15, and 30 results only when the per-result URL-pattern filter was disabled; upstream Legado does not perform that filtering.
 - **Verified**: Exact 50-source import with 50 unique storage keys; authenticated production run plus sequential replay; captured-body counterfactuals; upstream `BookList` comparison; independent reviewer challenge; v14 evidence verifier.
 - **Watch out**: `(rawIndex, bookSourceUrl)` remains the corpus/audit identity, but whole-compilation import is not exact-contract execution when duplicate URLs exist. Preserve Search final-detail detection when removing the shared per-result filter.
+
+### [2026-08-11] Removed `bookUrlPattern` list-result filtering
+- **Context**: Explore v14 proved that three independent live sources had valid current list entries but NovelReader discarded all of them solely because their URLs did not match stale or over-specific `bookUrlPattern` values.
+- **Change**: Removed `bookUrlPattern` compilation and rejection from the shared Search/Explore result loop. Added public-boundary Search and Explore regressions that retain complete resolved results despite a stale pattern.
+- **Reason**: Upstream Legado does not apply `bookUrlPattern` as a per-result list filter. NovelReader had no separate final-detail detector using this field, so the smallest compatible fix was deleting only the divergent rejection behavior.
+- **Verified**: Full backend tests and vet; race tests for `internal/book`; clean authenticated production replay with exact frozen raws 669, 703, and 80 returned 60, 15, and 30 distinct books respectively with no diagnostics.
