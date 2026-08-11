@@ -17,9 +17,7 @@ func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
 	}
 	defer db.Close()
 	store := NewStore(db)
-	if err := store.Init(); err != nil {
-		t.Fatal(err)
-	}
+	initializeBookTestSchema(t, db)
 	for bookIndex := 0; bookIndex < 6; bookIndex++ {
 		bookID := fmt.Sprintf("book-%d", bookIndex)
 		if err := store.AddBook(&Book{ID: bookID, Name: bookID, SourceURL: "source", BookURL: "url"}); err != nil {

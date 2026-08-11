@@ -136,9 +136,7 @@ func newExploreAPIServer(t *testing.T) (*Server, *booksource.Store, func()) {
 		t.Fatal(err)
 	}
 	sourceStore := booksource.NewStore(db)
-	if err := sourceStore.Init(); err != nil {
-		t.Fatal(err)
-	}
+	initializeAPITestSchema(t, db, booksource.ReaderSchema())
 	client := fetcher.NewInsecure(time.Second)
 	jsVM := analyzer.NewJSVM()
 	searcher := book.NewSearcher(client, jsVM, nil, sourceStore, nil)

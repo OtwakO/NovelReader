@@ -191,7 +191,8 @@ func openStores(dataDir string) (*auth.Store, *readerstore.Manager, error) {
 		return nil, nil, fmt.Errorf("system database: %w", err)
 	}
 	systemStore.HoldRootLock(rootLock)
-	readers, err := readerstore.NewManager(dataDir, 32, booksource.ReaderMigration(), book.ReaderMigration(), fontstore.ReaderMigration())
+	readers, err := readerstore.NewManager(dataDir, 32,
+		booksource.ReaderSchema(), book.ReaderSchema(), fontstore.ReaderSchema())
 	if err != nil {
 		_ = systemStore.Close()
 		return nil, nil, fmt.Errorf("reader stores: %w", err)

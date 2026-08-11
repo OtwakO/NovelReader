@@ -19,9 +19,7 @@ func TestProgressAPIValidatesBookChapterAndPosition(t *testing.T) {
 	}
 	defer db.Close()
 	store := book.NewStore(db)
-	if err := store.Init(); err != nil {
-		t.Fatal(err)
-	}
+	initializeBookAPITestSchema(t, db)
 	if err := store.AddBook(&book.Book{ID: "book-1", Name: "Book", SourceURL: "source", BookURL: "book"}); err != nil {
 		t.Fatal(err)
 	}

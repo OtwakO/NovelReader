@@ -1,0 +1,115 @@
+package book
+
+import (
+	"path/filepath"
+	"sync"
+	"testing"
+
+	"github.com/otwako/novelreader/internal/database"
+)
+
+func TestStoreAddOrMergeBookUsesNormalizedTitleAuthorIdentity(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "books.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewStore(db)
+	initializeBookTestSchema(t, db)
+	first := &Book{
+		ID: "book-first", Name: "异度旅社", Author: "远瞳",
+		SourceURL: "source-a", BookURL: "/a", Origin: "Source A",
+		DurChapterIndex: 50, DurChapterPos: 0.4, StateVersion: 7,
+		AlternateSources: []AltSource{{SourceURL: "source-b", BookURL: "/b", SourceName: "Source B"}},
+	}
+	stored, created, err := store.AddOrMergeBook(first)
+	if err != nil || !created || stored.ID != first.ID {
+		t.Fatalf("first=%+v created=%v error=%v", stored, created, err)
+	}
+	duplicate := &Book{
+		ID: "book-duplicate", Name: " 异度，旅社 ", Author: "作者：远瞳",
+		SourceURL: "source-c", BookURL: "/c", Origin: "Source C",
+		AlternateSources: []AltSource{
+			{SourceURL: "source-b", BookURL: "/b", SourceName: "Source B duplicate"},
+			{SourceURL: "source-d", BookURL: "/d", SourceName: "Source D"},
+		},
+	}
+	stored, created, err = store.AddOrMergeBook(duplicate)
+	if err != nil || created {
+		t.Fatalf("duplicate=%+v created=%v error=%v", stored, created, err)
+	}
+	if stored.ID != first.ID || stored.SourceURL != first.SourceURL || stored.BookURL != first.BookURL {
+		t.Fatalf("logical book identity/current source changed: %+v", stored)
+	}
+	if stored.DurChapterIndex != 50 || stored.DurChapterPos != 0.4 || stored.StateVersion != 7 {
+		t.Fatalf("reading state changed: %+v", stored)
+	}
+	if len(stored.AlternateSources) != 3 {
+		t.Fatalf("alternates=%+v", stored.AlternateSources)
+	}
+	books, err := store.ListBooks()
+	if err != nil || len(books) != 1 {
+		t.Fatalf("books=%+v error=%v", books, err)
+	}
+}
+
+func TestStoreLowLevelAddCannotReplaceAnotherLogicalBookID(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "books.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewStore(db)
+	initializeBookTestSchema(t, db)
+	if err := store.AddBook(&Book{ID: "book-a", Name: "Fixture", Author: "Author", SourceURL: "a", BookURL: "/a"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddBook(&Book{ID: "book-b", Name: "Fixture", Author: "Author", SourceURL: "b", BookURL: "/b"}); err == nil {
+		t.Fatal("low-level add replaced a different logical book ID")
+	}
+	books, err := store.ListBooks()
+	if err != nil || len(books) != 1 || books[0].ID != "book-a" {
+		t.Fatalf("books=%+v error=%v", books, err)
+	}
+}
+
+func TestStoreConcurrentLogicalBookAddsConverge(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "books.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewStore(db)
+	initializeBookTestSchema(t, db)
+	var wait sync.WaitGroup
+	errorsFound := make(chan error, 2)
+	for _, candidate := range []*Book{
+		{ID: "book-a", Name: "Fixture", Author: "Author", SourceURL: "a", BookURL: "/a", Origin: "A"},
+		{ID: "book-b", Name: "Fixture", Author: "Author", SourceURL: "b", BookURL: "/b", Origin: "B"},
+	} {
+		wait.Add(1)
+		go func(candidate *Book) {
+			defer wait.Done()
+			_, _, err := store.AddOrMergeBook(candidate)
+			errorsFound <- err
+		}(candidate)
+	}
+	wait.Wait()
+	close(errorsFound)
+	for err := range errorsFound {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	books, err := store.ListBooks()
+	if err != nil || len(books) != 1 || len(books[0].AlternateSources) != 1 {
+		t.Fatalf("books=%+v error=%v", books, err)
+	}
+}
+
+func TestNormalizeBookIdentity(t *testing.T) {
+	name, author := NormalizeBookIdentity(" 异度，旅社 ", "作者： 远瞳 著")
+	if name != "异度旅社" || author != "远瞳" {
+		t.Fatalf("identity=(%q,%q)", name, author)
+	}
+}

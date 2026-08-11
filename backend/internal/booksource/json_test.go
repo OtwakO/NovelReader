@@ -80,9 +80,7 @@ func TestBookSourceStoreRoundTripPreservesRawJSON(t *testing.T) {
 	defer db.Close()
 
 	store := NewStore(db)
-	if err := store.Init(); err != nil {
-		t.Fatal(err)
-	}
+	initializeBookSourceTestSchema(t, db)
 	source, err := NewFromJSON([]byte(`{
 		"bookSourceUrl":"https://persist.test",
 		"bookSourceName":"Persisted",

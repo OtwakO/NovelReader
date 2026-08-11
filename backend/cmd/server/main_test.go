@@ -61,6 +61,47 @@ func TestOpenStoresInitializesEmptyRootWithoutLegacyDatabase(t *testing.T) {
 	}
 }
 
+func TestOpenStoresCreatesCompleteCurrentReaderSchema(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "data")
+	systemStore, readers, err := openStores(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer systemStore.Close()
+	defer readers.Close()
+	userID := readerstore.UserID("11111111-1111-4111-8111-111111111111")
+	if err := readers.Create(context.Background(), userID); err != nil {
+		t.Fatal(err)
+	}
+	home, err := readers.Open(context.Background(), userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer home.Close()
+
+	var version int
+	if err := home.DB().QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != readerstore.CurrentReaderSchemaVersion {
+		t.Fatalf("reader schema version=%d", version)
+	}
+	for _, table := range []string{"book_sources", "books", "chapters", "bookmarks", "chapter_cache", "fonts"} {
+		var count int
+		if err := home.DB().QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("table %s count=%d error=%v", table, count, err)
+		}
+	}
+	var sourceJSONColumns int
+	if err := home.DB().QueryRow(`SELECT count(*) FROM pragma_table_info('book_sources') WHERE name='source_json'`).Scan(&sourceJSONColumns); err != nil || sourceJSONColumns != 1 {
+		t.Fatalf("source_json columns=%d error=%v", sourceJSONColumns, err)
+	}
+	var historyTables int
+	if err := home.DB().QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='readerstore_migrations'`).Scan(&historyTables); err != nil || historyTables != 0 {
+		t.Fatalf("schema history tables=%d error=%v", historyTables, err)
+	}
+}
+
 func TestOpenStoresExcludesSecondServerForSameDataRoot(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "data")
 	firstStore, firstReaders, err := openStores(root)

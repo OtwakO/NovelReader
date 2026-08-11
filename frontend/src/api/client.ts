@@ -460,6 +460,7 @@ export function enrichBook(data: {
   author?: string;
   coverUrl?: string;
   intro?: string;
+  sourceName?: string;
   sourceUrl: string;
   bookUrl: string;
   alternateSources?: AltSource[];
@@ -475,16 +476,22 @@ export async function addSearchResultToShelf(result: SearchResult) {
   try {
     return await enrichBook({
       id, name: result.name, author: result.author || '', coverUrl: result.coverUrl || '',
-      intro: result.intro || '', sourceUrl: result.sourceUrl, bookUrl: result.bookUrl,
+      intro: result.intro || '', sourceName: result.sourceName || '', sourceUrl: result.sourceUrl, bookUrl: result.bookUrl,
       alternateSources: result.alternateSources,
     });
   } catch {
     return addBook({
       id, name: result.name, author: result.author, coverUrl: result.coverUrl,
       intro: result.intro, kind: result.kind, sourceUrl: result.sourceUrl,
-      bookUrl: result.bookUrl, alternateSources: result.alternateSources,
+      bookUrl: result.bookUrl, origin: result.sourceName, alternateSources: result.alternateSources,
     });
   }
+}
+
+export function mergeBookSources(id: string, sources: AltSource[]) {
+  return req<Book>(`/books/${encodeURIComponent(id)}/sources`, {
+    method: 'POST', body: JSON.stringify({ sources }),
+  });
 }
 
 export function deleteBook(id: string) {

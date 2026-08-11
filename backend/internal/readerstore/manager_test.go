@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,85 +125,24 @@ func TestManagerSupportsHostileButValidDataRootNames(t *testing.T) {
 	}
 }
 
-func TestManagerAppliesAndValidatesOrderedReaderMigrations(t *testing.T) {
-	root := t.TempDir()
-	first := ReaderMigration{Name: "sources", Apply: func(db *sql.Tx) error {
-		_, err := db.Exec(`CREATE TABLE migrated_sources (id TEXT PRIMARY KEY)`)
+func TestManagerInitializesCurrentReaderSchema(t *testing.T) {
+	first := ReaderSchema{Initialize: func(tx *sql.Tx) error {
+		_, err := tx.Exec(`CREATE TABLE schema_sources (id TEXT PRIMARY KEY)`)
 		return err
 	}}
-	second := ReaderMigration{Name: "books", Apply: func(db *sql.Tx) error {
-		_, err := db.Exec(`CREATE TABLE migrated_books (id TEXT PRIMARY KEY)`)
+	second := ReaderSchema{Initialize: func(tx *sql.Tx) error {
+		_, err := tx.Exec(`CREATE TABLE schema_books (id TEXT PRIMARY KEY)`)
 		return err
 	}}
-	manager, err := NewManager(root, 1, first, second)
+	manager, err := NewManager(t.TempDir(), 1, first, second)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer manager.Close()
 	if err := manager.Create(context.Background(), testUserAlice); err != nil {
 		t.Fatal(err)
 	}
 	home, err := manager.Open(context.Background(), testUserAlice)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var version int
-	if err := home.DB().QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
-		t.Fatal(err)
-	}
-	if version != InitialDatabaseVersion+2 {
-		t.Fatalf("reader database version = %d", version)
-	}
-	var applied int
-	if err := home.DB().QueryRow(`SELECT count(*) FROM readerstore_migrations`).Scan(&applied); err != nil {
-		t.Fatal(err)
-	}
-	if applied != 2 {
-		t.Fatalf("applied migrations = %d", applied)
-	}
-	if err := home.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := manager.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	reordered, err := NewManager(root, 1, second, first)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reordered.Close()
-	if _, err := reordered.Open(context.Background(), testUserAlice); !errors.Is(err, ErrMigrationOrder) {
-		t.Fatalf("reordered migrations error = %v", err)
-	}
-}
-
-func TestManagerOpenUpgradesAnOlderReaderHome(t *testing.T) {
-	root := t.TempDir()
-	first := ReaderMigration{Name: "sources", Apply: func(db *sql.Tx) error {
-		_, err := db.Exec(`CREATE TABLE migrated_sources (id TEXT PRIMARY KEY)`)
-		return err
-	}}
-	second := ReaderMigration{Name: "books", Apply: func(db *sql.Tx) error {
-		_, err := db.Exec(`CREATE TABLE migrated_books (id TEXT PRIMARY KEY)`)
-		return err
-	}}
-	oldManager, err := NewManager(root, 1, first)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := oldManager.Create(context.Background(), testUserAlice); err != nil {
-		t.Fatal(err)
-	}
-	if err := oldManager.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	upgradedManager, err := NewManager(root, 1, first, second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer upgradedManager.Close()
-	home, err := upgradedManager.Open(context.Background(), testUserAlice)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,23 +151,54 @@ func TestManagerOpenUpgradesAnOlderReaderHome(t *testing.T) {
 	if err := home.DB().QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != InitialDatabaseVersion+2 {
-		t.Fatalf("upgraded reader database version = %d", version)
+	if version != CurrentReaderSchemaVersion {
+		t.Fatalf("reader database version = %d", version)
+	}
+	for _, table := range []string{"schema_sources", "schema_books"} {
+		var count int
+		if err := home.DB().QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("table %s count=%d error=%v", table, count, err)
+		}
+	}
+	var historyTables int
+	if err := home.DB().QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='readerstore_migrations'`).Scan(&historyTables); err != nil || historyTables != 0 {
+		t.Fatalf("schema history tables=%d error=%v", historyTables, err)
 	}
 }
 
-func TestManagerRejectsDuplicateOrInvalidReaderMigrations(t *testing.T) {
-	apply := func(*sql.Tx) error { return nil }
-	for name, migrations := range map[string][]ReaderMigration{
-		"missing name":   {{Apply: apply}},
-		"missing apply":  {{Name: "books"}},
-		"duplicate name": {{Name: "books", Apply: apply}, {Name: "books", Apply: apply}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if _, err := NewManager(t.TempDir(), 1, migrations...); err == nil {
-				t.Fatal("expected invalid migration error")
-			}
-		})
+func TestInitializeReaderDatabaseRollsBackFailedSchema(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ReaderDatabaseName)
+	failure := errors.New("schema failed")
+	err := initializeReaderDatabase(path, []ReaderSchema{
+		{Initialize: func(tx *sql.Tx) error {
+			_, err := tx.Exec(`CREATE TABLE partial_schema (id TEXT PRIMARY KEY)`)
+			return err
+		}},
+		{Initialize: func(*sql.Tx) error { return failure }},
+	})
+	if !errors.Is(err, failure) {
+		t.Fatalf("initialization error=%v", err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var tableCount, version int
+	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='partial_schema'`).Scan(&tableCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if tableCount != 0 || version != 0 {
+		t.Fatalf("partial schema committed: tables=%d version=%d", tableCount, version)
+	}
+}
+
+func TestManagerRejectsMissingReaderSchemaInitializer(t *testing.T) {
+	if _, err := NewManager(t.TempDir(), 1, ReaderSchema{}); err == nil {
+		t.Fatal("expected missing schema initializer error")
 	}
 }
 
@@ -261,7 +233,9 @@ func TestManagerCreateIsIdempotentAndProducesPortableHome(t *testing.T) {
 		}
 	}
 
-	for _, databaseName := range []string{ReaderDatabaseName, CredentialsDatabaseName} {
+	for databaseName, expectedVersion := range map[string]int{
+		ReaderDatabaseName: CurrentReaderSchemaVersion, CredentialsDatabaseName: CurrentCredentialsSchemaVersion,
+	} {
 		db, err := sql.Open("sqlite", filepath.Join(homePath, databaseName))
 		if err != nil {
 			t.Fatal(err)
@@ -269,7 +243,7 @@ func TestManagerCreateIsIdempotentAndProducesPortableHome(t *testing.T) {
 		var version int
 		err = db.QueryRow(`PRAGMA user_version`).Scan(&version)
 		closeErr := db.Close()
-		if err != nil || closeErr != nil || version != InitialDatabaseVersion {
+		if err != nil || closeErr != nil || version != expectedVersion {
 			t.Errorf("%s version=%d queryErr=%v closeErr=%v", databaseName, version, err, closeErr)
 		}
 	}
@@ -293,7 +267,7 @@ func TestManagerRecoversCompleteAndIncompleteStaging(t *testing.T) {
 			homePath := filepath.Join(manager.root, UsersDirectory, string(testUserAlice))
 			stagingPath := homePath + homeStagingSuffix
 			if complete {
-				if err := createStagedHome(stagingPath, testUserAlice, nil); err != nil {
+				if err := createStagedHome(stagingPath, testUserAlice, manager.schemas); err != nil {
 					t.Fatal(err)
 				}
 			} else {
@@ -308,7 +282,7 @@ func TestManagerRecoversCompleteAndIncompleteStaging(t *testing.T) {
 			if err := manager.Create(context.Background(), testUserAlice); err != nil {
 				t.Fatal(err)
 			}
-			if err := validateHome(homePath, testUserAlice, nil); err != nil {
+			if err := validateHome(homePath, testUserAlice, manager.schemas); err != nil {
 				t.Fatalf("published home: %v", err)
 			}
 			if _, err := os.Lstat(stagingPath); !errors.Is(err, os.ErrNotExist) {
@@ -322,7 +296,7 @@ func TestManagerRebuildsStructurallyCompleteVersionZeroStaging(t *testing.T) {
 	manager := newTestManager(t, 2)
 	homePath := filepath.Join(manager.root, UsersDirectory, string(testUserAlice))
 	stagingPath := homePath + homeStagingSuffix
-	if err := createStagedHome(stagingPath, testUserAlice, nil); err != nil {
+	if err := createStagedHome(stagingPath, testUserAlice, manager.schemas); err != nil {
 		t.Fatal(err)
 	}
 	databasePath := filepath.Join(stagingPath, CredentialsDatabaseName)
@@ -340,7 +314,7 @@ func TestManagerRebuildsStructurallyCompleteVersionZeroStaging(t *testing.T) {
 	if err := manager.Create(context.Background(), testUserAlice); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateHome(homePath, testUserAlice, nil); err != nil {
+	if err := validateHome(homePath, testUserAlice, manager.schemas); err != nil {
 		t.Fatalf("recovered home: %v", err)
 	}
 }
@@ -388,8 +362,16 @@ func TestManagerRejectsInvalidTypedIDWithoutFilesystemChanges(t *testing.T) {
 	}
 }
 
-func TestManagerRejectsUnsupportedReaderDatabaseVersion(t *testing.T) {
-	manager := newTestManager(t, 2)
+func TestManagerRejectsIncompleteCurrentReaderSchemaWithoutMutation(t *testing.T) {
+	schema := ReaderSchema{Initialize: func(tx *sql.Tx) error {
+		_, err := tx.Exec(`CREATE TABLE required_table (id TEXT PRIMARY KEY, value TEXT)`)
+		return err
+	}}
+	manager, err := NewManager(t.TempDir(), 2, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
 	ctx := context.Background()
 	if err := manager.Create(ctx, testUserAlice); err != nil {
 		t.Fatal(err)
@@ -399,15 +381,87 @@ func TestManagerRejectsUnsupportedReaderDatabaseVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`PRAGMA user_version = 2`); err != nil {
+	if _, err := db.Exec(`DROP TABLE required_table`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := manager.Open(ctx, testUserAlice); !errors.Is(err, ErrNewerDatabaseSchema) {
-		t.Fatalf("Open error = %v", err)
+	for operation, err := range map[string]error{
+		"create": manager.Create(ctx, testUserAlice),
+		"open":   func() error { _, err := manager.Open(ctx, testUserAlice); return err }(),
+	} {
+		if !errors.Is(err, ErrReaderSchemaMismatch) || !strings.Contains(err.Error(), "declared object") {
+			t.Fatalf("%s error=%v", operation, err)
+		}
+	}
+	db, err = sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var version, tableCount int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='required_table'`).Scan(&tableCount); err != nil {
+		t.Fatal(err)
+	}
+	if version != CurrentReaderSchemaVersion || tableCount != 0 {
+		t.Fatalf("home repaired or restamped: version=%d tables=%d", version, tableCount)
+	}
+}
+
+func TestManagerRejectsMismatchedReaderSchemaWithoutMutation(t *testing.T) {
+	for _, version := range []int{CurrentReaderSchemaVersion - 1, CurrentReaderSchemaVersion + 1} {
+		t.Run(fmt.Sprintf("version-%d", version), func(t *testing.T) {
+			manager := newTestManager(t, 2)
+			ctx := context.Background()
+			if err := manager.Create(ctx, testUserAlice); err != nil {
+				t.Fatal(err)
+			}
+			databasePath := filepath.Join(manager.root, UsersDirectory, string(testUserAlice), ReaderDatabaseName)
+			db, err := sql.Open("sqlite", databasePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, version)); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			for operation, err := range map[string]error{
+				"create": manager.Create(ctx, testUserAlice),
+				"open":   func() error { _, err := manager.Open(ctx, testUserAlice); return err }(),
+			} {
+				if !errors.Is(err, ErrReaderSchemaMismatch) {
+					t.Fatalf("%s error = %v", operation, err)
+				}
+				for _, guidance := range []string{"remove or rename", "DATA_DIR", "re-import test BookSources"} {
+					if !strings.Contains(err.Error(), guidance) {
+						t.Errorf("%s error %q missing %q", operation, err, guidance)
+					}
+				}
+			}
+			db, err = sql.Open("sqlite", databasePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			var storedVersion, historyTables int
+			if err := db.QueryRow(`PRAGMA user_version`).Scan(&storedVersion); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='readerstore_migrations'`).Scan(&historyTables); err != nil {
+				t.Fatal(err)
+			}
+			if storedVersion != version || historyTables != 0 {
+				t.Fatalf("home mutated: version=%d historyTables=%d", storedVersion, historyTables)
+			}
+		})
 	}
 }
 

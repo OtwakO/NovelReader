@@ -29,8 +29,8 @@ test('administrator account page exposes bounded reader status controls', () => 
 test('shelved books can switch source from details and the reader', () => {
   const detail = fs.readFileSync(path.join(root, 'lib/BookDetail.svelte'), 'utf8');
   const reader = fs.readFileSync(path.join(root, 'lib/Reader.svelte'), 'utf8');
-  assert.match(detail, /<BookSourceSwitcher/);
-  assert.match(detail, /await switchBookSource\(bookId/);
+  assert.match(detail, /<BookSources/);
+  assert.match(detail, /bind:book/);
   assert.match(reader, /aria-label="Change reading source"/);
   assert.match(reader, /<BookSourceSwitcher/);
   assert.match(reader, /await persistProgress\(\)/);

@@ -60,7 +60,8 @@ func newOwnershipServer(t *testing.T) (*Server, *auth.SessionService, *readersto
 	if err != nil {
 		t.Fatal(err)
 	}
-	readers, err := readerstore.NewManager(root, 4, booksource.ReaderMigration(), book.ReaderMigration(), fontstore.ReaderMigration())
+	readers, err := readerstore.NewManager(root, 4,
+		booksource.ReaderSchema(), book.ReaderSchema(), fontstore.ReaderSchema())
 	if err != nil {
 		t.Fatal(err)
 	}

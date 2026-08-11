@@ -7,7 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
+	"sync"
 	"time"
+	"unicode"
 
 	"github.com/otwako/novelreader/internal/readerstore"
 )
@@ -89,23 +92,21 @@ type SearchResult struct {
 
 // Store handles book persistence.
 type Store struct {
-	db *sql.DB
+	db      *sql.DB
+	mergeMu sync.Mutex
 }
 
 func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
-// ReaderMigration initializes bookshelf, progress, bookmark, and chapter-cache persistence.
-func ReaderMigration() readerstore.ReaderMigration {
-	return readerstore.ReaderMigration{Name: "books", Apply: func(tx *sql.Tx) error { return initSchema(tx) }}
+// ReaderSchema returns the current bookshelf schema module for fresh initialization and validation.
+func ReaderSchema() readerstore.ReaderSchema {
+	return readerstore.ReaderSchema{Initialize: func(tx *sql.Tx) error { return initSchema(tx) }}
 }
-
-func (s *Store) Init() error { return initSchema(s.db) }
 
 type schemaDatabase interface {
 	Exec(query string, args ...any) (sql.Result, error)
-	Query(query string, args ...any) (*sql.Rows, error)
 }
 
 func initSchema(db schemaDatabase) error {
@@ -114,6 +115,8 @@ func initSchema(db schemaDatabase) error {
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
 			author TEXT DEFAULT '',
+			identity_name TEXT NOT NULL DEFAULT '',
+			identity_author TEXT NOT NULL DEFAULT '',
 			cover_url TEXT DEFAULT '',
 			intro TEXT DEFAULT '',
 			kind TEXT DEFAULT '',
@@ -133,6 +136,7 @@ func initSchema(db schemaDatabase) error {
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_books_logical_identity ON books(identity_name, identity_author)`,
 		`CREATE TABLE IF NOT EXISTS chapters (
 			id TEXT PRIMARY KEY,
 			book_id TEXT NOT NULL,
@@ -180,33 +184,10 @@ func initSchema(db schemaDatabase) error {
 			return fmt.Errorf("book: init: %w", err)
 		}
 	}
-	for _, column := range []struct{ name, definition string }{
-		{"alternate_sources", "TEXT DEFAULT '[]'"},
-		{"state_version", "INTEGER DEFAULT 0"},
-	} {
-		if err := ensureColumn(db, "books", column.name, column.definition); err != nil {
-			return fmt.Errorf("book: init column %s: %w", column.name, err)
-		}
-	}
-	for _, column := range []struct{ name, definition string }{
-		{"is_pay", "INTEGER DEFAULT 0"},
-		{"base_url", "TEXT DEFAULT ''"},
-		{"tag", "TEXT DEFAULT ''"},
-		{"word_count", "TEXT DEFAULT ''"},
-	} {
-		if err := ensureColumn(db, "chapters", column.name, column.definition); err != nil {
-			return fmt.Errorf("book: init chapter column %s: %w", column.name, err)
-		}
-	}
-	if err := ensureColumn(db, "chapter_cache", "blocks", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
-		return fmt.Errorf("book: init chapter cache column blocks: %w", err)
-	}
 	return nil
 }
 
-// bookColumns is the explicit column list for SELECT queries.
-// Using explicit columns (not SELECT *) ensures scan order is deterministic
-// regardless of whether the DB was created by CREATE TABLE or ALTER TABLE.
+// bookColumns keeps SELECT scan order explicit and deterministic.
 var bookColumns = `id, name, author, cover_url, intro, kind,
 	source_url, book_url, toc_url, origin, variable_map,
 	last_chapter, update_time, word_count,
@@ -216,7 +197,31 @@ var bookColumns = `id, name, author, cover_url, intro, kind,
 // chapterColumns for SELECT queries on the chapters table.
 var chapterColumns = `id, book_id, idx, title, url, is_vip, is_volume, is_pay, base_url, tag, word_count, cached`
 
-// AddBook inserts a book into the shelf.
+// NormalizeBookIdentity returns the logical shelf identity for a book.
+func NormalizeBookIdentity(name, author string) (string, string) {
+	return normalizeIdentityPart(name, false), normalizeIdentityPart(author, true)
+}
+
+func normalizeIdentityPart(value string, author bool) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if author {
+		for _, prefix := range []string{"作者：", "作者:", "author：", "author:"} {
+			value = strings.TrimSpace(strings.TrimPrefix(value, prefix))
+		}
+		for _, suffix := range []string{" 著", "著", " 作", "作"} {
+			value = strings.TrimSpace(strings.TrimSuffix(value, suffix))
+		}
+	}
+	return strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			return r
+		}
+		return -1
+	}, value)
+}
+
+// AddBook inserts a book into the shelf. Internal fixtures that intentionally
+// replace an ID retain this low-level behavior; user-facing adds use AddOrMergeBook.
 func (s *Store) AddBook(b *Book) error {
 	now := time.Now().UnixMilli()
 	b.CreatedAt = now
@@ -225,15 +230,29 @@ func (s *Store) AddBook(b *Book) error {
 	if len(altJSON) == 0 {
 		altJSON = []byte("[]")
 	}
-	_, err := s.db.Exec(`INSERT OR REPLACE INTO books (
-		id, name, author, cover_url, intro, kind,
+	identityName, identityAuthor := NormalizeBookIdentity(b.Name, b.Author)
+	if identityName == "" {
+		return errors.New("book: name is required")
+	}
+	_, err := s.db.Exec(`INSERT INTO books (
+		id, name, author, identity_name, identity_author, cover_url, intro, kind,
 		source_url, book_url, toc_url, origin, variable_map,
 		last_chapter, update_time, word_count,
 		dur_chapter_index, dur_chapter_pos, total_chapter_num, state_version,
 		alternate_sources,
 		created_at, updated_at
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		b.ID, b.Name, b.Author, b.CoverURL, b.Intro, b.Kind,
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	ON CONFLICT(id) DO UPDATE SET
+		name=excluded.name, author=excluded.author,
+		identity_name=excluded.identity_name, identity_author=excluded.identity_author,
+		cover_url=excluded.cover_url, intro=excluded.intro, kind=excluded.kind,
+		source_url=excluded.source_url, book_url=excluded.book_url, toc_url=excluded.toc_url,
+		origin=excluded.origin, variable_map=excluded.variable_map,
+		last_chapter=excluded.last_chapter, update_time=excluded.update_time, word_count=excluded.word_count,
+		dur_chapter_index=excluded.dur_chapter_index, dur_chapter_pos=excluded.dur_chapter_pos,
+		total_chapter_num=excluded.total_chapter_num, state_version=excluded.state_version,
+		alternate_sources=excluded.alternate_sources, updated_at=excluded.updated_at`,
+		b.ID, b.Name, b.Author, identityName, identityAuthor, b.CoverURL, b.Intro, b.Kind,
 		b.SourceURL, b.BookURL, b.TocURL, b.Origin, b.VariableMap,
 		b.LastChapter, b.UpdateTime, b.WordCount,
 		b.DurChapterIndex, b.DurChapterPos, b.TotalChapterNum, b.StateVersion,
@@ -241,6 +260,123 @@ func (s *Store) AddBook(b *Book) error {
 		b.CreatedAt, b.UpdatedAt,
 	)
 	return err
+}
+
+// AddOrMergeBook inserts one logical title+author shelf row or merges newly
+// discovered source bindings into the existing row without changing its ID,
+// current source, reading state, chapters, cache, or bookmarks.
+func (s *Store) AddOrMergeBook(candidate *Book) (*Book, bool, error) {
+	s.mergeMu.Lock()
+	defer s.mergeMu.Unlock()
+	identityName, identityAuthor := NormalizeBookIdentity(candidate.Name, candidate.Author)
+	if identityName == "" {
+		return nil, false, errors.New("book: name is required")
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, false, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	var existing Book
+	err = scanBookRow(tx.QueryRow(`SELECT `+bookColumns+` FROM books WHERE identity_name = ? AND identity_author = ?`, identityName, identityAuthor), &existing)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, err
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		now := time.Now().UnixMilli()
+		candidate.CreatedAt = now
+		candidate.UpdatedAt = now
+		candidate.AlternateSources = mergeAlternateSources(candidate.SourceURL, candidate.BookURL, candidate.AlternateSources)
+		alternateJSON, err := json.Marshal(candidate.AlternateSources)
+		if err != nil {
+			return nil, false, err
+		}
+		if _, err := tx.Exec(`INSERT INTO books (
+			id, name, author, identity_name, identity_author, cover_url, intro, kind,
+			source_url, book_url, toc_url, origin, variable_map,
+			last_chapter, update_time, word_count,
+			dur_chapter_index, dur_chapter_pos, total_chapter_num, state_version,
+			alternate_sources, created_at, updated_at
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			candidate.ID, candidate.Name, candidate.Author, identityName, identityAuthor,
+			candidate.CoverURL, candidate.Intro, candidate.Kind,
+			candidate.SourceURL, candidate.BookURL, candidate.TocURL, candidate.Origin, candidate.VariableMap,
+			candidate.LastChapter, candidate.UpdateTime, candidate.WordCount,
+			candidate.DurChapterIndex, candidate.DurChapterPos, candidate.TotalChapterNum, candidate.StateVersion,
+			string(alternateJSON), candidate.CreatedAt, candidate.UpdatedAt,
+		); err != nil {
+			return nil, false, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, false, err
+		}
+		return candidate, true, nil
+	}
+
+	discovered := append([]AltSource(nil), existing.AlternateSources...)
+	discovered = append(discovered, AltSource{SourceURL: candidate.SourceURL, BookURL: candidate.BookURL, SourceName: candidate.Origin})
+	discovered = append(discovered, candidate.AlternateSources...)
+	existing.AlternateSources = mergeAlternateSources(existing.SourceURL, existing.BookURL, discovered)
+	alternateJSON, err := json.Marshal(existing.AlternateSources)
+	if err != nil {
+		return nil, false, err
+	}
+	if _, err := tx.Exec(`UPDATE books SET alternate_sources = ?, updated_at = ? WHERE id = ?`, string(alternateJSON), time.Now().UnixMilli(), existing.ID); err != nil {
+		return nil, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, false, err
+	}
+	return &existing, false, nil
+}
+
+// MergeBookSources adds source bindings to an existing shelf book without
+// switching its active source or touching reading state.
+func (s *Store) MergeBookSources(bookID string, sources []AltSource) (*Book, error) {
+	s.mergeMu.Lock()
+	defer s.mergeMu.Unlock()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+	var existing Book
+	if err := scanBookRow(tx.QueryRow(`SELECT `+bookColumns+` FROM books WHERE id = ?`, bookID), &existing); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrBookNotFound
+		}
+		return nil, err
+	}
+	existing.AlternateSources = mergeAlternateSources(existing.SourceURL, existing.BookURL, append(existing.AlternateSources, sources...))
+	alternateJSON, err := json.Marshal(existing.AlternateSources)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(`UPDATE books SET alternate_sources = ?, updated_at = ? WHERE id = ?`, string(alternateJSON), time.Now().UnixMilli(), existing.ID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &existing, nil
+}
+
+func mergeAlternateSources(currentSourceURL, currentBookURL string, sources []AltSource) []AltSource {
+	seen := map[string]bool{currentSourceURL + "\n" + currentBookURL: true}
+	merged := make([]AltSource, 0, len(sources))
+	for _, source := range sources {
+		if source.SourceURL == "" || source.BookURL == "" {
+			continue
+		}
+		key := source.SourceURL + "\n" + source.BookURL
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		merged = append(merged, source)
+	}
+	return merged
 }
 
 // DeleteBook removes a book from the shelf.
@@ -417,31 +553,6 @@ func scanChapters(rows *sql.Rows) ([]Chapter, error) {
 		list = append(list, ch)
 	}
 	return list, rows.Err()
-}
-
-func ensureColumn(db schemaDatabase, table, column, definition string) error {
-	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var cid int
-		var name, typ string
-		var notNull, primaryKey int
-		var defaultValue interface{}
-		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &primaryKey); err != nil {
-			return err
-		}
-		if name == column {
-			return rows.Err()
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	_, err = db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + definition)
-	return err
 }
 
 func boolToInt(b bool) int {

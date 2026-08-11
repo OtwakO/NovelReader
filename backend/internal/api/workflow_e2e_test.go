@@ -91,12 +91,7 @@ func newWorkflowAPIServer(t *testing.T) (*Server, func()) {
 	}
 	sourceStore := booksource.NewStore(db)
 	bookStore := book.NewStore(db)
-	if err := sourceStore.Init(); err != nil {
-		t.Fatal(err)
-	}
-	if err := bookStore.Init(); err != nil {
-		t.Fatal(err)
-	}
+	initializeBookAndSourceAPITestSchema(t, db)
 	client := fetcher.NewInsecure(2 * time.Second)
 	jsVM := analyzer.NewJSVM()
 	jsVM.SetFetcher(client)

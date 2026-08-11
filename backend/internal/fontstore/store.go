@@ -29,14 +29,10 @@ func NewStore(db *sql.DB, files readerstore.FileStore) *Store {
 	return &Store{db: db, files: files}
 }
 
-// ReaderMigration initializes font metadata inside one reader home.
-func ReaderMigration() readerstore.ReaderMigration {
-	return readerstore.ReaderMigration{Name: "fonts", Apply: func(tx *sql.Tx) error {
-		return initSchema(tx)
-	}}
+// ReaderSchema returns the current font schema module for fresh initialization and validation.
+func ReaderSchema() readerstore.ReaderSchema {
+	return readerstore.ReaderSchema{Initialize: func(tx *sql.Tx) error { return initSchema(tx) }}
 }
-
-func (s *Store) Init() error { return initSchema(s.db) }
 
 type schemaExecutor interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -79,8 +75,7 @@ func (s *Store) Add(name, id string, data []byte) (*Font, error) {
 	return f, nil
 }
 
-// fontColumns for SELECT on the fonts table.
-// ponytail: two-column scan, unlikely to migrate, but explicit is safer.
+// fontColumns keeps SELECT scan order explicit.
 var fontColumns = `id, name, file_name, file_size, created_at`
 
 // List returns all fonts.

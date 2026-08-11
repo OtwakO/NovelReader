@@ -13,7 +13,7 @@ const (
 )
 
 func TestStoreKeepsEqualFontIDsInsideReaderHome(t *testing.T) {
-	manager, err := readerstore.NewManager(t.TempDir(), 2, ReaderMigration())
+	manager, err := readerstore.NewManager(t.TempDir(), 2, ReaderSchema())
 	if err != nil {
 		t.Fatal(err)
 	}

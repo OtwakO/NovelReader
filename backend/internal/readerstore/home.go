@@ -115,12 +115,12 @@ func filePath(segments []string) (string, error) {
 	return filepath.Join(segments...), nil
 }
 
-func recoverStagedHome(stagingPath, homePath string, userID UserID, migrations []ReaderMigration) error {
+func recoverStagedHome(stagingPath, homePath string, userID UserID, schemas []ReaderSchema) error {
 	info, err := os.Lstat(stagingPath)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%w: unsafe staged reader home", ErrInvalidHome)
 	}
-	if err := validateHome(stagingPath, userID, migrations); err == nil {
+	if err := validateHome(stagingPath, userID, schemas); err == nil {
 		if err := os.Rename(stagingPath, homePath); err != nil {
 			return fmt.Errorf("readerstore: publish staged reader home: %w", err)
 		}
@@ -129,7 +129,7 @@ func recoverStagedHome(stagingPath, homePath string, userID UserID, migrations [
 	if err := os.RemoveAll(stagingPath); err != nil {
 		return fmt.Errorf("readerstore: remove incomplete staged reader home: %w", err)
 	}
-	if err := createStagedHome(stagingPath, userID, migrations); err != nil {
+	if err := createStagedHome(stagingPath, userID, schemas); err != nil {
 		_ = os.RemoveAll(stagingPath)
 		return err
 	}
@@ -140,7 +140,7 @@ func recoverStagedHome(stagingPath, homePath string, userID UserID, migrations [
 	return nil
 }
 
-func createStagedHome(path string, userID UserID, migrations []ReaderMigration) error {
+func createStagedHome(path string, userID UserID, schemas []ReaderSchema) error {
 	if err := os.Mkdir(path, 0o700); err != nil {
 		return fmt.Errorf("readerstore: create staged reader home: %w", err)
 	}
@@ -157,35 +157,16 @@ func createStagedHome(path string, userID UserID, migrations []ReaderMigration) 
 	if err := os.WriteFile(filepath.Join(path, HomeManifestName), append(encoded, '\n'), 0o600); err != nil {
 		return fmt.Errorf("readerstore: write reader manifest: %w", err)
 	}
-	for _, databaseName := range []string{ReaderDatabaseName, CredentialsDatabaseName} {
-		if err := initializeHomeDatabase(filepath.Join(path, databaseName)); err != nil {
-			return fmt.Errorf("readerstore: initialize %s: %w", databaseName, err)
-		}
+	if err := initializeReaderDatabase(filepath.Join(path, ReaderDatabaseName), schemas); err != nil {
+		return fmt.Errorf("readerstore: initialize %s: %w", ReaderDatabaseName, err)
 	}
-	readerDB, err := openHomeDatabase(filepath.Join(path, ReaderDatabaseName))
-	if err != nil {
-		return err
+	if err := initializeCredentialsDatabase(filepath.Join(path, CredentialsDatabaseName)); err != nil {
+		return fmt.Errorf("readerstore: initialize %s: %w", CredentialsDatabaseName, err)
 	}
-	migrationErr := applyReaderMigrations(readerDB, migrations)
-	closeErr := readerDB.Close()
-	if migrationErr != nil {
-		return migrationErr
-	}
-	if closeErr != nil {
-		return fmt.Errorf("readerstore: close initialized reader database: %w", closeErr)
-	}
-	return validateHome(path, userID, migrations)
+	return validateHome(path, userID, schemas)
 }
 
-func validateHome(path string, userID UserID, migrations []ReaderMigration) error {
-	return validateHomeWithReaderVersion(path, userID, InitialDatabaseVersion+len(migrations), len(migrations))
-}
-
-func validateHomeForOpen(path string, userID UserID, migrations []ReaderMigration) error {
-	return validateHomeWithReaderVersion(path, userID, 0, len(migrations))
-}
-
-func validateHomeWithReaderVersion(path string, userID UserID, requiredReaderVersion, migrationCount int) error {
+func validateHome(path string, userID UserID, schemas []ReaderSchema) error {
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return ErrHomeNotFound
@@ -208,25 +189,21 @@ func validateHomeWithReaderVersion(path string, userID UserID, requiredReaderVer
 			return ErrInvalidHome
 		}
 	}
-	for _, databaseName := range []string{ReaderDatabaseName, CredentialsDatabaseName} {
-		databasePath := filepath.Join(path, databaseName)
-		databaseInfo, err := os.Lstat(databasePath)
-		if err != nil || !databaseInfo.Mode().IsRegular() || databaseInfo.Mode()&os.ModeSymlink != 0 {
-			return ErrInvalidHome
-		}
-		minimumVersion, maximumVersion := InitialDatabaseVersion, InitialDatabaseVersion
-		if databaseName == ReaderDatabaseName {
-			maximumVersion = InitialDatabaseVersion + migrationCount
-			if requiredReaderVersion > 0 {
-				minimumVersion = requiredReaderVersion
-			}
-		}
-		if err := validateHomeDatabase(databasePath, minimumVersion, maximumVersion); err != nil {
-			if errors.Is(err, ErrNewerDatabaseSchema) || errors.Is(err, ErrMigrationOrder) {
-				return err
-			}
-			return ErrInvalidHome
-		}
+	readerDatabasePath := filepath.Join(path, ReaderDatabaseName)
+	readerDatabaseInfo, err := os.Lstat(readerDatabasePath)
+	if err != nil || !readerDatabaseInfo.Mode().IsRegular() || readerDatabaseInfo.Mode()&os.ModeSymlink != 0 {
+		return ErrInvalidHome
+	}
+	if err := validateHomeDatabase(readerDatabasePath, CurrentReaderSchemaVersion, schemas); err != nil {
+		return err
+	}
+	credentialsPath := filepath.Join(path, CredentialsDatabaseName)
+	credentialsInfo, err := os.Lstat(credentialsPath)
+	if err != nil || !credentialsInfo.Mode().IsRegular() || credentialsInfo.Mode()&os.ModeSymlink != 0 {
+		return ErrInvalidHome
+	}
+	if err := validateCredentialsDatabase(credentialsPath); err != nil {
+		return ErrInvalidHome
 	}
 	return nil
 }

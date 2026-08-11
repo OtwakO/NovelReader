@@ -16,9 +16,7 @@ func TestStoreBookmarksAreIdempotentAndVersionGuarded(t *testing.T) {
 	}
 	defer db.Close()
 	store := NewStore(db)
-	if err := store.Init(); err != nil {
-		t.Fatal(err)
-	}
+	initializeBookTestSchema(t, db)
 	if err := store.AddBook(&Book{ID: "book", Name: "Book", SourceURL: "source", BookURL: "url"}); err != nil {
 		t.Fatal(err)
 	}

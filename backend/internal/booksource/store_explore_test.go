@@ -15,9 +15,7 @@ func TestListExploreEnabledIgnoresNormalSearchEnablement(t *testing.T) {
 	}
 	defer db.Close()
 	store := NewStore(db)
-	if err := store.Init(); err != nil {
-		t.Fatal(err)
-	}
+	initializeBookSourceTestSchema(t, db)
 	for _, source := range []*BookSource{
 		{BookSourceURL: "https://explore.test", BookSourceName: "Explore", Enabled: false, EnabledExplore: true, ExploreURL: "分类::/books"},
 		{BookSourceURL: "https://search.test", BookSourceName: "Search", Enabled: true, EnabledExplore: false, ExploreURL: "分类::/books"},

@@ -115,11 +115,11 @@ The exact Go shapes may be tightened during implementation, but the seam rules a
 - Book/source/font features operate on a `readerstore.Home` or its database/file interfaces, not global stores.
 - One manager owns bounded connection caching and closes idle user databases; do not create an unbounded database pool or one store graph per request.
 - File operations reject traversal and remain inside the opened reader directory.
-- Future features add their own tables/migrations to `reader.db` and optional namespaced file directories without changing authentication tables or handler path logic.
+- Future features contribute their current tables to fresh `reader.db` initialization and optional namespaced file directories without changing authentication tables or handler path logic.
 - Cross-user joins are deliberately absent. Administrator account lists read `system.db`; administrators do not query reader databases merely to enumerate accounts.
-- Do not add a generic key/value dumping ground. A feature owns its schema and public interface; `readerstore` owns location, lifecycle, migration execution, backup, and recovery mechanics.
+- Do not add a generic key/value dumping ground. A feature owns one authoritative current-DDL function and its public persistence interface; `readerstore` owns location, lifecycle, generic validation, one-transaction fresh-schema initialization, backup, and recovery mechanics.
 
-Reader-schema migrations are versioned and coordinated by `readerstore`. A future feature contributes a named, ordered migration through one migration registry rather than adding startup SQL in unrelated handlers or stores. Unsupported newer schema versions fail clearly and never trigger destructive downgrade behavior.
+The complete current reader schema has one version epoch. Feature DDL functions run together in one transaction only while creating a fresh reader home, and the version stamp commits with them. Before any writable connection, `readerstore` rebuilds those same DDL functions in an isolated in-memory SQLite database and compares the complete declared catalog with the published reader database read-only. Every epoch or catalog mismatch fails with development reset guidance and is left unchanged. Feature stores expose no post-open schema initialization method.
 
 ## Ownership and request flow
 
@@ -322,11 +322,11 @@ Each user directory remains inspectable and importable because `reader.db` is pl
 
 A credential record uses a stable random credential-subject ID assigned to the source record, not only a reusable source URL. `reader.db` is authoritative: credential hydration first confirms that the exact subject ID is still attached to a live source owned by the opened reader home.
 
-Source deletion first makes the source unavailable in `reader.db`, then idempotently tombstones/removes its credential record. A crash can leave an orphan ciphertext but cannot make it usable. Re-importing the same URL receives a new subject ID and never silently reattaches old credentials. Credential logout/update operations are idempotent, and `readerstore` runs bounded orphan reconciliation on open/migration. Tests cover crashes between source/credential writes, deletion, logout, and re-import.
+Source deletion first makes the source unavailable in `reader.db`, then idempotently tombstones/removes its credential record. A crash can leave an orphan ciphertext but cannot make it usable. Re-importing the same URL receives a new subject ID and never silently reattaches old credentials. Credential logout/update operations are idempotent, and `readerstore` runs bounded orphan reconciliation when a current reader home opens. Tests cover crashes between source/credential writes, deletion, logout, and re-import.
 
 ## Schema gate and atomic cutover
 
-The schema decision runs immediately after opening the data root and before current store initialization, migrations, workers, frontend serving, or network listener startup.
+The schema decision runs immediately after opening the data root and before current store initialization, workers, frontend serving, or network listener startup.
 
 - Refuse old globally keyed non-empty data without modifying it.
 - Direct internal developers to stop NovelReader, optionally retain a manual copy, delete or rename `DATA_DIR`, restart, and re-import test BookSources.

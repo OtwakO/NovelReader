@@ -121,6 +121,7 @@ func (s *Server) registerRoutesWithoutHealth() {
 	s.mux.HandleFunc("GET /api/books/{id}/cover", s.handleGetBookCover)
 	s.mux.HandleFunc("POST /api/books", s.handleAddBook)
 	s.mux.HandleFunc("POST /api/books/enrich", s.handleEnrichBook)
+	s.mux.HandleFunc("POST /api/books/{id}/sources", s.handleMergeBookSources)
 	s.mux.HandleFunc("DELETE /api/books", s.handleDeleteBook)
 
 	// Search
@@ -353,11 +354,16 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	if err := s.bookStore.AddBook(&b); err != nil {
+	stored, created, err := s.bookStore.AddOrMergeBook(&b)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, b)
+	status := http.StatusOK
+	if created {
+		status = http.StatusCreated
+	}
+	writeJSON(w, status, stored)
 }
 
 func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
@@ -367,6 +373,7 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 		Author           string           `json:"author,omitempty"`
 		CoverURL         string           `json:"coverUrl,omitempty"`
 		Intro            string           `json:"intro,omitempty"`
+		SourceName       string           `json:"sourceName,omitempty"`
 		SourceURL        string           `json:"sourceUrl"`
 		BookURL          string           `json:"bookUrl"`
 		AlternateSources []book.AltSource `json:"alternateSources,omitempty"`
@@ -382,18 +389,8 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if book already exists
-	existing, err := s.bookStore.GetBook(req.ID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load book failed")
-		return
-	}
-	if existing != nil {
-		writeJSON(w, http.StatusOK, existing)
-		return
-	}
-
-	// Create book with available info from request
+	// Create a candidate with available info from the request. Persistence
+	// resolves normalized title+author identity and may return an existing row.
 	b := &book.Book{
 		ID:               req.ID,
 		Name:             req.Name,
@@ -402,7 +399,7 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 		Intro:            req.Intro,
 		SourceURL:        req.SourceURL,
 		BookURL:          req.BookURL,
-		Origin:           req.SourceURL,
+		Origin:           req.SourceName,
 		AlternateSources: req.AlternateSources,
 	}
 
@@ -414,13 +411,15 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 	}
 	if src == nil {
 		// An unimported source keeps the existing minimal-book fallback.
-		if err := s.bookStore.AddBook(b); err != nil {
+		stored, _, err := s.bookStore.AddOrMergeBook(b)
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, b)
+		writeJSON(w, http.StatusOK, stored)
 		return
 	}
+	b.Origin = src.BookSourceName
 
 	// Fetch and enrich book info from source while preserving search identity unless the source permits renaming.
 	enriched, err := s.searcher.GetBookInfoForBook(*src, b, req.BookURL)
@@ -452,11 +451,40 @@ func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
 		b.UpdateTime = enriched.UpdateTime
 	}
 
-	if err := s.bookStore.AddBook(b); err != nil {
+	stored, _, err := s.bookStore.AddOrMergeBook(b)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, b)
+	writeJSON(w, http.StatusOK, stored)
+}
+
+func (s *Server) handleMergeBookSources(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Sources []book.AltSource `json:"sources"`
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
+	defer r.Body.Close()
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_book_sources", "invalid book sources request")
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF || len(req.Sources) == 0 {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_book_sources", "at least one source is required")
+		return
+	}
+	stored, err := s.bookStore.MergeBookSources(r.PathValue("id"), req.Sources)
+	if errors.Is(err, book.ErrBookNotFound) {
+		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+		return
+	}
+	if err != nil {
+		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to merge book sources")
+		return
+	}
+	writeJSON(w, http.StatusOK, stored)
 }
 
 func (s *Server) handleDeleteBook(w http.ResponseWriter, r *http.Request) {

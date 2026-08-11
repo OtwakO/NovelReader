@@ -123,9 +123,7 @@ func TestHandlersDistinguishNotFoundFromStorageFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	bookStore := book.NewStore(db)
-	if err := bookStore.Init(); err != nil {
-		t.Fatal(err)
-	}
+	initializeBookAPITestSchema(t, db)
 	server := &Server{bookStore: bookStore}
 
 	missing := invokeBookRoute(server.handleGetChapters, "missing", "")
@@ -154,12 +152,7 @@ func newCrawlAPIServer(t *testing.T) (*Server, crawlStores, func()) {
 	}
 	sourceStore := booksource.NewStore(db)
 	bookStore := book.NewStore(db)
-	if err := sourceStore.Init(); err != nil {
-		t.Fatal(err)
-	}
-	if err := bookStore.Init(); err != nil {
-		t.Fatal(err)
-	}
+	initializeBookAndSourceAPITestSchema(t, db)
 	searcher := book.NewSearcher(fetcher.NewInsecure(2*time.Second), analyzer.NewJSVM(), nil, nil, bookStore)
 	return &Server{sourceStore: sourceStore, bookStore: bookStore, searcher: searcher}, crawlStores{sourceStore, bookStore}, func() { _ = db.Close() }
 }
