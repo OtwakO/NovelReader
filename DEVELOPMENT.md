@@ -76,6 +76,13 @@
 - **Verified**: Full backend tests, targeted equal-ID/anonymous/font isolation regressions, frontend tests/build, vet/race/cross-platform checks recorded with the commit. Production search confirms no global feature database constructor or `DATABASE_PATH` use remains. Docker Compose and shell configuration validate; the Docker E2E build could not start in the sandbox because Docker Buildx could not write its read-only activity directory.
 - **Watch out**: `api.NewServer` and `internal/database` remain isolated test seams for feature tests; production must use `api.NewAuthenticatedServer` and `openStores`. Account disable/delete must later purge the reader runtime before removing a home.
 
+### [2026-08-11] Search → Book Info v2 found two shared workflow gaps
+- **Context**: Ran another 25-source deterministic Search → Book Info audit, disjoint from v1, with exact frozen raw definitions and query `凡人修仙传`.
+- **Change**: Preserved JSON/Markdown evidence and versioned scripts under the Search/Book Info audit directories. No production source or parser behavior changed.
+- **Reason**: Raw 49 proved URL-valued list fields must keep the first extracted value rather than join multiple hrefs; raw 179 proved empty Search lists need Legado's detail-page fallback on the final response. Raw 396 is explicitly WebView-dependent and remains deferred.
+- **Verified**: Eight sources completed both stages. Every non-pass replayed sequentially; direct HTTP/DNS, one targeted Chromium check, reduced production probes, and upstream Legado source established two shared gaps and classified all other outcomes. The verifier recomputes ranking, disjointness, exact imported definitions, corpus/import hashes, replay coverage, and summary totals.
+- **Watch out**: Keep the two fixes separate and approval-gated. Do not patch raw sources, and do not implement `java.webView` as a fake regular-JS method.
+
 ### [2026-08-11] Explore v13 found no shared compatibility gap
 - **Context**: Sampled another 50 unrestricted, deterministic, disjoint Explore identities after excluding all 550 prior samples.
 - **Change**: Preserved v13 JSON/Markdown evidence and versioned scripts under the Explore-owned audit directories. No production source/parser code changed.
