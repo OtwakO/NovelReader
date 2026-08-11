@@ -28,6 +28,16 @@ type ChapterCheck struct {
 }
 
 // WorkflowRecord captures the small, bounded output of one book workflow.
+// DetailRecord captures a bounded Search-result-to-Book-Info observation.
+type DetailRecord struct {
+	Identity       SourceIdentity    `json:"identity"`
+	SourceName     string            `json:"sourceName"`
+	SearchResult   book.SearchResult `json:"searchResult"`
+	Detail         *book.Book        `json:"detail,omitempty"`
+	Classification string            `json:"classification"`
+	Error          string            `json:"error,omitempty"`
+}
+
 type WorkflowRecord struct {
 	Identity       SourceIdentity `json:"identity"`
 	SourceName     string         `json:"sourceName"`
@@ -41,6 +51,51 @@ type WorkflowRecord struct {
 	Classification string         `json:"classification"`
 	Stage          string         `json:"stage,omitempty"`
 	Error          string         `json:"error,omitempty"`
+}
+
+// RunBookInfoWithOptions fetches Book Info for one exact raw source and search result.
+func RunBookInfoWithOptions(ctx context.Context, raw []byte, index int, result book.SearchResult, options Options) (DetailRecord, error) {
+	items, err := rawItems(raw)
+	if err != nil {
+		return DetailRecord{}, err
+	}
+	if index < 0 || index >= len(items) {
+		return DetailRecord{}, fmt.Errorf("conformance: source index %d outside [0,%d)", index, len(items))
+	}
+	if result.BookURL == "" {
+		return DetailRecord{}, fmt.Errorf("conformance: detail book URL is required")
+	}
+	var src booksource.BookSource
+	if err := json.Unmarshal(items[index], &src); err != nil {
+		return DetailRecord{}, fmt.Errorf("conformance: source %d: %w", index, err)
+	}
+	hash := sha256.Sum256(items[index])
+	record := DetailRecord{
+		Identity:     SourceIdentity{Index: index, URL: src.BookSourceURL, SHA256: hex.EncodeToString(hash[:])},
+		SourceName:   src.BookSourceName,
+		SearchResult: result,
+	}
+	timeout := options.Timeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	searcher, err := newWorkflowSearcher(timeout, options)
+	if err != nil {
+		return record, err
+	}
+	candidate := &book.Book{
+		Name: result.Name, Author: result.Author, CoverURL: result.CoverURL,
+		Intro: result.Intro, Kind: result.Kind, LastChapter: result.LastChapter,
+		SourceURL: src.BookSourceURL, BookURL: result.BookURL, Origin: src.BookSourceName,
+	}
+	detail, err := searcher.GetBookInfoForBook(src, candidate, result.BookURL)
+	if err != nil {
+		record.Classification, record.Error = "detail_failure", err.Error()
+		return record, nil
+	}
+	record.Detail = detail
+	record.Classification = "success"
+	return record, nil
 }
 
 // RunWorkflowWithOptions executes detail, TOC, and first/middle/last chapter content for one source.

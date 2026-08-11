@@ -8,7 +8,42 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/otwako/novelreader/internal/book"
 )
+
+func TestRunBookInfoUsesSearchResultContextAndStopsAtDetail(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		_, _ = w.Write([]byte(`<h1>Renamed</h1><span class="author">Detail Author</span><a class="toc" href="/chapters">Read</a>`))
+	}))
+	defer server.Close()
+	raw, err := json.Marshal([]map[string]interface{}{{
+		"bookSourceUrl": server.URL, "bookSourceName": "fixture", "bookSourceType": 0,
+		"ruleBookInfo": map[string]string{
+			"name": "tag.h1@text", "author": "class.author@text", "tocUrl": "class.toc@href",
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := RunBookInfoWithOptions(context.Background(), raw, 0, book.SearchResult{
+		Name: "Search Name", Author: "Search Author", BookURL: server.URL + "/book",
+	}, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.Classification != "success" || record.Detail == nil {
+		t.Fatalf("record=%+v", record)
+	}
+	if record.Detail.Name != "Search Name" || record.Detail.Author != "Search Author" || record.Detail.TocURL != server.URL+"/chapters" {
+		t.Fatalf("detail=%+v", record.Detail)
+	}
+	if requests != 1 {
+		t.Fatalf("detail requests=%d, want 1", requests)
+	}
+}
 
 func TestWorkflowChecksFirstMiddleLastChapters(t *testing.T) {
 	bookPage := `<div class="baseinfo"><img src="/cover.jpg"></div><div class="pt-info">分类</div><div class="pt-info">作者：Fixture</div><div class="pt-info"><a>玄幻</a></div><div class="intro">Fixture introduction</div><ul id="chapterlist"><li><a href="/chapter/1">第一章</a></li><li><a href="/chapter/2">第二章</a></li><li><a href="/chapter/3">第三章</a></li><li><a href="/chapter/4">第四章</a></li><li><a href="/chapter/5">第五章</a></li></ul>`
