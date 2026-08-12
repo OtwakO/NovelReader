@@ -75,6 +75,27 @@ func TestBuildURLLeavesAlreadyEncodedGetQueryIntact(t *testing.T) {
 	}
 }
 
+func TestBuildURLExecutesWholeJSProgramBeforeURLParsing(t *testing.T) {
+	meta, err := BuildURL("<js>'https://example.test/search,{\"method\":\"POST\",\"body\":\"q=' + key + '\"}'</js>", "凡人修仙传", 1, "https://example.test/", NewJSVM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.URL != "https://example.test/search" || meta.Method != "POST" || meta.Body != "q=凡人修仙传" {
+		t.Fatalf("meta=%+v", meta)
+	}
+}
+
+func TestBuildURLExecutesInlineJSBeforeOrdinarySuffix(t *testing.T) {
+	state := &testSourceState{cookies: map[string]string{}, vars: map[string]string{}, memory: map[string]interface{}{}}
+	meta, err := BuildURLWithState(`<js>source.put('token', key)</js>https://example.test/search?q={{source.get('token')}}`, "凡人修仙传", 1, "https://example.test/", NewJSVM(), state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.URL != "https://example.test/search?q=凡人修仙传" {
+		t.Fatalf("url=%q", meta.URL)
+	}
+}
+
 func TestBuildURLPreservesStructuredJSONBody(t *testing.T) {
 	meta, err := BuildURL(`https://example.test/search,{"method":"POST","body":{"q":"{{key}}"}}`, "搜索", 1, "https://example.test/", nil)
 	if err != nil {

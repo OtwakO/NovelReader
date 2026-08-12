@@ -91,6 +91,14 @@ func BuildURLWithContextData(ctx context.Context, template, key string, page int
 
 	urlStr := strings.TrimSpace(template)
 
+	if strings.Contains(strings.ToLower(urlStr), "<js>") {
+		var err error
+		urlStr, err = evalURLJSTags(ctx, urlStr, key, page, baseURL, jsVM, sourceState, data)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Legado also permits a normal URL followed by an @js: segment. Evaluate
 	// the segment against the already-built URL so `result` has the expected value.
 	if jsIndex := findURLJSSegment(urlStr); jsIndex > 0 {
@@ -406,6 +414,42 @@ func optionBodyString(raw json.RawMessage) string {
 		return ""
 	}
 	return string(encoded)
+}
+
+func evalURLJSTags(ctx context.Context, input, key string, page int, baseURL string, jsVM *JSVM, sourceState SourceState, data *URLContext) (string, error) {
+	if jsVM == nil {
+		return "", fmt.Errorf("urlbuilder: <js>: no JS engine available")
+	}
+	lower := strings.ToLower(input)
+	result := input
+	start := 0
+	for {
+		openRel := strings.Index(lower[start:], "<js>")
+		if openRel < 0 {
+			break
+		}
+		open := start + openRel
+		closeRel := strings.Index(lower[open+4:], "</js>")
+		if closeRel < 0 {
+			return "", fmt.Errorf("urlbuilder: <js>: missing closing tag")
+		}
+		close := open + 4 + closeRel
+		if prefix := strings.TrimSpace(input[start:open]); prefix != "" {
+			result = strings.ReplaceAll(prefix, "@result", result)
+		}
+		bindings := urlBindings(data, key, page, baseURL, sourceState)
+		bindings["result"] = result
+		value, err := evalURLScript(ctx, jsVM, input[open+4:close], result, baseURL, data, bindings)
+		if err != nil {
+			return "", fmt.Errorf("urlbuilder: <js>: eval failed: %w", err)
+		}
+		result = ToString(value)
+		start = close + len("</js>")
+	}
+	if suffix := strings.TrimSpace(input[start:]); suffix != "" {
+		result = strings.ReplaceAll(suffix, "@result", result)
+	}
+	return result, nil
 }
 
 func findURLJSSegment(input string) int {
