@@ -2,8 +2,6 @@
 
 NovelReader is a web-first novel reader with a Legado-compatible booksource engine. It imports raw Legado source JSON, supports source-native Explore catalogs alongside cross-source search, saves chapter and in-chapter reading progress with annotated bookmarks, safely switches between alternate sources, retains bounded offline chapter copies, executes regular and JavaScript sources through a shared request/session pipeline, and routes browser-backed sources through an optional WebView worker.
 
-New development sessions should begin with [`HANDOFF.md`](HANDOFF.md), which records the exact repository checkpoint, working-tree caveats, verification baseline, and next recommended task.
-
 ## Local setup
 
 Requirements: Go, Node.js, and npm.

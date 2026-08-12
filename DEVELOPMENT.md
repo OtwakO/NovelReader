@@ -255,3 +255,10 @@
 - **Reason**: The committed lockfile independently passed `npm ci`, all frontend tests, and a production build; Docker and CI already build from source, while committed bundles had drifted from current frontend source.
 - **Verified**: `npm ci`, frontend tests/build, backend tests, and a Git cleanliness check after regenerating `dist`.
 - **Watch out**: A fresh local checkout must build the frontend before the Go server can serve the UI; host-only Rollup binaries must be installed with `--no-save --package-lock=false`.
+
+### [2026-08-13] Clean-root account-shell ownership workflow passed
+- **Context**: The implemented per-reader authentication/storage cutover still required one real-browser workflow from first setup through post-logout denial.
+- **Change**: A disposable empty root completed first-Administrator setup, logout/login, import of `test_booksource4.json`, live `凡人修仙传` search, shelving and reading `凡人修仙传仙界篇` from `365小说网`, persisted progress, and logout. The same browser context then received HTTP 401 from books, sources, and fonts APIs, while direct shelf navigation rendered login.
+- **Reason**: This proves the replacement reader-owned path works end to end and private Reader Data is unavailable after session termination.
+- **Verified**: Playwright CLI rendered a 1,412-entry TOC and genuine `第一章 狐女` text; the root contained only `system.db` and one immutable-ID `users/<id>/reader.db` home, with no root-level `novelreader.db`. A focused independent review found no invalidating issue. Exact evidence is in `docs/verification/ACCOUNT_SHELL_CLEAN_ROOT_2026-08-13.md`.
+- **Watch out**: This completes the browser workflow only. The separate Phase 2 repository-wide legacy-removal audit remains pending.

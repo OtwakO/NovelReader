@@ -1,0 +1,70 @@
+{
+  "date": "2026-08-13",
+  "result": "pass",
+  "scope": "clean-data-root Playwright account-shell ownership workflow",
+  "environment": {
+    "branch": "main",
+    "server": "http://127.0.0.1:8894",
+    "dataRoot": "backend/.e2e/clean-account-workflow/data",
+    "browserSession": "account-e2e",
+    "sourceCorpus": "test_booksource4.json"
+  },
+  "workflow": {
+    "firstAdministratorSetup": true,
+    "logoutAfterSetup": true,
+    "credentialLogin": true,
+    "initialSourcesEmpty": true,
+    "importAlert": "Imported 939 sources",
+    "query": "凡人修仙传",
+    "searchBatch": {
+      "checked": 50,
+      "eligible": 800,
+      "books": 102,
+      "successfulSources": 13,
+      "failedSources": 37
+    },
+    "selectedBook": {
+      "name": "凡人修仙传仙界篇",
+      "author": "忘语",
+      "source": "365小说网",
+      "chapterCount": 1412,
+      "openedChapter": "第一章 狐女",
+      "firstRenderedParagraph": "辽阔荒地，渺无人烟",
+      "persistedShelfState": "Ch.3 / 1412"
+    }
+  },
+  "privateApi": {
+    "authenticated": {
+      "/api/books": 200,
+      "/api/sources": 200,
+      "/api/fonts": 200
+    },
+    "afterLogout": {
+      "/api/books": {
+        "status": 401,
+        "body": {"error": "authentication required"}
+      },
+      "/api/sources": {
+        "status": 401,
+        "body": {"error": "authentication required"}
+      },
+      "/api/fonts": {
+        "status": 401,
+        "body": {"error": "authentication required"}
+      }
+    },
+    "directShelfAfterLogout": "login UI rendered; no private shelf content"
+  },
+  "storage": {
+    "rootSystemDatabase": "system.db",
+    "readerDatabasePattern": "users/<immutable-user-id>/reader.db",
+    "readerFilesPattern": "users/<immutable-user-id>/files/",
+    "rootNovelreaderDatabasePresent": false
+  },
+  "limitations": [
+    "Live source outcomes are network-dependent; 37 of the first 50 sources returned explicit diagnostics.",
+    "The selected 365小说网 workflow completed through genuine chapter content.",
+    "This records a Playwright CLI verification session rather than adding an automated E2E test.",
+    "The separate Phase 2 legacy-removal audit remains pending."
+  ]
+}

@@ -235,4 +235,5 @@ Before Phase 2 is marked complete:
 - [x] Administrator list/disable/re-enable for ordinary readers.
 - [x] Administrator-issued one-time reader password reset complete.
 - [x] Durable ordinary-reader deletion complete.
-- [ ] Next account-shell gate: setup → login → read → logout browser workflow and remaining legacy-removal checks.
+- [x] Clean-data-root account-shell browser workflow: setup → logout/login → real source import/search → shelf/detail/TOC/content → logout and private-data denial. Evidence: [`docs/verification/ACCOUNT_SHELL_CLEAN_ROOT_2026-08-13.md`](verification/ACCOUNT_SHELL_CLEAN_ROOT_2026-08-13.md).
+- [ ] Next gate: complete the remaining Phase 2 legacy-removal checks above.

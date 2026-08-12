@@ -501,6 +501,7 @@ tests, and how to deploy it, if it deploys.
 - `PLAN.md` — current architecture, state, and next steps
 - `DEVELOPMENT.md` — history worth remembering
 - `ARCHITECTURE.md` — only if the architecture is too big to stay concise inside `PLAN.md`
+- `HANDOFF.md` — an optional, temporary one-time handoff created manually when needed; it is not a living project-state document and may be removed after the handoff is consumed
 
 Don't repeat information that's already obvious from the code or another doc.
 
