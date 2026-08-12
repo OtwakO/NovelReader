@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
@@ -72,6 +73,7 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 	transport := s.newTransport(s.workflowClientWithTimeout(s.exploreTimeout()), session.state)
 	defer transport.CloseIdleConnections()
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session.state)
+	executor.SetURLContext(&analyzer.URLContext{JSLib: session.source.JSLib})
 	spec, err := executor.BuildContext(pageCtx, kind.URL, "", request.Page, session.source.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {

@@ -50,6 +50,29 @@ func TestParseSearchResultPreservesLenientBookURLOptions(t *testing.T) {
 	}
 }
 
+func TestSearchSourceURLJavaScriptLoadsSourceJSLib(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("q") != "fixture" {
+			http.Error(w, "missing jsLib query", http.StatusBadRequest)
+			return
+		}
+		_, _ = w.Write([]byte(`<a class="book" href="/book/1">Book</a>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{
+		BookSourceURL: server.URL,
+		SearchURL:     `@js:makeSearchURL(key)`,
+		JSLib:         `function makeSearchURL(value) { return baseUrl + "/search?q=" + value; }`,
+		RuleSearch:    `{"bookList":".book","name":"text","bookUrl":"href"}`,
+	}
+	results, err := s.searchSource(t.Context(), src, "fixture")
+	if err != nil || len(results) != 1 {
+		t.Fatalf("results=%+v err=%v", results, err)
+	}
+}
+
 func TestSearchSourceUsesSessionBackedURLTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/search" {

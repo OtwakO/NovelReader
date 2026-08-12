@@ -378,6 +378,7 @@ func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src book
 	transport := s.newTransport(s.workflowClient(), session)
 	defer transport.CloseIdleConnections()
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
+	executor.SetURLContext(&analyzer.URLContext{JSLib: src.JSLib})
 	spec, err := executor.BuildContext(srcCtx, src.SearchURL, query, 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
