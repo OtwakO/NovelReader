@@ -227,11 +227,11 @@ func applyReplace(content, pattern, replacement string, first bool) (string, err
 		return content, fmt.Errorf("regex: replace compile: %w", err)
 	}
 	if first {
-		match := re.FindString(content)
-		if match == "" {
+		match := re.FindStringIndex(content)
+		if match == nil {
 			return "", nil
 		}
-		return re.ReplaceAllString(match, replacement), nil
+		return re.ReplaceAllString(content[match[0]:match[1]], replacement), nil
 	}
 	return re.ReplaceAllString(content, replacement), nil
 }

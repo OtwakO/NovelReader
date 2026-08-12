@@ -60,3 +60,14 @@ func TestStandaloneRegexFirstMatchReturnsEmptyWhenNothingMatches(t *testing.T) {
 		t.Fatalf("regex value = %q, want empty string", value)
 	}
 }
+
+func TestStandaloneRegexFirstMatchSupportsZeroWidthMatch(t *testing.T) {
+	analyzer := New("凡人修仙传", "https://example.test/", NewJSVM(), nil)
+	value, err := analyzer.GetStringStrict(`##^##书名：###`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value != "书名：" {
+		t.Fatalf("regex value = %q, want zero-width replacement", value)
+	}
+}

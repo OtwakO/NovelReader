@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -260,28 +261,39 @@ func encodeURLQuery(urlStr, charset string) string {
 	if fragment >= 0 {
 		queryEnd = question + 1 + fragment
 	}
-	query := urlStr[question+1 : queryEnd]
-	if hasPercentEncodedByte(query) {
-		return urlStr
-	}
-	parts := strings.Split(query, "&")
-	for index, part := range parts {
-		key, value, found := strings.Cut(part, "=")
-		parts[index] = EncodeParamValue(key, charset)
-		if found {
-			parts[index] += "=" + EncodeParamValue(value, charset)
-		}
-	}
-	return urlStr[:question+1] + strings.Join(parts, "&") + urlStr[queryEnd:]
+	query := encodeQueryWithCharset(urlStr[question+1:queryEnd], charset)
+	return urlStr[:question+1] + query + urlStr[queryEnd:]
 }
 
-func hasPercentEncodedByte(value string) bool {
-	for index := 0; index+2 < len(value); index++ {
-		if value[index] == '%' && isHex(value[index+1]) && isHex(value[index+2]) {
-			return true
+func encodeQueryWithCharset(query, charset string) string {
+	var encoded strings.Builder
+	for offset := 0; offset < len(query); {
+		if query[offset] == '%' && offset+2 < len(query) && isHex(query[offset+1]) && isHex(query[offset+2]) {
+			encoded.WriteString(query[offset : offset+3])
+			offset += 3
+			continue
 		}
+		char, size := utf8.DecodeRuneInString(query[offset:])
+		if char < utf8.RuneSelf && isAllowedQueryByte(byte(char)) {
+			encoded.WriteByte(byte(char))
+		} else {
+			encoded.WriteString(EncodeParamValue(query[offset:offset+size], charset))
+		}
+		offset += size
 	}
-	return false
+	return encoded.String()
+}
+
+func isAllowedQueryByte(value byte) bool {
+	if isUnreserved(value) {
+		return true
+	}
+	switch value {
+	case '!', '$', '%', '&', '(', ')', '*', '+', ',', '/', ':', ';', '=', '?', '@', '[', '\\', ']', '^', '`', '{', '|', '}':
+		return true
+	default:
+		return false
+	}
 }
 
 func isHex(value byte) bool {

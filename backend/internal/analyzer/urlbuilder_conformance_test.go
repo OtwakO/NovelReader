@@ -75,6 +75,27 @@ func TestBuildURLLeavesAlreadyEncodedGetQueryIntact(t *testing.T) {
 	}
 }
 
+func TestBuildURLEncodesMixedQueryWithoutReencodingExistingBytes(t *testing.T) {
+	meta, err := BuildURL(`https://example.test/search?fixed=%B7%B2&keyword={{key}}, {"charset":"gb2312"}`, "凡人", 1, "https://example.test/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "https://example.test/search?fixed=%B7%B2&keyword=" + EncodeParamValue("凡人", "gb2312")
+	if meta.URL != want {
+		t.Fatalf("url=%q want=%q", meta.URL, want)
+	}
+}
+
+func TestBuildURLPreservesReservedQueryCharactersWithDeclaredCharset(t *testing.T) {
+	meta, err := BuildURL(`https://example.test/search?callback=https://reader.test/a+b:c/d&literal=100%, {"charset":"gb2312"}`, "", 1, "https://example.test/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.URL != "https://example.test/search?callback=https://reader.test/a+b:c/d&literal=100%" {
+		t.Fatalf("url=%q", meta.URL)
+	}
+}
+
 func TestBuildURLExecutesWholeJSProgramBeforeURLParsing(t *testing.T) {
 	meta, err := BuildURL("<js>'https://example.test/search,{\"method\":\"POST\",\"body\":\"q=' + key + '\"}'</js>", "凡人修仙传", 1, "https://example.test/", NewJSVM())
 	if err != nil {
@@ -92,6 +113,16 @@ func TestBuildURLExecutesInlineJSBeforeOrdinarySuffix(t *testing.T) {
 		t.Fatal(err)
 	}
 	if meta.URL != "https://example.test/search?q=凡人修仙传" {
+		t.Fatalf("url=%q", meta.URL)
+	}
+}
+
+func TestBuildURLChainsCaseInsensitiveJSTagsWithResultText(t *testing.T) {
+	meta, err := BuildURL(`<JS>'https://example.test/' + key</JS><js>result + '/page/' + page</js>@result?from=legado`, "book", 2, "https://example.test/", NewJSVM())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.URL != "https://example.test/book/page/2?from=legado" {
 		t.Fatalf("url=%q", meta.URL)
 	}
 }
