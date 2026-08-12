@@ -1105,9 +1105,16 @@ func (h *jsHelpers) RandomUUID() string {
 		randUint64(), randUint64())
 }
 
-// encodeURI: java.encodeURI(str)
-func (h *jsHelpers) EncodeURI(str string) string {
-	return url.QueryEscape(str)
+// encodeURI: java.encodeURI(str[, charset])
+func (h *jsHelpers) EncodeURI(str string, charset ...string) (string, error) {
+	if len(charset) == 0 {
+		return url.QueryEscape(str), nil
+	}
+	encoding := strings.TrimSpace(charset[0])
+	if encoding == "" || strings.EqualFold(encoding, "utf-8") || strings.EqualFold(encoding, "utf8") {
+		return url.QueryEscape(str), nil
+	}
+	return encodeWithCharset(str, encoding)
 }
 
 // --- source.* bridge ---

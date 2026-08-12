@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "audit": "search-bookinfo-live-v4-fixes-rerun",
+  "date": "2026-08-12",
+  "sourceAudit": "search-bookinfo-live-audit-v4-2026-08-12.json",
+  "query": "凡人修仙传",
+  "implementation": {
+    "javaEncodeURICharset": "Support Legado java.encodeURI(value, charset) using the existing shared charset encoder while preserving one-argument UTF-8 behavior."
+  },
+  "entries": [
+    {
+      "rawIndex": 72,
+      "frozenIndex": 49,
+      "bookSourceUrl": "https://www.6mj.com",
+      "sourceName": "民间故事（优+）",
+      "classification": "legitimate_empty",
+      "searchRequestUrl": "https://www.6mj.com/Search.asp?GetType=MainInfo&no-cache=&Keyword=%B7%B2%C8%CB%D0%DE%CF%C9%B4%AB&SubSys=NS&s_type=title&ClassId=&Page=1&_=",
+      "requestEncoding": "GB2312",
+      "responseStatus": 200,
+      "responseQueryText": "凡人修仙传",
+      "responseResultCount": 0,
+      "responseMessage": "未查询到符合条件的记录。",
+      "diagnostics": [
+        "search: bookList: analyzer: no elements matched"
+      ]
+    }
+  ]
+}

@@ -241,3 +241,10 @@
 - **Change**: Removed `bookUrlPattern` compilation and rejection from the shared Search/Explore result loop. Added public-boundary Search and Explore regressions that retain complete resolved results despite a stale pattern.
 - **Reason**: Upstream Legado does not apply `bookUrlPattern` as a per-result list filter. NovelReader had no separate final-detail detector using this field, so the smallest compatible fix was deleting only the divergent rejection behavior.
 - **Verified**: Full backend tests and vet; race tests for `internal/book`; clean authenticated production replay with exact frozen raws 669, 703, and 80 returned 60, 15, and 30 distinct books respectively with no diagnostics.
+
+### [2026-08-12] Charset-aware java.encodeURI bridge parity completed
+- **Context**: Search → Book Info v4 found that raw 72 calls Legado's documented `java.encodeURI(value, charset)` overload, while NovelReader's bridge accepted only UTF-8 behavior. The corrected request was still a legitimate empty, so implementation remained separate from the evidence-only audit.
+- **Change**: The shared JavaScript bridge now keeps one-argument UTF-8 encoding and accepts an optional charset through the existing shared encoder. Unsupported charset names surface as JavaScript evaluation errors. Focused tests cover UTF-8, GB2312, and unsupported charset behavior.
+- **Reason**: This closes a real Legado bridge-contract omission without source-specific logic, a new encoding dependency, WebView work, or Rhino/JVM emulation.
+- **Verified**: Analyzer/sourceexec/book/conformance tests and affected race tests pass. A fresh untouched raw-72 replay sends `%B7%B2%C8%CB%D0%DE%CF%C9%B4%AB`, the server displays `凡人修仙传`, and the source remains an explicit zero-result page. Evidence is `testdata/booksource/audits/search-bookinfo/search-bookinfo-live-v4-fixes-rerun-2026-08-12.json`.
+- **Watch out**: Correct request encoding is not source recovery; raw 72 remains `legitimate_empty`. Do not conflate this bridge overload with GET URL-option charset handling, WebView, or Rhino/JVM APIs.

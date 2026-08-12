@@ -13,6 +13,35 @@ import (
 	"github.com/otwako/novelreader/internal/fetcher"
 )
 
+func TestJavaEncodeURIUsesOptionalCharset(t *testing.T) {
+	vm := NewJSVM()
+
+	value, err := vm.Eval(`java.encodeURI('凡人修仙传')`, "", "https://example.test/")
+	if err != nil || ToString(value) != "%E5%87%A1%E4%BA%BA%E4%BF%AE%E4%BB%99%E4%BC%A0" {
+		t.Fatalf("UTF-8 encodeURI=%q err=%v", ToString(value), err)
+	}
+	value, err = vm.Eval(`java.encodeURI('凡人修仙传', 'gb2312')`, "", "https://example.test/")
+	if err != nil || ToString(value) != "%B7%B2%C8%CB%D0%DE%CF%C9%B4%AB" {
+		t.Fatalf("GB2312 encodeURI=%q err=%v", ToString(value), err)
+	}
+	if _, err := vm.Eval(`java.encodeURI('凡人修仙传', 'unsupported-charset')`, "", "https://example.test/"); err == nil {
+		t.Fatal("unsupported encodeURI charset did not return an evaluation error")
+	}
+}
+
+func TestBuildURLUsesJavaEncodeURICharset(t *testing.T) {
+	meta, err := BuildURL(
+		`https://example.test/search?q={{java.encodeURI(key, 'gb2312')}}`,
+		"凡人修仙传", 1, "", NewJSVM(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.URL != "https://example.test/search?q=%B7%B2%C8%CB%D0%DE%CF%C9%B4%AB" {
+		t.Fatalf("URL=%q", meta.URL)
+	}
+}
+
 func TestJavaChapterAndToastHelpers(t *testing.T) {
 	vm := NewJSVM()
 	for input, want := range map[string]string{

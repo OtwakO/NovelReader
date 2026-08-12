@@ -76,7 +76,15 @@
 
 Raw 72 calls `java.encodeURI(key, 'gb2312')`. The rulebook and Legado implementation support the charset argument, while NovelReader currently ignores it and emits UTF-8. Replacing only that bridge result with the correct GB2312 bytes fixes the server-side mojibake, but the exact page still reports zero matching records. This proves a genuine bridge omission without proving recovery for the sampled query.
 
-Recommendation: document and separately approve a small shared bridge fix adding the optional charset argument to the existing `java.encodeURI` binding. Do not count raw 72 as a recovered source and do not mix this with WebView or Rhino/JVM work.
+Recommendation at audit close: document and separately approve a small shared bridge fix adding the optional charset argument to the existing `java.encodeURI` binding. Do not count raw 72 as a recovered source and do not mix this with WebView or Rhino/JVM work.
+
+## Post-audit resolution
+
+The separately approved bridge fix is complete. `java.encodeURI(value)` retains UTF-8 behavior, while `java.encodeURI(value, charset)` now uses the existing shared charset encoder and reports unsupported charset names as JavaScript evaluation errors.
+
+A fresh replay of the untouched frozen raw-72 definition confirms that production now requests GB2312 bytes (`%B7%B2%C8%CB%D0%DE%CF%C9%B4%AB`) and the server displays `凡人修仙传` correctly. The response still explicitly contains zero matching records, so the historical `legitimate_empty` classification and v4's zero-recoverable-gap result remain unchanged.
+
+Post-fix evidence: `search-bookinfo-live-v4-fixes-rerun-2026-08-12.json`; verifier: `scripts/search-bookinfo-audit/v4/verify-fixes.mjs`.
 
 ## Browser evidence
 
@@ -84,4 +92,4 @@ Playwright was used only for four exact requests where direct HTTP left browser 
 
 ## Recommendation
 
-Do not change production behavior inside this audit. There is no recoverable shared-gap outcome to fix from v4. Present the charset-aware `java.encodeURI` compatibility omission separately and obtain approval before implementing it.
+The audit-stage recommendation was followed: no production behavior changed during sampling, and the charset-aware bridge omission was presented and approved separately. That bounded fix is now complete and verified without changing raw 72's legitimate-empty outcome. No further Search → Book Info fix is recommended from v4.
