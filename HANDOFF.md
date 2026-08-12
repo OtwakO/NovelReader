@@ -1,13 +1,12 @@
 # NovelReader Development Handoff
 
-This is the canonical starting point for a new development session. Read this file first, then open only the linked document for the task being continued.
+This is the canonical starting point for a new development session. Read this file for context, then wait for the user's requested task before changing files. The "Next recommended action" below is a suggested continuation point, not automatic authorization to begin it.
 
 ## Current checkpoint
 
-- **Branch:** `main`
-- **Last implementation commit:** `911d879` — `fix: support charset-aware URL encoding`
-- **Remote state after this handoff commit:** local `main` is 190 commits ahead of `origin/main`; nothing has been pushed.
-- **Audit branch:** `audit/search-bookinfo-v1` was fast-forwarded into `main` at `911d879`; the handoff documentation exists only on `main` unless the branch is moved later.
+- **Expected branch:** `main`. Always confirm with `git status --short --branch`; branch and remote divergence are runtime state and are not hardcoded here.
+- **Last BookSource implementation milestone:** `911d879` — `fix: support charset-aware URL encoding`.
+- **Audit branch:** `audit/search-bookinfo-v1` was fast-forwarded into `main` at `911d879`; subsequent documentation and generated-artifact policy changes live on `main`.
 - **Completed milestone:** the Explore and Search → Book Info live-audit sessions are wrapped up. The latest Search → Book Info v4 audit found no recoverable shared-engine gap. Its final charset-aware `java.encodeURI(value, charset)` omission was fixed and verified without changing raw 72's legitimate-empty classification.
 - **Current product-development track:** the fail-closed per-reader storage/authentication ownership cutover is implemented. Account registration, password change, administration, reset, and durable deletion are complete.
 
@@ -77,24 +76,14 @@ npm test
 npm run build
 ```
 
-On this host, the frontend production build may require the Rollup optional binary matching the installed Rollup version. It was previously installed with `--no-save --package-lock=false`; do not modify package metadata merely to satisfy the host-specific optional package.
+On this host, the frontend production build may require the Rollup optional binary matching the installed Rollup version. Install that host-only package with `--no-save --package-lock=false`; do not modify package metadata merely to satisfy it.
 
-## Working-tree warning
+## Frontend generated-output policy
 
-The repository is **not clean**, but the remaining changes predate the completed audit work and were deliberately not committed:
-
-```text
-D  frontend/dist/assets/index-C7IlCsJ9.css
-D  frontend/dist/assets/index-CU1kHOB_.js
-M  frontend/dist/index.html
-M  frontend/package-lock.json
-?? frontend/dist/assets/index-BzpYi2eO.css
-?? frontend/dist/assets/index-CdTvtmU7.js
-```
-
-The `dist` changes are a generated asset replacement. `package-lock.json` contains npm-generated optional-package/peer metadata changes. Ownership and desired disposition have not been decided.
-
-**Do not reset, stash, discard, regenerate, or commit these files as part of another task without first reviewing them with the user.** Build to an isolated `/tmp` output when possible so verification does not overwrite them.
+- `frontend/package-lock.json` is tracked and authoritative. Routine setup and launch scripts use `npm ci`; commit lockfile changes only with an intentional dependency change.
+- `frontend/dist/` is reproducible build output, is ignored, and must not be committed. A fresh checkout must run `npm ci && npm run build` before starting the Go server locally.
+- `run-local.bat` builds the frontend automatically. On Unix, run `./dev.sh build-frontend` before `./dev.sh run`, or use the explicit commands in `README.md`.
+- Docker and CI build the frontend from source; they do not depend on committed `dist` assets.
 
 ## Development constraints to preserve
 
@@ -114,4 +103,4 @@ Before ending the next substantial session:
 2. Update `PLAN.md` if architecture, phase, current state, or decisions changed.
 3. Append to `DEVELOPMENT.md` only for non-obvious history worth rediscovering.
 4. Run verification appropriate to the changed boundary and report its exact scope.
-5. Commit one logical, working change; do not include the unrelated frontend artifacts unless the user explicitly decides their disposition.
+5. Commit one logical, working change; never include generated `frontend/dist/` assets, and include `package-lock.json` only when dependencies changed intentionally.

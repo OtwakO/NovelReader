@@ -9,6 +9,7 @@ data/
 *.db-wal
 *.db-shm
 node_modules/
+/frontend/dist/
 __pycache__/
 *.pyc
 webview-worker/.venv/

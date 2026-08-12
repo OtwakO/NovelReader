@@ -31,9 +31,9 @@ set "DATA_DIR=%LOCAL_DATA_DIR%"
 set "DEBUG=1"
 set "WEBVIEW_ENDPOINT=http://127.0.0.1:8787"
 
-echo [2/4] Installing and building the frontend...
+echo [2/4] Installing locked frontend dependencies and building...
 pushd frontend
-call npm install || goto :failed_popd
+call npm ci || goto :failed_popd
 call npm run build || goto :failed_popd
 popd
 

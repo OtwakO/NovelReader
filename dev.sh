@@ -16,7 +16,7 @@ case "$ACTION" in
   frontend|build-frontend)
     echo "==> Building Svelte frontend..."
     cd "$ROOT/frontend"
-    npm install --silent
+    npm ci --silent
     npm run build
     echo "    Done: frontend/dist/"
     ;;

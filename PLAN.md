@@ -52,6 +52,7 @@ webview-worker/  Python Patchright headless browser worker
 frontend/src/
   api/          typed backend client
   lib/          user-facing features and reusable reader components
+frontend/dist/                  ignored reproducible build output; generate with npm ci && npm run build
 reference/legado/                upstream behavioral reference
 backend/internal/**/*_test.go    conformance tests beside modules
 testdata/booksource/
@@ -59,7 +60,7 @@ testdata/booksource/
   audits/{explore,search-bookinfo}/ dated live evidence and targeted reruns by operation
 ```
 
-New directories require a PLAN update before creation. `sourceexec` and `webview` are planned boundaries, not permission to duplicate logic.
+New directories require a PLAN update before creation. `sourceexec` and `webview` are planned boundaries, not permission to duplicate logic. `frontend/package-lock.json` remains tracked for reproducible `npm ci`; generated `frontend/dist/` assets are ignored and must not be committed.
 
 ### Core contracts
 

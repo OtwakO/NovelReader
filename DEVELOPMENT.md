@@ -248,3 +248,10 @@
 - **Reason**: This closes a real Legado bridge-contract omission without source-specific logic, a new encoding dependency, WebView work, or Rhino/JVM emulation.
 - **Verified**: Analyzer/sourceexec/book/conformance tests and affected race tests pass. A fresh untouched raw-72 replay sends `%B7%B2%C8%CB%D0%DE%CF%C9%B4%AB`, the server displays `凡人修仙传`, and the source remains an explicit zero-result page. Evidence is `testdata/booksource/audits/search-bookinfo/search-bookinfo-live-v4-fixes-rerun-2026-08-12.json`.
 - **Watch out**: Correct request encoding is not source recovery; raw 72 remains `legitimate_empty`. Do not conflate this bridge overload with GET URL-option charset handling, WebView, or Rhino/JVM APIs.
+
+### [2026-08-12] Frontend build output moved out of version control
+- **Context**: Routine local launches ran `npm install` and rebuilt tracked hashed assets, leaving unexplained `package-lock.json` metadata churn and stale `frontend/dist` replacements.
+- **Change**: Kept `frontend/package-lock.json` tracked, switched local build launchers to `npm ci`, and stopped tracking/ignored `frontend/dist/`.
+- **Reason**: The committed lockfile independently passed `npm ci`, all frontend tests, and a production build; Docker and CI already build from source, while committed bundles had drifted from current frontend source.
+- **Verified**: `npm ci`, frontend tests/build, backend tests, and a Git cleanliness check after regenerating `dist`.
+- **Watch out**: A fresh local checkout must build the frontend before the Go server can serve the UI; host-only Rollup binaries must be installed with `--no-save --package-lock=false`.
