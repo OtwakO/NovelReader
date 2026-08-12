@@ -39,13 +39,24 @@ func TestInlineReplacementNormalizesJavaIdentityEscapes(t *testing.T) {
 	}
 }
 
-func TestStandaloneRegexRuleUsesReplacementAndFirstMatchMarker(t *testing.T) {
-	analyzer := New(`<meta author="忘语">`, "https://example.test/", NewJSVM(), nil)
+func TestStandaloneRegexRuleUsesOnlyFirstMatchedReplacement(t *testing.T) {
+	analyzer := New(`<meta author="忘语"><meta author="烽火">`, "https://example.test/", NewJSVM(), nil)
+	value, err := analyzer.GetStringStrict(`##author="([^"]+)"##$1###`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value != "忘语" {
+		t.Fatalf("regex value = %q, want only the first matched replacement", value)
+	}
+}
+
+func TestStandaloneRegexFirstMatchReturnsEmptyWhenNothingMatches(t *testing.T) {
+	analyzer := New(`<meta title="凡人修仙传">`, "https://example.test/", NewJSVM(), nil)
 	value, err := analyzer.GetString(`##author="([^"]+)"##$1###`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if value != "<meta 忘语>" {
-		t.Fatalf("regex value = %q, want replacement without ### marker", value)
+	if value != "" {
+		t.Fatalf("regex value = %q, want empty string", value)
 	}
 }
