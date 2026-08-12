@@ -89,6 +89,8 @@ Four sampled sources explicitly require WebView. Raws 47 and 51 require Rhino/JV
 
 Playwright was used only for raws 123, 182, 354, and 355, where direct HTTP left browser-bypass ambiguity. Chromium remained on Cloudflare or Baidu security-verification pages for all four.
 
-## Recommendation
+## Resolution — 2026-08-12
 
-Do not change production behavior inside this audit. Present the two confirmed recoverable shared gaps for approval, then implement them as focused shared-seam slices with deterministic public regressions and exact frozen-source post-fix reruns. Keep unsupported `<js>`, `jsLib`, WebView, and Rhino/JVM observations separate until a current satisfiable workflow proves recovery.
+The approved shared fixes are implemented at their common seams. Exact frozen-source reruns now return 20 Search results and successful Book Info for both raw 375 and raw 364; post-fix evidence is in `search-bookinfo-live-v3-fixes-rerun-2026-08-12.json`.
+
+Whole and inline URL `<js>...</js>` execution and Search/Explore URL `jsLib` propagation were also added behind deterministic Legado-semantic regressions. These additions are not presented as live recoveries for raws 46/47/51/192 because those sources retain independent site, HTTP, or Rhino/JVM blockers. WebView and Rhino/JVM interoperability remain separate concerns.

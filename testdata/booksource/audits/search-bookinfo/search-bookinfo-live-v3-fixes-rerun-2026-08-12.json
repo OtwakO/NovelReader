@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "audit": "search-bookinfo-live-v3-fixes-rerun",
+  "date": "2026-08-12",
+  "sourceAudit": "search-bookinfo-live-audit-v3-2026-08-12.json",
+  "query": "凡人修仙传",
+  "implementation": {
+    "onlyOneRegex": "For standalone ##pattern##replacement### rules, return only the first matched-and-replaced value; return empty when no match exists.",
+    "getQueryCharset": "Encode the GET query with the URL option's declared charset before request execution while preserving query-reserved characters and existing percent escapes, without changing response or POST-body handling.",
+    "urlJsTags": "Execute whole and inline <js>...</js> URL segments with the same URL-JavaScript evaluator used by @js: rules; Rhino/JVM APIs remain outside this support.",
+    "urlJSLib": "Pass source jsLib into Search and Explore URL construction using the existing URLContext; detail, TOC, and content already used that context."
+  },
+  "entries": [
+    {
+      "rawIndex": 375,
+      "frozenIndex": 6,
+      "bookSourceUrl": "https://7xdian.com",
+      "sourceName": "七点小说",
+      "classification": "success",
+      "searchRequestUrl": "https://m.qidian.com/so/凡人修仙传.html?pageNum=1",
+      "searchFinalUrl": "https://m.qidian.com/so/%E5%87%A1%E4%BA%BA%E4%BF%AE%E4%BB%99%E4%BC%A0.html?pageNum=1",
+      "searchResultCount": 20,
+      "selectedName": "凡人修仙传",
+      "selectedBookUrl": "https://m.qidian.com/book/107580/",
+      "bookInfoName": "凡人修仙传",
+      "diagnostics": []
+    },
+    {
+      "rawIndex": 364,
+      "frozenIndex": 25,
+      "bookSourceUrl": "https://wap.faloo.com#111",
+      "sourceName": "飞卢小说（优）",
+      "classification": "success",
+      "searchRequestUrl": "https://wap.faloo.com/search_1_1.html?k=%B7%B2%C8%CB%D0%DE%CF%C9%B4%AB",
+      "searchFinalUrl": "https://wap.faloo.com/search_1_1.html?k=%B7%B2%C8%CB%D0%DE%CF%C9%B4%AB",
+      "requestCharset": "GB2312",
+      "searchResultCount": 20,
+      "selectedName": "我在凡人修仙传开直播",
+      "selectedBookUrl": "https://wap.faloo.com/1492008.html",
+      "bookInfoName": "我在凡人修仙传开直播",
+      "diagnostics": []
+    }
+  ]
+}
