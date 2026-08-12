@@ -54,6 +54,27 @@ func TestBuildURLAcceptsLenientLegadoOptionKeys(t *testing.T) {
 	}
 }
 
+func TestBuildURLEncodesGetQueryUsingDeclaredCharset(t *testing.T) {
+	meta, err := BuildURL(`https://example.test/search?keyword={{key}}, {"charset":"gb2312"}`, "凡人修仙传", 1, "https://example.test/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "https://example.test/search?keyword=" + EncodeParamValue("凡人修仙传", "gb2312")
+	if meta.URL != want {
+		t.Fatalf("url=%q want=%q", meta.URL, want)
+	}
+}
+
+func TestBuildURLLeavesAlreadyEncodedGetQueryIntact(t *testing.T) {
+	meta, err := BuildURL(`https://example.test/search?keyword=%B7%B2%C8%CB, {"charset":"gb2312"}`, "", 1, "https://example.test/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.URL != "https://example.test/search?keyword=%B7%B2%C8%CB" {
+		t.Fatalf("url=%q", meta.URL)
+	}
+}
+
 func TestBuildURLPreservesStructuredJSONBody(t *testing.T) {
 	meta, err := BuildURL(`https://example.test/search,{"method":"POST","body":{"q":"{{key}}"}}`, "搜索", 1, "https://example.test/", nil)
 	if err != nil {

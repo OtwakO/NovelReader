@@ -231,8 +231,53 @@ func BuildURLWithContextData(ctx context.Context, template, key string, page int
 		}
 	}
 
+	if meta.Method != "POST" && meta.Charset != "" {
+		urlStr = encodeURLQuery(urlStr, meta.Charset)
+	}
+
 	meta.URL = urlStr
 	return meta, nil
+}
+
+func encodeURLQuery(urlStr, charset string) string {
+	if strings.EqualFold(charset, "utf-8") || strings.EqualFold(charset, "utf8") {
+		return urlStr
+	}
+	question := strings.IndexByte(urlStr, '?')
+	if question < 0 {
+		return urlStr
+	}
+	fragment := strings.IndexByte(urlStr[question+1:], '#')
+	queryEnd := len(urlStr)
+	if fragment >= 0 {
+		queryEnd = question + 1 + fragment
+	}
+	query := urlStr[question+1 : queryEnd]
+	if hasPercentEncodedByte(query) {
+		return urlStr
+	}
+	parts := strings.Split(query, "&")
+	for index, part := range parts {
+		key, value, found := strings.Cut(part, "=")
+		parts[index] = EncodeParamValue(key, charset)
+		if found {
+			parts[index] += "=" + EncodeParamValue(value, charset)
+		}
+	}
+	return urlStr[:question+1] + strings.Join(parts, "&") + urlStr[queryEnd:]
+}
+
+func hasPercentEncodedByte(value string) bool {
+	for index := 0; index+2 < len(value); index++ {
+		if value[index] == '%' && isHex(value[index+1]) && isHex(value[index+2]) {
+			return true
+		}
+	}
+	return false
+}
+
+func isHex(value byte) bool {
+	return value >= '0' && value <= '9' || value >= 'a' && value <= 'f' || value >= 'A' && value <= 'F'
 }
 
 // evalTemplateExpressions finds all {{...}} patterns and evaluates the content as JS.
