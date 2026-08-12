@@ -76,6 +76,13 @@
 - **Verified**: Full backend tests, targeted equal-ID/anonymous/font isolation regressions, frontend tests/build, vet/race/cross-platform checks recorded with the commit. Production search confirms no global feature database constructor or `DATABASE_PATH` use remains. Docker Compose and shell configuration validate; the Docker E2E build could not start in the sandbox because Docker Buildx could not write its read-only activity directory.
 - **Watch out**: `api.NewServer` and `internal/database` remain isolated test seams for feature tests; production must use `api.NewAuthenticatedServer` and `openStores`. Account disable/delete must later purge the reader runtime before removing a home.
 
+### [2026-08-12] Search → Book Info v4 found no recoverable shared gap
+- **Context**: Ran a 50-source deterministic Search → Book Info audit, disjoint from all 100 v1–v3 identities, against exact frozen raw definitions and query `凡人修仙传`.
+- **Change**: Preserved v4 JSON/Markdown evidence and operation-owned scripts. No production source, parser, bridge, or transport behavior changed during the audit.
+- **Reason**: Nine sources completed both stages; all 41 non-passes were replayed sequentially and classified through exact request/body evidence, bounded direct cross-checks, targeted browser checks, and source/rule inspection. Raw 72 proves `java.encodeURI(str, enc)` lacks Legado's optional charset argument in NovelReader, but a GB2312-only counterfactual still returned an explicit zero-result page, so it is not a recoverable sampled outcome.
+- **Verified**: The independent verifier regenerates the disjoint 50-source selection, validates exact frozen definitions and hashes, recomputes the full histogram, requires all 41 replays, validates direct timeout and browser evidence, and enforces zero shared-engine-gap entries plus one non-recovering compatibility observation.
+- **Watch out**: Do not implement fixes during the audit or count bridge parity alone as source recovery. A charset-aware `java.encodeURI` fix requires separate user approval and should reuse the existing charset encoder without adding WebView or Rhino/JVM scope.
+
 ### [2026-08-12] Search → Book Info v3 found two recoverable shared compatibility seams
 - **Context**: Ran a 50-source deterministic Search → Book Info audit, disjoint from v1/v2, against exact frozen raw definitions and query `凡人修仙传`.
 - **Change**: Preserved v3 JSON/Markdown evidence and operation-owned scripts. No production source, parser, or transport behavior changed during the audit.
