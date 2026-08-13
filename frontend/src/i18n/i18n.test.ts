@@ -4,12 +4,18 @@ import { i18n, setLocale } from './index';
 import enApp from './messages/en/app';
 import enAccount from './messages/en/account';
 import enShelf from './messages/en/shelf';
+import enSearch from './messages/en/search';
+import enBookPreview from './messages/en/bookPreview';
 import zhCnApp from './messages/zh-CN/app';
 import zhCnAccount from './messages/zh-CN/account';
 import zhCnShelf from './messages/zh-CN/shelf';
+import zhCnSearch from './messages/zh-CN/search';
+import zhCnBookPreview from './messages/zh-CN/bookPreview';
 import zhTwApp from './messages/zh-TW/app';
 import zhTwAccount from './messages/zh-TW/account';
 import zhTwShelf from './messages/zh-TW/shelf';
+import zhTwSearch from './messages/zh-TW/search';
+import zhTwBookPreview from './messages/zh-TW/bookPreview';
 
 function messageKeys(value: unknown, prefix = ''): string[] {
   if (!value || typeof value !== 'object') return [prefix];
@@ -50,8 +56,8 @@ describe('locale policy', () => {
   });
 
   it('keeps every supported locale on the same message contract', () => {
-    const english = messageKeys({ app: enApp, account: enAccount, shelf: enShelf }).sort();
-    expect(messageKeys({ app: zhCnApp, account: zhCnAccount, shelf: zhCnShelf }).sort()).toEqual(english);
-    expect(messageKeys({ app: zhTwApp, account: zhTwAccount, shelf: zhTwShelf }).sort()).toEqual(english);
+    const english = messageKeys({ app: enApp, account: enAccount, shelf: enShelf, search: enSearch, bookPreview: enBookPreview }).sort();
+    expect(messageKeys({ app: zhCnApp, account: zhCnAccount, shelf: zhCnShelf, search: zhCnSearch, bookPreview: zhCnBookPreview }).sort()).toEqual(english);
+    expect(messageKeys({ app: zhTwApp, account: zhTwAccount, shelf: zhTwShelf, search: zhTwSearch, bookPreview: zhTwBookPreview }).sort()).toEqual(english);
   });
 });

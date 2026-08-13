@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { listBooks, type Book } from '../../api/client';
+import { listBooks, type Book } from '../../api/books';
 import FeatureScaffold from '../../ui/components/FeatureScaffold.vue';
 import AppButton from '../../ui/components/AppButton.vue';
 

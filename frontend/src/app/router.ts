@@ -13,6 +13,8 @@ import SetupView from '../features/account/SetupView.vue';
 import SetupUnavailableView from '../features/account/SetupUnavailableView.vue';
 import RecoveryView from '../features/account/RecoveryView.vue';
 import ShelfView from '../features/shelf/ShelfView.vue';
+import SearchView from '../features/search/SearchView.vue';
+import BookPreviewView from '../features/books/BookPreviewView.vue';
 import PlannedFeatureView from './views/PlannedFeatureView.vue';
 
 const publicNames = new Set(['login', 'register', 'password-reset', 'recovery', 'setup', 'setup-unavailable', 'loading', 'startup-error']);
@@ -42,7 +44,8 @@ export const router = createRouter({
       children: [
         { path: 'shelf', name: 'shelf', component: ShelfView },
         { path: 'explore', name: 'explore', component: PlannedFeatureView, props: { title: 'app.planned.exploreTitle', description: 'app.planned.exploreDescription' } },
-        { path: 'search', name: 'search', component: PlannedFeatureView, props: { title: 'app.planned.searchTitle', description: 'app.planned.searchDescription' } },
+        { path: 'search', name: 'search', component: SearchView },
+        { path: 'books/preview', name: 'book-preview', component: BookPreviewView },
         { path: 'books/:bookId', name: 'book-detail', component: PlannedFeatureView, props: { title: 'app.planned.detailTitle', description: 'app.planned.detailDescription' } },
         { path: 'books/:bookId/read/:chapterIndex?', name: 'reader', component: PlannedFeatureView, props: { title: 'app.planned.readerTitle', description: 'app.planned.readerDescription' } },
         { path: 'sources', name: 'sources', component: PlannedFeatureView, props: { title: 'app.planned.sourcesTitle', description: 'app.planned.sourcesDescription' } },

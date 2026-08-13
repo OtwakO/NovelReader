@@ -1,15 +1,14 @@
 import { defineStore } from 'pinia';
+import { ApiError, onAuthenticationLoss } from '../api/transport';
 import {
-  ApiError,
   getCurrentAccount,
   getRegistrationPolicy,
   getSetupStatus,
   login as loginRequest,
   logout as logoutRequest,
-  onAuthenticationLoss,
   register as registerRequest,
   type AuthAccount,
-} from '../api/client';
+} from '../api/auth';
 
 export type SessionPhase = 'idle' | 'loading' | 'setup' | 'setup-unavailable' | 'guest' | 'authenticated' | 'error';
 

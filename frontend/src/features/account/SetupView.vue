@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { createInitialAdministrator } from '../../api/client';
+import { createInitialAdministrator } from '../../api/auth';
 import AuthCard from '../../ui/components/AuthCard.vue';
 import AppButton from '../../ui/components/AppButton.vue';
 import { useSessionStore } from '../../stores/session';

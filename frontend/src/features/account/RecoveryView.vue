@@ -1,6 +1,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { ApiError, getRecoveryStatus, recoverAdministrator, type RecoveryAction } from '../../api/client';
+import { getRecoveryStatus, recoverAdministrator, type RecoveryAction } from '../../api/auth';
+import { ApiError } from '../../api/transport';
 import AuthCard from '../../ui/components/AuthCard.vue';
 import AppButton from '../../ui/components/AppButton.vue';
 import { useSessionStore } from '../../stores/session';
