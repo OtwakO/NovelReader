@@ -1,5 +1,5 @@
 // API client for NovelReader backend.
-import { isExploreErrorBody } from '../lib/apiErrors.mjs';
+import { isExploreErrorBody } from './errors';
 
 const BASE = '/api';
 
@@ -225,6 +225,8 @@ export interface SearchResult {
   intro: string;
   kind: string;
   lastChapter: string;
+  updateTime?: string;
+  wordCount?: string;
   bookUrl: string;
   sourceUrl: string;
   sourceName: string;
@@ -429,6 +431,9 @@ export interface Book {
   bookUrl: string;
   origin?: string;
   lastChapter: string;
+  updateTime?: string;
+  wordCount?: string;
+  tocUrl?: string;
   downloadUrls?: string[];
   durChapterIndex: number;
   durChapterPos: number;
@@ -454,6 +459,44 @@ export function addBook(book: Partial<Book>) {
 
 // EnrichBook adds a book and tries to fetch full info (cover, intro, chapters) from source.
 // Falls back gracefully if source is unreachable.
+export interface BookCandidate {
+  id?: string;
+  name: string;
+  author?: string;
+  coverUrl?: string;
+  intro?: string;
+  kind?: string;
+  lastChapter?: string;
+  updateTime?: string;
+  wordCount?: string;
+  sourceName?: string;
+  sourceUrl: string;
+  bookUrl: string;
+  alternateSources?: AltSource[];
+}
+
+export interface BookPreview {
+  book: Omit<Book, 'id' | 'durChapterIndex' | 'durChapterPos' | 'totalChapterNum' | 'stateVersion'>;
+  chapters: Chapter[];
+}
+
+export interface ReadableBookResult {
+  book: Book;
+  firstReadableChapter: number;
+}
+
+export function previewBook(data: BookCandidate) {
+  return req<BookPreview>('/books/preview', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function shelveBook(data: BookCandidate & { id: string }) {
+  return req<Book>('/books/shelve', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function addReadableBook(data: BookCandidate & { id: string }) {
+  return req<ReadableBookResult>('/books/readable', { method: 'POST', body: JSON.stringify(data) });
+}
+
 export function enrichBook(data: {
   id: string;
   name: string;
@@ -494,6 +537,10 @@ export function mergeBookSources(id: string, sources: AltSource[]) {
   });
 }
 
+export function clearBookSources(id: string) {
+  return req<Book>(`/books/${encodeURIComponent(id)}/sources`, { method: 'DELETE' });
+}
+
 export function deleteBook(id: string) {
   return req<{ status: string }>(`/books?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
@@ -526,7 +573,7 @@ export function getChapters(bookId: string) {
 }
 
 export function getChapterContent(bookId: string, chapterIdx: number) {
-  return req<any>(
+  return req<Record<string, unknown>>(
     `/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content`
   ).then(data => ({
     title: data.title || data.Title || '',

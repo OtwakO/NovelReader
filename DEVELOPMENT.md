@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-13] Production frontend foundation switched cleanly to Vue 3
+- **Context**: The approved Stitch prototype established the first-version UI direction, and the pre-public production frontend was due for a ground-up rebuild. Mixing Svelte lifecycle/state patterns into Vue or changing backend behavior to match prototype-only features would have created permanent coupling.
+- **Change**: The active frontend now uses Vue 3, Vue Router, Pinia, Vite, Vitest, Vue Test Utils, and Vue I18n. Components follow the Options API convention; Router owns public/authenticated/admin topology; Pinia initially owns only session/bootstrap state; `frontend/src/api/client.ts` remains the transport seam. Go continues to own BookSource execution, network fan-out, parsing, persistence, caching, and other resource-intensive domain work. Vue I18n lazy-loads feature-owned English, Simplified Chinese, and Traditional Chinese messages with browser selection, English fallback, persisted preference, and exact key-parity tests.
+- **Reason**: A clean framework cut avoids dual runtimes and compatibility wrappers, while Vue's routing, testing, development tooling, predictable component organization, and modular localization improve long-term frontend maintainability without coupling the backend to presentation decisions.
+- **Verified**: `vue-tsc`, ESLint, 10 focused Vitest tests, the Vite production build, Go's static-SPA fallback regression, dependency audit, whitespace checks, and the Impeccable mechanical detector pass. The built foundation emits lazy locale/feature chunks and a main bundle of about 80 kB gzip.
+- **Watch out**: This is the runnable foundation, not frontend feature parity. Explore, Search, Book Detail, Reader/source recovery, source management, settings, account, and reader administration remain explicit routed placeholders until migrated against existing backend contracts. Every new UI slice must provide all three locale bundles and must not add backend capability merely because the prototype depicted it.
+
 ### [2026-08-11] Pre-public development data is reset, not migrated
 - **Context**: A bookshelf identity change led to append-only upgrade logic, backfills, migration-order wiring, compatibility regressions, and partial preservation of local reader data even though NovelReader is rapidly iterating and has no public or irreplaceable user data.
 - **Change**: Pre-public local accounts, reader homes, databases, and user data are explicitly disposable test state. Data-model changes update the canonical fresh schema directly; incompatible development databases are deleted and recreated. Do not add upgrade migrations, compatibility adapters, backfills, backup/rollback workflows, or migration-only tests unless the user explicitly approves an exception for a specific core architectural boundary.
@@ -262,3 +269,16 @@
 - **Reason**: This proves the replacement reader-owned path works end to end and private Reader Data is unavailable after session termination.
 - **Verified**: Playwright CLI rendered a 1,412-entry TOC and genuine `第一章 狐女` text; the root contained only `system.db` and one immutable-ID `users/<id>/reader.db` home, with no root-level `novelreader.db`. A focused independent review found no invalidating issue. Exact evidence is in `docs/verification/ACCOUNT_SHELL_CLEAN_ROOT_2026-08-13.md`.
 - **Watch out**: This completes the browser workflow only. The separate Phase 2 repository-wide legacy-removal audit remains pending.
+
+### [2026-08-13] Canonical book preview and source discovery
+- **Context**: Search results previously added books before users could inspect them, descriptions exposed source markup artifacts, and alternate-source discovery controls existed only on Search.
+- **Change**: Search now opens a non-persistent full-detail/TOC preview; Read validates real chapter content before atomic shelf persistence; Add to shelf persists Book Info + TOC independently; source descriptions normalize to plain prose; Book Detail and Reader share bounded alternate-source search controls.
+- **Reason**: Inspection, shelving, reading, and source selection are distinct user decisions and should not silently mutate one another.
+- **Verified**: Full Go suite, 45 frontend tests, production build, independent review/fix loop, and deterministic Playwright search → preview → normalized description → shelf → canonical detail → real chapter → Reader source drawer.
+- **Watch out**: Source-controlled HTML must remain plain prose; discovered bindings must be merged before stored-book switching; post-commit reload failures must not be reported as failed persistence/switches.
+
+### [2026-08-13] Persist discovered alternate sources
+- **Context**: Alternate-source scans kept exact matches only in component memory, so refreshing Book Detail or Reader discarded scan results unless a source had already been selected.
+- **Change**: Exact matches are now merged into a shelved book as each batch returns; persisted alternates seed the refreshed UI; **Rescan sources** clears only alternate bindings and restarts scanning from the first batch.
+- **Reason**: Working source bindings are durable book data, while scan cursor/progress is disposable workflow state.
+- **Verified**: Focused API persistence/clear tests, 13 source-discovery/frontend wiring tests, affected Go package tests, and production frontend build.

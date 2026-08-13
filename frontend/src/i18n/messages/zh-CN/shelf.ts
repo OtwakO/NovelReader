@@ -1,0 +1,1 @@
+export default { title: '我的书架', description: '继续阅读、整理收藏，并从上次停下的位置回到故事中。', loading: '正在读取书架…', failed: '无法读取书架。', emptyTitle: '书架还是空的', emptyDescription: '从发现或搜索开始，找到一本书后加入书架。', explore: '浏览书源', search: '搜索书籍', booksLabel: '书架书籍', chapter: '第 {chapter} 章' };

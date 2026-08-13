@@ -1,0 +1,27 @@
+:root {
+  color-scheme: light;
+  --color-paper: #f4eedc;
+  --color-paper-raised: #fffaf0;
+  --color-paper-muted: #ebe2cc;
+  --color-ink: #24333a;
+  --color-ink-muted: #667278;
+  --color-accent: #36586b;
+  --color-accent-strong: #294654;
+  --color-accent-soft: #dfe9ec;
+  --color-warm: #a56a32;
+  --color-success: #5f6a49;
+  --color-danger: #9a463b;
+  --color-border: #d8ccb3;
+  --shadow-card: 0 12px 36px rgb(53 45 31 / 9%);
+  --font-literary: "Noto Serif SC", "Noto Serif", "Songti SC", serif;
+  --font-ui: "Noto Sans SC", "Noto Sans", system-ui, sans-serif;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+}
