@@ -9,6 +9,10 @@ import { loadPreviewSelection } from '../search/search-preview';
 export default defineComponent({
   name: 'BookPreviewView', components: { AppButton, FeatureScaffold },
   data() { return { candidate: null as SearchResult | null, preview: null as BookPreview | null, loading: true, shelving: false, error: '', shelfError: '', addedBookId: '' }; },
+  computed: {
+    backRoute(): string { return this.$route.query.from === 'explore' ? '/explore' : '/search'; },
+    backLabel(): string { return this.$route.query.from === 'explore' ? this.$t('bookPreview.backExplore') : this.$t('bookPreview.back'); },
+  },
   async mounted() { await this.load(); },
   methods: {
     async load() {
@@ -43,7 +47,7 @@ export default defineComponent({
 <template>
   <FeatureScaffold :title="candidate?.name || $t('bookPreview.title')" :description="$t('bookPreview.description')">
     <p v-if="loading" aria-busy="true">{{ $t('bookPreview.loading') }}</p>
-    <section v-else-if="error" class="state"><p role="alert">{{ error }}</p><RouterLink to="/search">{{ $t('bookPreview.back') }}</RouterLink></section>
+    <section v-else-if="error" class="state"><p role="alert">{{ error }}</p><RouterLink :to="backRoute">{{ backLabel }}</RouterLink></section>
     <template v-else-if="candidate && preview">
       <section class="hero">
         <img v-if="preview.book.coverUrl" :src="preview.book.coverUrl" alt="" class="cover">
@@ -52,7 +56,7 @@ export default defineComponent({
       </section>
       <section class="toc"><h2>{{ $t('bookPreview.chapters', { count: preview.chapters.length }) }}</h2><ol><li v-for="chapter in preview.chapters.slice(0, 12)" :key="chapter.index">{{ chapter.title }}</li></ol><p v-if="preview.chapters.length > 12">{{ $t('bookPreview.moreChapters', { count: preview.chapters.length - 12 }) }}</p></section>
       <p v-if="shelfError" class="error" role="alert">{{ shelfError }}</p>
-      <div class="actions"><AppButton v-if="!addedBookId" :busy="shelving" @click="addToShelf">{{ shelving ? $t('bookPreview.shelving') : $t('bookPreview.shelve') }}</AppButton><RouterLink v-else class="primary-link" :to="`/books/${encodeURIComponent(addedBookId)}`">{{ $t('bookPreview.openShelfBook') }}</RouterLink><RouterLink to="/search">{{ $t('bookPreview.back') }}</RouterLink></div>
+      <div class="actions"><AppButton v-if="!addedBookId" :busy="shelving" @click="addToShelf">{{ shelving ? $t('bookPreview.shelving') : $t('bookPreview.shelve') }}</AppButton><RouterLink v-else class="primary-link" :to="`/books/${encodeURIComponent(addedBookId)}`">{{ $t('bookPreview.openShelfBook') }}</RouterLink><RouterLink :to="backRoute">{{ backLabel }}</RouterLink></div>
     </template>
   </FeatureScaffold>
 </template>

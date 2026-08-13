@@ -17,6 +17,7 @@ import SearchView from '../features/search/SearchView.vue';
 import BookPreviewView from '../features/books/BookPreviewView.vue';
 import BookDetailView from '../features/books/BookDetailView.vue';
 import ReaderView from '../features/reader/ReaderView.vue';
+import ExploreView from '../features/explore/ExploreView.vue';
 import PlannedFeatureView from './views/PlannedFeatureView.vue';
 
 const publicNames = new Set(['login', 'register', 'password-reset', 'recovery', 'setup', 'setup-unavailable', 'loading', 'startup-error']);
@@ -45,7 +46,7 @@ export const router = createRouter({
       path: '/', component: AppShell, meta: { requiresAuth: true },
       children: [
         { path: 'shelf', name: 'shelf', component: ShelfView },
-        { path: 'explore', name: 'explore', component: PlannedFeatureView, props: { title: 'app.planned.exploreTitle', description: 'app.planned.exploreDescription' } },
+        { path: 'explore', name: 'explore', component: ExploreView },
         { path: 'search', name: 'search', component: SearchView },
         { path: 'books/preview', name: 'book-preview', component: BookPreviewView },
         { path: 'books/:bookId', name: 'book-detail', component: BookDetailView },
