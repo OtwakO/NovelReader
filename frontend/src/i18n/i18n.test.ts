@@ -10,6 +10,7 @@ import enBookDetail from './messages/en/bookDetail';
 import enSourceRecovery from './messages/en/sourceRecovery';
 import enReader from './messages/en/reader';
 import enExplore from './messages/en/explore';
+import enSources from './messages/en/sources';
 import zhCnApp from './messages/zh-CN/app';
 import zhCnAccount from './messages/zh-CN/account';
 import zhCnShelf from './messages/zh-CN/shelf';
@@ -19,6 +20,7 @@ import zhCnBookDetail from './messages/zh-CN/bookDetail';
 import zhCnSourceRecovery from './messages/zh-CN/sourceRecovery';
 import zhCnReader from './messages/zh-CN/reader';
 import zhCnExplore from './messages/zh-CN/explore';
+import zhCnSources from './messages/zh-CN/sources';
 import zhTwApp from './messages/zh-TW/app';
 import zhTwAccount from './messages/zh-TW/account';
 import zhTwShelf from './messages/zh-TW/shelf';
@@ -28,6 +30,7 @@ import zhTwBookDetail from './messages/zh-TW/bookDetail';
 import zhTwSourceRecovery from './messages/zh-TW/sourceRecovery';
 import zhTwReader from './messages/zh-TW/reader';
 import zhTwExplore from './messages/zh-TW/explore';
+import zhTwSources from './messages/zh-TW/sources';
 
 function messageKeys(value: unknown, prefix = ''): string[] {
   if (!value || typeof value !== 'object') return [prefix];
@@ -68,8 +71,8 @@ describe('locale policy', () => {
   });
 
   it('keeps every supported locale on the same message contract', () => {
-    const english = messageKeys({ app: enApp, account: enAccount, shelf: enShelf, search: enSearch, bookPreview: enBookPreview, bookDetail: enBookDetail, sourceRecovery: enSourceRecovery, reader: enReader, explore: enExplore }).sort();
-    expect(messageKeys({ app: zhCnApp, account: zhCnAccount, shelf: zhCnShelf, search: zhCnSearch, bookPreview: zhCnBookPreview, bookDetail: zhCnBookDetail, sourceRecovery: zhCnSourceRecovery, reader: zhCnReader, explore: zhCnExplore }).sort()).toEqual(english);
-    expect(messageKeys({ app: zhTwApp, account: zhTwAccount, shelf: zhTwShelf, search: zhTwSearch, bookPreview: zhTwBookPreview, bookDetail: zhTwBookDetail, sourceRecovery: zhTwSourceRecovery, reader: zhTwReader, explore: zhTwExplore }).sort()).toEqual(english);
+    const english = messageKeys({ app: enApp, account: enAccount, shelf: enShelf, search: enSearch, bookPreview: enBookPreview, bookDetail: enBookDetail, sourceRecovery: enSourceRecovery, reader: enReader, explore: enExplore, sources: enSources }).sort();
+    expect(messageKeys({ app: zhCnApp, account: zhCnAccount, shelf: zhCnShelf, search: zhCnSearch, bookPreview: zhCnBookPreview, bookDetail: zhCnBookDetail, sourceRecovery: zhCnSourceRecovery, reader: zhCnReader, explore: zhCnExplore, sources: zhCnSources }).sort()).toEqual(english);
+    expect(messageKeys({ app: zhTwApp, account: zhTwAccount, shelf: zhTwShelf, search: zhTwSearch, bookPreview: zhTwBookPreview, bookDetail: zhTwBookDetail, sourceRecovery: zhTwSourceRecovery, reader: zhTwReader, explore: zhTwExplore, sources: zhTwSources }).sort()).toEqual(english);
   });
 });

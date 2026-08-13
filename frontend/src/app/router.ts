@@ -18,6 +18,7 @@ import BookPreviewView from '../features/books/BookPreviewView.vue';
 import BookDetailView from '../features/books/BookDetailView.vue';
 import ReaderView from '../features/reader/ReaderView.vue';
 import ExploreView from '../features/explore/ExploreView.vue';
+import SourceManagementView from '../features/sources/SourceManagementView.vue';
 import PlannedFeatureView from './views/PlannedFeatureView.vue';
 
 const publicNames = new Set(['login', 'register', 'password-reset', 'recovery', 'setup', 'setup-unavailable', 'loading', 'startup-error']);
@@ -51,7 +52,7 @@ export const router = createRouter({
         { path: 'books/preview', name: 'book-preview', component: BookPreviewView },
         { path: 'books/:bookId', name: 'book-detail', component: BookDetailView },
         { path: 'books/:bookId/read/:chapterIndex?', name: 'reader', component: ReaderView },
-        { path: 'sources', name: 'sources', component: PlannedFeatureView, props: { title: 'app.planned.sourcesTitle', description: 'app.planned.sourcesDescription' } },
+        { path: 'sources', name: 'sources', component: SourceManagementView },
         { path: 'settings', name: 'settings', component: PlannedFeatureView, props: { title: 'app.planned.settingsTitle', description: 'app.planned.settingsDescription' } },
         { path: 'account', name: 'account', component: PlannedFeatureView, props: { title: 'app.planned.accountTitle', description: 'app.planned.accountDescription' } },
         { path: 'account/readers', name: 'reader-admin', component: PlannedFeatureView, meta: { administrator: true }, props: { title: 'app.planned.readersTitle', description: 'app.planned.readersDescription' } },
