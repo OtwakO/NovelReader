@@ -6,16 +6,22 @@ import enAccount from './messages/en/account';
 import enShelf from './messages/en/shelf';
 import enSearch from './messages/en/search';
 import enBookPreview from './messages/en/bookPreview';
+import enBookDetail from './messages/en/bookDetail';
+import enSourceRecovery from './messages/en/sourceRecovery';
 import zhCnApp from './messages/zh-CN/app';
 import zhCnAccount from './messages/zh-CN/account';
 import zhCnShelf from './messages/zh-CN/shelf';
 import zhCnSearch from './messages/zh-CN/search';
 import zhCnBookPreview from './messages/zh-CN/bookPreview';
+import zhCnBookDetail from './messages/zh-CN/bookDetail';
+import zhCnSourceRecovery from './messages/zh-CN/sourceRecovery';
 import zhTwApp from './messages/zh-TW/app';
 import zhTwAccount from './messages/zh-TW/account';
 import zhTwShelf from './messages/zh-TW/shelf';
 import zhTwSearch from './messages/zh-TW/search';
 import zhTwBookPreview from './messages/zh-TW/bookPreview';
+import zhTwBookDetail from './messages/zh-TW/bookDetail';
+import zhTwSourceRecovery from './messages/zh-TW/sourceRecovery';
 
 function messageKeys(value: unknown, prefix = ''): string[] {
   if (!value || typeof value !== 'object') return [prefix];
@@ -56,8 +62,8 @@ describe('locale policy', () => {
   });
 
   it('keeps every supported locale on the same message contract', () => {
-    const english = messageKeys({ app: enApp, account: enAccount, shelf: enShelf, search: enSearch, bookPreview: enBookPreview }).sort();
-    expect(messageKeys({ app: zhCnApp, account: zhCnAccount, shelf: zhCnShelf, search: zhCnSearch, bookPreview: zhCnBookPreview }).sort()).toEqual(english);
-    expect(messageKeys({ app: zhTwApp, account: zhTwAccount, shelf: zhTwShelf, search: zhTwSearch, bookPreview: zhTwBookPreview }).sort()).toEqual(english);
+    const english = messageKeys({ app: enApp, account: enAccount, shelf: enShelf, search: enSearch, bookPreview: enBookPreview, bookDetail: enBookDetail, sourceRecovery: enSourceRecovery }).sort();
+    expect(messageKeys({ app: zhCnApp, account: zhCnAccount, shelf: zhCnShelf, search: zhCnSearch, bookPreview: zhCnBookPreview, bookDetail: zhCnBookDetail, sourceRecovery: zhCnSourceRecovery }).sort()).toEqual(english);
+    expect(messageKeys({ app: zhTwApp, account: zhTwAccount, shelf: zhTwShelf, search: zhTwSearch, bookPreview: zhTwBookPreview, bookDetail: zhTwBookDetail, sourceRecovery: zhTwSourceRecovery }).sort()).toEqual(english);
   });
 });
