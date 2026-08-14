@@ -50,6 +50,12 @@ export function onAuthenticationLoss(listener?: AuthenticationLossListener) {
   };
 }
 
+async function responseError(response: Response): Promise<never> {
+  const error = await response.json().catch(() => ({ error: response.statusText })) as ExploreErrorBody;
+  if (response.status === 401) authenticationLossListener?.();
+  throw new ApiError(response.status, error.error || error.message || response.statusText);
+}
+
 export async function request<T>(path: string, options?: RequestInit, errorKind: 'general' | 'explore' = 'general'): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -57,10 +63,19 @@ export async function request<T>(path: string, options?: RequestInit, errorKind:
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText })) as ExploreErrorBody;
+    if (errorKind === 'explore' && isExploreErrorBody(error)) {
+      if (response.status === 401) authenticationLossListener?.();
+      throw new ExploreApiError(error);
+    }
     if (response.status === 401) authenticationLossListener?.();
-    if (errorKind === 'explore' && isExploreErrorBody(error)) throw new ExploreApiError(error);
     throw new ApiError(response.status, error.error || error.message || response.statusText);
   }
   if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
+export async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, { method: 'POST', body: form });
+  if (!response.ok) return responseError(response);
   return response.json() as Promise<T>;
 }

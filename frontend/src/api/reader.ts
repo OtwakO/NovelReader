@@ -1,5 +1,5 @@
 import type { Book, Chapter } from './models';
-import { API_BASE, request } from './transport';
+import { API_BASE, request, requestForm } from './transport';
 export type { Chapter } from './models';
 export type ChapterContentBlock = { type: 'text'; text: string } | { type: 'image'; index: number };
 export interface ChapterContent { title: string; paragraphs: string[]; blocks: ChapterContentBlock[]; offlineCopy: boolean }
@@ -26,11 +26,9 @@ export function addBookmark(bookId: string, bookmark: { id: string; sourceUrl: s
 export function deleteBookmark(bookId: string, bookmarkId: string) { return request<{ status: string }>(`/books/${encodeURIComponent(bookId)}/bookmarks/${encodeURIComponent(bookmarkId)}`, { method: 'DELETE' }); }
 export function saveProgress(bookId: string, sourceUrl: string, stateVersion: number, chapterIndex: number, position: number) { return request<{ status: string; stateVersion: number }>(`/books/${encodeURIComponent(bookId)}/progress`, { method: 'PUT', body: JSON.stringify({ sourceUrl, stateVersion, chapterIndex, position }) }); }
 export function listFonts() { return request<Font[]>('/fonts'); }
-export async function uploadFont(file: File, name: string) {
+export function uploadFont(file: File, name: string) {
   const form = new FormData(); form.append('file', file); form.append('name', name);
-  const response = await fetch(`${API_BASE}/fonts`, { method: 'POST', body: form });
-  if (!response.ok) throw new Error('Upload failed');
-  return response.json() as Promise<Font>;
+  return requestForm<Font>('/fonts', form);
 }
 export function deleteFont(id: string) { return request<{ status: string }>(`/fonts/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
 export function getFontUrl(id: string) { return `${API_BASE}/fonts/${encodeURIComponent(id)}/file`; }
