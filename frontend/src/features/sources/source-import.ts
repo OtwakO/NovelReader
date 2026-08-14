@@ -34,6 +34,10 @@ export function selectedImportJSON(previews: SourceImportPreview[]): string {
   return JSON.stringify(previews.filter(item => item.selected).map(item => item.source));
 }
 
+export function isSearchEligible(source: BookSource): boolean {
+  return source.enabled && (source.bookSourceType ?? 0) === 0 && Boolean(source.searchUrl?.trim()) && Boolean(source.ruleSearch?.trim());
+}
+
 export function sourceCapabilities(source: BookSource): string[] {
   const values: string[] = [];
   if (source.searchUrl) values.push('search');

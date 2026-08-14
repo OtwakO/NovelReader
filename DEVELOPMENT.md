@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-14] Search progress counts eligible text sources, not all imports
+- **Context**: With `test_booksource3.json` imported, source recovery reported `50 / 329` even though the file contains more than 400 BookSources, making the progress total appear incomplete.
+- **Change**: Search and source-recovery progress now explicitly labels the denominator as searchable text BookSources in all three locales. BookSource Management now displays the same backend-equivalent searchable count alongside total, enabled, and Explore counts. The frontend eligibility helper mirrors backend filtering: enabled, `bookSourceType == 0`, non-empty `searchUrl`, and non-empty `ruleSearch`.
+- **Reason**: The backend batch planner correctly counts only sources capable of text search. `test_booksource3.json` contains 458 unique sources: 456 enabled, 339 text sources, and exactly 329 eligible text-search sources; 119 are non-text types, 8 enabled text sources lack a search URL, and 2 are disabled. The prior generic “BookSources checked” wording implied that 129 imported definitions had disappeared.
+- **Verified**: A deterministic fixture breakdown reproduced the exact 329 denominator with zero duplicate URLs. Vue type checking, ESLint, all 63 tests across 24 files, and the Vite production build pass. Mocked browser verification rendered `458 total`, `456 enabled`, and `329 searchable text` together with no overflow or console findings.
+- **Watch out**: Imported total, enabled total, searchable-text eligibility, and Explore eligibility are separate counts. Do not compare batch-search progress directly with the raw import count.
+
 ### [2026-08-14] Source recovery reset on canonical book refresh
 - **Context**: Book Detail and Reader users lost source-discovery progress after switching sources, and later `Continue scanning` batches disappeared after newly discovered alternatives were persisted.
 - **Change**: The shared `SourceRecoveryPanel` now resets discovery only when the logical book name or author changes. Replacements of the canonical stored-book object, persisted alternate-source updates, and current-source changes keep the active controller, checked count, discovered matches, next cursor, and recovery UI intact. Regression coverage proves continuation through three committed batches and preservation across a realistic source switch prop refresh.
