@@ -8,17 +8,25 @@ export default defineComponent({
   name: 'LoginView',
   components: { AuthCard, AppButton },
   data() {
-    return { username: '', password: '', error: '', submitting: false };
+    return { username: '', password: '', error: '', submitting: false, retryingLogout: false };
   },
   computed: {
     registrationEnabled(): boolean { return useSessionStore().registrationEnabled; },
+    sessionNotice(): string { return useSessionStore().notice; },
     sessionMessage(): string {
       const session = useSessionStore();
       if (session.notice === 'authentication-lost') return this.$t('account.login.expired');
+      if (session.notice === 'logout-failed') return this.$t('account.login.logoutFailed');
+      if (session.message === 'password-changed') return this.$t('account.login.passwordChanged');
       return session.message;
     },
   },
   methods: {
+    async retryLogout() {
+      this.retryingLogout = true;
+      try { await useSessionStore().logout(); } catch { /* Keep the retry state visible. */ }
+      finally { this.retryingLogout = false; }
+    },
     async submit() {
       this.error = '';
       this.submitting = true;
@@ -40,7 +48,7 @@ export default defineComponent({
 
 <template>
   <AuthCard :title="$t('account.login.title')" :intro="$t('account.login.intro')">
-    <p v-if="sessionMessage" class="session-message" role="status">{{ sessionMessage }}</p>
+    <div v-if="sessionMessage" class="session-message" role="status"><span>{{ sessionMessage }}</span><AppButton v-if="sessionNotice === 'logout-failed'" variant="secondary" :busy="retryingLogout" @click="retryLogout">{{ $t('account.login.retryLogout') }}</AppButton></div>
     <form @submit.prevent="submit">
       <label>{{ $t('account.login.username') }}<input v-model.trim="username" autocomplete="username" required :disabled="submitting"></label>
       <label>{{ $t('account.login.password') }}<input v-model="password" type="password" autocomplete="current-password" required :disabled="submitting"></label>
@@ -56,6 +64,6 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.session-message { padding: .7rem; border-radius: var(--radius-sm); background: #fff2d8; color: #704b13; }
+.session-message { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .7rem; border-radius: var(--radius-sm); background: #fff2d8; color: #704b13; }
 .links { display: flex; justify-content: center; flex-wrap: wrap; gap: .6rem 1rem; margin-top: 1rem; font-size: .9rem; }
 </style>

@@ -38,6 +38,15 @@ describe('session store', () => {
     expect(session.account?.username).toBe('reader');
   });
 
+  it('ends private state after a successful password change', () => {
+    const session = useSessionStore(); session.account = { id: 'u1', username: 'reader', role: 'reader' }; session.phase = 'authenticated'; session.returnTo = '/account'; session.endAfterPasswordChange();
+    expect(session.account).toBeNull(); expect(session.phase).toBe('guest'); expect(session.returnTo).toBe('/shelf'); expect(session.message).toBe('password-changed');
+  });
+
+  it('keeps a retryable logout failure after private state closes', async () => {
+    vi.mocked(authApi.logout).mockRejectedValue(new Error('logout unavailable')); const session=useSessionStore();session.account={id:'u1',username:'reader',role:'reader'};session.phase='authenticated';await expect(session.logout()).rejects.toThrow('logout unavailable');expect(session.account).toBeNull();expect(session.phase).toBe('guest');expect(session.notice).toBe('logout-failed');
+  });
+
   it('treats a current-account 401 as a guest session', async () => {
     vi.mocked(authApi.getSetupStatus).mockResolvedValue({ status: 'closed', available: false });
     vi.mocked(authApi.getRegistrationPolicy).mockResolvedValue({ enabled: false, inviteRequired: false });

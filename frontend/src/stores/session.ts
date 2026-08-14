@@ -18,7 +18,7 @@ interface SessionState {
   registrationEnabled: boolean;
   registrationInviteRequired: boolean;
   message: string;
-  notice: '' | 'authentication-lost';
+  notice: '' | 'authentication-lost' | 'logout-failed';
   returnTo: string;
   initialized: boolean;
 }
@@ -101,15 +101,25 @@ export const useSessionStore = defineStore('session', {
       this.authenticated(account);
     },
 
+    endAfterPasswordChange() {
+      this.account = null;
+      this.phase = 'guest';
+      this.returnTo = '/shelf';
+      this.notice = '';
+      this.message = 'password-changed';
+    },
+
     async logout() {
       this.account = null;
       this.phase = 'loading';
+      this.notice = '';
       try {
         await logoutRequest();
         this.phase = 'guest';
         this.message = '';
       } catch (cause) {
         this.phase = 'guest';
+        this.notice = 'logout-failed';
         this.message = cause instanceof Error ? cause.message : '';
         throw cause;
       }

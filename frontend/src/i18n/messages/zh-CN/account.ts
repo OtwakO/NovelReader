@@ -1,8 +1,11 @@
 export default {
-  login: { title: '欢迎回来', intro: '登录后继续访问你的书架、书源、阅读进度和书签。', username: '用户名', password: '密码', submit: '登录', submitting: '正在登录…', failed: '登录失败。', help: '账户帮助', register: '创建账户', reset: '使用重置令牌', recovery: '管理员恢复', expired: '登录已过期，请重新登录后继续。' },
+  login: { title: '欢迎回来', intro: '登录后继续访问你的书架、书源、阅读进度和书签。', username: '用户名', password: '密码', submit: '登录', submitting: '正在登录…', failed: '登录失败。', help: '账户帮助', register: '创建账户', reset: '使用重置令牌', recovery: '管理员恢复', expired: '登录已过期，请重新登录后继续。', passwordChanged: '密码已更改，请使用新密码重新登录。', logoutFailed: '私人账户界面已关闭，但服务器未能确认会话撤销。', retryLogout: '重试退出' },
   register: { title: '创建阅读账户', intro: '你的书架、书源、进度和文件会保存在独立的私人阅读空间中。', invite: '邀请码', submit: '创建账户', submitting: '正在创建…', failed: '创建账户失败。' },
   reset: { title: '重置阅读账户密码', intro: '输入管理员提供的一次性令牌并设置新密码。令牌将在 30 分钟后失效。', token: '重置令牌', newPassword: '新密码', confirm: '确认新密码', mismatch: '两次输入的密码不一致。', submit: '重置密码', submitting: '正在重置…', failed: '密码重置失败。', complete: '密码重置完成，请使用新密码登录。' },
   setup: { title: '设置 NovelReader', intro: '为此安装创建第一个管理员账户。', token: '初始化令牌', tokenHint: '粘贴服务器配置中的 ADMIN_BOOTSTRAP_TOKEN 临时值。', confirm: '确认密码', mismatch: '两次输入的密码不一致。', submit: '创建管理员', submitting: '正在创建…', failed: '初始化失败。', aftercare: '设置成功后，请从服务器环境中移除 ADMIN_BOOTSTRAP_TOKEN。', unavailableTitle: '服务器尚未开放初始化', unavailableIntro: '请配置 ADMIN_BOOTSTRAP_TOKEN，重启 NovelReader，然后刷新此页面。' },
   recovery: { title: '恢复管理员访问', intro: '使用服务器临时配置的恢复令牌。完成后请立即移除该环境变量。', checking: '正在检查恢复配置…', action: '恢复方式', resetExisting: '重置现有管理员', createReplacement: '创建替代管理员', token: '恢复令牌', username: '管理员用户名', newPassword: '新密码', confirm: '确认新密码', mismatch: '两次输入的密码不一致。', submit: '恢复并登录', submitting: '正在恢复…', failed: '管理员恢复失败。', statusFailed: '无法读取恢复状态。', unavailable: '服务器未启用管理员恢复。请临时配置 ADMIN_RECOVERY_TOKEN，重启后再返回此页面。' },
+  profile: { title: '账户', description: '查看你的私人阅读身份、更改密码并管理当前浏览器会话。', eyebrow: '阅读身份', readerRole: '阅读账户', adminRole: '管理员', manageReaders: '管理阅读账户' },
+  security: { eyebrow: '安全', title: '更改密码', description: '更改成功后会撤销所有浏览器会话，包括当前会话。你需要重新登录。', current: '当前密码', new: '新密码', confirm: '确认新密码', hint: '请输入 12–128 个字符。', submit: '更改密码', submitting: '正在更改密码…', failed: '密码更改失败。', validation: { mismatch: '两次输入的新密码不一致。', tooShort: '新密码至少需要 12 个字符。', tooLong: '新密码不能超过 128 个字符。', same: '新密码必须与当前密码不同。' } },
+  session: { eyebrow: '当前浏览器', title: '会话', description: '退出当前浏览器，不会更改密码或阅读数据。', signOut: '退出登录', signingOut: '正在退出…', failed: '服务器无法撤销此会话。' },
   common: { backToLogin: '返回登录' },
 };
