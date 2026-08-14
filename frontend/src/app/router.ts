@@ -21,7 +21,7 @@ import ExploreView from '../features/explore/ExploreView.vue';
 import SourceManagementView from '../features/sources/SourceManagementView.vue';
 import SettingsView from '../features/settings/SettingsView.vue';
 import AccountView from '../features/account/AccountView.vue';
-import PlannedFeatureView from './views/PlannedFeatureView.vue';
+import ReaderAdministrationView from '../features/account/ReaderAdministrationView.vue';
 
 const publicNames = new Set(['login', 'register', 'password-reset', 'recovery', 'setup', 'setup-unavailable', 'loading', 'startup-error']);
 
@@ -57,7 +57,7 @@ export const router = createRouter({
         { path: 'sources', name: 'sources', component: SourceManagementView },
         { path: 'settings', name: 'settings', component: SettingsView },
         { path: 'account', name: 'account', component: AccountView },
-        { path: 'account/readers', name: 'reader-admin', component: PlannedFeatureView, meta: { administrator: true }, props: { title: 'app.planned.readersTitle', description: 'app.planned.readersDescription' } },
+        { path: 'account/readers', name: 'reader-admin', component: ReaderAdministrationView, meta: { administrator: true } },
       ],
     },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },
