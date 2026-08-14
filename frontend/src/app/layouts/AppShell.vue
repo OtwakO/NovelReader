@@ -52,7 +52,7 @@ export default defineComponent({
       <nav class="nav-group nav-group--secondary" :aria-label="$t('app.navigation.management')">
         <RouterLink v-for="item in visibleManagementNavigation" :key="item.to" :to="item.to"><span aria-hidden="true">{{ item.short }}</span>{{ $t(item.labelKey) }}</RouterLink>
       </nav>
-      <LocaleSwitcher />
+      <LocaleSwitcher class="desktop-locale" />
       <button class="account-button" type="button" :title="$t('app.navigation.signOutUser', { username })" @click="signOut">{{ $t('app.navigation.signOut') }}</button>
     </aside>
 
@@ -77,12 +77,13 @@ export default defineComponent({
 <style scoped>
 .app-shell { min-height: 100dvh; display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); }
 .desktop-rail { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; gap: 1rem; padding: 1rem; border-right: 1px solid var(--color-border); background: var(--color-paper-raised); }
-.brand { width: 3rem; height: 3rem; display: grid; place-items: center; border-radius: 50%; background: var(--color-accent); color: white; font: 700 1.25rem var(--font-literary); text-decoration: none; }
+.brand { width: 3rem; height: 3rem; display: grid; place-items: center; margin-inline: auto; border-radius: 50%; background: var(--color-accent); color: white; font: 700 1.25rem var(--font-literary); text-decoration: none; }
 .nav-group { display: grid; gap: .3rem; }
 .nav-group--secondary { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--color-border); }
 .nav-group a { min-height: 2.75rem; display: flex; align-items: center; gap: .75rem; padding: .55rem .75rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-weight: 650; }
 .nav-group a span { width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border-radius: .45rem; background: var(--color-paper-muted); font-size: .78rem; }
 .nav-group a.router-link-active { background: var(--color-accent-soft); color: var(--color-accent-strong); }
+.desktop-locale { display: flex; justify-content: center; }
 .account-button { min-height: 2.75rem; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-ink-muted); cursor: pointer; }
 .app-content { min-width: 0; padding: clamp(1rem, 3vw, 2.5rem); }
 .mobile-header, .mobile-tabs { display: none; }

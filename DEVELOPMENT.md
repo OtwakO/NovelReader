@@ -1,5 +1,9 @@
 # Development Notes
 
+### [2026-08-14] Desktop rail utilities centered independently
+- **Change**: The authenticated desktop rail now centers the circular NovelReader brand mark and the locale selector within the rail, while leaving navigation rows, mobile tabs, and the mobile account menu unchanged.
+- **Verified**: Vue type checking, ESLint, all 63 tests, the production build, the layout detector, and git diff checks pass. Playwright measured the rail center at 108px and both element centers at 107.5px at 1024, 1280, and 1440 widths; the desktop rail remained hidden and the account menu remained visible at 390×844 with no overflow or console findings.
+
 ### [2026-08-14] Book Detail TOC needed owned row geometry
 - **Context**: The Book Detail 目錄 section had loose marker alignment and long Chinese chapter names could escape or overlap adjacent content.
 - **Change**: The TOC now owns its header/body spacing, uses a stable two-column grid with single-column mobile adaptation, replaces browser-controlled ordered-list gutters with aligned tabular chapter counters, gives every title a `minmax(0,1fr)` text track, and applies unrestricted Chinese wrapping inside the row. Volume rows span the section with distinct but quiet treatment.
