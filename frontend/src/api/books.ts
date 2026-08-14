@@ -11,10 +11,28 @@ export interface ReadableBookResult { book: Book; firstReadableChapter: number }
 export function listBooks() { return request<Book[]>('/books'); }
 export function getBook(id: string) { return request<Book>(`/books/${encodeURIComponent(id)}`); }
 export function addBook(book: Partial<Book>) { return request<Book>('/books', { method: 'POST', body: JSON.stringify(book) }); }
-export function previewBook(data: BookCandidate) { return request<BookPreview>('/books/preview', { method: 'POST', body: JSON.stringify(data) }); }
-export function shelveBook(data: BookCandidate & { id: string }) { return request<Book>('/books/shelve', { method: 'POST', body: JSON.stringify(data) }); }
-export function addReadableBook(data: BookCandidate & { id: string }) { return request<ReadableBookResult>('/books/readable', { method: 'POST', body: JSON.stringify(data) }); }
-export function enrichBook(data: BookCandidate & { id: string }) { return request<Book>('/books/enrich', { method: 'POST', body: JSON.stringify(data) }); }
+function candidatePayload(data: BookCandidate): BookCandidate {
+  return {
+    ...(data.id ? { id: data.id } : {}),
+    name: data.name,
+    ...(data.author !== undefined ? { author: data.author } : {}),
+    ...(data.coverUrl !== undefined ? { coverUrl: data.coverUrl } : {}),
+    ...(data.intro !== undefined ? { intro: data.intro } : {}),
+    ...(data.kind !== undefined ? { kind: data.kind } : {}),
+    ...(data.lastChapter !== undefined ? { lastChapter: data.lastChapter } : {}),
+    ...(data.updateTime !== undefined ? { updateTime: data.updateTime } : {}),
+    ...(data.wordCount !== undefined ? { wordCount: data.wordCount } : {}),
+    ...(data.sourceName !== undefined ? { sourceName: data.sourceName } : {}),
+    sourceUrl: data.sourceUrl,
+    bookUrl: data.bookUrl,
+    ...(data.alternateSources !== undefined ? { alternateSources: data.alternateSources } : {}),
+  };
+}
+
+export function previewBook(data: BookCandidate) { return request<BookPreview>('/books/preview', { method: 'POST', body: JSON.stringify(candidatePayload(data)) }); }
+export function shelveBook(data: BookCandidate & { id: string }) { return request<Book>('/books/shelve', { method: 'POST', body: JSON.stringify(candidatePayload(data)) }); }
+export function addReadableBook(data: BookCandidate & { id: string }) { return request<ReadableBookResult>('/books/readable', { method: 'POST', body: JSON.stringify(candidatePayload(data)) }); }
+export function enrichBook(data: BookCandidate & { id: string }) { return request<Book>('/books/enrich', { method: 'POST', body: JSON.stringify(candidatePayload(data)) }); }
 export async function addSearchResultToShelf(result: SearchResult) {
   const preview = await previewBook(result);
   const id = crypto.randomUUID?.() ?? (Date.now().toString(36) + Math.random().toString(36).slice(2));

@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-14] Search and Explore preview leaked client ranking metadata
+- **Context**: Opening Book Preview from either Search or strict per-source Explore consistently returned the backend message `invalid book request`, even though the Vue preview route was implemented.
+- **Change**: The shared book API client now serializes an explicit backend-owned candidate DTO for preview, shelving, readability validation, and enrichment instead of JSON-encoding the complete frontend result object. Regression coverage includes a Search/Explore-shaped result with the client-only `score` field and proves canonical preview → shelf behavior still preserves discovered alternatives.
+- **Reason**: Search results may contain frontend/client aggregation metadata such as `score`. The backend candidate decoder intentionally uses `DisallowUnknownFields`; leaking `score` caused JSON decoding to fail before required-field validation and produced the generic `invalid book request` response.
+- **Verified**: The focused regression failed before the fix and passes after it. Vue type checking, ESLint, all 59 tests across 24 files, the Vite production build, and the complete backend `internal/api` test package pass. A routed Playwright preview with `score: 99` was accepted by a strict mock only after the emitted request omitted `score`; the preview rendered with zero console errors or warnings.
+- **Watch out**: Backend request DTOs must be assembled at the API boundary. Do not spread complete view models, Pinia state, or source-result objects into strict JSON contracts.
+
 ### [2026-08-14] Vue reader administration preserves durable lifecycle semantics
 - **Context**: `/account/readers` was the final authenticated Vue placeholder, while the backend already exposed protected ordinary-reader listing, idempotent enable/disable, one-time reset issuance, and durable retryable deletion.
 - **Change**: The administrator-only route now lists and filters ordinary reader accounts by backend lifecycle state, enables or disables them through the existing status endpoint, issues one-time password reset credentials, and deletes accounts only after exact case-sensitive username confirmation. Reset plaintext is retained only while its dialog remains open. Deletion failures refresh server-authoritative state and keep a `deleting` account available for an explicit retry. Administrator accounts remain excluded and ordinary readers are redirected away by the existing route guard.
