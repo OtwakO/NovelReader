@@ -36,7 +36,8 @@ export default defineComponent({
     moreCount(): number { return Math.min(this.batchSize, Math.max(0, this.state.eligible - this.state.checked)); },
   },
   watch: {
-    book: { deep: true, handler() { this.controller?.destroy(); this.seen = new Set(); this.matches = []; this.seedStoredSources(); this.state = { ...emptyState }; } },
+    'book.name'() { this.resetDiscovery(); },
+    'book.author'() { this.resetDiscovery(); },
     storedSources: { deep: true, handler() { this.seedStoredSources(); } },
   },
   created() {

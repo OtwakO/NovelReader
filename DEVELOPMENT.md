@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-14] Source recovery reset on canonical book refresh
+- **Context**: Book Detail and Reader users lost source-discovery progress after switching sources, and later `Continue scanning` batches disappeared after newly discovered alternatives were persisted.
+- **Change**: The shared `SourceRecoveryPanel` now resets discovery only when the logical book name or author changes. Replacements of the canonical stored-book object, persisted alternate-source updates, and current-source changes keep the active controller, checked count, discovered matches, next cursor, and recovery UI intact. Regression coverage proves continuation through three committed batches and preservation across a realistic source switch prop refresh.
+- **Reason**: The panel deep-watched the complete `book` prop. Parents replace that object after `mergeBookSources` and `switchBookSource`, so normal persistence and switching were incorrectly treated as navigation to a different logical book and destroyed the scan controller.
+- **Verified**: The component regression reproduced the reset (`checked` changed from 50 to 0) before the fix and passes afterward. Vue type checking, ESLint, all 62 tests across 24 files, the Vite production build, and focused backend batch planning tests pass. Mocked Playwright completed two 50-source batches, switched sources, retained `100 of 150 sources checked`, kept discovered alternatives, and still exposed the third-batch action with zero console errors or warnings.
+- **Watch out**: Recovery lifecycle is keyed to logical identity, not mutable stored-book/source objects. Future metadata updates must not remount or reset source discovery unless they actually change the book identity being searched.
+
 ### [2026-08-14] Search and Explore preview leaked client ranking metadata
 - **Context**: Opening Book Preview from either Search or strict per-source Explore consistently returned the backend message `invalid book request`, even though the Vue preview route was implemented.
 - **Change**: The shared book API client now serializes an explicit backend-owned candidate DTO for preview, shelving, readability validation, and enrichment instead of JSON-encoding the complete frontend result object. Regression coverage includes a Search/Explore-shaped result with the client-only `score` field and proves canonical preview → shelf behavior still preserves discovered alternatives.

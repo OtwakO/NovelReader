@@ -15,6 +15,15 @@ describe('source discovery', () => {
     streams[0]?.handlers.onResult('a', [], 1); streams[0]?.handlers.onDone({ complete: true, checked: 25, eligible: 80, hasMore: true, nextCursor: 'next-25', retryCursor: '', sourceFailures: 2 });
     expect(controller.state.checked).toBe(25); expect(controller.state.sourceFailures).toBe(2); controller.more(); expect(streams[1]?.options.cursor).toBe('next-25');
   });
+  it('retains continuation through three committed batches', () => {
+    const { controller, streams } = harness(); controller.start();
+    streams[0]?.handlers.onStart({ offset: 0, eligible: 130, sourcesInBatch: 50, requestedConcurrency: 7, retryCursor: 'retry-0', effectiveConcurrency: 7 });
+    streams[0]?.handlers.onDone({ complete: true, checked: 50, eligible: 130, hasMore: true, nextCursor: 'next-50', retryCursor: 'retry-0', sourceFailures: 0 });
+    controller.more(); expect(streams[1]?.options.cursor).toBe('next-50');
+    streams[1]?.handlers.onStart({ offset: 50, eligible: 130, sourcesInBatch: 50, requestedConcurrency: 7, retryCursor: 'retry-50', effectiveConcurrency: 7 });
+    streams[1]?.handlers.onDone({ complete: true, checked: 100, eligible: 130, hasMore: true, nextCursor: 'next-100', retryCursor: 'retry-50', sourceFailures: 0 });
+    expect(controller.state.hasMore).toBe(true); controller.more(); expect(streams[2]?.options.cursor).toBe('next-100');
+  });
   it('requires exact retry when a batch ends without committing', () => {
     const { controller, streams } = harness(); controller.start();
     streams[0]?.handlers.onStart({ offset: 25, eligible: 80, sourcesInBatch: 25, requestedConcurrency: 7, retryCursor: 'retry-25', effectiveConcurrency: 7 });
