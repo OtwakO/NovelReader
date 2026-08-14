@@ -74,14 +74,55 @@ export default defineComponent({
       </section>
       <section v-if="confirmingRemove" class="confirmation" role="alertdialog" :aria-label="$t('bookDetail.confirmRemoveTitle')"><strong>{{ $t('bookDetail.confirmRemoveTitle') }}</strong><p>{{ $t('bookDetail.confirmRemoveDescription', { name: book.name }) }}</p><div><AppButton variant="secondary" @click="confirmingRemove = false">{{ $t('bookDetail.cancel') }}</AppButton><AppButton variant="danger" :busy="removing" @click="removeBook">{{ $t('bookDetail.confirmRemove') }}</AppButton></div></section>
       <section v-if="book.intro" class="panel"><h2>{{ $t('bookDetail.synopsis') }}</h2><p class="intro">{{ book.intro }}</p></section>
-      <section class="panel"><header><h2>{{ $t('bookDetail.chapters') }}</h2><span>{{ $t('bookDetail.tocEntries', { count: chapters.length }) }}</span></header><p v-if="tocError" class="banner-error" role="alert">{{ tocError }}</p><ol v-if="chapters.length" class="chapter-list"><li v-for="chapter in visibleChapters" :key="chapter.index" :class="{ volume: chapter.isVolume }"><span v-if="chapter.isVolume">{{ chapter.title }}</span><RouterLink v-else :to="`/books/${encodeURIComponent(book.id)}/read/${chapter.index}`">{{ chapter.title }}</RouterLink></li></ol><p v-else-if="!tocError" class="muted">{{ $t('bookDetail.noChapters') }}</p><AppButton v-if="chapters.length > visibleChapters.length" variant="quiet" @click="showAllChapters = true">{{ $t('bookDetail.showAll', { count: chapters.length }) }}</AppButton></section>
+      <section class="panel toc-panel"><header class="toc-header"><h2>{{ $t('bookDetail.chapters') }}</h2><span>{{ $t('bookDetail.tocEntries', { count: chapters.length }) }}</span></header><p v-if="tocError" class="banner-error" role="alert">{{ tocError }}</p><ol v-if="chapters.length" class="chapter-list"><li v-for="chapter in visibleChapters" :key="chapter.index" :class="{ volume: chapter.isVolume }"><span v-if="chapter.isVolume">{{ chapter.title }}</span><RouterLink v-else :to="`/books/${encodeURIComponent(book.id)}/read/${chapter.index}`">{{ chapter.title }}</RouterLink></li></ol><p v-else-if="!tocError" class="muted">{{ $t('bookDetail.noChapters') }}</p><AppButton v-if="chapters.length > visibleChapters.length" variant="quiet" @click="showAllChapters = true">{{ $t('bookDetail.showAll', { count: chapters.length }) }}</AppButton></section>
       <SourceRecoveryPanel :book="{ name: book.name, author: book.author }" :current-source-url="book.sourceUrl" :stored-sources="book.alternateSources || []" :switching="switching" :action-error="sourceError" :action-message="sourceMessage" :on-clear-and-rescan="clearAndRescan" @matches="persistMatches" @select="selectSource" />
     </template>
   </FeatureScaffold>
 </template>
 
 <style scoped>
-.state, .panel, .confirmation { padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }.hero { display: grid; grid-template-columns: 9rem minmax(0,1fr); gap: 1.5rem; align-items: start; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }.cover { width: 9rem; aspect-ratio: 2/3; object-fit: cover; border-radius: var(--radius-md); }.placeholder { display: grid; place-items: center; background: linear-gradient(145deg,var(--color-accent),var(--color-accent-strong)); color: white; font: 700 2.5rem var(--font-literary); }.identity { min-width: 0; }.eyebrow { margin: 0; color: var(--color-warm); font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }.identity h2 { margin: .25rem 0; font: 700 clamp(1.7rem,4vw,2.7rem)/1.12 var(--font-literary); }.author,.latest,.source,.muted { color: var(--color-ink-muted); overflow-wrap: anywhere; }.metadata,.actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }.metadata span { padding: .3rem .55rem; border-radius: 999px; background: var(--color-paper-muted); font-size: .76rem; }.primary-link { min-height: 2.75rem; display: inline-flex; align-items: center; border-radius: var(--radius-md); padding: .65rem 1rem; background: var(--color-accent); color: white; text-decoration: none; font-weight: 700; }.panel { margin-top: 1rem; }.panel header { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }.panel h2 { margin: 0; font: 700 1.15rem var(--font-literary); }.panel header span { color: var(--color-ink-muted); font-size: .82rem; }.intro { line-height: 1.75; white-space: pre-line; }.chapter-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(16rem,1fr)); margin: .8rem 0 0; padding-left: 1.5rem; }.chapter-list li { padding: .45rem; border-bottom: 1px solid var(--color-border); }.chapter-list a { color: var(--color-ink); text-decoration: none; }.chapter-list a:hover { color: var(--color-accent); }.chapter-list .volume { grid-column: 1/-1; list-style: none; margin-left: -1rem; background: var(--color-paper-muted); font-weight: 700; }.banner-error { padding: .75rem; border-radius: var(--radius-sm); background: #f8e4df; color: var(--color-danger); }.confirmation { margin-top: 1rem; border-color: color-mix(in srgb,var(--color-danger) 45%,var(--color-border)); }.confirmation p { color: var(--color-ink-muted); }.confirmation div { display: flex; flex-wrap: wrap; gap: .5rem; }
+.state, .panel, .confirmation { padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
+.hero { display: grid; grid-template-columns: 9rem minmax(0,1fr); gap: 1.5rem; align-items: start; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
+.cover { width: 9rem; aspect-ratio: 2/3; object-fit: cover; border-radius: var(--radius-md); }
+.placeholder { display: grid; place-items: center; background: linear-gradient(145deg,var(--color-accent),var(--color-accent-strong)); color: white; font: 700 2.5rem var(--font-literary); }
+.identity { min-width: 0; }
+.eyebrow { margin: 0; color: var(--color-warm); font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.identity h2 { margin: .25rem 0; font: 700 clamp(1.7rem,4vw,2.7rem)/1.12 var(--font-literary); }
+.author,.latest,.source,.muted { color: var(--color-ink-muted); overflow-wrap: anywhere; }
+.metadata,.actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+.metadata span { padding: .3rem .55rem; border-radius: 999px; background: var(--color-paper-muted); font-size: .76rem; }
+.primary-link { min-height: 2.75rem; display: inline-flex; align-items: center; border-radius: var(--radius-md); padding: .65rem 1rem; background: var(--color-accent); color: white; text-decoration: none; font-weight: 700; }
+.panel { margin-top: 1rem; }
+.panel header { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+.panel h2 { margin: 0; font: 700 1.15rem var(--font-literary); }
+.panel header span { color: var(--color-ink-muted); font-size: .82rem; }
+.intro { line-height: 1.75; white-space: pre-line; }
+.toc-panel { padding: 0; overflow: hidden; }
+.toc-header { min-height: 3.5rem; padding: .9rem 1rem; border-bottom: 1px solid var(--color-border); }
+.toc-header span { flex: 0 0 auto; white-space: nowrap; }
+.toc-panel > .banner-error, .toc-panel > .muted { margin: 1rem; }
+.chapter-list { counter-reset: readable-chapter; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); margin: 0; padding: 0; list-style: none; }
+.chapter-list li { min-width: 0; display: grid; grid-template-columns: 2.5rem minmax(0,1fr); align-items: start; gap: .65rem; min-height: 3rem; padding: .75rem 1rem; border-bottom: 1px solid var(--color-border); }
+.chapter-list li:not(.volume) { counter-increment: readable-chapter; }
+.chapter-list li:not(.volume)::before { content: counter(readable-chapter,decimal-leading-zero); padding-top: .08rem; color: var(--color-ink-muted); font-size: .72rem; font-variant-numeric: tabular-nums; line-height: 1.55; text-align: right; }
+.chapter-list li:nth-last-child(-n+2):not(.volume) { border-bottom: 0; }
+.chapter-list a { min-width: 0; color: var(--color-accent-strong); line-height: 1.55; overflow-wrap: anywhere; text-decoration: none; }
+.chapter-list a:hover { text-decoration: underline; text-underline-offset: .18em; }
+.chapter-list .volume { grid-column: 1/-1; grid-template-columns: minmax(0,1fr); min-height: auto; padding-block: .65rem; background: var(--color-paper-muted); color: var(--color-ink-muted); font-size: .78rem; font-weight: 800; line-height: 1.45; overflow-wrap: anywhere; }
+.toc-panel > :deep(.app-button) { margin: .75rem 1rem 1rem; }
+.confirmation { margin-top: 1rem; }
+.confirmation p { color: var(--color-ink-muted); }
+.confirmation div { display: flex; gap: .5rem; }
+.banner-error { padding: .7rem; border-radius: var(--radius-md); background: #f8e4df; color: var(--color-danger); }
 :deep(.recovery) { margin-top: 1rem; }
-@media (max-width: 38rem) { .hero { grid-template-columns: 6rem minmax(0,1fr); gap: 1rem; }.cover { width: 6rem; }.actions { grid-column: 1/-1; }.chapter-list { grid-template-columns: 1fr; } }
+@media (max-width: 38rem) {
+  .hero { grid-template-columns: 6rem minmax(0,1fr); gap: 1rem; }
+  .cover { width: 6rem; }
+  .actions { grid-column: 1/-1; }
+  .toc-header { align-items: baseline; }
+  .chapter-list { grid-template-columns: minmax(0,1fr); }
+  .chapter-list li { grid-template-columns: 2.25rem minmax(0,1fr); padding-inline: .85rem; }
+  .chapter-list li:nth-last-child(-n+2):not(.volume) { border-bottom: 1px solid var(--color-border); }
+  .chapter-list li:last-child:not(.volume) { border-bottom: 0; }
+}
 </style>

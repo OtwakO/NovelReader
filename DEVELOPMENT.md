@@ -1,5 +1,11 @@
 # Development Notes
 
+### [2026-08-14] Book Detail TOC needed owned row geometry
+- **Context**: The Book Detail 目錄 section had loose marker alignment and long Chinese chapter names could escape or overlap adjacent content.
+- **Change**: The TOC now owns its header/body spacing, uses a stable two-column grid with single-column mobile adaptation, replaces browser-controlled ordered-list gutters with aligned tabular chapter counters, gives every title a `minmax(0,1fr)` text track, and applies unrestricted Chinese wrapping inside the row. Volume rows span the section with distinct but quiet treatment.
+- **Reason**: The previous auto-fit list retained the browser's ordered-list marker gutter while links had no constrained overflow policy. Long unbroken titles could size the grid item beyond its track and the marker/link baselines varied by wrapping height.
+- **Verified**: Vue type checking, ESLint, all 63 tests across 24 files, the production build, layout detector, and git diff checks pass. Mocked Playwright tested long Chinese titles at 320×700, 390×844, 768×1024, 1024×768, and 1440×900: titles wrapped within their rows, link bounds stayed inside row bounds, mobile used one column, larger layouts used two columns, document overflow remained false, and the console was clean.
+
 ### [2026-08-14] Search progress counts eligible text sources, not all imports
 - **Context**: With `test_booksource3.json` imported, source recovery reported `50 / 329` even though the file contains more than 400 BookSources, making the progress total appear incomplete.
 - **Change**: Search and source-recovery progress now explicitly labels the denominator as searchable text BookSources in all three locales. BookSource Management now displays the same backend-equivalent searchable count alongside total, enabled, and Explore counts. The frontend eligibility helper mirrors backend filtering: enabled, `bookSourceType == 0`, non-empty `searchUrl`, and non-empty `ruleSearch`.
