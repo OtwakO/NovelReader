@@ -60,6 +60,22 @@ func (c *Client) Do(ctx context.Context, spec sourceexec.RequestSpec) (sourceexe
 	return c.do(ctx, spec, nil)
 }
 
+// Probe verifies the configured worker by creating a real browser context and evaluating a
+// deterministic in-memory page. It does not contact an external website.
+func (c *Client) Probe(ctx context.Context) error {
+	if c == nil {
+		return fmt.Errorf("webview: nil client")
+	}
+	result, err := c.executeWorker(ctx, protocolRequest{Version: protocolVersion, Probe: true, TimeoutMS: int(c.timeout.Milliseconds())})
+	if err != nil {
+		return err
+	}
+	if result.Body != "novelreader-webview-ok" {
+		return fmt.Errorf("webview: worker probe returned unexpected result")
+	}
+	return nil
+}
+
 type sessionTransport struct {
 	client  *Client
 	session *sourceexec.SourceSession

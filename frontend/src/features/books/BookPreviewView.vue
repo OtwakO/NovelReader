@@ -4,10 +4,11 @@ import { previewBook, shelveBook, type BookPreview } from '../../api/books';
 import type { SearchResult } from '../../api/search';
 import AppButton from '../../ui/components/AppButton.vue';
 import FeatureScaffold from '../../ui/components/FeatureScaffold.vue';
+import WebViewFailureHint from '../../ui/components/WebViewFailureHint.vue';
 import { loadPreviewSelection } from '../search/search-preview';
 
 export default defineComponent({
-  name: 'BookPreviewView', components: { AppButton, FeatureScaffold },
+  name: 'BookPreviewView', components: { AppButton, FeatureScaffold, WebViewFailureHint },
   data() { return { candidate: null as SearchResult | null, preview: null as BookPreview | null, loading: true, shelving: false, error: '', shelfError: '', addedBookId: '' }; },
   computed: {
     backRoute(): string { return this.$route.query.from === 'explore' ? '/explore' : '/search'; },
@@ -47,7 +48,7 @@ export default defineComponent({
 <template>
   <FeatureScaffold :title="candidate?.name || $t('bookPreview.title')" :description="$t('bookPreview.description')">
     <p v-if="loading" aria-busy="true">{{ $t('bookPreview.loading') }}</p>
-    <section v-else-if="error" class="state"><p role="alert">{{ error }}</p><RouterLink class="secondary-link" :to="backRoute">{{ backLabel }}</RouterLink></section>
+    <section v-else-if="error" class="state"><p role="alert">{{ error }}</p><WebViewFailureHint /><RouterLink class="secondary-link" :to="backRoute">{{ backLabel }}</RouterLink></section>
     <template v-else-if="candidate && preview">
       <section class="hero">
         <img v-if="preview.book.coverUrl" :src="preview.book.coverUrl" alt="" class="cover">

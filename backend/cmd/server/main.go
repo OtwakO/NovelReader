@@ -87,8 +87,10 @@ func main() {
 		}
 		return transport
 	})
+	var browserClient *webview.Client
 	if cfg.WebViewEndpoint != "" {
-		browserClient, browserErr := webview.NewClient(webview.Config{Endpoint: cfg.WebViewEndpoint})
+		var browserErr error
+		browserClient, browserErr = webview.NewClient(webview.Config{Endpoint: cfg.WebViewEndpoint})
 		if browserErr != nil {
 			log.Fatalf("webview transport: %v", browserErr)
 		}
@@ -118,7 +120,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("recovery HTTP: %v", err)
 	}
-	apiSrv := api.NewAuthenticatedServer(authHandler, readers, searcher, jsVM, limits, procCfg, systemStore)
+	apiSrv := api.NewAuthenticatedServer(authHandler, readers, searcher, jsVM, limits, procCfg, systemStore, browserClient)
 	defer apiSrv.Close()
 	rootMux := applicationMux(apiSrv, authHandler, setupHandler, recoveryHandler, cfg.AdminRecoveryToken != "")
 

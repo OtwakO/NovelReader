@@ -392,3 +392,9 @@
 - **Context**: The worker still used ad hoc `venv` plus pip installation and pinned Patchright 1.59.1 while upstream had released 1.62.1.
 - **Change**: `webview-worker/pyproject.toml` and `uv.lock` now own the exact Patchright 1.62.1 environment. Local Windows/Linux instructions, CI, and the worker image all use frozen uv synchronization; Dependabot is configured for weekly uv updates.
 - **Reason**: A committed uv lock keeps Patchright and its transitive dependencies reproducible while still providing reviewed automated update proposals. An unbounded latest install would make identical source builds produce different browser stacks.
+
+### [2026-08-21] WebView status verifies execution rather than process reachability
+- **Context**: Users could not distinguish a broken browser-required BookSource from a missing or failed Patchright worker.
+- **Change**: The authenticated system diagnostic reports `not_configured`, `unavailable`, or `ready`. A check sends a probe through the same Go-to-worker execution protocol, creates an isolated browser context, renders an in-memory marker page, and reads it back. Settings runs it once on entry and on manual retry; source failure surfaces link to it with conditional wording.
+- **Reason**: Worker `/healthz` only proves process/browser-loop readiness, while an external test URL would add unrelated DNS/site availability. The synthetic execution proves the owned browser boundary without background BookSource monitoring.
+- **Watch out**: This proves current WebView execution capability, not that any individual BookSource is valid or compatible.

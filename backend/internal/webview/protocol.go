@@ -3,7 +3,8 @@ package webview
 
 type protocolRequest struct {
 	Version     int               `json:"version"`
-	URL         string            `json:"url"`
+	Probe       bool              `json:"probe,omitempty"`
+	URL         string            `json:"url,omitempty"`
 	Method      string            `json:"method"`
 	Body        string            `json:"body,omitempty"`
 	Charset     string            `json:"charset,omitempty"`

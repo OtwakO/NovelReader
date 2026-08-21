@@ -144,6 +144,8 @@ class BrowserWorker:
                 pass
 
     async def _execute(self, browser, request: dict, timeout_ms: int) -> dict:
+        if request.get("probe") is True:
+            return await self._probe(browser, timeout_ms)
         target = request.get("url", "")
         if urlparse(target).scheme not in {"http", "https"}:
             return self._error("only HTTP(S) URLs are supported")
@@ -269,6 +271,30 @@ class BrowserWorker:
                     await asyncio.shield(asyncio.wait_for(context.close(), timeout=2))
                 except BaseException:
                     # Cancellation must not strand a live browser context.
+                    pass
+
+    async def _probe(self, browser, timeout_ms: int) -> dict:
+        context = None
+        try:
+            context = await browser.new_context()
+            page = await context.new_page()
+            await page.set_content(
+                "<main id='novelreader-webview-probe'>ready</main>",
+                wait_until="domcontentloaded",
+                timeout=timeout_ms,
+            )
+            marker = await page.locator("#novelreader-webview-probe").text_content()
+            return {
+                "version": PROTOCOL_VERSION,
+                "statusCode": 200,
+                "body": "novelreader-webview-ok" if marker == "ready" else "",
+                "finalUrl": "about:blank",
+            }
+        finally:
+            if context is not None:
+                try:
+                    await asyncio.shield(asyncio.wait_for(context.close(), timeout=2))
+                except BaseException:
                     pass
 
     async def health(self) -> dict:

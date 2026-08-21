@@ -44,6 +44,7 @@ type Server struct {
 	auth         *auth.HTTPHandler
 	runtimes     *readerRuntimeManager
 	health       interface{ PingContext(context.Context) error }
+	webViewProbe interface{ Probe(context.Context) error }
 }
 
 // Mux exposes the underlying ServeMux for static file mounting.
@@ -157,13 +158,14 @@ func (s *Server) registerRoutesWithoutHealth() {
 	s.mux.HandleFunc("POST /api/fonts", s.handleUploadFont)
 	s.mux.HandleFunc("DELETE /api/fonts/{id}", s.handleDeleteFont)
 	s.mux.HandleFunc("GET /api/fonts/{id}/file", s.handleGetFontFile)
+	s.mux.HandleFunc("GET /api/system/webview-status", s.handleWebViewStatus)
 }
 
 // NewAuthenticatedServer creates the production Reader Data boundary.
-func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }) *Server {
+func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, webViewProbe interface{ Probe(context.Context) error }) *Server {
 	s := &Server{
 		fetcher: rootSearcherFetcher(rootSearcher), jsVM: jsVM, cache: analyzer.NewCacheManager(),
-		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health,
+		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health, webViewProbe: webViewProbe,
 	}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, limits, 32, limits.SessionTTL)
 	authHandler.ConfigureDeletionQuiescer(readers, s.runtimes.quiesce)

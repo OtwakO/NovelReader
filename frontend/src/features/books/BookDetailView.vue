@@ -14,6 +14,7 @@ import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
 import SourceRecoveryPanel from "../source-recovery/SourceRecoveryPanel.vue";
 import BookDetailSection from "./BookDetailSection.vue";
 import BookDetailToc from "./BookDetailToc.vue";
+import WebViewFailureHint from "../../ui/components/WebViewFailureHint.vue";
 
 export default defineComponent({
   name: "BookDetailView",
@@ -23,6 +24,7 @@ export default defineComponent({
     BookDetailToc,
     FeatureScaffold,
     SourceRecoveryPanel,
+    WebViewFailureHint,
   },
   data() {
     return {
@@ -261,6 +263,7 @@ export default defineComponent({
           <p class="intro">{{ book.intro }}</p>
         </div>
 </BookDetailSection>
+      <WebViewFailureHint v-if="tocError" />
       <BookDetailToc
         :book-id="book.id"
         :chapters="chapters"

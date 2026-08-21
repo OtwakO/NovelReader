@@ -354,6 +354,7 @@ Tasks:
 - [x] Add explore/discovery using the same executor and rule engine.
 - [ ] Add source editor/import validation and raw JSON round-trip preview.
 - [ ] Add frontend source-debug, source health, and crawl-progress components using typed API contracts.
+- [x] Add an authenticated WebView capability diagnostic that distinguishes unconfigured, unavailable, and verified browser execution without continuously monitoring BookSources; Settings checks on entry and explicit retry, while source-operation failures link to it conditionally.
 - [x] Add reading progress, bookmarks, offline cache, and alternate-source switching without coupling them to source parsing.
 - [x] Add Docker multi-stage build and clean-checkout E2E verification.
 

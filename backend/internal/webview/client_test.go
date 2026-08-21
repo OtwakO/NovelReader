@@ -12,6 +12,28 @@ import (
 	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
+func TestClientProbeUsesWorkerExecutionProtocol(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request protocolRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		if !request.Probe || request.Version != protocolVersion || request.URL != "" {
+			t.Fatalf("probe request=%+v", request)
+		}
+		_ = json.NewEncoder(w).Encode(protocolResponse{Version: protocolVersion, StatusCode: http.StatusOK, Body: "novelreader-webview-ok"})
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{Endpoint: server.URL, Timeout: 3 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Probe(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestClientSendsSessionRequestAndSyncsWorkerResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request protocolRequest

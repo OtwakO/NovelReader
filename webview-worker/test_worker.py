@@ -3,7 +3,7 @@
 import asyncio
 import os
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from browser import (
     BrowserWorker,
@@ -23,6 +23,25 @@ class BrowserWorkerHealthTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((await worker.health())["ok"])
         worker.consumers[0].done = lambda: True
         self.assertFalse((await worker.health())["ok"])
+
+
+class BrowserWorkerProbeTest(unittest.IsolatedAsyncioTestCase):
+    async def test_probe_creates_context_and_evaluates_marker(self) -> None:
+        page = MagicMock()
+        page.set_content = AsyncMock()
+        page.locator.return_value.text_content = AsyncMock(return_value="ready")
+        context = MagicMock()
+        context.new_page = AsyncMock(return_value=page)
+        context.close = AsyncMock()
+        browser = MagicMock()
+        browser.new_context = AsyncMock(return_value=context)
+        worker = BrowserWorker(None, max_pages=1, max_pending=1, max_body_bytes=1024, max_contexts=100)
+
+        result = await worker._execute(browser, {"probe": True}, 1000)
+
+        self.assertEqual(result["body"], "novelreader-webview-ok")
+        browser.new_context.assert_awaited_once()
+        context.close.assert_awaited_once()
 
 
 class SourceRegexTest(unittest.TestCase):
