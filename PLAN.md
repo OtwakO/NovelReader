@@ -546,6 +546,8 @@ The user-approved v7 shared Explore fixes are implemented and live-verified. Wor
 
 **Frontend convenience state:** Shelf query, sorting, and scroll restoration are tab-local UI state in `sessionStorage`, not server-owned Reader Data. Source Switching filtering is frontend-local and never changes discovery cursors, persistence, or source selection. Reader wake lock is an optional device-local progressive enhancement, while fixed keyboard shortcuts are limited to the Reader and guarded around editing, selection, and open overlays.
 
+**Production container deployment:** `docker-compose.yml` is the simple operator-facing deployment contract: it pulls `ghcr.io/otwako/novelreader:latest` and the private-network WebView worker, bind-mounts `./data:/data`, and exposes only common account/origin settings while leaving advanced capacity/resource examples commented beside each service. The app image prepares the bind mount then drops to Compose-configured `PUID:PGID`, so no `.env`, pre-created directory, or host `chown` step is required. The tested `compose.e2e.yaml` remains the local-build/E2E contract. The GHCR workflow publishes `latest` and `edge` on successful `main` pushes plus immutable `sha-*` tags, using the explicitly lowercase `otwako` package namespace.
+
 **Environment notes:** `reference/legado-E` is the primary upstream reference for future Legado behavior because it is the maintained successor fork; `reference/legado` remains supplementary historical compatibility evidence. `test_booksource4.json` is raw test input and must be sampled by stable URL/index identity, never source name alone. Existing server processes must be stopped before live E2E tests.
 
 ## Decisions

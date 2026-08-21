@@ -1,0 +1,63 @@
+name: novelreader
+
+services:
+  app:
+    container_name: novelreader
+    image: ghcr.io/otwako/novelreader:latest
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/data
+    environment:
+      TZ: UTC
+      PUID: "1000"
+      PGID: "1000"
+      PUBLIC_URL: ""
+      ADMIN_BOOTSTRAP_TOKEN: "change-this-before-first-start"
+      ADMIN_RECOVERY_TOKEN: ""
+      REGISTRATION_ENABLED: "false"
+      REGISTRATION_INVITE_CODE: ""
+      WEBVIEW_ENDPOINT: http://webview-worker:8787
+
+      # Optional capacity and diagnostics overrides:
+      # DEBUG: "1"
+      # SEARCH_CONCURRENCY: "16"
+      # GLOBAL_SEARCH_CONCURRENCY: "32"
+      # JS_POOL_SIZE: "4"
+      # MAX_WORKFLOW_SESSIONS: "1024"
+      # SESSION_TTL_MINUTES: "30"
+      # EXPLORE_SOURCE_TIMEOUT_SECONDS: "30"
+    depends_on:
+      webview-worker:
+        condition: service_healthy
+    networks:
+      - novelreader
+
+    # Optional container resource limits:
+    # cpus: 2.0
+    # mem_limit: 4g
+
+  webview-worker:
+    container_name: novelreader-webview
+    image: ghcr.io/otwako/novelreader-webview:latest
+    restart: unless-stopped
+    shm_size: 512m
+    environment:
+      WEBVIEW_WORKER_HOST: 0.0.0.0
+
+      # Optional browser capacity overrides:
+      # WEBVIEW_MAX_PAGES: "2"
+      # WEBVIEW_MAX_PENDING: "8"
+      # WEBVIEW_MAX_CONTEXTS_PER_BROWSER: "100"
+      # WEBVIEW_MAX_BODY_BYTES: "10485760"
+    networks:
+      - novelreader
+
+    # Optional container resource limits:
+    # cpus: 2.0
+    # mem_limit: 4g
+
+networks:
+  novelreader:
+    name: novelreader

@@ -1,5 +1,6 @@
 FROM python:slim
 
+LABEL org.opencontainers.image.source="https://github.com/OtwakO/NovelReader"
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \

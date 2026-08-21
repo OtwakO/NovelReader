@@ -56,14 +56,13 @@ jobs:
           /tmp/novelreader-webview-tests/bin/python -m unittest discover -s . -p 'test_*.py'
           /tmp/novelreader-webview-tests/bin/python -m py_compile browser.py worker.py
 
+      - name: Verify Compose configurations
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f compose.e2e.yaml --profile webview --profile e2e config --quiet
+
       - name: Verify Compose deployment
         run: ./docker-e2e.sh
-
-      - name: Lowercase registry owner
-        id: registry
-        env:
-          OWNER: ${{ github.repository_owner }}
-        run: echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -79,9 +78,10 @@ jobs:
         id: app-meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
-          images: ghcr.io/${{ steps.registry.outputs.owner }}/novelreader
+          images: ghcr.io/otwako/novelreader
           flavor: latest=false
           tags: |
+            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             type=raw,value=edge,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
             type=raw,value=manual,enable=${{ github.event_name == 'workflow_dispatch' }}
@@ -91,9 +91,10 @@ jobs:
         id: worker-meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
-          images: ghcr.io/${{ steps.registry.outputs.owner }}/novelreader-webview
+          images: ghcr.io/otwako/novelreader-webview
           flavor: latest=false
           tags: |
+            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             type=raw,value=edge,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
             type=raw,value=manual,enable=${{ github.event_name == 'workflow_dispatch' }}

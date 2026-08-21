@@ -76,44 +76,75 @@ WEBVIEW_WORKER_PORT=8787 python worker.py
 
 For Docker, build `webview-worker/Dockerfile`; the image binds `0.0.0.0:8787` internally so other containers can reach it. Publish it only on a private network because it accepts arbitrary navigation URLs. Apply resource limits at runtime, for example `docker run --cpus=2 --memory=4g ...`; Dockerfiles cannot enforce deployment resource limits.
 
-## Container deployment
+## Production deployment with Docker Compose
 
-Requirements: Docker Engine and Docker Compose 2.20.2 or newer. The default stack pulls the public `linux/amd64` app image, binds the UI only to `127.0.0.1:8888`, and persists SQLite and downloaded data in the `novelreader-data` named volume:
+Requirements: Docker Engine and Docker Compose 2.20.2 or newer. `run-local.bat` remains the local development path; the root `docker-compose.yml` is the production deployment path and pulls the latest successfully published `main` images:
+
+- `ghcr.io/otwako/novelreader:latest`
+- `ghcr.io/otwako/novelreader-webview:latest`
+
+The production stack starts the private WebView worker by default and persists all application-owned data through the host bind mount `./data:/data`. This includes the system database, per-reader databases, fonts, chapter cache, and SQLite sidecar files. The worker is reachable only by the app on the private Compose network and does not publish a host port. The active Compose contract stays intentionally small; advanced capacity, diagnostics, and container resource examples are commented beside the relevant service and can be enabled individually.
+
+Edit the small `environment` and `ports` sections in `docker-compose.yml`, especially `ADMIN_BOOTSTRAP_TOKEN`, then start the complete stack:
 
 ```bash
 docker compose pull
-docker compose up -d --no-build
+docker compose up -d
+docker compose ps
 curl http://127.0.0.1:8888/api/healthz
 ```
 
-Enable browser-backed sources with the private WebView profile:
+No `.env` file, directory creation, or host `chown` step is required. Docker creates `./data` if needed; the app image prepares it and drops to the configured `PUID`/`PGID` before starting NovelReader.
+
+Before first startup, replace `change-this-before-first-start` in `docker-compose.yml` with a strong temporary setup token. Complete Administrator setup in the browser, clear the value in the Compose file, then recreate the app container:
 
 ```bash
-export WEBVIEW_ENDPOINT=http://webview-worker:8787
-docker compose --profile webview pull
-docker compose --profile webview up -d --no-build
+docker compose up -d --force-recreate app
 ```
 
-The worker has no host port. Do not add one: `POST /execute` can navigate arbitrary URLs. NovelReader normally derives origin policy from the browser `Origin` and preserved request `Host`; this is ergonomic for trusted LAN/tailnet deployments but inherently trusts the requested hostname. Set optional `PUBLIC_URL` to the exact browser-facing HTTP(S) origin if a reverse proxy rewrites `Host`, you want one access URL, or the service is exposed to untrusted browser networks. Override the host app port with `APP_PORT`, image references with `NOVELREADER_IMAGE` and `NOVELREADER_WEBVIEW_IMAGE`, and measured resource ceilings with the variables in `compose.yaml`.
+The default binding publishes port `8888` on the Docker host. Use a host firewall or edit the port mapping to `127.0.0.1:${APP_PORT:-8888}:8888` when only a same-host reverse proxy should reach it. Set `PUBLIC_URL` to the exact browser-facing HTTP(S) origin when a reverse proxy rewrites `Host`, when one canonical URL is required, or when the service is exposed beyond a trusted localhost/LAN/tailnet environment.
 
-To build locally instead of pulling GHCR:
+The app image starts briefly as root only to prepare `/data`, then drops privileges to the `PUID:PGID` configured directly in `docker-compose.yml`. Linux users can set these to `id -u` and `id -g` so bind-mounted files stay owned by their account; Windows Docker Desktop users can normally keep `1000:1000`. Stop the app before copying or archiving `./data` so the SQLite database and WAL/SHM sidecars form a consistent backup:
+
+```bash
+docker compose stop app
+tar -czf novelreader-data-$(date +%F).tar.gz data/
+docker compose start app
+```
+
+Update the production deployment after a successful `main` workflow:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Replace the image tags directly in `docker-compose.yml` with immutable `sha-*` tags when a deployment must stay pinned. The lower-level `compose.e2e.yaml` remains the build/E2E contract and supports named volumes, local image builds, and test profiles; normal operators should use `docker-compose.yml`.
+
+## Container verification and local image builds
+
+The deterministic Compose gate uses `compose.e2e.yaml` to build both images and verify frontend delivery, readiness, private WebView routing, rendered search, graceful shutdown, and persistence without live sites:
+
+```bash
+./docker-e2e.sh
+```
+
+For a manual local container build:
 
 ```bash
 export NOVELREADER_IMAGE=novelreader:local
 export NOVELREADER_WEBVIEW_IMAGE=novelreader-webview:local
-docker compose --profile webview build
-docker compose --profile webview up -d --no-build
+docker compose -f compose.e2e.yaml --profile webview build
+docker compose -f compose.e2e.yaml --profile webview up -d --no-build
 ```
 
-Both containers run as UID/GID 10001. Named volumes work without host preparation; a bind-mounted data directory must be writable by `10001:10001`. Stop the app before copying or archiving `/data` so the SQLite database and sidecar files form a consistent backup.
+Optional CPU and memory limits are shown as commented examples in `docker-compose.yml`; enable and measure them when the host needs explicit container ceilings. The WebView worker accepts arbitrary navigation URLs and must remain private; do not add a host port for it.
 
 ## GHCR publishing
 
-`.github/workflows/publish.yml` verifies all tests and the Compose E2E gate before publishing:
+`.github/workflows/publish.yml` runs on every push to `main`, version tags, and manual dispatch. It verifies backend, frontend, WebView, and Compose E2E behavior before publishing to the explicitly lowercase package namespace:
 
 - `ghcr.io/otwako/novelreader`
 - `ghcr.io/otwako/novelreader-webview`
 
-A `main` push receives `edge` and `sha-*`; a valid `v*` tag receives its semantic version and `sha-*`; manual dispatch receives `manual` and `sha-*`. No `latest` tag is produced. Base images intentionally follow the latest official Node, Go, Alpine, and Python tags; application lockfiles and Patchright remain pinned.
-
-After the first workflow publication, the owner must mark both packages **Public** in GitHub package settings. Until then, authenticate with `docker login ghcr.io`. The repository must have a `main` branch and Actions permission to write packages before the workflow can publish.
+A successful `main` push receives `latest`, `edge`, and immutable `sha-*` tags. A valid `v*` tag receives its semantic version and `sha-*`; manual dispatch receives `manual` and `sha-*`. After the first publication, mark both packages **Public** in GitHub package settings, or authenticate deployments with `docker login ghcr.io`. GitHub Actions must retain `packages: write` permission.

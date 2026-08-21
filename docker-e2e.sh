@@ -11,7 +11,7 @@ export WEBVIEW_ENDPOINT="http://webview-worker:8787"
 export ADMIN_BOOTSTRAP_TOKEN="novelreader-e2e-bootstrap-authority"
 
 compose() {
-  docker compose -f "$ROOT/compose.yaml" --profile webview --profile e2e "$@"
+  docker compose -f "$ROOT/compose.e2e.yaml" --profile webview --profile e2e "$@"
 }
 
 cleanup() {
