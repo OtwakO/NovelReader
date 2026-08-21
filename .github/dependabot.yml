@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /webview-worker
+    schedule:
+      interval: weekly
+    groups:
+      webview-worker-python:
+        patterns:
+          - "*"

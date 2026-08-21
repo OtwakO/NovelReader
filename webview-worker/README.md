@@ -1,30 +1,27 @@
 # Patchright WebView worker
 
-This private sidecar provides the browser boundary used by NovelReader's Go backend.
+This private sidecar provides the browser boundary used by NovelReader's Go backend. Python and
+its virtual environment are managed with [uv](https://docs.astral.sh/uv/); `uv.lock` is the
+reproducible dependency authority.
 
 ## Local process
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-patchright install chromium
-WEBVIEW_WORKER_PORT=8787 python worker.py
+uv python install
+uv sync --frozen
+uv run --frozen --no-sync patchright install chromium
+WEBVIEW_WORKER_PORT=8787 uv run --frozen --no-sync python worker.py
 ```
 
-Direct runs bind `127.0.0.1` by default. Configure the backend with
-`WEBVIEW_ENDPOINT=http://127.0.0.1:8787`.
+`uv sync` installs the Python version selected by `.python-version` when needed and creates or updates `.venv` automatically. Direct runs bind `127.0.0.1` by default.
+Configure the backend with `WEBVIEW_ENDPOINT=http://127.0.0.1:8787`.
 
 ## Container
 
-The public `linux/amd64` image is `ghcr.io/otwako/novelreader-webview`. The image binds
-`0.0.0.0:8787` internally for container networking, runs as UID 10001, and reports readiness at
-`GET /healthz`. Use the root Compose profile rather than publishing its port:
-
-```bash
-export WEBVIEW_ENDPOINT=http://webview-worker:8787
-docker compose --profile webview up -d --no-build
-```
+The public `linux/amd64` image is `ghcr.io/otwako/novelreader-webview`. Its build copies a pinned
+uv binary, installs the exact locked Patchright environment, and installs the matching Chromium.
+The image binds `0.0.0.0:8787` internally for container networking, runs as UID 10001, and reports
+readiness at `GET /healthz`. Use the root Compose deployment rather than publishing its port.
 
 `WEBVIEW_MAX_PAGES` limits concurrent browser contexts, `WEBVIEW_MAX_PENDING` bounds queued
 requests, `WEBVIEW_MAX_CONTEXTS_PER_BROWSER` recycles Chromium after clean usage, and

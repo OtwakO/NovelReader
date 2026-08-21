@@ -48,13 +48,21 @@ jobs:
           npm test
           npm run build
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.11.8"
+          enable-cache: true
+          cache-dependency-glob: webview-worker/uv.lock
+
       - name: Test WebView worker
         working-directory: webview-worker
         run: |
-          python3 -m venv /tmp/novelreader-webview-tests
-          /tmp/novelreader-webview-tests/bin/pip install -r requirements.txt
-          /tmp/novelreader-webview-tests/bin/python -m unittest discover -s . -p 'test_*.py'
-          /tmp/novelreader-webview-tests/bin/python -m py_compile browser.py worker.py
+          uv python install
+          uv sync --frozen
+          uv run --frozen --no-sync python -m unittest discover -s . -p 'test_*.py'
+          uv run --frozen --no-sync python -m py_compile browser.py worker.py
+          uv run --frozen --no-sync python -c "import patchright; print('Patchright import passed')"
 
       - name: Verify Compose configurations
         run: |

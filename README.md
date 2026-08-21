@@ -4,7 +4,7 @@ NovelReader is a web-first novel reader with a Legado-compatible booksource engi
 
 ## Local setup
 
-Requirements: Go, Node.js, and npm.
+Requirements: Go, Node.js, npm, and uv when running the optional WebView worker outside Docker.
 
 ```bash
 cd frontend && npm ci && npm run build
@@ -68,13 +68,13 @@ run-local.bat
 
 ```bash
 cd webview-worker
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
-patchright install chromium
-WEBVIEW_WORKER_PORT=8787 python worker.py
+uv python install
+uv sync --frozen
+uv run --frozen --no-sync patchright install chromium
+WEBVIEW_WORKER_PORT=8787 uv run --frozen --no-sync python worker.py
 ```
 
-For Docker, build `webview-worker/Dockerfile`; the image binds `0.0.0.0:8787` internally so other containers can reach it. Publish it only on a private network because it accepts arbitrary navigation URLs. Apply resource limits at runtime, for example `docker run --cpus=2 --memory=4g ...`; Dockerfiles cannot enforce deployment resource limits.
+`webview-worker/uv.lock` is the reproducible Python dependency authority; do not create a pip-managed environment alongside it. For Docker, build `webview-worker/Dockerfile`; the image uses uv to install that exact lock and binds `0.0.0.0:8787` internally so other containers can reach it. Publish it only on a private network because it accepts arbitrary navigation URLs. Apply resource limits at runtime, for example `docker run --cpus=2 --memory=4g ...`; Dockerfiles cannot enforce deployment resource limits.
 
 ## Production deployment with Docker Compose
 

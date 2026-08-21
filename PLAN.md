@@ -339,7 +339,7 @@ Completion gate passed: preview is non-persistent; descriptions contain no sourc
 Container-delivery tasks:
 
 - [x] Add SQLite-backed `/api/healthz` readiness and graceful SIGTERM/SIGINT shutdown.
-- [x] Add rootless app and worker images from latest official base tags with runtime health checks.
+- [x] Add rootless app and worker images from latest official base tags with runtime health checks; the worker uses a committed uv lock and pinned Patchright/Chromium installation.
 - [x] Add one Compose contract for GHCR deployment, local builds, persistent data, and optional private WebView.
 - [x] Add deterministic clean-checkout Compose verification for frontend, readiness, persistence, shutdown, and WebView routing.
 - [x] Add SHA-pinned GitHub Actions publishing for both lowercase GHCR images on `main`, `v*`, and manual dispatch.
