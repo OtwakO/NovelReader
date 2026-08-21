@@ -28,6 +28,24 @@ type AltSource struct {
 	SourceName string `json:"sourceName"`
 }
 
+// PreviewBook is source-derived detail data without shelf ownership or progress.
+type PreviewBook struct {
+	Name             string      `json:"name"`
+	Author           string      `json:"author,omitempty"`
+	CoverURL         string      `json:"coverUrl,omitempty"`
+	Intro            string      `json:"intro,omitempty"`
+	Kind             string      `json:"kind,omitempty"`
+	SourceURL        string      `json:"sourceUrl"`
+	BookURL          string      `json:"bookUrl"`
+	TocURL           string      `json:"tocUrl,omitempty"`
+	Origin           string      `json:"origin,omitempty"`
+	LastChapter      string      `json:"lastChapter,omitempty"`
+	UpdateTime       string      `json:"updateTime,omitempty"`
+	WordCount        string      `json:"wordCount,omitempty"`
+	DownloadURLs     []string    `json:"downloadUrls,omitempty"`
+	AlternateSources []AltSource `json:"alternateSources,omitempty"`
+}
+
 // Book represents a book on the user's shelf.
 type Book struct {
 	ID           string   `json:"id" db:"id"`
@@ -46,10 +64,11 @@ type Book struct {
 	WordCount    string   `json:"wordCount,omitempty" db:"word_count"`
 	DownloadURLs []string `json:"downloadUrls,omitempty" db:"-"`
 
-	DurChapterIndex int     `json:"durChapterIndex" db:"dur_chapter_index"`
-	DurChapterPos   float64 `json:"durChapterPos" db:"dur_chapter_pos"`
-	TotalChapterNum int     `json:"totalChapterNum" db:"total_chapter_num"`
-	StateVersion    int64   `json:"stateVersion" db:"state_version"`
+	DurChapterIndex     int     `json:"durChapterIndex" db:"dur_chapter_index"`
+	DurChapterPos       float64 `json:"durChapterPos" db:"dur_chapter_pos"`
+	TotalChapterNum     int     `json:"totalChapterNum" db:"total_chapter_num"`
+	StateVersion        int64   `json:"stateVersion" db:"state_version"`
+	CurrentChapterTitle string  `json:"currentChapterTitle,omitempty" db:"-"`
 
 	AlternateSources []AltSource `json:"alternateSources,omitempty" db:"alternate_sources"`
 
@@ -223,6 +242,7 @@ func normalizeIdentityPart(value string, author bool) string {
 // AddBook inserts a book into the shelf. Internal fixtures that intentionally
 // replace an ID retain this low-level behavior; user-facing adds use AddOrMergeBook.
 func (s *Store) AddBook(b *Book) error {
+	b.Intro = NormalizeDescription(b.Intro)
 	now := time.Now().UnixMilli()
 	b.CreatedAt = now
 	b.UpdatedAt = now
@@ -266,6 +286,7 @@ func (s *Store) AddBook(b *Book) error {
 // discovered source bindings into the existing row without changing its ID,
 // current source, reading state, chapters, cache, or bookmarks.
 func (s *Store) AddOrMergeBook(candidate *Book) (*Book, bool, error) {
+	candidate.Intro = NormalizeDescription(candidate.Intro)
 	s.mergeMu.Lock()
 	defer s.mergeMu.Unlock()
 	identityName, identityAuthor := NormalizeBookIdentity(candidate.Name, candidate.Author)
@@ -329,6 +350,105 @@ func (s *Store) AddOrMergeBook(candidate *Book) (*Book, bool, error) {
 		return nil, false, err
 	}
 	return &existing, false, nil
+}
+
+// AddOrMergeBookWithChapters persists a new readable book and its verified TOC
+// atomically. Existing logical books keep their active source and chapters; the
+// validated candidate is merged only as another source binding.
+func (s *Store) AddOrMergeBookWithChapters(candidate *Book, chapters []Chapter) (*Book, bool, error) {
+	s.mergeMu.Lock()
+	defer s.mergeMu.Unlock()
+	candidate.Intro = NormalizeDescription(candidate.Intro)
+	identityName, identityAuthor := NormalizeBookIdentity(candidate.Name, candidate.Author)
+	if identityName == "" {
+		return nil, false, errors.New("book: name is required")
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, false, err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	var existing Book
+	err = scanBookRow(tx.QueryRow(`SELECT `+bookColumns+` FROM books WHERE identity_name = ? AND identity_author = ?`, identityName, identityAuthor), &existing)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, err
+	}
+	if err == nil {
+		discovered := append([]AltSource(nil), existing.AlternateSources...)
+		discovered = append(discovered, AltSource{SourceURL: candidate.SourceURL, BookURL: candidate.BookURL, SourceName: candidate.Origin})
+		discovered = append(discovered, candidate.AlternateSources...)
+		existing.AlternateSources = mergeAlternateSources(existing.SourceURL, existing.BookURL, discovered)
+		alternateJSON, marshalErr := json.Marshal(existing.AlternateSources)
+		if marshalErr != nil {
+			return nil, false, marshalErr
+		}
+		if _, err := tx.Exec(`UPDATE books SET alternate_sources = ?, updated_at = ? WHERE id = ?`, string(alternateJSON), time.Now().UnixMilli(), existing.ID); err != nil {
+			return nil, false, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, false, err
+		}
+		return &existing, false, nil
+	}
+
+	now := time.Now().UnixMilli()
+	candidate.CreatedAt = now
+	candidate.UpdatedAt = now
+	candidate.TotalChapterNum = len(chapters)
+	candidate.AlternateSources = mergeAlternateSources(candidate.SourceURL, candidate.BookURL, candidate.AlternateSources)
+	alternateJSON, err := json.Marshal(candidate.AlternateSources)
+	if err != nil {
+		return nil, false, err
+	}
+	if _, err := tx.Exec(`INSERT INTO books (
+		id, name, author, identity_name, identity_author, cover_url, intro, kind,
+		source_url, book_url, toc_url, origin, variable_map,
+		last_chapter, update_time, word_count,
+		dur_chapter_index, dur_chapter_pos, total_chapter_num, state_version,
+		alternate_sources, created_at, updated_at
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		candidate.ID, candidate.Name, candidate.Author, identityName, identityAuthor,
+		candidate.CoverURL, candidate.Intro, candidate.Kind,
+		candidate.SourceURL, candidate.BookURL, candidate.TocURL, candidate.Origin, candidate.VariableMap,
+		candidate.LastChapter, candidate.UpdateTime, candidate.WordCount,
+		candidate.DurChapterIndex, candidate.DurChapterPos, candidate.TotalChapterNum, candidate.StateVersion,
+		string(alternateJSON), candidate.CreatedAt, candidate.UpdatedAt,
+	); err != nil {
+		return nil, false, err
+	}
+	for index := range chapters {
+		chapter := chapters[index]
+		chapter.BookID = candidate.ID
+		if chapter.ID == "" {
+			chapter.ID = fmt.Sprintf("%s_%d", candidate.ID, chapter.Index)
+		}
+		if _, err := tx.Exec(`INSERT INTO chapters (id, book_id, idx, title, url, is_vip, is_volume, is_pay, base_url, tag, word_count, cached) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+			chapter.ID, chapter.BookID, chapter.Index, chapter.Title, chapter.URL, boolToInt(chapter.IsVip), boolToInt(chapter.IsVolume), boolToInt(chapter.IsPay), chapter.BaseURL, chapter.Tag, chapter.WordCount, boolToInt(chapter.Cached)); err != nil {
+			return nil, false, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, false, err
+	}
+	return candidate, true, nil
+}
+
+// ClearBookSources removes discovered alternate bindings without changing the
+// active source or reading state.
+func (s *Store) ClearBookSources(bookID string) (*Book, error) {
+	s.mergeMu.Lock()
+	defer s.mergeMu.Unlock()
+	result, err := s.db.Exec(`UPDATE books SET alternate_sources = '[]', updated_at = ? WHERE id = ?`, time.Now().UnixMilli(), bookID)
+	if err != nil {
+		return nil, err
+	}
+	if affected, err := result.RowsAffected(); err != nil {
+		return nil, err
+	} else if affected == 0 {
+		return nil, ErrBookNotFound
+	}
+	return s.GetBook(bookID)
 }
 
 // MergeBookSources adds source bindings to an existing shelf book without
@@ -403,12 +523,12 @@ func (s *Store) DeleteBook(id string) error {
 
 // ListBooks returns all books on the shelf.
 func (s *Store) ListBooks() ([]Book, error) {
-	rows, err := s.db.Query(`SELECT ` + bookColumns + ` FROM books ORDER BY updated_at DESC`)
+	rows, err := s.db.Query(`SELECT ` + bookColumns + `, COALESCE((SELECT title FROM chapters WHERE book_id = books.id AND idx = books.dur_chapter_index LIMIT 1), '') FROM books ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanBooks(rows)
+	return scanShelfBooks(rows)
 }
 
 // GetBook returns a single book by ID.
@@ -509,6 +629,18 @@ func scanBooks(rows *sql.Rows) ([]Book, error) {
 	return list, rows.Err()
 }
 
+func scanShelfBooks(rows *sql.Rows) ([]Book, error) {
+	var list []Book
+	for rows.Next() {
+		b, err := scanBookFromScannerWithCurrentChapter(rows)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, *b)
+	}
+	return list, rows.Err()
+}
+
 func scanBookRow(row *sql.Row, b *Book) error {
 	loaded, err := scanBookFromScanner(row)
 	if err != nil {
@@ -524,22 +656,34 @@ type scanner interface {
 }
 
 func scanBookFromScanner(s scanner) (*Book, error) {
+	return scanBook(s, false)
+}
+
+func scanBookFromScannerWithCurrentChapter(s scanner) (*Book, error) {
+	return scanBook(s, true)
+}
+
+func scanBook(s scanner, includeCurrentChapter bool) (*Book, error) {
 	var b Book
 	var altSourcesStr string
-	// Scan order MUST match bookColumns (explicit column list, not SELECT *).
-	if err := s.Scan(
+	destinations := []interface{}{
 		&b.ID, &b.Name, &b.Author, &b.CoverURL, &b.Intro, &b.Kind,
 		&b.SourceURL, &b.BookURL, &b.TocURL, &b.Origin, &b.VariableMap,
 		&b.LastChapter, &b.UpdateTime, &b.WordCount,
 		&b.DurChapterIndex, &b.DurChapterPos, &b.TotalChapterNum, &b.StateVersion,
 		&altSourcesStr,
 		&b.CreatedAt, &b.UpdatedAt,
-	); err != nil {
+	}
+	if includeCurrentChapter {
+		destinations = append(destinations, &b.CurrentChapterTitle)
+	}
+	if err := s.Scan(destinations...); err != nil {
 		return nil, err
 	}
 	if altSourcesStr != "" && altSourcesStr != "[]" {
 		json.Unmarshal([]byte(altSourcesStr), &b.AlternateSources)
 	}
+	b.Intro = NormalizeDescription(b.Intro)
 	return &b, nil
 }
 

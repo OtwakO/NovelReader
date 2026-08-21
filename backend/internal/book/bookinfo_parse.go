@@ -54,7 +54,7 @@ func (s *Searcher) parseBookInfoResponse(ctx context.Context, src booksource.Boo
 	book.LastChapter = readField(rules["lastChapter"])
 	bookData["lastChapter"] = book.LastChapter
 	bookData["latestChapterTitle"] = book.LastChapter
-	book.Intro = readField(rules["intro"])
+	book.Intro = NormalizeDescription(readField(rules["intro"]))
 	bookData["intro"] = book.Intro
 	book.CoverURL = resolveURL(readField(rules["coverUrl"]), baseURL)
 	bookData["coverUrl"] = book.CoverURL

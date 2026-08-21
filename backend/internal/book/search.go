@@ -432,7 +432,7 @@ func applySearchResultToBook(book *Book, result SearchResult) {
 	book.Name = result.Name
 	book.Author = result.Author
 	book.CoverURL = result.CoverURL
-	book.Intro = result.Intro
+	book.Intro = NormalizeDescription(result.Intro)
 	book.Kind = result.Kind
 	book.LastChapter = result.LastChapter
 	book.UpdateTime = result.UpdateTime
@@ -566,7 +566,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 			case "coverUrl":
 				r.CoverURL = value
 			case "intro":
-				r.Intro = value
+				r.Intro = NormalizeDescription(value)
 			case "kind":
 				r.Kind = value
 			case "lastChapter":

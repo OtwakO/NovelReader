@@ -80,7 +80,7 @@ func TestGetBookInfoAppliesInitBeforeDetailRules(t *testing.T) {
 
 func TestGetBookInfoForBookRespectsCanReName(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`<h1 class="name">Detail Name</h1><span class="author">Detail Author</span><p class="intro">Detail Intro</p>`))
+		_, _ = w.Write([]byte(`<h1 class="name">Detail Name</h1><span class="author">Detail Author</span><div class="intro">Detail&nbsp;Intro<br>Second line</div>`))
 	}))
 	defer server.Close()
 
@@ -107,7 +107,7 @@ func TestGetBookInfoForBookRespectsCanReName(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
 			rule, err := json.Marshal(map[string]string{
-				"name": ".name@text", "author": ".author@text", "intro": ".intro@text", "canReName": test.canReName,
+				"name": ".name@text", "author": ".author@text", "intro": ".intro@html", "canReName": test.canReName,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -117,8 +117,8 @@ func TestGetBookInfoForBookRespectsCanReName(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if book.Name != test.wantName || book.Author != test.wantAuthor || book.Intro != "Detail Intro" {
-				t.Fatalf("book=%+v, want name=%q author=%q and updated intro", book, test.wantName, test.wantAuthor)
+			if book.Name != test.wantName || book.Author != test.wantAuthor || book.Intro != "Detail Intro\nSecond line" {
+				t.Fatalf("book=%+v, want name=%q author=%q and normalized intro", book, test.wantName, test.wantAuthor)
 			}
 		})
 	}
