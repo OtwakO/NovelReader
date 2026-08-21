@@ -369,3 +369,15 @@
 - **Change**: Exact matches are now merged into a shelved book as each batch returns; persisted alternates seed the refreshed UI; **Rescan sources** clears only alternate bindings and restarts scanning from the first batch.
 - **Reason**: Working source bindings are durable book data, while scan cursor/progress is disposable workflow state.
 - **Verified**: Focused API persistence/clear tests, 13 source-discovery/frontend wiring tests, affected Go package tests, and production frontend build.
+
+### [2026-08-21] Router test timeout came from timed module transformation
+- **Context**: The unauthenticated-route test intermittently exceeded Vitest's five-second per-test timeout only in the full parallel suite, while the route behavior passed independently.
+- **Change**: The production router now has a `createAppRouter(pinia)` factory and the test creates an isolated router directly instead of calling `vi.resetModules()` and dynamically importing the complete eager route/component graph inside the timed test body. The assertion itself now completes in milliseconds.
+- **Reason**: Module reset moved several seconds of Vite transformation into the test timeout; under full-suite contention that setup crossed five seconds even though navigation was correct.
+- **Verified**: Five isolated runs passed with 9–14 ms test bodies; three full-suite stress runs passed all 84 tests. Frontend test scripts disable Node 25's experimental process-global Web Storage so Vitest/jsdom owns `localStorage` and `sessionStorage` without Node's invalid `--localstorage-file` warning.
+
+### [2026-08-21] Generic Traditional conversion owns an intentional lazy dictionary chunk
+- **Context**: Vite warned that the lazy `opencc-js/cn2t` chunk was larger than 500 kB.
+- **Change**: The build keeps generic phrase-aware Traditional conversion lazy and adds explicit bundle budgets: ordinary JavaScript chunks remain capped at 500 KiB, while only the known OpenCC `cn2t` chunk receives a 1120 KiB allowance.
+- **Reason**: OpenCC's `STPhrases` dictionary is approximately 1 MB unminified and provides approved phrase conversion such as `软件 → 軟件`, `后台 → 後臺`, and `这里 → 這裏`. Replacing it with the much smaller character-only dictionary would silently reduce conversion quality; globally raising the warning limit would hide unrelated regressions.
+- **Watch out**: Original mode does not load OpenCC. The Traditional chunk remains on-demand; review this budget if the conversion library or product mode changes. Frontend Vite and Vitest scripts disable Node 25's experimental process-global Web Storage so browser/jsdom storage remains authoritative and local commands do not emit the unrelated invalid `--localstorage-file` warning.

@@ -299,6 +299,17 @@ These findings were not all in the revised top-15 ordering, but must remain trac
 - **Required classifications:** `supported`, `partial`, `preserved-only`, or `unsupported`.
 - **Acceptance:** No current field remains unclassified; each supported/partial field links to its implementation/test, and preserved-only fields state their fallback behavior.
 
+### LC-031 — Support generic typed `data:` BookSource requests
+
+- **Status:** Design analyzed; implementation not approved
+- **Priority:** High for aggregated/gateway BookSources
+- **Primary reference:** Use maintained successor fork `reference/legado-E` for current semantics; retain `reference/legado` as historical context.
+- **Fixture:** `test_光遇聚合_aggregated_booksource.json` uses ordinary Legado primitives to carry Search, Detail, TOC, and Content state through `data:;base64,...,{"type":"..."}` URLs. Labels such as `gysearch` are opaque and must not receive source-specific dispatch.
+- **Current gap:** NovelReader preserves URL-option `type` and builds the synthetic URL, but routes every non-WebView request into HTTP; it does not decode data bytes into the Legado-compatible hexadecimal response body. `java.hexDecodeToString`, contextual `java.get/put`, and `book.getVariable` also need focused compatibility slices.
+- **Architecture:** Add a bounded generic in-memory request path behind the existing `sourceexec` request/response interface, then close exact bridge/context gaps. Do not add a GuangYu adapter or aggregate-source domain type.
+- **Separate structural work:** Durable per-reader source variables/settings remain distinct from encrypted login credentials and from optional source-defined login UI, browser verification, comments, media modes, and external bookshelf synchronization.
+- **Detailed analysis:** `docs/LEGADO_E_AGGREGATED_BOOKSOURCE_ANALYSIS.md`.
+
 ## Audit qualifications that must not be lost
 
 - **CSS:** Common CSS works; explicit CSS is not fully Jsoup-compatible.
