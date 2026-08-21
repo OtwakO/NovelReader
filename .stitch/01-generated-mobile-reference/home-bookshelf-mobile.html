@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>NovelReader - 书架</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        :root {
+            --color-paper-base: #f9f7f1;
+            --color-ink-deep: #2c2925;
+            --color-ink-muted: #5e5953;
+            --color-ink-blue: #3d5a80;
+            --color-ochre: #d68c45;
+            --color-surface: #ffffff;
+            --color-surface-container: #f0ece1;
+            --color-border-quiet: #e6e2d6;
+            --color-warning-bg: #fff5e6;
+            --color-warning-text: #b35900;
+        }
+
+        body {
+            background-color: var(--color-paper-base);
+            color: var(--color-ink-deep);
+            font-family: 'Noto Sans SC', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            padding-top: 4rem; /* For fixed top bar */
+            padding-bottom: 5rem; /* For fixed bottom nav */
+        }
+
+        h1, h2, h3, .book-title {
+            font-family: 'Noto Serif SC', serif;
+        }
+
+        .text-ink-deep { color: var(--color-ink-deep); }
+        .text-ink-muted { color: var(--color-ink-muted); }
+        .text-ink-blue { color: var(--color-ink-blue); }
+        .text-ochre { color: var(--color-ochre); }
+
+        .bg-paper-base { background-color: var(--color-paper-base); }
+        .bg-surface { background-color: var(--color-surface); }
+        .bg-surface-container { background-color: var(--color-surface-container); }
+        .bg-ink-blue { background-color: var(--color-ink-blue); }
+        .bg-ochre { background-color: var(--color-ochre); }
+
+        .border-quiet { border-color: var(--color-border-quiet); }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .line-clamp-1 {
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Subtle shadow for floating elements, avoiding heavy modern shadows */
+        .shadow-soft {
+            box-shadow: 0 4px 12px rgba(44, 41, 37, 0.05);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-paper-base relative min-h-screen">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full bg-paper-base flex items-center justify-between px-4 md:px-6 h-16 z-50 border-b border-quiet">
+<div class="flex items-center gap-4">
+<button class="p-2 -ml-2 text-ink-muted hover:bg-surface-container rounded-full transition-colors active:scale-95 duration-150">
+<span class="material-symbols-outlined">sync</span>
+</button>
+<h1 class="font-bold text-xl text-ink-deep tracking-wide book-title">NovelReader</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-ink-muted hover:bg-surface-container rounded-full transition-colors active:scale-95 duration-150">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</header>
+<main class="max-w-4xl mx-auto px-4 sm:px-6 py-4">
+<!-- Source Recovery Alert -->
+<div class="mb-6 bg-[#fff5e6] border border-[#ffe0b2] rounded-xl p-4 flex items-start gap-3 shadow-sm">
+<span class="material-symbols-outlined text-[#b35900] mt-0.5">error</span>
+<div class="flex-1">
+<h3 class="font-medium text-[#b35900] text-sm">《庆余年》当前书源失效</h3>
+<p class="text-[#b35900] text-xs opacity-80 mt-1">已找到 3 个可用来源，请及时更换以保证正常阅读。</p>
+</div>
+<button class="shrink-0 text-sm font-medium text-[#b35900] bg-[#ffe0b2] hover:bg-[#ffcc80] px-3 py-1.5 rounded-full transition-colors">
+                查看并恢复
+            </button>
+</div>
+<!-- Continue Reading (Hero) -->
+<section class="mb-8">
+<h2 class="text-lg font-medium text-ink-deep mb-3 book-title">继续阅读</h2>
+<div class="bg-surface rounded-2xl p-5 shadow-soft border border-quiet flex flex-col md:flex-row gap-5 relative overflow-hidden">
+<!-- Subtle texture overlay -->
+<div class="absolute inset-0 opacity-[0.02] pointer-events-none" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E');"></div>
+<div class="w-24 h-32 md:w-32 md:h-44 shrink-0 rounded-lg overflow-hidden shadow-sm border border-quiet relative">
+<img class="w-full h-full object-cover" data-alt="A detailed digital painting of a serene Chinese fantasy landscape. Mist rolls over lush, ancient pine-covered mountains. A solitary figure in simple robes sits meditating on a rocky outcropping, bathed in soft, warm dawn light. The style is reminiscent of traditional Chinese ink wash painting fused with modern concept art, emphasizing calm, ethereal atmosphere and muted, natural tones of deep greens, greys, and pale morning yellow." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHLyt783jn0mVXHend-qsDgqSQCECWBwueFLQaNNBXHKG90LFlwklCfEjJ56DDSjWQZ6jYDW2LHFmc3QklGhPm33VBeYVKHTC2kkGhxa-3da7ywq1eozC23KYelUjofLMaKuTG-rPt-dPKDZaz064-TPCRlqPvDF5ok3vKF2NB8zx6461IbRCzierMdj0hukJQNdwRgGFUtrf2A4u6XPf8_w2PM65cBDYRjkUB08JZyeeJ5QGQl0ixv4CEdAJCIrDg_mqQ70N68HI"/>
+</div>
+<div class="flex-1 flex flex-col justify-between z-10">
+<div>
+<div class="flex justify-between items-start mb-1">
+<h3 class="text-xl md:text-2xl font-bold text-ink-deep book-title">凡人修仙传</h3>
+<span class="text-xs text-ink-muted bg-surface-container px-2 py-1 rounded">忘语</span>
+</div>
+<p class="text-sm text-ink-muted mb-4 mt-2">第二章 青牛镇</p>
+<div class="space-y-1.5 mb-5 md:mb-0">
+<div class="flex justify-between text-xs text-ink-muted">
+<span>阅读进度</span>
+<span>12%</span>
+</div>
+<div class="w-full bg-surface-container rounded-full h-1.5 overflow-hidden">
+<div class="bg-ochre h-1.5 rounded-full" style="width: 12%"></div>
+</div>
+</div>
+</div>
+<button class="w-full md:w-auto mt-4 md:mt-0 self-end bg-ink-blue hover:bg-opacity-90 text-white font-medium py-2.5 px-6 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[20px]">menu_book</span>
+                        继续阅读
+                    </button>
+</div>
+</div>
+</section>
+<!-- My Library Grid -->
+<section>
+<div class="flex justify-between items-end mb-4">
+<h2 class="text-lg font-medium text-ink-deep book-title">我的书架</h2>
+<button class="text-sm text-ink-blue flex items-center gap-1 hover:opacity-80">
+<span class="material-symbols-outlined text-[18px]">sort</span>
+<span>最近阅读</span>
+</button>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
+<!-- Book 1 -->
+<div class="group cursor-pointer">
+<div class="relative aspect-[3/4] rounded-lg overflow-hidden shadow-sm border border-quiet mb-2 transition-transform group-hover:-translate-y-1 group-active:translate-y-0">
+<img class="w-full h-full object-cover" data-alt="A moody, atmospheric cover art piece for a Victorian-era cosmic horror story. A lone silhouette holding a lantern stands on a cobblestone street enveloped in thick, swirling fog. Faint, otherworldly geometric patterns subtle glow in the dark sky above. The color palette features deep, inky blacks, cool slate greys, and a single point of warm, eerie yellow light from the lantern. Detailed, painterly style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDrW5Uv7vO3FrOcm9cP7A6rH0Q3P1XdMb561l8uhWEtUSSZwkGxZcHL4MlHRKjEH2jdQwg94Nq6dt-Gr-ootvB7oNCSrl3XTToKtuiFRWETFcXmKdK4LCqCYTSUPCyh40wBFHYxM-hC_nDrMZBZjg2Ikpj4dLINusaCi-ntltSXAjE4NgU-6drzzsusZetUBDocOHTJ1O1R1lSaqWupmI9jBSvihvG-tSkfzogJQ-NJfhpJPgPvplTnFdqS1tEc82qB9eoXGyJlszg"/>
+<div class="absolute top-0 right-0 bg-ochre text-white text-[10px] font-bold px-1.5 py-0.5 rounded-bl-lg">
+                            更新
+                        </div>
+</div>
+<h3 class="font-medium text-sm text-ink-deep line-clamp-1 book-title">诡秘之主</h3>
+<p class="text-xs text-ink-muted mt-0.5">爱潜水的乌贼</p>
+</div>
+<!-- Book 2 -->
+<div class="group cursor-pointer">
+<div class="relative aspect-[3/4] rounded-lg overflow-hidden shadow-sm border border-quiet mb-2 transition-transform group-hover:-translate-y-1 group-active:translate-y-0">
+<img class="w-full h-full object-cover" data-alt="A dynamic, high-fantasy illustration of an ancient Chinese city at twilight. A watchtower looms in the foreground, with a figure dressed in traditional detective robes leaning against the rail, looking out over the sprawling, lantern-lit roofs. The sky is a gradient of deep violet and warm orange. The style is detailed digital illustration, vibrant yet grounded, with strong lighting contrasts and rich textures." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB88GURMkD264rlnUx3TZZGI_YvSLvcPr52BFRJZubCUlpFc-l47wpbl8LEW6i9yR_QfCTsSsgYm37JRNVX_lWcy60mtY8BfQRMfyfUX3ZrRnpdfmhOhnWYwTAa7tvNoXxOpKPI5k4zzxrJ061Ud9eFDivI3TfD99qWyRQGnHD1PaQv88LV3GyIr44izljbyTG-fU7aRJPRLnk0TAiCfoi_zavBNSQTFErgSx4YsB_sJ5AGoAIGq5IPTP7AbseSyxOFo6CsTE-IQbQ"/>
+</div>
+<h3 class="font-medium text-sm text-ink-deep line-clamp-1 book-title">大奉打更人</h3>
+<p class="text-xs text-ink-muted mt-0.5">卖报小郎君</p>
+</div>
+<!-- Book 3 (Source Error) -->
+<div class="group cursor-pointer">
+<div class="relative aspect-[3/4] rounded-lg overflow-hidden shadow-sm border border-[#ffe0b2] mb-2 transition-transform group-hover:-translate-y-1 group-active:translate-y-0 opacity-80">
+<img class="w-full h-full object-cover grayscale-[30%]" data-alt="A serene, historical Chinese drama conceptual art piece. A finely crafted wooden desk holds scattered parchment, a brush, and an ornate, slightly glowing jade piece. Soft, diffused light filters through a paper screen window, casting long shadows. The color palette is composed of warm wood tones, parchment creams, and deep ink blacks. Elegant, detailed, and slightly melancholic atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBjiY3vlgR4YK_glIkrDCLOE97Vo9ZO4QwUrmCPHkglE1UZxJTeFs2YjHj-_htYzbBn3JlV3qy5nj4mR6qBS5why37z13MJ8LAwyZ3uIEX79zumL9ZJvxKOe4HWDEHkXEQe9ZnzKqpNhComGRmAC1_tFc2us0VfRO__XJ4IVqw8sMmarvx4r08sEvuiks_8NRhP7gZiDvAzhoV3Rp0u6rRCXGRiBL7CJr02E0Zl_MettxEPeYePnFuZlJegkfIKDWAQqtoGR1zFekQ"/>
+<div class="absolute inset-0 bg-black/10 flex items-center justify-center">
+<div class="bg-surface/90 backdrop-blur-sm px-2 py-1 rounded text-xs text-[#b35900] font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">error</span>
+                                源失效
+                            </div>
+</div>
+</div>
+<h3 class="font-medium text-sm text-ink-deep line-clamp-1 book-title">庆余年</h3>
+<p class="text-xs text-ink-muted mt-0.5">猫腻</p>
+</div>
+<!-- Book 4 -->
+<div class="group cursor-pointer">
+<div class="relative aspect-[3/4] rounded-lg overflow-hidden shadow-sm border border-quiet mb-2 transition-transform group-hover:-translate-y-1 group-active:translate-y-0">
+<img class="w-full h-full object-cover" data-alt="A surreal, dark fantasy illustration depicting a distorted, ancient temple. Eerie, unnatural flora twists around crumbling stone pillars. A figure with obscured features stands in the center, surrounded by floating, glowing talismans written in blood red. The atmosphere is tense, unsettling, and mysterious. The color palette is dominated by deep, murky greens, stark blacks, and sharp, contrasting crimson accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5l-2uH8UK_gtTMpMAHvlQa2H1gOF9MG5Zzf3bq1co_e5CGPvc85_M_KUpdBsMFBmWFPQbX1iA-XBUULB0GS1Cm911ZBsT5LJ3kJEDvmNZYM3IKUuf1pW7XzLyeL4of-XVkO4SpJOP1suVMYp96zI-Oy4qwv0-eBpH9MqqvJOtclqrjFLuDRH0C6kMBGt13MGg_11hp8XOSxRZ0rka4Un3auHWvOjNHT62dkXs42c2Jt4VpGzqj7wQ_BU0deuJWAy9Bwxa3mO4C0M"/>
+</div>
+<h3 class="font-medium text-sm text-ink-deep line-clamp-1 book-title">道诡异仙</h3>
+<p class="text-xs text-ink-muted mt-0.5">狐尾的笔</p>
+</div>
+<!-- Import Placeholder -->
+<div class="group cursor-pointer flex flex-col h-full">
+<div class="relative aspect-[3/4] rounded-lg border-2 border-dashed border-quiet mb-2 transition-colors group-hover:border-ink-blue flex flex-col items-center justify-center bg-surface/50 text-ink-muted group-hover:text-ink-blue">
+<span class="material-symbols-outlined text-3xl mb-2">add_circle</span>
+<span class="text-sm font-medium">导入本地书</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center h-16 pb-safe px-2 bg-paper-base border-t border-quiet md:hidden">
+<button class="flex flex-col items-center justify-center bg-[#e0e7f1] text-[#2c3e50] rounded-full px-5 py-1.5 active:scale-90 duration-200 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">library_books</span>
+<span class="font-medium text-xs mt-0.5">书架</span>
+</button>
+<button class="flex flex-col items-center justify-center text-ink-muted hover:text-ink-blue px-4 py-1 active:scale-90 duration-200 transition-all">
+<span class="material-symbols-outlined">explore</span>
+<span class="text-xs mt-0.5">发现</span>
+</button>
+<button class="flex flex-col items-center justify-center text-ink-muted hover:text-ink-blue px-4 py-1 active:scale-90 duration-200 transition-all">
+<span class="material-symbols-outlined">search</span>
+<span class="text-xs mt-0.5">搜索</span>
+</button>
+</nav>
+<!-- Navigation Drawer (Desktop/Tablet) -->
+<nav class="hidden md:flex flex-col fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-paper-base border-r border-quiet pt-8 z-40">
+<div class="px-4 mb-4 text-xs font-bold text-ink-muted uppercase tracking-wider">导航</div>
+<a class="flex items-center gap-4 bg-[#e0e7f1] text-[#2c3e50] font-medium rounded-full px-6 py-3 my-1 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">library_books</span>
+            书架
+        </a>
+<a class="flex items-center gap-4 text-ink-muted hover:bg-surface-container rounded-full px-6 py-3 my-1 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">explore</span>
+            发现
+        </a>
+<a class="flex items-center gap-4 text-ink-muted hover:bg-surface-container rounded-full px-6 py-3 my-1 mx-2 transition-all" href="#">
+<span class="material-symbols-outlined">search</span>
+            搜索
+        </a>
+</nav>
+</body></html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>NovelReader - 凡人修仙传</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;700&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        'paper': {
+                            100: '#FDFBF7',
+                            200: '#FAF7F0',
+                            300: '#F5EFE0',
+                        },
+                        'ink': {
+                            DEFAULT: '#2A2A2A',
+                            light: '#4A4A4A',
+                            muted: '#6E6E6E'
+                        },
+                        'accent': {
+                            DEFAULT: '#4C6E85', // Muted ink blue
+                            ochre: '#A67C52' // Restrained ochre
+                        }
+                    },
+                    fontFamily: {
+                        "headline": ["Noto Serif SC", "Noto Serif", "serif"],
+                        "display": ["Noto Serif SC", "Noto Serif", "serif"],
+                        "body": ["Noto Sans SC", "Noto Sans", "sans-serif"],
+                        "prose": ["Noto Serif SC", "Noto Serif", "serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+        .prose-text {
+            text-align: justify;
+            text-justify: inter-ideograph;
+            text-indent: 2em;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-paper-200 text-ink font-body h-screen flex flex-col overflow-hidden antialiased">
+<!-- Top Control Bar (Visible State) -->
+<div class="fixed top-0 left-0 w-full z-40 bg-paper-100/95 backdrop-blur-sm shadow-sm pt-safe-top transition-transform duration-300 transform translate-y-0">
+<div class="flex items-center justify-between px-4 h-14">
+<button aria-label="返回" class="p-2 -ml-2 text-ink-light hover:text-ink active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-2xl">arrow_back_ios_new</span>
+</button>
+<div class="flex-1 min-w-0 text-center px-4">
+<h1 class="font-headline font-bold text-lg text-ink truncate">凡人修仙传</h1>
+<p class="text-xs text-ink-muted truncate mt-0.5">第二章 青牛镇</p>
+</div>
+<div class="flex items-center space-x-1 -mr-2">
+<button aria-label="添加书签" class="p-2 text-ink-light hover:text-ink active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[26px]">bookmark_add</span>
+</button>
+<button aria-label="更多操作" class="p-2 text-ink-light hover:text-ink active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[26px]">more_vert</span>
+</button>
+</div>
+</div>
+<!-- Source Context Badge -->
+<div class="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-paper-300/80 backdrop-blur text-[10px] text-ink-muted px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">public</span>
+<span>有度中文（优+）</span>
+</div>
+</div>
+<!-- Main Reading Canvas -->
+<div class="flex-1 overflow-y-auto pb-40 pt-20 px-6 sm:px-12 md:max-w-2xl md:mx-auto relative" id="reading-canvas">
+<!-- Error Banner (Mock partial failure) -->
+<div class="mb-8 bg-paper-300/50 rounded-lg p-3 flex flex-col sm:flex-row items-center justify-between gap-3 border border-accent-ochre/20">
+<div class="flex items-center gap-2 text-accent-ochre text-sm">
+<span class="material-symbols-outlined text-[18px]">warning</span>
+<span>部分图片加载失败</span>
+</div>
+<button class="text-xs text-accent bg-paper-100 px-3 py-1.5 rounded-full shadow-sm hover:bg-paper-200 active:scale-95 transition-transform">
+                尝试重新加载
+            </button>
+</div>
+<!-- Chapter Content -->
+<article class="font-prose text-lg sm:text-xl leading-[1.8] sm:leading-loose text-ink">
+<h2 class="text-2xl sm:text-3xl font-bold mb-8 text-center text-ink-light tracking-wide font-headline" style="text-indent: 0;">第二章 青牛镇</h2>
+<p class="prose-text mb-6">韩立的家乡，在越国建州青牛镇的某一个偏僻小山村里。</p>
+<p class="prose-text mb-6">像他这样在村里土生土长的孩子，如果没有什么意外，也许就会和其他人一样，在村里平平静静的度过一生。</p>
+<p class="prose-text mb-6">最多在长大些后，从镇上找个差不多的大闺女做老婆，生几个胖娃娃，老老实实的种那几亩薄田。</p>
+<p class="prose-text mb-6">但这仅仅是如果没有意外发生的话！</p>
+<p class="prose-text mb-6">在韩立十岁那年，村里来了一位神秘的客人。这位客人自称是韩立远房的表叔，要带走村里的几个孩子去城里见见世面，顺便学点手艺。</p>
+<p class="prose-text mb-6">村里的人一开始自然是不信的，但在那位表叔拿出了几锭白花花的银子，并在村长家大摆了一桌酒席后，村民们的疑虑也就渐渐打消了。</p>
+<p class="prose-text mb-6">韩立的父亲，一个老实巴交的庄稼汉，在几杯黄汤下肚后，便迷迷糊糊地答应了让韩立跟着这位表叔走。</p>
+<p class="prose-text mb-6">于是，韩立的命运，在那个初秋的早晨，发生了翻天覆地的变化。</p>
+<p class="prose-text mb-6">离开村子的那天，天空阴沉沉的，似乎预示着前路的艰难与未卜。韩立回头望了望渐渐远去的小山村，心中涌起一股莫名的酸楚与不舍。</p>
+<p class="prose-text mb-6">他不知道，等待着他的将是怎样的风雨，但他知道，自己必须坚强，因为他已经没有退路了。</p>
+</article>
+<!-- Chapter Ending -->
+<div class="mt-12 text-center pb-8 border-b border-paper-300">
+<p class="text-ink-muted text-sm font-body mb-6 tracking-widest">· 本章完 ·</p>
+<!-- Source Failure Simulation (Next Chapter Failed) -->
+<div class="mb-6 p-4 rounded-xl bg-paper-300/40 border border-red-900/10 flex flex-col items-center">
+<p class="text-sm text-ink-light mb-3">下一章加载失败 · 尝试其他书源</p>
+<div class="flex gap-4">
+<button class="flex items-center gap-1 px-4 py-2 bg-paper-100 rounded-full shadow-sm text-sm text-accent hover:bg-paper-200 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">refresh</span>
+                        重试当前书源
+                    </button>
+<button class="flex items-center gap-1 px-4 py-2 bg-accent text-white rounded-full shadow-sm text-sm hover:bg-accent/90 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">swap_horiz</span>
+                        切换书源
+                    </button>
+</div>
+</div>
+<button class="w-full max-w-xs mx-auto block py-4 px-6 bg-paper-300 hover:bg-paper-300/80 active:bg-paper-300/60 text-ink rounded-2xl shadow-sm transition-colors text-lg font-medium active:scale-95">
+                加载下一章
+            </button>
+</div>
+</div>
+<!-- Bottom Control Bar (Visible State) -->
+<div class="fixed bottom-0 left-0 w-full z-40 bg-paper-100/95 backdrop-blur-md shadow-[0_-4px_12px_rgba(0,0,0,0.05)] pb-safe-bottom transition-transform duration-300 transform translate-y-0 rounded-t-2xl">
+<!-- Progress Slider Area -->
+<div class="px-6 pt-5 pb-3">
+<div class="flex items-center gap-4">
+<span class="text-xs text-ink-muted w-10 text-right font-mono">12%</span>
+<div class="flex-1 relative h-6 flex items-center group cursor-pointer">
+<div class="absolute w-full h-1 bg-paper-300 rounded-full overflow-hidden">
+<div class="h-full bg-accent w-[12%] rounded-full"></div>
+</div>
+<!-- Thumb -->
+<div class="absolute left-[12%] w-4 h-4 bg-white border-2 border-accent rounded-full shadow-md transform -translate-x-1/2 group-hover:scale-110 transition-transform"></div>
+</div>
+<span class="text-xs text-ink-muted w-12 text-left font-mono">34/280</span>
+</div>
+</div>
+<!-- Navigation & Actions -->
+<div class="px-2 pb-2">
+<div class="grid grid-cols-5 gap-1">
+<!-- Source -->
+<button class="flex flex-col items-center justify-center p-2 text-ink-light hover:text-accent active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl mb-1">source</span>
+<span class="text-[10px]">书源</span>
+</button>
+<!-- Prev Chapter -->
+<button class="flex flex-col items-center justify-center p-2 text-ink-light hover:text-accent active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl mb-1">skip_previous</span>
+<span class="text-[10px]">上一章</span>
+</button>
+<!-- TOC -->
+<button class="flex flex-col items-center justify-center p-2 text-ink-light hover:text-accent active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[28px] mb-1">list</span>
+<span class="text-[10px] font-medium">目录</span>
+</button>
+<!-- Next Chapter -->
+<button class="flex flex-col items-center justify-center p-2 text-ink-light hover:text-accent active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl mb-1">skip_next</span>
+<span class="text-[10px]">下一章</span>
+</button>
+<!-- Settings -->
+<button class="flex flex-col items-center justify-center p-2 text-ink-light hover:text-accent active:scale-95 transition-all">
+<span class="material-symbols-outlined text-2xl mb-1">settings</span>
+<span class="text-[10px]">设置</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Ambient Overlay for reading focus (Mock interaction script) -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('reading-canvas');
+            const topBar = document.querySelector('.top-0');
+            const bottomBar = document.querySelector('.bottom-0');
+
+            let controlsVisible = true;
+
+            // Simple mock toggle for controls visibility on center tap
+            canvas.addEventListener('click', (e) => {
+                // Ignore clicks near edges or on specific interactive elements inside canvas
+                if (e.target.closest('button')) return;
+
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+
+                // If clicked roughly in the middle 60% of the screen
+                if (x > rect.width * 0.2 && x < rect.width * 0.8) {
+                    controlsVisible = !controlsVisible;
+                    if (controlsVisible) {
+                        topBar.classList.remove('-translate-y-full');
+                        bottomBar.classList.remove('translate-y-full');
+                    } else {
+                        topBar.classList.add('-translate-y-full');
+                        bottomBar.classList.add('translate-y-full');
+                    }
+                }
+            });
+        });
+    </script>
+</body></html>

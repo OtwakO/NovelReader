@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>NovelReader - 发现</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&amp;family=Public+Sans:wght@400;500;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            paper: "#fcfaf2",
+                            ink: "#2c2c2c",
+                            primary: "#1a3a5a",
+                            ochre: "#c48b5d",
+                            border: "#e5e3dc",
+                            subtle: "#f3f0e6"
+                        }
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        "headline": ["Noto Serif", "serif"],
+                        "display": ["Noto Serif", "serif"],
+                        "body": ["Public Sans", "sans-serif"],
+                        "label": ["Public Sans", "sans-serif"]
+                    },
+                    spacing: {
+                        'safe': 'env(safe-area-inset-bottom)'
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #fcfaf2;
+            color: #2c2c2c;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1;
+        }
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e5e3dc;
+            border-radius: 4px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body antialiased min-h-screen flex flex-col pb-24 md:pb-0">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-40 flex items-center justify-between px-4 h-16 w-full bg-[#fcfaf2] dark:bg-stone-900 shadow-sm">
+<button aria-label="Menu" class="w-11 h-11 flex items-center justify-center text-[#2c2c2c] dark:text-stone-100 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors duration-200">
+<span class="material-symbols-outlined text-2xl">menu</span>
+</button>
+<h1 class="font-headline font-bold text-xl text-[#2c2c2c] dark:text-stone-100">发现</h1>
+<button aria-label="Settings" class="w-11 h-11 flex items-center justify-center text-[#2c2c2c] dark:text-stone-100 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors duration-200">
+<span class="material-symbols-outlined text-2xl">tune</span>
+</button>
+</header>
+<main class="flex-1 w-full max-w-3xl mx-auto px-4 py-6 md:px-8 space-y-8">
+<!-- Segmented Control -->
+<div class="bg-brand-subtle p-1 flex rounded-lg">
+<button class="flex-1 py-2 px-4 text-center text-sm font-bold bg-white text-brand-primary rounded-md shadow-sm transition-all">
+                搜索
+            </button>
+<button class="flex-1 py-2 px-4 text-center text-sm font-medium text-stone-600 hover:text-brand-primary transition-all">
+                书源发现
+            </button>
+</div>
+<!-- Search Input Area -->
+<section class="space-y-4">
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-stone-400">search</span>
+<input class="w-full h-14 pl-12 pr-12 bg-white border border-brand-border rounded-xl text-lg text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all shadow-sm" placeholder="输入书名、作者或关键词" type="text" value="凡人修仙传"/>
+<button class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-stone-400 hover:text-brand-ink rounded-full">
+<span class="material-symbols-outlined text-xl">close</span>
+</button>
+</div>
+<div class="flex justify-between items-center px-1">
+<p class="text-xs text-stone-500 font-medium">正在搜索全部 286 个已启用书源</p>
+<button class="flex items-center space-x-1 text-xs text-brand-primary hover:opacity-80">
+<span>搜索设置</span>
+<span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+</div>
+</section>
+<!-- Streaming Search Status -->
+<section class="bg-white border border-brand-border rounded-xl p-4 shadow-sm space-y-4">
+<div class="flex justify-between items-center">
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-brand-primary animate-spin">refresh</span>
+<h3 class="font-headline font-bold text-brand-ink">搜索进行中...</h3>
+</div>
+<button class="text-sm font-medium text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">
+                    停止搜索
+                </button>
+</div>
+<div class="h-1.5 w-full bg-brand-subtle rounded-full overflow-hidden">
+<div class="h-full bg-brand-primary rounded-full transition-all duration-500" style="width: 30%;"></div>
+</div>
+<p class="text-sm text-stone-600">已检查 84 / 286 个书源 · 找到 6 个结果</p>
+</section>
+<!-- Search Results List -->
+<section class="space-y-4 pb-8">
+<h2 class="font-headline font-bold text-lg text-brand-ink px-1 border-b border-brand-border pb-2">搜索结果</h2>
+<!-- Result Item 1 -->
+<article class="flex space-x-4 bg-white p-4 rounded-xl shadow-sm border border-brand-border hover:shadow-md transition-shadow">
+<div class="w-20 h-28 flex-shrink-0 bg-brand-subtle rounded-md overflow-hidden relative border border-brand-border shadow-sm">
+<div class="bg-cover bg-center w-full h-full opacity-90" data-alt="A classic Chinese fantasy (Xianxia) novel cover depicting a lone figure standing on a misty mountain peak. Ethereal glowing swords hover around him. The background is painted in soft watercolor-like strokes with deep indigo and muted ochre tones, creating a calm yet mysterious atmosphere." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDB3oiwgWhBrb9pP_5QdVYjIhUnA3DBNFcBsg0-6k1oAJBiCYy-Zt3u-wwphilJ8b5rTiRM7buSyueBZKi84mTvI9-AOPnXYa34zDMYTgh8BfgD1q9_cmfOrxLvPOc0S8jhtQqlGG0rrIL7VLEU33vpMhr3ZRr3qVp5wuPzTg6pXFuvmpEAjbdtWkXPccW5CmU9BbvhWwY6c_pvQI6kz23mnNoNR04NSJCR2VZNHZ7r3KGzOXdpX9ti5EPcqpREty_XS6yMzF9QNuE')"></div>
+</div>
+<div class="flex-1 flex flex-col min-w-0">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-headline font-bold text-lg text-brand-ink truncate pr-2">凡人修仙传</h3>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-brand-subtle text-brand-primary border border-brand-primary/10 whitespace-nowrap">
+                            12 个书源
+                        </span>
+</div>
+<p class="text-sm text-stone-500 mb-2 truncate">忘语</p>
+<p class="text-xs text-stone-600 line-clamp-2 leading-relaxed mb-auto">一个普通山村穷小子，偶然之下，跨入到一个江湖小门派，成了一名记名弟子。他以这样身份，如何在门派中立足,如何以平庸的资质进入到修仙者的行列？</p>
+<div class="flex justify-between items-end mt-3">
+<p class="text-[11px] text-brand-ochre flex items-center max-w-[50%]">
+<span class="material-symbols-outlined text-[14px] mr-1">history</span>
+<span class="truncate">第二千四百四十六章 飞升仙界</span>
+</p>
+<div class="flex space-x-2">
+<button class="px-3 py-1.5 text-xs font-medium text-brand-primary border border-brand-border rounded-md hover:bg-brand-subtle transition-colors">
+                                详情
+                            </button>
+<button class="px-3 py-1.5 text-xs font-medium bg-brand-primary text-white rounded-md hover:bg-brand-primary/90 transition-colors shadow-sm flex items-center">
+<span class="material-symbols-outlined text-[14px] mr-1">add</span> 书架
+                            </button>
+</div>
+</div>
+</div>
+</article>
+<!-- Error Notice (Low Interference) -->
+<div class="flex items-center justify-between py-3 px-4 bg-stone-50 rounded-lg border border-stone-200">
+<div class="flex items-center space-x-2 text-stone-500">
+<span class="material-symbols-outlined text-sm">info</span>
+<span class="text-xs">17 个书源请求失败，搜索仍可继续。</span>
+</div>
+<button class="text-xs font-medium text-stone-600 underline underline-offset-2 hover:text-brand-ink">
+                    查看详情
+                </button>
+</div>
+<!-- Result Item 2 -->
+<article class="flex space-x-4 bg-white p-4 rounded-xl shadow-sm border border-brand-border hover:shadow-md transition-shadow">
+<div class="w-16 h-24 flex-shrink-0 bg-brand-subtle rounded-md border border-brand-border flex items-center justify-center">
+<span class="font-headline text-2xl text-stone-300">仙</span>
+</div>
+<div class="flex-1 flex flex-col min-w-0">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-headline font-bold text-base text-brand-ink truncate pr-2">凡人修仙之仙界篇</h3>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-100 text-stone-600 whitespace-nowrap">
+                            8 个书源
+                        </span>
+</div>
+<p class="text-sm text-stone-500 mb-2 truncate">忘语</p>
+<p class="text-xs text-stone-600 line-clamp-1 leading-relaxed mb-auto">凡人修仙传仙界篇，韩立在仙界的故事...</p>
+<div class="flex justify-end items-end mt-3 space-x-2">
+<button class="px-3 py-1.5 text-xs font-medium text-brand-primary bg-brand-primary/5 rounded-md hover:bg-brand-primary/10 transition-colors">
+                            详情
+                        </button>
+</div>
+</div>
+</article>
+<!-- Result Item 3 -->
+<article class="flex space-x-4 bg-white p-4 rounded-xl shadow-sm border border-brand-border hover:shadow-md transition-shadow">
+<div class="w-16 h-24 flex-shrink-0 bg-brand-subtle rounded-md border border-brand-border flex items-center justify-center">
+<span class="font-headline text-2xl text-stone-300">魔</span>
+</div>
+<div class="flex-1 flex flex-col min-w-0">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-headline font-bold text-base text-brand-ink truncate pr-2">魔天记</h3>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-100 text-stone-600 whitespace-nowrap">
+                            5 个书源
+                        </span>
+</div>
+<p class="text-sm text-stone-500 mb-2 truncate">忘语</p>
+<div class="flex justify-end items-end mt-auto pt-2 space-x-2">
+<button class="px-3 py-1.5 text-xs font-medium text-brand-primary bg-brand-primary/5 rounded-md hover:bg-brand-primary/10 transition-colors">
+                            详情
+                        </button>
+</div>
+</div>
+</article>
+<!-- Load More -->
+<div class="pt-6 pb-4 flex justify-center">
+<button class="flex items-center space-x-2 px-6 py-3 bg-white border border-brand-border rounded-full shadow-sm hover:bg-brand-subtle hover:text-brand-primary transition-all text-sm font-medium text-stone-600">
+<span class="material-symbols-outlined text-lg">radar</span>
+<span>继续扫描剩余 185 个书源</span>
+</button>
+</div>
+</section>
+</main>
+<!-- Bottom Nav Bar (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-16 pb-safe bg-[#fcfaf2] dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 shadow-[0_-1px_3px_rgba(0,0,0,0.05)] md:hidden">
+<!-- 书架 -->
+<button class="flex flex-col items-center justify-center text-stone-500 dark:text-stone-400 hover:text-[#1a3a5a] dark:hover:text-blue-200 active:scale-95 transition-transform w-16 h-full">
+<span class="material-symbols-outlined mb-1">library_books</span>
+<span class="font-body text-[10px]">书架</span>
+</button>
+<!-- 发现 (Active) -->
+<button class="flex flex-col items-center justify-center text-[#1a3a5a] dark:text-blue-200 font-bold active:scale-95 transition-transform w-16 h-full relative">
+<div class="absolute -top-1 w-8 h-1 bg-[#1a3a5a] rounded-b-full"></div>
+<span class="material-symbols-outlined mb-1 icon-fill">explore</span>
+<span class="font-body text-[10px]">发现</span>
+</button>
+<!-- 搜索 -->
+<button class="flex flex-col items-center justify-center text-stone-500 dark:text-stone-400 hover:text-[#1a3a5a] dark:hover:text-blue-200 active:scale-95 transition-transform w-16 h-full">
+<span class="material-symbols-outlined mb-1">search</span>
+<span class="font-body text-[10px]">搜索</span>
+</button>
+</nav>
+</body></html>

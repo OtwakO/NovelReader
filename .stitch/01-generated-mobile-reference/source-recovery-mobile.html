@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>NovelReader - 书源恢复</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&amp;family=Noto+Sans:wght@400;500;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        'paper-cream': '#FCFAF2',
+                        'ink-deep': '#2C2C2C',
+                        'ink-muted': '#5D5D5D',
+                        'accent-blue': '#1A3A5A',
+                        'accent-ochre': '#B38B4D',
+                        'error-soft': '#D9534F',
+                        'success-soft': '#4CAF50',
+                        'surface-overlay': 'rgba(0,0,0,0.4)',
+                        'sheet-bg': '#F4ECD8',
+                        'sheet-bg-alt': '#EBE0C8',
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "3xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        "headline": ["Noto Serif", "serif"],
+                        "display": ["Noto Serif", "serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                        "label": ["Noto Sans", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .filled-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+
+        /* Custom scrollbar for sheet */
+        .sheet-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .sheet-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .sheet-scroll::-webkit-scrollbar-thumb {
+            background: rgba(44, 44, 44, 0.2);
+            border-radius: 4px;
+        }
+
+        /* Progress bar animation */
+        @keyframes scanProgress {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 30%; } /* Representing actual progress */
+        }
+        .animate-progress {
+            animation: scanProgress 2s ease-out forwards;
+        }
+
+        /* Skeleton loading shimmer */
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+        .shimmer {
+            background: linear-gradient(to right, #EBE0C8 4%, #F4ECD8 25%, #EBE0C8 36%);
+            background-size: 1000px 100%;
+            animation: shimmer 2s infinite linear;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-paper-cream font-body text-ink-deep overflow-hidden selection:bg-accent-ochre/30 selection:text-ink-deep">
+<!-- Dimmed Background Context (Simulating Book Detail) -->
+<div aria-hidden="true" class="fixed inset-0 z-0 flex flex-col pt-safe px-4">
+<div class="flex items-center gap-4 py-4 opacity-40">
+<span class="material-symbols-outlined text-2xl">arrow_back</span>
+</div>
+<div class="flex-1 opacity-20 filter blur-sm transition-all duration-500">
+<div class="flex gap-6 mt-4">
+<div class="w-24 h-32 bg-sheet-bg-alt rounded shadow-sm relative overflow-hidden shimmer">
+</div>
+<div class="flex-1 space-y-3">
+<div class="h-6 w-3/4 bg-sheet-bg-alt rounded shimmer"></div>
+<div class="h-4 w-1/2 bg-sheet-bg-alt rounded shimmer"></div>
+<div class="h-4 w-1/4 bg-sheet-bg-alt rounded shimmer"></div>
+</div>
+</div>
+<div class="mt-8 space-y-4">
+<div class="h-4 w-full bg-sheet-bg-alt rounded shimmer"></div>
+<div class="h-4 w-5/6 bg-sheet-bg-alt rounded shimmer"></div>
+<div class="h-4 w-4/6 bg-sheet-bg-alt rounded shimmer"></div>
+</div>
+</div>
+</div>
+<!-- Overlay Backdrop -->
+<div class="fixed inset-0 bg-surface-overlay z-40 backdrop-blur-[2px] transition-opacity duration-300"></div>
+<!-- Bottom Sheet -->
+<div aria-labelledby="sheet-title" aria-modal="true" class="fixed bottom-0 left-0 right-0 z-50 h-[751px] bg-paper-cream rounded-t-3xl shadow-2xl flex flex-col transform transition-transform duration-300 ease-out translate-y-0" role="dialog">
+<!-- Drag Handle Area -->
+<div class="w-full flex justify-center pt-3 pb-2 touch-none cursor-grab active:cursor-grabbing" id="drag-handle">
+<div class="w-12 h-1.5 bg-ink-muted/30 rounded-full"></div>
+</div>
+<!-- Header -->
+<header class="px-5 pb-4 border-b border-ink-muted/10 shrink-0 flex items-start justify-between relative">
+<div>
+<h1 class="font-headline text-xl font-bold flex items-center gap-2" id="sheet-title">
+                    书源恢复
+                    <span class="text-sm font-body font-normal text-ink-muted bg-sheet-bg-alt px-2 py-0.5 rounded-full">凡人修仙传</span>
+</h1>
+<p class="text-sm text-ink-muted mt-1">切换书源会保留当前章节与阅读进度</p>
+</div>
+<button aria-label="关闭面板" class="w-11 h-11 flex items-center justify-center rounded-full hover:bg-sheet-bg-alt active:bg-sheet-bg transition-colors">
+<span class="material-symbols-outlined text-ink-deep">close</span>
+</button>
+</header>
+<!-- Scrollable Content -->
+<div class="flex-1 overflow-y-auto overscroll-y-contain sheet-scroll px-5 py-4 space-y-6">
+<!-- Current Status (Failed) -->
+<section aria-labelledby="status-title">
+<h2 class="sr-only" id="status-title">当前书源状态</h2>
+<div class="bg-[#FFF8F8] border border-error-soft/20 rounded-xl p-4 shadow-sm relative overflow-hidden">
+<!-- Subtle red accent line -->
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-error-soft/50"></div>
+<div class="flex justify-between items-start">
+<div class="flex items-start gap-3">
+<div class="w-8 h-8 rounded-full bg-error-soft/10 flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-error-soft text-[18px]">error</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h3 class="font-bold text-base">有度轻说（优+）</h3>
+<span class="text-[10px] bg-error-soft/10 text-error-soft px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">Failed</span>
+</div>
+<p class="text-sm text-ink-muted mt-1">目录为空 · <span class="opacity-75">10:24 尝试</span></p>
+</div>
+</div>
+<button class="min-h-[44px] px-4 rounded-lg bg-white border border-error-soft/30 text-error-soft text-sm font-medium hover:bg-error-soft/5 active:bg-error-soft/10 transition-colors shadow-sm whitespace-nowrap">
+                            重新尝试
+                        </button>
+</div>
+<!-- Foldable Error Details (Mocked as slightly expanded) -->
+<details class="mt-3 group text-xs text-ink-muted/80">
+<summary class="cursor-pointer list-none flex items-center gap-1 select-none w-fit hover:text-ink-muted transition-colors">
+<span class="material-symbols-outlined text-[16px] transition-transform group-open:rotate-90">chevron_right</span>
+                            错误详情
+                        </summary>
+<div class="mt-2 p-2 bg-white/50 rounded font-mono text-[10px] break-all border border-black/5">
+                            [NetworkError] Failed to fetch TOC from https://api.youdu.com/book/1234/toc. Server responded with 404 Not Found.
+                        </div>
+</details>
+</div>
+</section>
+<!-- Scanning Area -->
+<section aria-labelledby="scan-title" class="space-y-3">
+<h2 class="sr-only" id="scan-title">扫描进度</h2>
+<div class="flex items-center justify-between text-sm">
+<div class="flex items-center gap-2 text-ink-deep font-medium">
+<span class="material-symbols-outlined text-accent-blue animate-spin text-lg" style="animation-duration: 2s;">sync</span>
+<span>已扫描 84 / 286 个书源</span>
+</div>
+<span class="text-success-soft font-bold text-xs bg-success-soft/10 px-2 py-1 rounded">找到 8 个可用</span>
+</div>
+<div class="h-2 w-full bg-sheet-bg-alt rounded-full overflow-hidden">
+<div class="h-full bg-accent-blue rounded-full animate-progress" style="width: 30%;"></div>
+</div>
+<div class="flex justify-between items-center pt-1">
+<button class="text-xs text-ink-muted hover:text-ink-deep flex items-center gap-1 min-h-[32px] px-2 -ml-2 rounded transition-colors active:bg-sheet-bg-alt">
+<span class="material-symbols-outlined text-[16px]">stop_circle</span>停止扫描
+                    </button>
+<button class="text-xs text-ink-muted hover:text-ink-deep flex items-center gap-1 min-h-[32px] px-2 -mr-2 rounded transition-colors active:bg-sheet-bg-alt">
+                        清除并重扫<span class="material-symbols-outlined text-[16px]">refresh</span>
+</button>
+</div>
+</section>
+<!-- Available Sources List -->
+<section aria-labelledby="sources-title" class="pb-safe">
+<div class="flex items-center justify-between mb-3 sticky top-0 bg-paper-cream/95 backdrop-blur py-2 z-10 -mx-5 px-5">
+<h2 class="font-headline font-bold text-lg" id="sources-title">可用书源</h2>
+<!-- Filters -->
+<div class="flex gap-2">
+<button class="text-xs bg-accent-blue text-white px-3 min-h-[28px] rounded-full font-medium shadow-sm active:scale-95 transition-transform">优选验证</button>
+<button class="text-xs bg-sheet-bg-alt text-ink-deep px-3 min-h-[28px] rounded-full font-medium active:scale-95 transition-transform">速度</button>
+<button class="text-xs bg-sheet-bg-alt text-ink-deep px-3 min-h-[28px] rounded-full font-medium active:scale-95 transition-transform">最新</button>
+</div>
+</div>
+<div class="space-y-3">
+<!-- Source Item 1 (Recommended) -->
+<div class="bg-white border border-accent-ochre/30 rounded-xl p-3 shadow-sm relative overflow-hidden flex flex-col gap-3">
+<div class="absolute top-0 right-0 bg-accent-ochre text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg rounded-tr-xl">推荐</div>
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-bold text-base flex items-center gap-1.5">
+                                    有度中文（优+）
+                                    <span class="material-symbols-outlined text-success-soft text-[16px] filled-icon" title="已验证内容">verified</span>
+</h3>
+<div class="flex items-center gap-2 mt-1 text-xs text-ink-muted">
+<span class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">bolt</span>极速</span>
+<span>·</span>
+<span>最新: 第五百四十一章 仙界降临</span>
+</div>
+</div>
+<button class="min-h-[44px] min-w-[72px] rounded-lg bg-accent-blue text-white text-sm font-bold hover:bg-accent-blue/90 active:bg-accent-blue/80 transition-colors shadow-sm mt-1">
+                                切换
+                            </button>
+</div>
+</div>
+<!-- Source Item 2 -->
+<div class="bg-white border border-ink-muted/10 rounded-xl p-3 shadow-sm flex flex-col gap-3">
+<div class="flex justify-between items-center">
+<div>
+<h3 class="font-bold text-base flex items-center gap-1.5">
+                                    趣悦小说（优++）
+                                    <span class="material-symbols-outlined text-success-soft text-[16px] filled-icon">verified</span>
+</h3>
+<div class="flex items-center gap-2 mt-1 text-xs text-ink-muted">
+<span class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">bolt</span>快</span>
+<span>·</span>
+<span>最新: 第五百四十章 破阵</span>
+</div>
+</div>
+<button class="min-h-[44px] min-w-[72px] rounded-lg bg-sheet-bg border border-ink-muted/20 text-ink-deep text-sm font-medium hover:bg-sheet-bg-alt active:bg-ink-muted/10 transition-colors">
+                                切换
+                            </button>
+</div>
+</div>
+<!-- Source Item 3 -->
+<div class="bg-white border border-ink-muted/10 rounded-xl p-3 shadow-sm flex flex-col gap-3 opacity-90">
+<div class="flex justify-between items-center">
+<div>
+<h3 class="font-bold text-base flex items-center gap-1.5">
+                                    快眼看书（优+）
+                                    <span class="material-symbols-outlined text-success-soft text-[16px] filled-icon">verified</span>
+</h3>
+<div class="flex items-center gap-2 mt-1 text-xs text-ink-muted">
+<span class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">speed</span>中等</span>
+<span>·</span>
+<span>最新: 第五百四十章 破阵</span>
+</div>
+</div>
+<button class="min-h-[44px] min-w-[72px] rounded-lg bg-sheet-bg border border-ink-muted/20 text-ink-deep text-sm font-medium hover:bg-sheet-bg-alt active:bg-ink-muted/10 transition-colors">
+                                切换
+                            </button>
+</div>
+</div>
+<!-- Source Item 4 -->
+<div class="bg-white border border-ink-muted/10 rounded-xl p-3 shadow-sm flex flex-col gap-3 opacity-80">
+<div class="flex justify-between items-center">
+<div>
+<h3 class="font-bold text-base flex items-center gap-1.5">
+                                    天悦小说（优）
+                                    <span class="material-symbols-outlined text-success-soft/70 text-[16px] filled-icon">verified</span>
+</h3>
+<div class="flex items-center gap-2 mt-1 text-xs text-ink-muted">
+<span class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[14px]">speed</span>中等</span>
+<span>·</span>
+<span>最新: 第五百三十九章 埋伏</span>
+</div>
+</div>
+<button class="min-h-[44px] min-w-[72px] rounded-lg bg-sheet-bg border border-ink-muted/20 text-ink-deep text-sm font-medium hover:bg-sheet-bg-alt active:bg-ink-muted/10 transition-colors">
+                                切换
+                            </button>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</body></html>

@@ -1,0 +1,72 @@
+{
+  "project": {
+    "id": "1217726380924687511",
+    "name": "NovelReader UI/UX Prototype"
+  },
+  "designSystem": {
+    "id": "7956945968155925501",
+    "name": "NovelReader Chinese Parchment"
+  },
+  "screens": [
+    {
+      "id": "cbcd612399f64f6d8381b635562b71f8",
+      "name": "home-bookshelf-mobile",
+      "title": "首页 - NovelReader",
+      "deviceType": "MOBILE",
+      "model": "GEMINI_3_1_PRO",
+      "width": 780,
+      "height": 3184,
+      "html": "01-generated-mobile-reference/home-bookshelf-mobile.html",
+      "screenshot": "01-generated-mobile-reference/home-bookshelf-mobile.png"
+    },
+    {
+      "id": "5bff3d93e4d9437fba4da85e79eebc9e",
+      "name": "discover-search-mobile",
+      "title": "发现与搜索 - NovelReader",
+      "deviceType": "MOBILE",
+      "model": "GEMINI_3_1_PRO",
+      "width": 780,
+      "height": 2640,
+      "html": "01-generated-mobile-reference/discover-search-mobile.html",
+      "screenshot": "01-generated-mobile-reference/discover-search-mobile.png"
+    },
+    {
+      "id": "9aab6584f5e2403d9c5b2853491f2fc4",
+      "name": "book-detail-mobile",
+      "title": "书籍详情 - 凡人修仙传",
+      "deviceType": "MOBILE",
+      "model": "GEMINI_3_1_PRO",
+      "width": 780,
+      "height": 2276,
+      "html": "01-generated-mobile-reference/book-detail-mobile.html",
+      "screenshot": "01-generated-mobile-reference/book-detail-mobile.png"
+    },
+    {
+      "id": "4929f747c9fb40dc8a71f8d1bdf0f4b6",
+      "name": "reader-mobile",
+      "title": "阅读器 - 凡人修仙传",
+      "deviceType": "MOBILE",
+      "model": "GEMINI_3_1_PRO",
+      "width": 780,
+      "height": 1768,
+      "html": "01-generated-mobile-reference/reader-mobile.html",
+      "screenshot": "01-generated-mobile-reference/reader-mobile.png"
+    },
+    {
+      "id": "07fc483a70934b51977e2c9875068c74",
+      "name": "source-recovery-mobile",
+      "title": "书源恢复 - 凡人修仙传",
+      "deviceType": "MOBILE",
+      "model": "GEMINI_3_1_PRO",
+      "width": 780,
+      "height": 1768,
+      "html": "01-generated-mobile-reference/source-recovery-mobile.html",
+      "screenshot": "01-generated-mobile-reference/source-recovery-mobile.png"
+    }
+  ],
+  "prototype": {
+    "entry": "02-interactive-prototype/runtime/index.html",
+    "state": "in-memory only",
+    "productionIntegration": false
+  }
+}

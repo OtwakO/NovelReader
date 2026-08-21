@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>书籍详情 - 凡人修仙传</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Noto Serif (Headline/Display) & Public Sans (Body/Label) -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700;900&amp;family=Public+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        // Custom NovelReader Palette mapped to standard names for system use, though we rely on specific hexes per instructions if needed, but system config says DO NOT USE ARBITRARY.
+                        // Using provided semantic names if possible, but I will map paper-cream to surface, deep ink to on-surface, etc.
+                        'paper-base': '#fcfaf2',
+                        'paper-sheet': '#fdfdf9',
+                        'ink-primary': '#2c2c2c',
+                        'ink-secondary': '#5c5c5c',
+                        'ink-blue': '#4a6b8c', // Muted ink blue for focus
+                        'ochre-accent': '#c28c46', // Restrained ochre
+
+                        'primary': '#4a6b8c',
+                        'on-primary': '#ffffff',
+                        'primary-container': '#d3e4f5',
+                        'on-primary-container': '#1a334d',
+
+                        'secondary': '#c28c46',
+                        'on-secondary': '#ffffff',
+                        'secondary-container': '#fcebd5',
+                        'on-secondary-container': '#4d300e',
+
+                        'surface': '#fdfdf9',
+                        'surface-variant': '#e8e6df',
+                        'on-surface': '#2c2c2c',
+                        'on-surface-variant': '#5c5c5c',
+                        'outline': '#b5b3ad',
+                        'outline-variant': '#d6d4ce',
+
+                        'error': '#ba1a1a',
+                        'error-container': '#ffdad6',
+                        'on-error': '#ffffff',
+                        'on-error-container': '#410002',
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "3xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        "headline": ["'Noto Serif SC'", "serif"],
+                        "display": ["'Noto Serif SC'", "serif"],
+                        "body": ["'Public Sans'", "sans-serif"],
+                        "label": ["'Public Sans'", "sans-serif"]
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(44, 44, 44, 0.05)',
+                        'float': '0 8px 30px -4px rgba(44, 44, 44, 0.1)',
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #fcfaf2; /* paper-base */
+            color: #2c2c2c; /* ink-primary */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+
+        /* Subtle texture overlay for paper feel */
+        .paper-texture {
+            position: relative;
+        }
+        .paper-texture::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 10;
+            mix-blend-mode: multiply;
+        }
+
+        .line-clamp-3 {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .line-clamp-none-override {
+            -webkit-line-clamp: unset !important;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body antialiased selection:bg-primary-container selection:text-on-primary-container pb-28 pt-safe">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full bg-paper-base/90 backdrop-blur-md z-50 flex items-center justify-between px-4 h-14 border-b border-outline-variant/30">
+<button class="p-2 -ml-2 text-on-surface hover:bg-surface-variant/50 rounded-full transition-colors active:scale-95">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="font-headline font-semibold text-lg tracking-wide">书籍详情</h1>
+<button class="p-2 -mr-2 text-on-surface hover:bg-surface-variant/50 rounded-full transition-colors active:scale-95">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</header>
+<!-- Main Content -->
+<main class="px-4 pt-20 max-w-lg mx-auto">
+<!-- Hero Section -->
+<section class="flex gap-4 mb-8">
+<!-- Cover -->
+<div class="shrink-0 relative w-28 h-40 rounded-lg overflow-hidden shadow-soft border border-outline-variant/20 bg-surface-variant/30">
+<!-- Using a placeholder with data-alt for the book cover -->
+<img class="w-full h-full object-cover" data-alt="A detailed digital illustration of a Chinese fantasy novel book cover titled 'Mortal's Journey to Immortality' (凡人修仙传). The art style is traditional Chinese watercolor blended with modern digital painting. It features a solitary figure in flowing robes standing on a misty mountain peak, overlooking a vast sea of clouds. A glowing magical artifact floats nearby. The color palette utilizes warm ochre, muted blues, and deep ink blacks against a cream paper-like background. The mood is epic, mysterious, and serene, fitting a high-fantasy cultivation novel. Clean, high-quality, 8k resolution." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBSVzy3OXAXZilHU579ZT-OoI_xWBjz5d8vIzQOE1_zzjlhuJ52WENrftDMupqOG7grzcPaV4i22yZnvsDyZFqAXstzKW6u9DUoxh1iWo8OKZQkMaoE2THbSeOFlKvEU9z5EDuhnw32NB6zyK33R3Rl9grQkojc8Fvv72SAczBfmjQz0Gn3mfs4t2KO53vM3LdU3zy7dGH0N1DcOF-cD-qdmcF6X6nSViUBg-fQuUMeF7DWaAbA1a41JXYA8ZHnx7lMhpGUQKobSco"/>
+<!-- Overlay shadow for realism -->
+<div class="absolute inset-0 shadow-[inset_4px_0_10px_rgba(0,0,0,0.1)] rounded-lg pointer-events-none"></div>
+</div>
+<!-- Metadata -->
+<div class="flex flex-col justify-between py-1">
+<div>
+<h2 class="font-headline font-bold text-2xl text-on-surface leading-tight mb-1">凡人修仙传</h2>
+<p class="font-label text-sm text-primary flex items-center gap-1 mb-2 hover:underline cursor-pointer">
+                        忘语 <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+</p>
+<div class="flex flex-wrap gap-2 mb-2">
+<span class="px-2 py-0.5 bg-secondary-container/50 text-on-secondary-container text-xs rounded font-medium border border-secondary-container">连载中</span>
+<span class="px-2 py-0.5 bg-surface-variant/50 text-on-surface-variant text-xs rounded border border-outline-variant/30">仙侠 · 幻想修仙</span>
+<span class="px-2 py-0.5 bg-surface-variant/50 text-on-surface-variant text-xs rounded border border-outline-variant/30">745万字</span>
+</div>
+</div>
+<div class="text-xs text-on-surface-variant space-y-1">
+<p class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">history</span> 2小时前更新</p>
+<p class="truncate max-w-[180px]">最新：第二千四百四十六章 飞升仙界</p>
+</div>
+</div>
+</section>
+<!-- Source Status & Alert -->
+<section class="mb-6 space-y-3">
+<!-- Error / Alternative Source Alert (Simulated) -->
+<div class="bg-error-container/40 border border-error/20 rounded-xl p-3 flex gap-3 items-start">
+<span class="material-symbols-outlined text-error text-xl shrink-0 mt-0.5">warning</span>
+<div class="flex-1">
+<p class="font-label text-sm text-on-error-container font-medium">目录加载缓慢</p>
+<p class="font-label text-xs text-on-error-container/80 mt-0.5">当前书源响应超时，已自动尝试其他 8 个可用书源。</p>
+</div>
+<button class="text-xs font-medium text-error hover:bg-error/10 px-2 py-1 rounded transition-colors whitespace-nowrap">
+                    切换
+                </button>
+</div>
+<!-- Current Source Info -->
+<div class="bg-surface border border-outline-variant/40 rounded-xl p-4 shadow-soft">
+<div class="flex justify-between items-center mb-2">
+<h3 class="font-label font-medium text-sm text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-primary">cloud_done</span>
+                        当前书源：有度中文（优+）
+                    </h3>
+<span class="text-xs font-medium text-secondary bg-secondary/10 px-1.5 py-0.5 rounded">65ms</span>
+</div>
+<div class="flex justify-between items-end">
+<p class="text-xs text-on-surface-variant">正文排版良好 · 已校验无缺漏</p>
+<button class="text-xs text-primary font-medium hover:underline flex items-center">
+                        查看 12 个书源 <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Synopsis -->
+<section class="mb-8">
+<h3 class="font-headline font-semibold text-lg mb-3">简介</h3>
+<div class="relative">
+<p class="font-body text-[15px] leading-relaxed text-on-surface/90 line-clamp-3 transition-all duration-300" id="synopsis-text">
+                    一个普通山村穷小子，偶然之下，跨入到一个江湖小门派，成了一名记名弟子。他以平庸的资质，进入到修仙者的行列，从而笑傲三界之中！
+                    又胖又圆的韩立，在机缘巧合之下获得了神秘小瓶，从此开启了催熟灵草的逆天之路。修仙之路漫漫，尔虞我诈，弱肉强食。看韩立如何凭借自身努力和算计，一步步走向大道巅峰。
+                </p>
+<button class="absolute bottom-0 right-0 bg-paper-base pl-8 text-primary text-[15px] font-medium hover:underline flex items-center" id="synopsis-toggle">
+                    展开 <span class="material-symbols-outlined text-[18px]">expand_more</span>
+</button>
+</div>
+</section>
+<!-- Table of Contents Preview -->
+<section class="mb-8 bg-surface border border-outline-variant/30 rounded-2xl overflow-hidden shadow-soft">
+<div class="flex justify-between items-center p-4 border-b border-outline-variant/20 bg-surface-variant/20">
+<h3 class="font-headline font-semibold text-lg flex items-center gap-2">
+                    目录 <span class="text-sm font-body font-normal text-on-surface-variant">共 2446 章</span>
+</h3>
+<button class="text-sm text-primary hover:underline flex items-center font-medium">
+                    查看全部 <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+<ul class="divide-y divide-outline-variant/15 font-body text-[15px] text-on-surface/90">
+<li class="p-4 hover:bg-surface-variant/30 cursor-pointer active:bg-surface-variant/50 transition-colors">
+                    第一章 山边小村
+                </li>
+<li class="p-4 hover:bg-surface-variant/30 cursor-pointer active:bg-surface-variant/50 transition-colors">
+                    第二章 青牛镇
+                </li>
+<li class="p-4 hover:bg-surface-variant/30 cursor-pointer active:bg-surface-variant/50 transition-colors">
+                    第三章 七玄门
+                </li>
+<li class="p-4 text-center text-on-surface-variant/60 text-sm italic bg-surface-variant/10">
+                    ... 展开中间章节 ...
+                </li>
+<li class="p-4 hover:bg-surface-variant/30 cursor-pointer active:bg-surface-variant/50 transition-colors flex justify-between items-center">
+<span class="truncate pr-4">第二千四百四十六章 飞升仙界</span>
+<span class="text-xs text-primary font-medium shrink-0 bg-primary/10 px-1.5 py-0.5 rounded">最新</span>
+</li>
+</ul>
+</section>
+<!-- Padding for bottom bar -->
+<div class="h-10"></div>
+</main>
+<!-- Floating Action Bottom Bar (Contextual FAB cluster) -->
+<div class="fixed bottom-0 left-0 w-full bg-paper-base/95 backdrop-blur-lg border-t border-outline-variant/20 pb-safe z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+<div class="flex items-center gap-3 p-3 max-w-lg mx-auto">
+<button class="flex-1 flex flex-col items-center justify-center py-2.5 rounded-xl border border-outline-variant/50 text-on-surface hover:bg-surface-variant/40 active:scale-95 transition-all">
+<span class="material-symbols-outlined mb-1">library_add</span>
+<span class="text-sm font-medium">加入书架</span>
+</button>
+<button class="flex-[2] flex items-center justify-center gap-2 py-3.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 shadow-md active:scale-95 transition-all">
+<span class="material-symbols-outlined fill">menu_book</span>
+<span class="text-base font-medium tracking-wide">开始阅读</span>
+</button>
+</div>
+</div>
+<!-- Scripts for micro-interactions -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const synopsisText = document.getElementById('synopsis-text');
+            const synopsisToggle = document.getElementById('synopsis-toggle');
+            let isExpanded = false;
+
+            if(synopsisToggle && synopsisText) {
+                synopsisToggle.addEventListener('click', () => {
+                    isExpanded = !isExpanded;
+                    if (isExpanded) {
+                        synopsisText.classList.remove('line-clamp-3');
+                        synopsisText.classList.add('line-clamp-none-override');
+                        synopsisToggle.innerHTML = '收起 <span class="material-symbols-outlined text-[18px]">expand_less</span>';
+                        synopsisToggle.classList.remove('bg-paper-base', 'absolute', 'bottom-0', 'right-0', 'pl-8');
+                        synopsisToggle.classList.add('mt-2', 'justify-end', 'w-full');
+                    } else {
+                        synopsisText.classList.add('line-clamp-3');
+                        synopsisText.classList.remove('line-clamp-none-override');
+                        synopsisToggle.innerHTML = '展开 <span class="material-symbols-outlined text-[18px]">expand_more</span>';
+                        synopsisToggle.classList.remove('mt-2', 'justify-end', 'w-full');
+                        synopsisToggle.classList.add('bg-paper-base', 'absolute', 'bottom-0', 'right-0', 'pl-8');
+                    }
+                });
+            }
+        });
+    </script>
+</body></html>
