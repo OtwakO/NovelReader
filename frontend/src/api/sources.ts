@@ -2,7 +2,7 @@ import { request } from './transport';
 
 export interface BookSource {
   bookSourceUrl: string; bookSourceName: string; bookSourceGroup?: string; bookSourceType?: number; enabled: boolean; enabledExplore: boolean;
-  searchUrl?: string; ruleSearch?: string; ruleBookInfo?: string; ruleToc?: string; ruleContent?: string; header?: string;
+  searchUrl?: string; ruleSearch?: unknown; ruleBookInfo?: unknown; ruleToc?: unknown; ruleContent?: unknown; header?: string;
   [key: string]: unknown;
 }
 

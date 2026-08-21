@@ -1,7 +1,8 @@
-import { createPinia, setActivePinia } from 'pinia';
+import { createPinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as authApi from '../api/auth';
 import { ApiError } from '../api/transport';
+import { createAppRouter } from './router';
 
 vi.mock('../api/auth', async () => {
   const actual = await vi.importActual<typeof import('../api/auth')>('../api/auth');
@@ -13,8 +14,6 @@ vi.mock('../api/transport', async () => {
 });
 
 beforeEach(() => {
-  setActivePinia(createPinia());
-  vi.resetModules();
   vi.clearAllMocks();
   location.hash = '';
 });
@@ -24,7 +23,7 @@ describe('router access policy', () => {
     vi.mocked(authApi.getSetupStatus).mockResolvedValue({ status: 'closed', available: false });
     vi.mocked(authApi.getRegistrationPolicy).mockResolvedValue({ enabled: false, inviteRequired: false });
     vi.mocked(authApi.getCurrentAccount).mockRejectedValue(new ApiError(401, 'unauthorized'));
-    const { router } = await import('./router');
+    const router = createAppRouter(createPinia());
     await router.push('/search');
     await router.isReady();
     expect(router.currentRoute.value.name).toBe('login');

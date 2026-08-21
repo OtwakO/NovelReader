@@ -1,3 +1,4 @@
+import type { Pinia } from 'pinia';
 import { createRouter, createWebHashHistory, type RouteLocationNormalized } from 'vue-router';
 import { pinia } from './pinia';
 import { useSessionStore } from '../stores/session';
@@ -29,61 +30,67 @@ function requiresAuthentication(to: RouteLocationNormalized): boolean {
   return to.matched.some((record) => record.meta.requiresAuth === true);
 }
 
-export const router = createRouter({
-  history: createWebHashHistory(),
-  routes: [
-    { path: '/loading', name: 'loading', component: LoadingView },
-    { path: '/startup-error', name: 'startup-error', component: StartupErrorView },
-    {
-      path: '/', component: PublicLayout,
-      children: [
-        { path: 'login', name: 'login', component: LoginView },
-        { path: 'register', name: 'register', component: RegisterView },
-        { path: 'password-reset', name: 'password-reset', component: PasswordResetView },
-        { path: 'recovery', name: 'recovery', component: RecoveryView },
-        { path: 'setup', name: 'setup', component: SetupView },
-        { path: 'setup-unavailable', name: 'setup-unavailable', component: SetupUnavailableView },
-      ],
-    },
-    {
-      path: '/', component: AppShell, meta: { requiresAuth: true },
-      children: [
-        { path: 'shelf', name: 'shelf', component: ShelfView },
-        { path: 'explore', name: 'explore', component: ExploreView },
-        { path: 'search', name: 'search', component: SearchView },
-        { path: 'books/preview', name: 'book-preview', component: BookPreviewView },
-        { path: 'books/:bookId', name: 'book-detail', component: BookDetailView },
-        { path: 'books/:bookId/read/:chapterIndex?', name: 'reader', component: ReaderView },
-        { path: 'sources', name: 'sources', component: SourceManagementView },
-        { path: 'settings', name: 'settings', component: SettingsView },
-        { path: 'account', name: 'account', component: AccountView },
-        { path: 'account/readers', name: 'reader-admin', component: ReaderAdministrationView, meta: { administrator: true } },
-      ],
-    },
-    { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },
-  ],
-});
+export function createAppRouter(appPinia: Pinia = pinia) {
+  const appRouter = createRouter({
+    history: createWebHashHistory(),
+    routes: [
+      { path: '/loading', name: 'loading', component: LoadingView },
+      { path: '/startup-error', name: 'startup-error', component: StartupErrorView },
+      {
+        path: '/', component: PublicLayout,
+        children: [
+          { path: 'login', name: 'login', component: LoginView },
+          { path: 'register', name: 'register', component: RegisterView },
+          { path: 'password-reset', name: 'password-reset', component: PasswordResetView },
+          { path: 'recovery', name: 'recovery', component: RecoveryView },
+          { path: 'setup', name: 'setup', component: SetupView },
+          { path: 'setup-unavailable', name: 'setup-unavailable', component: SetupUnavailableView },
+        ],
+      },
+      {
+        path: '/', component: AppShell, meta: { requiresAuth: true },
+        children: [
+          { path: 'shelf', name: 'shelf', component: ShelfView },
+          { path: 'explore', name: 'explore', component: ExploreView },
+          { path: 'search', name: 'search', component: SearchView },
+          { path: 'books/preview', name: 'book-preview', component: BookPreviewView },
+          { path: 'books/:bookId', name: 'book-detail', component: BookDetailView },
+          { path: 'books/:bookId/read/:chapterIndex?', name: 'reader', component: ReaderView },
+          { path: 'sources', name: 'sources', component: SourceManagementView },
+          { path: 'settings', name: 'settings', component: SettingsView },
+          { path: 'account', name: 'account', component: AccountView },
+          { path: 'account/readers', name: 'reader-admin', component: ReaderAdministrationView, meta: { administrator: true } },
+        ],
+      },
+      { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },
+    ],
+  });
 
-router.beforeEach(async (to) => {
-  const session = useSessionStore(pinia);
-  if (!session.initialized) await session.initialize();
+  appRouter.beforeEach(async (to) => {
+    const session = useSessionStore(appPinia);
+    if (!session.initialized) await session.initialize();
 
-  if (session.phase === 'error' && to.name !== 'startup-error') return { name: 'startup-error' };
-  if (session.phase === 'setup' && to.name !== 'setup') return { name: 'setup' };
-  if (session.phase === 'setup-unavailable' && to.name !== 'setup-unavailable') return { name: 'setup-unavailable' };
+    if (session.phase === 'error' && to.name !== 'startup-error') return { name: 'startup-error' };
+    if (session.phase === 'setup' && to.name !== 'setup') return { name: 'setup' };
+    if (session.phase === 'setup-unavailable' && to.name !== 'setup-unavailable') return { name: 'setup-unavailable' };
 
-  if (session.isAuthenticated) {
-    if (to.meta.administrator && !session.isAdministrator) return { name: 'shelf' };
-    if (publicNames.has(String(to.name))) return session.returnTo || '/shelf';
-    if (to.path === '/') return { name: 'shelf' };
+    if (session.isAuthenticated) {
+      if (to.meta.administrator && !session.isAdministrator) return { name: 'shelf' };
+      if (publicNames.has(String(to.name))) return session.returnTo || '/shelf';
+      if (to.path === '/') return { name: 'shelf' };
+      return true;
+    }
+
+    if (requiresAuthentication(to)) {
+      session.returnTo = to.fullPath;
+      return { name: 'login' };
+    }
+    if (to.name === 'register' && !session.registrationEnabled) return { name: 'login' };
+    if (to.path === '/') return { name: 'login' };
     return true;
-  }
+  });
 
-  if (requiresAuthentication(to)) {
-    session.returnTo = to.fullPath;
-    return { name: 'login' };
-  }
-  if (to.name === 'register' && !session.registrationEnabled) return { name: 'login' };
-  if (to.path === '/') return { name: 'login' };
-  return true;
-});
+  return appRouter;
+}
+
+export const router = createAppRouter();

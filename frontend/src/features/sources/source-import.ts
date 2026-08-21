@@ -34,8 +34,13 @@ export function selectedImportJSON(previews: SourceImportPreview[]): string {
   return JSON.stringify(previews.filter(item => item.selected).map(item => item.source));
 }
 
+function hasSourceRule(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim().length > 0;
+  return value !== null && typeof value === 'object';
+}
+
 export function isSearchEligible(source: BookSource): boolean {
-  return source.enabled && (source.bookSourceType ?? 0) === 0 && Boolean(source.searchUrl?.trim()) && Boolean(source.ruleSearch?.trim());
+  return source.enabled && (source.bookSourceType ?? 0) === 0 && hasSourceRule(source.searchUrl) && hasSourceRule(source.ruleSearch);
 }
 
 export function sourceCapabilities(source: BookSource): string[] {

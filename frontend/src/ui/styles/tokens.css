@@ -13,7 +13,7 @@
   --color-danger: #9a463b;
   --color-border: #d8ccb3;
   --shadow-card: 0 12px 36px rgb(53 45 31 / 9%);
-  --font-literary: "Noto Serif SC", "Noto Serif", "Songti SC", serif;
+  --font-literary: "Noto Sans SC", "Noto Sans", system-ui, sans-serif;
   --font-ui: "Noto Sans SC", "Noto Sans", system-ui, sans-serif;
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;

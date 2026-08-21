@@ -1,15 +1,55 @@
-export interface AltSource { sourceUrl: string; bookUrl: string; sourceName: string }
+export interface AltSource {
+  sourceUrl: string;
+  bookUrl: string;
+  sourceName: string;
+}
 
 export interface SearchResult {
-  name: string; author: string; coverUrl: string; intro: string; kind: string; lastChapter: string;
-  updateTime?: string; wordCount?: string; bookUrl: string; sourceUrl: string; sourceName: string;
-  score?: number; alternateSources?: AltSource[];
+  name: string;
+  author: string;
+  coverUrl: string;
+  intro: string;
+  kind: string;
+  lastChapter: string;
+  updateTime?: string;
+  wordCount?: string;
+  bookUrl: string;
+  sourceUrl: string;
+  sourceName: string;
+  score?: number;
+  alternateSources?: AltSource[];
 }
 
 export interface Book {
-  id: string; name: string; author: string; coverUrl: string; intro: string; kind: string; sourceUrl: string; bookUrl: string;
-  origin?: string; lastChapter: string; updateTime?: string; wordCount?: string; tocUrl?: string; downloadUrls?: string[];
-  durChapterIndex: number; durChapterPos: number; totalChapterNum: number; stateVersion: number; alternateSources?: AltSource[];
+  id: string;
+  name: string;
+  author: string;
+  coverUrl: string;
+  intro: string;
+  kind: string;
+  sourceUrl: string;
+  bookUrl: string;
+  origin?: string;
+  lastChapter: string;
+  updateTime?: string;
+  wordCount?: string;
+  tocUrl?: string;
+  downloadUrls?: string[];
+  durChapterIndex: number;
+  durChapterPos: number;
+  totalChapterNum: number;
+  stateVersion: number;
+  currentChapterTitle?: string;
+  alternateSources?: AltSource[];
+  createdAt?: number;
+  updatedAt?: number;
 }
 
-export interface Chapter { id: string; bookId: string; index: number; title: string; url: string; isVolume: boolean }
+export interface Chapter {
+  id: string;
+  bookId: string;
+  index: number;
+  title: string;
+  url: string;
+  isVolume: boolean;
+}
