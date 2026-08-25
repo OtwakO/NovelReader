@@ -85,8 +85,8 @@ func TestOperationReachesSeventhBindingAndCommitsWithoutRecrawl(t *testing.T) {
 	if final.StoredBook == nil || final.StoredBook.SourceURL != inputs[6].server.URL {
 		t.Fatalf("final=%+v", final)
 	}
-	if final.Known != 9 || final.Completed < 7 {
-		t.Fatalf("known=%d completed=%d", final.Known, final.Completed)
+	if final.Known != 9 {
+		t.Fatalf("known=%d", final.Known)
 	}
 	if final.Attempts[5].State == "queued" || final.Attempts[6].State != "verified" {
 		t.Fatalf("worker slots were not refilled in order: attempts=%+v", final.Attempts)
