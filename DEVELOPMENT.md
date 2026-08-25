@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-25] CI tests must not depend on private BookSource corpora
+- **Context**: The container publication workflow failed before image build because backend image-decoder tests opened ignored root `test_booksource*.json` corpora that existed locally but not in a GitHub checkout.
+- **Change**: Cover and chapter image-decoder tests now use small inline synthetic scripts. Root BookSource corpora are covered by explicit Git and Docker ignore patterns, and the standalone deployment defaults to `TZ: Asia/Taipei`.
+- **Reason**: Private imported corpora are manual compatibility inputs, not deterministic build dependencies. Local presence had hidden the checkout failure.
+- **Verified**: The workflow's exact backend test/race/build sequence passes with every root BookSource corpus physically absent; the Docker context contains none of them; both Compose files validate; and the production app image builds successfully with all 112 frontend tests.
+- **Watch out**: Automated compatibility fixtures belong under `testdata/booksource/conformance/` and must remain small, deterministic, and offline. Never make CI or Docker depend on ignored root corpora.
+
 ### [2026-08-25] Candidate source state must remain authoritative across shelf and Search
 - **Context**: Search could retain “Added to your shelf” after the stored book was removed. Separately, healthy sources such as `有度轻说（优+）` could appear unavailable after another candidate won, and remembered candidate work could omit sources discovered by later Search batches.
 - **Change**: Tab-local committed markers now retain the stored book ID and are invalidated after successful deletion. Post-winner active attempts drain as `skipped`, not failed. Candidate snapshots expose exact book bindings, and non-committed restoration is accepted only when its ordered binding set still matches the current result; mounted cards also discard finished stale work after source enrichment.

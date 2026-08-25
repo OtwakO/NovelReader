@@ -1,45 +1,35 @@
 package book
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/booksource"
 )
 
-func TestActiveCoverDecodeScriptRunsWithByteInput(t *testing.T) {
-	path := filepath.Join("..", "..", "..", "test_booksource4.json")
-	raw, err := os.ReadFile(path)
+func TestCoverDecodeScriptRunsWithByteInput(t *testing.T) {
+	source := booksource.BookSource{
+		BookSourceURL: "https://fixture.test",
+		CoverDecodeJS: `result.slice(0, 7);`,
+	}
+	value, err := analyzer.NewJSVM().EvalContext(
+		t.Context(),
+		source.CoverDecodeJS,
+		[]byte("fixture-cover"),
+		source.BookSourceURL,
+		map[string]interface{}{
+			"source": sourceContext(source),
+			"book":   bookContext(&Book{Name: "fixture", SourceURL: source.BookSourceURL}, source),
+		},
+	)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("cover decoder: %v", err)
 	}
-	var sources []booksource.BookSource
-	if err := json.Unmarshal(raw, &sources); err != nil {
-		t.Fatal(err)
-	}
-	var src *booksource.BookSource
-	for index := range sources {
-		if sources[index].CoverDecodeJS != "" {
-			src = &sources[index]
-			break
-		}
-	}
-	if src == nil {
-		t.Fatal("active cover decoder source not found")
-	}
-	value, err := analyzer.NewJSVM().EvalContext(t.Context(), src.JSLib+"\n"+src.CoverDecodeJS, []byte("fixture-cover"), src.BookSourceURL, map[string]interface{}{
-		"source": sourceContext(*src),
-		"book":   bookContext(&Book{Name: "fixture", SourceURL: src.BookSourceURL}, *src),
-	})
+	decoded, err := analyzer.ToBytes(value)
 	if err != nil {
-		t.Fatalf("active cover decoder: %v", err)
+		t.Fatalf("cover decoder returned %T: %v", value, err)
 	}
-	if value != nil {
-		if decoded, err := analyzer.ToBytes(value); err != nil || len(decoded) == 0 {
-			t.Fatalf("decoded=%v err=%v", decoded, err)
-		}
+	if string(decoded) != "fixture" {
+		t.Fatalf("decoded=%q", decoded)
 	}
 }

@@ -10,7 +10,7 @@ services:
     volumes:
       - ./data:/data
     environment:
-      TZ: UTC
+      TZ: Asia/Taipei
       PUID: "1000"
       PGID: "1000"
       PUBLIC_URL: ""

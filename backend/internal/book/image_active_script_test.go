@@ -1,56 +1,56 @@
 package book
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/otwako/novelreader/internal/analyzer"
-	"github.com/otwako/novelreader/internal/booksource"
 )
 
-func TestActiveChapterImageDecodersHavePortableOrExplicitBitmapBoundary(t *testing.T) {
-	vm := analyzer.NewJSVM()
-	portable := 0
-	bitmap := 0
-	for _, name := range []string{"test_booksource3.json", "test_booksource4.json"} {
-		raw, err := os.ReadFile(filepath.Join("..", "..", "..", name))
-		if err != nil {
-			t.Fatal(err)
-		}
-		var sources []booksource.BookSource
-		if err := json.Unmarshal(raw, &sources); err != nil {
-			t.Fatal(err)
-		}
-		for _, source := range sources {
-			script := parseRuleJSON(source.RuleContent)["imageDecode"]
-			if script == "" {
-				continue
-			}
-			if usesAndroidBitmapDecoder(script) {
-				bitmap++
-				continue
-			}
-			portable++
-			value, err := vm.EvalContext(t.Context(), decodeScript(source.JSLib, script), []byte("fixture-image"), "https://image.test/file.jpg", map[string]interface{}{
-				"source": sourceContext(source),
-				"book":   bookContext(&Book{Name: "fixture", SourceURL: source.BookSourceURL}, source),
-				"src":    "https://image.test/file.jpg",
-			})
-			if err != nil && !fixtureDependentImageDecoder(script, err) {
-				t.Fatalf("%s portable decoder initialization: %v", source.BookSourceName, err)
-			}
-			if err == nil && value != nil {
-				if _, bytesErr := analyzer.ToBytes(value); bytesErr != nil {
-					t.Fatalf("%s returned %T: %v", source.BookSourceName, value, bytesErr)
-				}
-			}
-		}
+func TestChapterImageDecodersHavePortableOrExplicitBitmapBoundary(t *testing.T) {
+	cases := []struct {
+		name   string
+		script string
+		bitmap bool
+	}{
+		{
+			name:   "portable byte decoder",
+			script: `result.slice(0, 7);`,
+		},
+		{
+			name:   "Android bitmap decoder",
+			script: `Packages.android.graphics.BitmapFactory.decodeByteArray(result, 0, result.length);`,
+			bitmap: true,
+		},
 	}
-	if portable == 0 || bitmap == 0 {
-		t.Fatalf("portable=%d bitmap=%d", portable, bitmap)
+
+	vm := analyzer.NewJSVM()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := usesAndroidBitmapDecoder(tc.script); got != tc.bitmap {
+				t.Fatalf("usesAndroidBitmapDecoder()=%v want=%v", got, tc.bitmap)
+			}
+			if tc.bitmap {
+				return
+			}
+
+			value, err := vm.EvalContext(
+				t.Context(),
+				decodeScript("", tc.script),
+				[]byte("fixture-image"),
+				"https://image.test/file.jpg",
+				nil,
+			)
+			if err != nil {
+				t.Fatalf("portable decoder: %v", err)
+			}
+			decoded, err := analyzer.ToBytes(value)
+			if err != nil {
+				t.Fatalf("portable decoder returned %T: %v", value, err)
+			}
+			if string(decoded) != "fixture" {
+				t.Fatalf("decoded=%q", decoded)
+			}
+		})
 	}
 }
 
@@ -59,14 +59,4 @@ func TestDecodeScriptSkipsRemoteLibraryMap(t *testing.T) {
 	if script != "result" {
 		t.Fatalf("script=%q", script)
 	}
-}
-
-func fixtureDependentImageDecoder(script string, err error) bool {
-	message := strings.ToLower(err.Error())
-	if strings.Contains(message, "syntaxerror") || strings.Contains(message, "referenceerror") || strings.Contains(message, "is not defined") {
-		return false
-	}
-	return strings.Contains(message, "ciphertext is not block aligned") ||
-		strings.Contains(message, "invalid padding") ||
-		(strings.Contains(script, "cpx=") && strings.Contains(message, "cannot read"))
 }

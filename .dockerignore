@@ -15,4 +15,4 @@ webview-worker/__pycache__
 **/__pycache__
 **/*.pyc
 OLD_AGENTS.md
-test_booksource*.json
+test*booksource*.json

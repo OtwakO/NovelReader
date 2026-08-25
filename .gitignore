@@ -1,7 +1,4 @@
-test_booksource.json
-test_booksource2.json
-test_booksource3.json
-test_booksource4.json
+/test_booksource*.json
 /test_光遇聚合_aggregated_booksource.json
 .pi/
 data/
