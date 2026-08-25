@@ -1,5 +1,19 @@
 # Development Notes
 
+### [2026-08-25] Candidate source state must remain authoritative across shelf and Search
+- **Context**: Search could retain “Added to your shelf” after the stored book was removed. Separately, healthy sources such as `有度轻说（优+）` could appear unavailable after another candidate won, and remembered candidate work could omit sources discovered by later Search batches.
+- **Change**: Tab-local committed markers now retain the stored book ID and are invalidated after successful deletion. Post-winner active attempts drain as `skipped`, not failed. Candidate snapshots expose exact book bindings, and non-committed restoration is accepted only when its ordered binding set still matches the current result; mounted cards also discard finished stale work after source enrichment.
+- **Reason**: Anonymous success markers could not follow deletion, shared winner cancellation was being misclassified as source failure, and operation IDs alone could not prove they covered the candidate’s current alternatives.
+- **Verified**: `有度轻说（优+）` is eligible position 48 in the first Search batch, passes isolated detail → 2,407-entry TOC → first/middle/last content, and became the verified winner under real five-way candidate concurrency after `茶马小说（优++）` was disabled in a disposable reader home. A timing regression proves source six starts immediately when one of five active attempts fails. Real Playwright Add → Remove → Search produced no committed registry marker, one Add action, zero success markers, no overflow, and a clean console.
+- **Watch out**: A candidate attempt canceled because another source won is not evidence that the source is invalid. Likewise, a remembered operation is authoritative only for the exact binding set it validated.
+
+### [2026-08-25] Candidate operation intent must survive route restoration
+- **Context**: Opening Candidate Book Detail from Search created a verified operation without automatic persistence. Returning with browser Back restored that operation on the Search card, which incorrectly displayed an indefinite “Adding verified book…” state even though no automatic commit had been requested.
+- **Change**: Candidate snapshots now expose `automaticCommit`. Search/Explore cards reuse detail-owned verified operations through the existing no-recrawl commit endpoint, while automatic operations continue following `verified` through `committed` or `failed`. `commitPending` retries preserve the original commit identity, and verified Candidate Detail remains visible through temporary SSE disconnects.
+- **Reason**: Operation ID alone did not describe whether `verified` meant “ready for explicit Add” or “automatic persistence is finishing.” Inferring intent from state conflated two valid journeys and stranded the restored card.
+- **Verified**: Race-enabled candidate/API tests, focused book tests, Vue type checking, ESLint, 22 focused frontend tests, production build, and `git diff --check` pass. A real mobile Playwright flow against 458 imported sources opened `凡人修仙传`, returned to Search, restored one Add action with zero progress toggles, committed using only `/candidate-resolutions/{same-id}/shelve`, displayed persistent success, had no horizontal overflow, and produced zero console errors or warnings.
+- **Watch out**: `verified + automaticCommit=false` awaits explicit commit; `verified + automaticCommit=true` is intermediate; `commitPending=true` retries persistence without validation. Do not derive commit intent from operation state or route ownership.
+
 ### [2026-08-14] Desktop rail utilities centered independently
 - **Change**: The authenticated desktop rail now centers the circular NovelReader brand mark and the locale selector within the rail, while leaving navigation rows, mobile tabs, and the mobile account menu unchanged.
 - **Verified**: Vue type checking, ESLint, all 63 tests, the production build, the layout detector, and git diff checks pass. Playwright measured the rail center at 108px and both element centers at 107.5px at 1024, 1280, and 1440 widths; the desktop rail remained hidden and the account menu remained visible at 390×844 with no overflow or console findings.
@@ -398,3 +412,49 @@
 - **Change**: The authenticated system diagnostic reports `not_configured`, `unavailable`, or `ready`. A check sends a probe through the same Go-to-worker execution protocol, creates an isolated browser context, renders an in-memory marker page, and reads it back. Settings runs it once on entry and on manual retry; source failure surfaces link to it with conditional wording.
 - **Reason**: Worker `/healthz` only proves process/browser-loop readiness, while an external test URL would add unrelated DNS/site availability. The synthetic execution proves the owned browser boundary without background BookSource monitoring.
 - **Watch out**: This proves current WebView execution capability, not that any individual BookSource is valid or compatible.
+
+### [2026-08-21] Candidate shelving stopped duplicating source crawls
+- **Context**: Direct Search/Explore shelf actions performed Preview then Shelve, repeating Book Info and TOC work and leaving slow sources looking stuck for several independent timeout windows.
+- **Change**: Added one backend-owned bounded candidate resolver that validates Book Info, TOC, and credible first-chapter content across ordered alternate bindings. Candidate detail receives a short-lived account-scoped token whose server-held metadata and TOC are persisted without recrawling; direct card add resolves and persists once. Frontend requests are cancelable and show validation progress.
+- **Reason**: Search relevance is not source viability, and unbounded racing would multiply remote, JavaScript, and WebView load. The bounded resolver preserves consolidated logical identity and all discovered alternate bindings while selecting a usable active source for new books.
+- **Verified**: Focused backend resolver and book tests, frontend typecheck/lint, focused API/component/i18n tests, and production frontend build.
+- **Watch out**: Content credibility remains a shared conservative boundary; expand it only from reusable failure evidence, never with one-source special cases.
+
+### [2026-08-22] Candidate resolver excluded later discovered sources
+- **Context**: Adding `凡人修仙传` still timed out after Search found nine logical-book source bindings across two batches.
+- **Change**: Expanded the bounded resolver from six to twelve eligible bindings, from two to three staged concurrent attempts, from 14 to 35 seconds per complete source validation, and from 25 to 75 seconds overall; the hedge interval is now 500 ms. Added deterministic regressions where the seventh binding is the first readable source and where a third attempt must start while two earlier sources remain slow.
+- **Reason**: The previous policy categorically excluded bindings 7–9 and could let two slow Book Info/TOC workflows consume the complete global deadline before later alternatives were attempted.
+- **Verified**: The nine-binding regression failed under the old six-attempt limit and passes under the expanded policy; affected Go tests, frontend static checks, focused frontend tests, and the production build pass.
+- **Watch out**: This proves later discovered sources are attempted and slow early sources no longer monopolize both slots; it does not establish that any particular live upstream source currently provides credible prose.
+
+### [2026-08-22] Candidate resolution became a transient asynchronous operation
+- **Context**: Expanding synchronous request timeouts fixed excluded later sources but still left candidate resolution coupled to one long HTTP request, with weak progress, no reconnection, and awkward reader-runtime ownership.
+- **Change**: Replaced the synchronous resolver and preview-token paths with an account-scoped `internal/candidate` module. Operations queue every discovered binding, stage at most three source attempts, apply per-stage deadlines, stream whole-state SSE snapshots, survive UI navigation, support cancellation, and retain a verified server-held Book/TOC for idempotent commit. Direct card adds request automatic commit; Book Detail remains non-destructive until explicit commit.
+- **Reason**: Source crawling is long-running, failure-prone work whose lifecycle should not equal one HTTP request. A focused operation module provides a smaller interface while localizing scheduling, validation, progress, retention, cancellation, and runtime-lease ownership.
+- **Verified**: Candidate and API race tests cover seventh-source reachability, reconnect snapshots, concurrent commit idempotency, cancellation drain, automatic commit, and lease release. Frontend typecheck, lint, focused operation/component/i18n tests, and production build pass.
+- **Watch out**: Operations are intentionally process-local and transient; a server restart discards them. Do not introduce durable queue infrastructure unless real deployment requirements demand cross-restart or multi-replica continuity.
+
+### [2026-08-22] Async operations supersede the intermediate synchronous resolver
+- **Context**: Earlier same-day entries describe a short-lived synchronous candidate resolver and preview-token flow used to reproduce timeout and source-ordering failures.
+- **Change**: Those implementation details are superseded by the asynchronous operation architecture documented above; only their diagnostic findings and reusable validation rules remain relevant.
+- **Watch out**: Do not restore `/books/candidates/resolve`, `/resolve-and-shelve`, preview tokens, or fixed maximum-attempt truncation when maintaining candidate resolution.
+
+### [2026-08-22] Removed superseded ingestion and unbatched Search paths
+- **Context**: The asynchronous candidate operation was complete, but the active tree still exposed raw add, enrich, preview, shelve, readable, synchronous Search, and legacy unbatched Search workflows plus frontend wrappers and tests that preserved them.
+- **Change**: Classified the bundled HTTP API as private for this pre-public phase and removed the duplicate routes vertically. Candidate DTOs/tests moved into the feature, source-switch setup now uses the store directly, and the raw-source E2E now follows batched Search → candidate operation → shelf commit → Reader content.
+- **Reason**: Parallel internal ingestion contracts would bypass readability guarantees, progress/cancellation, or runtime ownership and make future maintenance ambiguous.
+- **Verified**: Candidate/API race tests, book tests, focused Vue tests, typecheck, lint, production build, stale-symbol/literal inspection, and diff validation passed.
+- **Watch out**: Reintroducing a public external API is a new product decision and must define versioning and compatibility explicitly rather than reviving these internal routes.
+
+### [2026-08-22] Search candidate progress uses an inline disclosure
+- **Context**: A generic Add/Cancel button and one-line count hid which BookSources were active, while changing labels and progress copy destabilized Search-card geometry.
+- **Change**: The feature-local candidate action now owns a collapsible full-width checklist with active source names, Book Info/TOC/content stages, recent failures, queued counts, backend-confirmed cancellation, SSE reconnection after navigation, and tab-local completion restoration. The compact control participates in the card grid while expanded details grow downward.
+- **Reason**: Inline progressive disclosure provides useful transparency without popover positioning, focus trapping, mobile sheet variants, duplicated subscriptions, or global UI state.
+- **Verified**: Vue typecheck, ESLint, focused operation/card/i18n tests, production build, layout detector, and diff validation pass.
+- **Watch out**: Collapsing or navigating away must never cancel the backend operation. Only explicit Cancel sends DELETE, and the Add action returns only after the authoritative `cancelled` snapshot.
+
+### [2026-08-22] Candidate checks use five immediate workers and visible outcomes
+- **Context**: The first inline-progress pass still exposed the old three-worker staged scheduler, retained a redundant Details button beside an already-clickable metadata region, delayed visible cancellation until crawler cleanup finished, and removed all visible feedback after successful shelving.
+- **Change**: Candidate resolution now fills five worker slots immediately and refills failed slots; explicit cancellation publishes `cancelled` before privately draining attempts and releasing the reader runtime; Search cards use one metadata detail target with a directional affordance; committed cards retain an Added status and cancelled cards retain a short acknowledgement.
+- **Reason**: The UI should match actual work, acknowledge user intent promptly, avoid duplicate actions, and leave every terminal outcome understandable without sacrificing backend resource safety.
+- **Verified**: Race-enabled candidate/API tests, frontend component/i18n tests, production build, and real desktop/mobile Playwright interaction and visual review. A live five-source candidate showed 5 active Book Info pipelines at 0/5, visible cancellation acknowledged in 69 ms, and a successful six-source candidate retained an Added status after reload.
