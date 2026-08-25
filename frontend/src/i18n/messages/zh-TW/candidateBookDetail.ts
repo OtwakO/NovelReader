@@ -1,0 +1,18 @@
+export default {
+  title: '書籍詳情',
+  description: '加入書架前，查看已驗證的書籍資訊與目錄。',
+  disconnected: '進度連線已中斷，正在重新連線…',
+  cancel: '取消檢查',
+  failed: '無法驗證這本書。',
+  missing: '此候選書籍已無法使用，請返回搜尋或發現後重新開啟。',
+  retry: '重試',
+  source: '閱讀書源：{source}',
+  sourceCount: '共 {count} 個已知書源',
+  fallback: '原始結果無法閱讀，已改用驗證通過的書源「{source}」。',
+  noIntro: '此書源沒有提供簡介。',
+  shelve: '加入書架',
+  shelving: '正在加入…',
+  shelfFailed: '無法加入已驗證的候選書籍。驗證可能已過期，請重新檢查。',
+  back: '返回搜尋',
+  backExplore: '返回發現',
+};

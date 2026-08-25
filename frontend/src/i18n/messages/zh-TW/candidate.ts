@@ -1,0 +1,17 @@
+export default {
+  title: '正在尋找可閱讀書源',
+  help: '將使用首個能提供書籍資訊、目錄與可閱讀正文的書源。',
+  starting: '正在啟動書源檢查…',
+  finishing: '正在加入已驗證書籍…',
+  runningSummary: '正在檢查 {active} 個書源 · {completed}/{known}',
+  failedSummary: '未找到可閱讀書源 · {completed}/{known}',
+  counts: '已檢查 {completed} / {known} · {active} 個進行中',
+  winnerCounts: '已找到可閱讀書源 · 正在結束 {active} 個進行中的檢查',
+  cancelling: '正在取消…',
+  cancelFailed: '無法取消書源檢查，請重試。',
+  queued: '{count} 個書源等待檢查',
+  skipped: '找到可閱讀版本後跳過其餘 {count} 個書源',
+  moreFailed: '另有 {count} 個書源無法使用',
+  stage: { book_info: '正在取得書籍資訊', toc: '正在讀取目錄', content: '正在檢查章節正文' },
+  state: { running: '正在檢查', failed: '無法使用', verified: '可閱讀', skipped: '無需檢查' },
+};

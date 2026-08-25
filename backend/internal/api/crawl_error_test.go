@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -82,38 +81,6 @@ func TestHandleGetChapterContentExposesTypedPaginationFailure(t *testing.T) {
 	}
 	if response.Code != http.StatusBadGateway || payload.Code != "content_pagination_failed" || payload.Workflow != "content" || payload.PagesFetched != 1 || payload.FailedURL == "" {
 		t.Fatalf("status=%d payload=%+v, want typed content failure", response.Code, payload)
-	}
-}
-
-func TestHandleEnrichBookExposesUpstreamFailure(t *testing.T) {
-	sourceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "upstream unavailable", http.StatusBadGateway)
-	}))
-	defer sourceServer.Close()
-
-	server, store, closeDB := newCrawlAPIServer(t)
-	defer closeDB()
-	if err := store.sourceStore.Upsert(&booksource.BookSource{
-		BookSourceURL: sourceServer.URL, BookSourceName: "fixture", RuleBookInfo: `{"name":"@css:.name@text"}`,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	request := httptest.NewRequest(http.MethodPost, "/api/books/enrich", strings.NewReader(`{"id":"book-1","name":"Fixture","sourceUrl":"`+sourceServer.URL+`","bookUrl":"/book"}`))
-	response := httptest.NewRecorder()
-	server.handleEnrichBook(response, request)
-	var payload crawlErrorResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-		t.Fatal(err)
-	}
-	if response.Code != http.StatusBadGateway || payload.Code != "book_info_failed" || payload.Workflow != "book_info" {
-		t.Fatalf("status=%d payload=%+v, want upstream enrichment failure", response.Code, payload)
-	}
-	stored, err := store.bookStore.GetBook("book-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if stored != nil {
-		t.Fatalf("failed enrichment saved book: %+v", stored)
 	}
 }
 

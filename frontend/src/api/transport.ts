@@ -5,7 +5,7 @@ export const API_BASE = '/api';
 type AuthenticationLossListener = () => void;
 let authenticationLossListener: AuthenticationLossListener | undefined;
 
-export interface ExploreErrorBody {
+export interface ApiErrorBody {
   code?: string;
   stage?: string;
   severity?: string;
@@ -13,7 +13,11 @@ export interface ExploreErrorBody {
   message?: string;
   error?: string;
   nextPage?: number;
+  workflow?: string;
+  attempts?: unknown;
 }
+
+export type ExploreErrorBody = ApiErrorBody;
 
 export class ExploreApiError extends Error {
   code: string;
@@ -35,11 +39,16 @@ export class ExploreApiError extends Error {
 
 export class ApiError extends Error {
   status: number;
+  code: string;
+  body: ApiErrorBody;
 
-  constructor(status: number, message: string) {
-    super(message);
+  constructor(status: number, body: ApiErrorBody | string) {
+    const details = typeof body === 'string' ? { error: body } : body;
+    super(details.error || details.message || 'Request failed');
     this.name = 'ApiError';
     this.status = status;
+    this.code = details.code || 'request_failed';
+    this.body = details;
   }
 }
 
@@ -53,7 +62,7 @@ export function onAuthenticationLoss(listener?: AuthenticationLossListener) {
 async function responseError(response: Response): Promise<never> {
   const error = await response.json().catch(() => ({ error: response.statusText })) as ExploreErrorBody;
   if (response.status === 401) authenticationLossListener?.();
-  throw new ApiError(response.status, error.error || error.message || response.statusText);
+  throw new ApiError(response.status, { ...error, error: error.error || error.message || response.statusText });
 }
 
 export async function request<T>(path: string, options?: RequestInit, errorKind: 'general' | 'explore' = 'general'): Promise<T> {
@@ -68,7 +77,7 @@ export async function request<T>(path: string, options?: RequestInit, errorKind:
       throw new ExploreApiError(error);
     }
     if (response.status === 401) authenticationLossListener?.();
-    throw new ApiError(response.status, error.error || error.message || response.statusText);
+    throw new ApiError(response.status, { ...error, error: error.error || error.message || response.statusText });
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;

@@ -1,0 +1,18 @@
+export default {
+  title: 'Book details',
+  description: 'Review verified book information and contents before adding it to your shelf.',
+  disconnected: 'The progress connection was interrupted. Reconnecting…',
+  cancel: 'Cancel checks',
+  failed: 'This candidate could not be verified.',
+  missing: 'This candidate is no longer available. Return to Search or Explore and open it again.',
+  retry: 'Try again',
+  source: 'Reading source: {source}',
+  sourceCount: '{count} known sources',
+  fallback: 'The original result was not readable. Using verified source {source}.',
+  noIntro: 'No introduction was provided by this source.',
+  shelve: 'Add to shelf',
+  shelving: 'Adding…',
+  shelfFailed: 'This verified candidate could not be added. It may have expired; try checking it again.',
+  back: 'Back to Search',
+  backExplore: 'Back to Explore',
+};

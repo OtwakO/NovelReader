@@ -4,6 +4,7 @@ import { listBooks } from "../../api/books";
 import type { Book } from "../../api/models";
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
+import { readableChapterLabel } from "../books/book-display";
 import { currentChapterNumber, shelfProgressPercent } from "./shelf-progress";
 import { loadShelfViewState, saveShelfViewState, visibleShelfBooks, type ShelfSort } from "./shelf-view-state";
 
@@ -53,6 +54,7 @@ export default defineComponent({
     chapter(book: Book) {
       return currentChapterNumber(book);
     },
+    latestChapter(book: Book) { return readableChapterLabel(book.lastChapter); },
     currentChapter(book: Book) {
       return (
         book.currentChapterTitle ||
@@ -203,8 +205,8 @@ export default defineComponent({
               <p>
                 <small>{{ $t("shelf.current") }}</small><b>{{ currentChapter(book) }}</b>
               </p>
-              <p v-if="book.lastChapter" class="latest">
-                <small>{{ $t("shelf.latestLabel") }}</small><span>{{ book.lastChapter }}</span>
+              <p v-if="latestChapter(book)" class="latest">
+                <small>{{ $t("shelf.latestLabel") }}</small><span>{{ latestChapter(book) }}</span>
               </p>
             </div>
             <div class="book-footer">

@@ -76,16 +76,6 @@ func TestHandleSearchStreamReportsSourceStoreFailures(t *testing.T) {
 	}
 }
 
-func TestHandleSearchStreamKeepsLegacyEventContract(t *testing.T) {
-	apiServer, _, _, closeSource := newSearchAPIFixture(t, 1)
-	defer closeSource()
-	events := decodeSSE(t, performSearch(t, apiServer, "/api/search/stream?q=fixture"))
-	assertEventTypes(t, events, "results", "done")
-	if _, ok := events[len(events)-1]["merged"]; !ok {
-		t.Fatalf("legacy done event lost merged results: %#v", events[len(events)-1])
-	}
-}
-
 type apiSourceStore struct {
 	sources []booksource.BookSource
 	err     error
@@ -125,7 +115,7 @@ func apiSource(sourceURL, name string, order int) booksource.BookSource {
 func performSearch(t *testing.T, server *Server, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	response := httptest.NewRecorder()
-	server.handleSearchStream(response, httptest.NewRequest(http.MethodGet, path, nil))
+	server.handleSearchBatchStream(response, httptest.NewRequest(http.MethodGet, path, nil))
 	return response
 }
 

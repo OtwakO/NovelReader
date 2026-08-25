@@ -8,6 +8,7 @@ export default defineComponent({
     chapters: { type: Array as PropType<Chapter[]>, default: () => [] },
     currentIndex: { type: Number, required: true },
     bookId: { type: String, default: "" },
+    interactive: { type: Boolean, default: true },
   },
   emits: ["open"],
 });
@@ -23,20 +24,23 @@ export default defineComponent({
     >
       <span v-if="chapter.isVolume" class="volume-title">{{ chapter.title }}</span>
       <RouterLink
-        v-else-if="bookId"
+        v-else-if="bookId && interactive"
         :to="`/books/${encodeURIComponent(bookId)}/read/${chapter.index}`"
         :aria-current="chapter.index === currentIndex ? 'location' : undefined"
       >
         <small>{{ chapter.index + 1 }}</small><span class="chapter-title">{{ chapter.title }}</span><svg class="row-arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6" /></svg>
       </RouterLink>
       <button
-        v-else
+        v-else-if="interactive"
         type="button"
         :aria-current="chapter.index === currentIndex ? 'location' : undefined"
         @click="$emit('open', chapter.index)"
       >
         <small>{{ chapter.index + 1 }}</small><span class="chapter-title">{{ chapter.title }}</span><svg class="row-arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6" /></svg>
       </button>
+      <span v-else class="chapter-row">
+        <small>{{ chapter.index + 1 }}</small><span class="chapter-title">{{ chapter.title }}</span>
+      </span>
     </li>
   </ol>
 </template>
@@ -56,7 +60,8 @@ export default defineComponent({
   border-bottom: 0;
 }
 .toc-chapter-list a,
-.toc-chapter-list button {
+.toc-chapter-list button,
+.chapter-row {
   width: 100%;
   min-height: 3.5rem;
   display: grid;
@@ -69,8 +74,11 @@ export default defineComponent({
   color: var(--color-ink);
   text-align: left;
   text-decoration: none;
-  cursor: pointer;
   transition: background 0.18s ease-out, color 0.18s ease-out;
+}
+.toc-chapter-list a,
+.toc-chapter-list button {
+  cursor: pointer;
 }
 .toc-chapter-list a:hover,
 .toc-chapter-list button:hover {
@@ -144,7 +152,8 @@ export default defineComponent({
 }
 @media (max-width: 32rem) {
   .toc-chapter-list a,
-  .toc-chapter-list button {
+  .toc-chapter-list button,
+  .chapter-row {
     grid-template-columns: 2.75rem minmax(0, 1fr) 1rem;
     gap: 0.7rem;
     padding-inline: 0.75rem;

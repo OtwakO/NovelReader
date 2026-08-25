@@ -18,6 +18,7 @@ export default defineComponent({
     chapters: { type: Array as PropType<Chapter[]>, default: () => [] },
     currentIndex: { type: Number, required: true },
     error: { type: String, default: "" },
+    interactive: { type: Boolean, default: true },
   },
   data() {
     return { query: "", order: "ascending" as TocOrder, expanded: false };
@@ -105,14 +106,14 @@ export default defineComponent({
               ? $t("reader.toc.descending")
               : $t("reader.toc.ascending")
           }}
-</AppButton><AppButton variant="secondary" @click="jumpToCurrent">
+          </AppButton><AppButton v-if="interactive" variant="secondary" @click="jumpToCurrent">
 {{
             $t("reader.toc.jumpCurrent")
           }}
 </AppButton>
         </div>
       </div>
-      <TocChapterList v-if="visibleChapters.length" :chapters="visibleChapters" :current-index="currentIndex" :book-id="bookId" />
+      <TocChapterList v-if="visibleChapters.length" :chapters="visibleChapters" :current-index="currentIndex" :book-id="bookId" :interactive="interactive" />
       <section v-else class="no-matches">
         <p>{{ $t("reader.toc.noMatches") }}</p>
         <AppButton variant="secondary" @click="clearSearch">

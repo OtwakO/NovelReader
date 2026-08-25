@@ -31,15 +31,15 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 		}
 	}
 
-	bookBody, _ := json.Marshal(book.Book{
+	stored := &book.Book{
 		ID: "book-1", Name: "Fixture", SourceURL: primary.URL, BookURL: primary.URL + "/book", TocURL: primary.URL + "/toc", Origin: "Primary",
 		AlternateSources: []book.AltSource{
 			{SourceURL: target.URL, BookURL: target.URL + "/book", SourceName: "Target"},
 			{SourceURL: bad.URL, BookURL: bad.URL + "/book", SourceName: "Bad"},
 		},
-	})
-	if response := performAPIRequest(server, http.MethodPost, "/api/books", bookBody); response.Code != http.StatusCreated {
-		t.Fatalf("add status=%d body=%s", response.Code, response.Body.String())
+	}
+	if err := server.bookStore.AddBook(stored); err != nil {
+		t.Fatal(err)
 	}
 	if response := performAPIRequest(server, http.MethodGet, "/api/books/book-1/chapters", nil); response.Code != http.StatusOK {
 		t.Fatalf("primary toc status=%d body=%s", response.Code, response.Body.String())

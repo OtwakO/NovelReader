@@ -616,6 +616,11 @@ func (s *Searcher) GetBookInfo(src booksource.BookSource, bookURL string) (*Book
 func (s *Searcher) GetBookInfoForBook(src booksource.BookSource, b *Book, bookURL string) (*Book, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
 	defer cancel()
+	return s.GetBookInfoForBookContext(ctx, src, b, bookURL)
+}
+
+// GetBookInfoForBookContext enriches a candidate within the caller-owned workflow deadline.
+func (s *Searcher) GetBookInfoForBookContext(ctx context.Context, src booksource.BookSource, b *Book, bookURL string) (*Book, error) {
 	return s.getBookInfoForBookWithSession(ctx, src, b, bookURL, s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL))
 }
 
@@ -690,6 +695,13 @@ func (s *Searcher) GetChapterList(src booksource.BookSource, bookURL, tocURL str
 
 // GetChapterListForBook parses a TOC with the complete stored book context.
 func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, tocURL string) ([]Chapter, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
+	defer cancel()
+	return s.GetChapterListForBookContext(ctx, src, b, tocURL)
+}
+
+// GetChapterListForBookContext resolves a TOC within the caller-owned workflow deadline.
+func (s *Searcher) GetChapterListForBookContext(ctx context.Context, src booksource.BookSource, b *Book, tocURL string) ([]Chapter, error) {
 	if b == nil {
 		return nil, fmt.Errorf("chapter list: book is required")
 	}
@@ -698,8 +710,6 @@ func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, toc
 	if fetchURL == "" {
 		fetchURL = bookURL
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
-	defer cancel()
 
 	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
 	configureSourceSession(src, session)
@@ -810,12 +820,17 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 // GetChapterContentForBook fetches content with the complete book/current/next context.
 // Script JSON is considered only when the source declares no content rule.
 func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, current, next *Chapter) (string, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
+	defer cancel()
+	return s.GetChapterContentForBookContext(ctx, src, b, current, next)
+}
+
+// GetChapterContentForBookContext resolves chapter content within the caller-owned workflow deadline.
+func (s *Searcher) GetChapterContentForBookContext(ctx context.Context, src booksource.BookSource, b *Book, current, next *Chapter) (string, string, error) {
 	if current == nil || current.URL == "" {
 		return "", "", fmt.Errorf("content: current chapter is required")
 	}
 	chapterURL := current.URL
-	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
-	defer cancel()
 
 	var session *sourceexec.SourceSession
 	if b != nil && b.BookURL != "" {

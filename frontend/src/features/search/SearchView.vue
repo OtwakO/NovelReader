@@ -1,35 +1,28 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { addSearchResultToShelf } from '../../api/books';
 import type { SearchResult } from '../../api/search';
 import FeatureScaffold from '../../ui/components/FeatureScaffold.vue';
 import AppButton from '../../ui/components/AppButton.vue';
 import SearchControls from './components/SearchControls.vue';
 import SearchResultCard from './components/SearchResultCard.vue';
 import SearchStatus from './components/SearchStatus.vue';
-import { createPreviewKey, savePreviewSelection } from './search-preview';
+import { createCandidateSelectionKey, saveCandidateSelection } from './candidate-selection';
 import { useSearchStore } from './search-store';
 
 export default defineComponent({
   name: 'SearchView',
   components: { FeatureScaffold, AppButton, SearchControls, SearchResultCard, SearchStatus },
-  data() { return { search: useSearchStore(), shelving: {} as Record<string, boolean>, notices: {} as Record<string, 'added' | 'failed'> }; },
+  data() { return { search: useSearchStore() }; },
   mounted() { this.search.initialize(); },
   beforeUnmount() { this.search.stop(); },
   methods: {
     key(result: SearchResult) { return `${result.sourceUrl}\u0000${result.bookUrl}`; },
     submit() { this.search.search(); },
     open(result: SearchResult) {
-      const previewKey = createPreviewKey();
-      savePreviewSelection(previewKey, result);
+      const selectionKey = createCandidateSelectionKey();
+      saveCandidateSelection(selectionKey, result);
       this.search.save();
-      void this.$router.push({ name: 'book-preview', query: { preview: previewKey } });
-    },
-    async shelve(result: SearchResult) {
-      const key = this.key(result); this.shelving[key] = true; delete this.notices[key];
-      try { await addSearchResultToShelf(result); this.notices[key] = 'added'; }
-      catch { this.notices[key] = 'failed'; }
-      finally { this.shelving[key] = false; }
+      void this.$router.push({ name: 'candidate-book-detail', query: { candidate: selectionKey } });
     },
   },
 });
@@ -51,9 +44,18 @@ export default defineComponent({
         <header><strong>{{ $t('search.results.summary', { count: search.resultCount }) }}</strong><span v-if="search.multipleSourceCount">{{ $t('search.results.multiple', { count: search.multipleSourceCount }) }}</span></header>
         <div class="result-list">
           <div v-for="result in search.results" :key="key(result)">
-            <SearchResultCard :result="result" :shelving="shelving[key(result)]" @open="open(result)" @shelve="shelve(result)" />
-            <p v-if="notices[key(result)] === 'added'" class="notice success" role="status">{{ $t('search.results.added') }}</p>
-            <p v-else-if="notices[key(result)] === 'failed'" class="notice error" role="alert">{{ $t('search.results.addFailed') }}</p>
+            <SearchResultCard
+              :result="result"
+              :can-continue-search="search.hasMore"
+              :continue-search-count="search.moreCount"
+              :search-scanning="search.searching"
+              :search-retry-required="search.retryRequired"
+              :search-restart-required="search.restartRequired"
+              @open="open(result)"
+              @continue-search="search.more()"
+              @retry-search="search.retry()"
+              @restart-search="search.restart()"
+            />
           </div>
         </div>
       </section>

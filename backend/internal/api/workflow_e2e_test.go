@@ -13,6 +13,7 @@ import (
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/candidate"
 	"github.com/otwako/novelreader/internal/database"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/processor"
@@ -30,7 +31,8 @@ func TestRawSourceAPIWorkflowReadsFirstMiddleLastChapters(t *testing.T) {
 				_, _ = fmt.Fprintf(w, `<a class="chapter" href="/chapter/%d">Chapter %d</a>`, i, i)
 			}
 		case "/chapter/1", "/chapter/2", "/chapter/3", "/chapter/4", "/chapter/5":
-			_, _ = fmt.Fprintf(w, `<article class="content">content %s</article>`, r.URL.Path[len("/chapter/"):])
+			index := r.URL.Path[len("/chapter/"):]
+			_, _ = fmt.Fprintf(w, `<article class="content">content %s begins here with enough meaningful narrative prose to verify this source as readable while preserving deterministic first, middle, and last chapter checks.</article>`, index)
 		default:
 			http.NotFound(w, r)
 		}
@@ -55,18 +57,45 @@ func TestRawSourceAPIWorkflowReadsFirstMiddleLastChapters(t *testing.T) {
 		t.Fatalf("import status=%d body=%s", response.Code, response.Body.String())
 	}
 
-	response = performAPIRequest(server, http.MethodGet, "/api/search?q=Fixture", nil)
+	searchResponse := performAPIRequest(server, http.MethodGet, "/api/search/stream?q=Fixture&batchSize=10&concurrency=2", nil)
+	events := decodeSSE(t, searchResponse)
 	var results []book.SearchResult
-	if err := json.Unmarshal(response.Body.Bytes(), &results); err != nil || response.Code != http.StatusOK || len(results) != 1 {
-		t.Fatalf("search status=%d results=%+v err=%v body=%s", response.Code, results, err, response.Body.String())
+	for _, event := range events {
+		if event["type"] != "results" {
+			continue
+		}
+		payload, _ := json.Marshal(event["data"])
+		if err := json.Unmarshal(payload, &results); err != nil {
+			t.Fatal(err)
+		}
+		break
 	}
-	enrichRequest, _ := json.Marshal(map[string]interface{}{
-		"id": "book-1", "name": results[0].Name, "author": results[0].Author,
-		"sourceUrl": results[0].SourceURL, "bookUrl": results[0].BookURL,
-	})
-	response = performAPIRequest(server, http.MethodPost, "/api/books/enrich", enrichRequest)
-	if response.Code != http.StatusOK {
-		t.Fatalf("enrich status=%d body=%s", response.Code, response.Body.String())
+	if len(results) != 1 {
+		t.Fatalf("search results=%+v events=%+v", results, events)
+	}
+	started := performAPIRequest(server, http.MethodPost, "/api/candidate-resolutions", candidateRequestBody(results[0].SourceURL, nil))
+	var operation candidate.Snapshot
+	if err := json.Unmarshal(started.Body.Bytes(), &operation); err != nil || started.Code != http.StatusAccepted {
+		t.Fatalf("start status=%d operation=%+v err=%v body=%s", started.Code, operation, err, started.Body.String())
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		current := performAPIRequest(server, http.MethodGet, "/api/candidate-resolutions/"+operation.ID, nil)
+		if err := json.Unmarshal(current.Body.Bytes(), &operation); err != nil {
+			t.Fatal(err)
+		}
+		if operation.State == candidate.StateVerified {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if operation.State != candidate.StateVerified {
+		t.Fatalf("operation=%+v", operation)
+	}
+	commitBody, _ := json.Marshal(map[string]string{"bookId": "book-1"})
+	committed := performAPIRequest(server, http.MethodPost, "/api/candidate-resolutions/"+operation.ID+"/shelve", commitBody)
+	if committed.Code != http.StatusCreated {
+		t.Fatalf("commit status=%d body=%s", committed.Code, committed.Body.String())
 	}
 
 	response = performAPIRequest(server, http.MethodGet, "/api/books/book-1/chapters", nil)
@@ -77,7 +106,7 @@ func TestRawSourceAPIWorkflowReadsFirstMiddleLastChapters(t *testing.T) {
 	for _, index := range []int{0, 2, 4} {
 		response = performAPIRequest(server, http.MethodGet, fmt.Sprintf("/api/books/book-1/chapters/%d/content", index), nil)
 		var content processor.ProcessResult
-		if err := json.Unmarshal(response.Body.Bytes(), &content); err != nil || response.Code != http.StatusOK || len(content.Paragraphs) == 0 || content.Paragraphs[0] != fmt.Sprintf("content %d", index+1) {
+		if err := json.Unmarshal(response.Body.Bytes(), &content); err != nil || response.Code != http.StatusOK || len(content.Paragraphs) == 0 || content.Paragraphs[0] != fmt.Sprintf("content %d begins here with enough meaningful narrative prose to verify this source as readable while preserving deterministic first, middle, and last chapter checks.", index+1) {
 			t.Fatalf("chapter %d status=%d content=%+v err=%v body=%s", index, response.Code, content, err, response.Body.String())
 		}
 	}

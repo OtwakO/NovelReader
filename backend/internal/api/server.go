@@ -15,13 +15,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/auth"
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/candidate"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/processor"
@@ -30,21 +30,22 @@ import (
 
 // Server holds API dependencies.
 type Server struct {
-	db           *sql.DB
-	sourceStore  *booksource.Store
-	bookStore    *book.Store
-	searcher     *book.Searcher
-	fontStore    *fontstore.Store
-	fetcher      *fetcher.Client
-	jsVM         *analyzer.JSVM
-	cache        *analyzer.CacheManager
-	processorCfg processor.Config
-	dataDir      string
-	mux          *http.ServeMux
-	auth         *auth.HTTPHandler
-	runtimes     *readerRuntimeManager
-	health       interface{ PingContext(context.Context) error }
-	webViewProbe interface{ Probe(context.Context) error }
+	db                  *sql.DB
+	sourceStore         *booksource.Store
+	bookStore           *book.Store
+	searcher            *book.Searcher
+	fontStore           *fontstore.Store
+	fetcher             *fetcher.Client
+	jsVM                *analyzer.JSVM
+	cache               *analyzer.CacheManager
+	processorCfg        processor.Config
+	dataDir             string
+	mux                 *http.ServeMux
+	auth                *auth.HTTPHandler
+	runtimes            *readerRuntimeManager
+	health              interface{ PingContext(context.Context) error }
+	webViewProbe        interface{ Probe(context.Context) error }
+	candidateOperations *candidate.Manager
 }
 
 // Mux exposes the underlying ServeMux for static file mounting.
@@ -54,7 +55,13 @@ func (s *Server) Mux() *http.ServeMux {
 
 // Close releases cached reader-home leases owned by the authenticated server.
 func (s *Server) Close() error {
-	if s == nil || s.runtimes == nil {
+	if s == nil {
+		return nil
+	}
+	if s.candidateOperations != nil {
+		s.candidateOperations.Close()
+	}
+	if s.runtimes == nil {
 		return nil
 	}
 	return s.runtimes.Close()
@@ -74,17 +81,18 @@ func NewServer(
 	db *sql.DB,
 ) *Server {
 	s := &Server{
-		db:           db,
-		sourceStore:  sourceStore,
-		bookStore:    bookStore,
-		searcher:     searcher,
-		fontStore:    fontStore,
-		fetcher:      fetcher,
-		jsVM:         jsVM,
-		cache:        cache,
-		processorCfg: processorCfg,
-		dataDir:      dataDir,
-		mux:          http.NewServeMux(),
+		db:                  db,
+		sourceStore:         sourceStore,
+		bookStore:           bookStore,
+		searcher:            searcher,
+		fontStore:           fontStore,
+		fetcher:             fetcher,
+		jsVM:                jsVM,
+		cache:               cache,
+		processorCfg:        processorCfg,
+		dataDir:             dataDir,
+		mux:                 http.NewServeMux(),
+		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 	}
 	s.registerRoutes()
 	return s
@@ -120,18 +128,17 @@ func (s *Server) registerRoutesWithoutHealth() {
 	s.mux.HandleFunc("GET /api/books", s.handleListBooks)
 	s.mux.HandleFunc("GET /api/books/{id}", s.handleGetBook)
 	s.mux.HandleFunc("GET /api/books/{id}/cover", s.handleGetBookCover)
-	s.mux.HandleFunc("POST /api/books", s.handleAddBook)
-	s.mux.HandleFunc("POST /api/books/enrich", s.handleEnrichBook)
-	s.mux.HandleFunc("POST /api/books/preview", s.handlePreviewBook)
-	s.mux.HandleFunc("POST /api/books/shelve", s.handleShelveBook)
-	s.mux.HandleFunc("POST /api/books/readable", s.handleAddReadableBook)
+	s.mux.HandleFunc("POST /api/candidate-resolutions", s.handleStartCandidateResolution)
+	s.mux.HandleFunc("GET /api/candidate-resolutions/{id}", s.handleGetCandidateResolution)
+	s.mux.HandleFunc("GET /api/candidate-resolutions/{id}/events", s.handleStreamCandidateResolution)
+	s.mux.HandleFunc("DELETE /api/candidate-resolutions/{id}", s.handleCancelCandidateResolution)
+	s.mux.HandleFunc("POST /api/candidate-resolutions/{id}/shelve", s.handleCommitCandidateResolution)
 	s.mux.HandleFunc("POST /api/books/{id}/sources", s.handleMergeBookSources)
 	s.mux.HandleFunc("DELETE /api/books/{id}/sources", s.handleClearBookSources)
 	s.mux.HandleFunc("DELETE /api/books", s.handleDeleteBook)
 
 	// Search
-	s.mux.HandleFunc("GET /api/search", s.handleSearch)
-	s.mux.HandleFunc("GET /api/search/stream", s.handleSearchStream)
+	s.mux.HandleFunc("GET /api/search/stream", s.handleSearchBatchStream)
 
 	// Explore
 	s.mux.HandleFunc("GET /api/explore/sources", s.handleExploreSources)
@@ -166,6 +173,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 	s := &Server{
 		fetcher: rootSearcherFetcher(rootSearcher), jsVM: jsVM, cache: analyzer.NewCacheManager(),
 		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health, webViewProbe: webViewProbe,
+		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 	}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, limits, 32, limits.SessionTTL)
 	authHandler.ConfigureDeletionQuiescer(readers, s.runtimes.quiesce)
@@ -352,255 +360,6 @@ func (s *Server) handleGetBookCover(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
-	var b book.Book
-	if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	defer r.Body.Close()
-
-	stored, created, err := s.bookStore.AddOrMergeBook(&b)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	status := http.StatusOK
-	if created {
-		status = http.StatusCreated
-	}
-	writeJSON(w, status, stored)
-}
-
-type bookCandidateRequest struct {
-	ID               string           `json:"id,omitempty"`
-	Name             string           `json:"name"`
-	Author           string           `json:"author,omitempty"`
-	CoverURL         string           `json:"coverUrl,omitempty"`
-	Intro            string           `json:"intro,omitempty"`
-	Kind             string           `json:"kind,omitempty"`
-	LastChapter      string           `json:"lastChapter,omitempty"`
-	UpdateTime       string           `json:"updateTime,omitempty"`
-	WordCount        string           `json:"wordCount,omitempty"`
-	SourceName       string           `json:"sourceName,omitempty"`
-	SourceURL        string           `json:"sourceUrl"`
-	BookURL          string           `json:"bookUrl"`
-	AlternateSources []book.AltSource `json:"alternateSources,omitempty"`
-}
-
-func (req bookCandidateRequest) candidate() *book.Book {
-	return &book.Book{
-		ID: req.ID, Name: req.Name, Author: req.Author, CoverURL: req.CoverURL,
-		Intro: book.NormalizeDescription(req.Intro), Kind: req.Kind, LastChapter: req.LastChapter,
-		UpdateTime: req.UpdateTime, WordCount: req.WordCount, SourceURL: req.SourceURL,
-		BookURL: req.BookURL, Origin: req.SourceName, AlternateSources: req.AlternateSources,
-	}
-}
-
-func decodeBookCandidate(w http.ResponseWriter, r *http.Request, requireID bool) (bookCandidateRequest, bool) {
-	var req bookCandidateRequest
-	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
-	defer r.Body.Close()
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&req); err != nil {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_book_candidate", "invalid book request")
-		return req, false
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_book_candidate", "invalid book request")
-		return req, false
-	}
-	if req.Name == "" || req.SourceURL == "" || req.BookURL == "" || (requireID && req.ID == "") {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_book_candidate", "name, sourceUrl, bookUrl, and required id must be provided")
-		return req, false
-	}
-	return req, true
-}
-
-func (s *Server) enrichBookCandidate(req bookCandidateRequest) (*book.Book, *booksource.BookSource, error) {
-	candidate := req.candidate()
-	src, err := s.sourceStore.GetByID(req.SourceURL)
-	if err != nil {
-		return nil, nil, fmt.Errorf("load source: %w", err)
-	}
-	if src == nil {
-		return candidate, nil, nil
-	}
-	candidate.Origin = src.BookSourceName
-	enriched, err := s.searcher.GetBookInfoForBook(*src, candidate, req.BookURL)
-	if err != nil {
-		return nil, src, err
-	}
-	return enriched, src, nil
-}
-
-func (s *Server) handleEnrichBook(w http.ResponseWriter, r *http.Request) {
-	req, ok := decodeBookCandidate(w, r, true)
-	if !ok {
-		return
-	}
-	candidate, src, err := s.enrichBookCandidate(req)
-	if err != nil {
-		if src == nil {
-			writeError(w, http.StatusInternalServerError, "load source failed")
-		} else {
-			writeCrawlError(w, "book_info", err)
-		}
-		return
-	}
-	stored, _, err := s.bookStore.AddOrMergeBook(candidate)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, stored)
-}
-
-func previewBookFromCandidate(candidate *book.Book) book.PreviewBook {
-	return book.PreviewBook{
-		Name: candidate.Name, Author: candidate.Author, CoverURL: candidate.CoverURL,
-		Intro: candidate.Intro, Kind: candidate.Kind, SourceURL: candidate.SourceURL,
-		BookURL: candidate.BookURL, TocURL: candidate.TocURL, Origin: candidate.Origin,
-		LastChapter: candidate.LastChapter, UpdateTime: candidate.UpdateTime, WordCount: candidate.WordCount,
-		DownloadURLs: candidate.DownloadURLs, AlternateSources: candidate.AlternateSources,
-	}
-}
-
-func firstReadableChapter(chapters []book.Chapter) (int, bool) {
-	for index := range chapters {
-		if !chapters[index].IsVolume && chapters[index].URL != "" {
-			return index, true
-		}
-	}
-	return 0, false
-}
-
-func (s *Server) handlePreviewBook(w http.ResponseWriter, r *http.Request) {
-	req, ok := decodeBookCandidate(w, r, false)
-	if !ok {
-		return
-	}
-	candidate, src, err := s.enrichBookCandidate(req)
-	if err != nil {
-		if src == nil {
-			writeErrorCode(w, http.StatusNotFound, "source_not_found", "book source not found")
-		} else {
-			writeCrawlError(w, "book_info", err)
-		}
-		return
-	}
-	if src == nil {
-		writeErrorCode(w, http.StatusNotFound, "source_not_found", "book source not found")
-		return
-	}
-	chapters, err := s.searcher.GetChapterListForBook(*src, candidate, candidate.TocURL)
-	if err != nil {
-		writeCrawlError(w, "toc", err)
-		return
-	}
-	for index := range chapters {
-		chapters[index].ID = ""
-		chapters[index].BookID = ""
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"book": previewBookFromCandidate(candidate), "chapters": chapters})
-}
-
-func (s *Server) loadCandidateTOC(req bookCandidateRequest) (*book.Book, *booksource.BookSource, []book.Chapter, error) {
-	candidate, src, err := s.enrichBookCandidate(req)
-	if err != nil || src == nil {
-		return candidate, src, nil, err
-	}
-	chapters, err := s.searcher.GetChapterListForBook(*src, candidate, candidate.TocURL)
-	return candidate, src, chapters, err
-}
-
-func (s *Server) handleShelveBook(w http.ResponseWriter, r *http.Request) {
-	req, ok := decodeBookCandidate(w, r, true)
-	if !ok {
-		return
-	}
-	candidate, src, chapters, err := s.loadCandidateTOC(req)
-	if err != nil {
-		if src == nil {
-			writeErrorCode(w, http.StatusNotFound, "source_not_found", "book source not found")
-		} else {
-			writeCrawlError(w, "toc", err)
-		}
-		return
-	}
-	if src == nil {
-		writeErrorCode(w, http.StatusNotFound, "source_not_found", "book source not found")
-		return
-	}
-	stored, created, err := s.bookStore.AddOrMergeBookWithChapters(candidate, chapters)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to add book")
-		return
-	}
-	status := http.StatusOK
-	if created {
-		status = http.StatusCreated
-	}
-	writeJSON(w, status, stored)
-}
-
-func (s *Server) handleAddReadableBook(w http.ResponseWriter, r *http.Request) {
-	req, ok := decodeBookCandidate(w, r, true)
-	if !ok {
-		return
-	}
-	candidate, src, chapters, err := s.loadCandidateTOC(req)
-	if err != nil {
-		if src == nil {
-			writeErrorCode(w, http.StatusNotFound, "source_not_found", "book source not found")
-		} else {
-			writeCrawlError(w, "toc", err)
-		}
-		return
-	}
-	if src == nil {
-		writeErrorCode(w, http.StatusNotFound, "source_not_found", "book source not found")
-		return
-	}
-	readablePosition, ok := firstReadableChapter(chapters)
-	if !ok {
-		writeErrorCode(w, http.StatusBadGateway, "book_not_readable", "this source has no readable chapters")
-		return
-	}
-	current := &chapters[readablePosition]
-	var next *book.Chapter
-	if readablePosition+1 < len(chapters) {
-		next = &chapters[readablePosition+1]
-	}
-	rawContent, _, err := s.searcher.GetChapterContentForBook(*src, candidate, current, next)
-	if err == nil && strings.TrimSpace(rawContent) == "" {
-		err = errors.New("content: empty extraction")
-	}
-	if err != nil {
-		writeCrawlError(w, "content", err)
-		return
-	}
-	stored, created, err := s.bookStore.AddOrMergeBookWithChapters(candidate, chapters)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to add readable book")
-		return
-	}
-	firstIndex := readablePosition
-	if !created {
-		// Existing logical books keep their canonical reading position. Clients
-		// should resume rather than treating validation as explicit navigation.
-		firstIndex = stored.DurChapterIndex
-	} else {
-		firstIndex = chapters[readablePosition].Index
-	}
-	status := http.StatusOK
-	if created {
-		status = http.StatusCreated
-	}
-	writeJSON(w, status, map[string]any{"book": stored, "firstReadableChapter": firstIndex})
-}
-
 func (s *Server) handleMergeBookSources(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Sources []book.AltSource `json:"sources"`
@@ -652,97 +411,6 @@ func (s *Server) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- Search ---
-
-func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("q")
-	if query == "" {
-		writeError(w, http.StatusBadRequest, "missing query param q")
-		return
-	}
-
-	results, err := s.searcher.Search(query)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if results == nil {
-		results = []book.SearchResult{}
-	}
-	// Merge same books, sort by relevance
-	results = book.MergeAndSort(query, results)
-	writeJSON(w, http.StatusOK, results)
-}
-
-func (s *Server) handleSearchStream(w http.ResponseWriter, r *http.Request) {
-	if _, batched := r.URL.Query()["batchSize"]; batched {
-		s.handleSearchBatchStream(w, r)
-		return
-	}
-
-	query := r.URL.Query().Get("q")
-	if query == "" {
-		writeError(w, http.StatusBadRequest, "missing query param q")
-		return
-	}
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "streaming not supported")
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
-
-	writeSSE := func(v interface{}) {
-		b, _ := json.Marshal(v)
-		fmt.Fprintf(w, "data: %s\n\n", b)
-		flusher.Flush()
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
-	// Collect all results for cross-source merge at the end
-	var allResults []book.SearchResult
-	var mu sync.Mutex
-
-	total := 0
-	sourcesDone := 0
-	err := s.searcher.SearchStream(ctx, query, func(src booksource.BookSource, results []book.SearchResult, e error) {
-		sourcesDone++
-		if e != nil {
-			writeSSE(map[string]interface{}{
-				"type":    "error",
-				"source":  src.BookSourceName,
-				"message": e.Error(),
-			})
-			return
-		}
-		total += len(results)
-		mu.Lock()
-		allResults = append(allResults, results...)
-		mu.Unlock()
-		writeSSE(map[string]interface{}{
-			"type":   "results",
-			"source": src.BookSourceName,
-			"data":   results,
-		})
-	})
-
-	// Merge same books from different sources, sort by relevance
-	merged := book.MergeAndSort(query, allResults)
-
-	writeSSE(map[string]interface{}{
-		"type":        "done",
-		"total":       total,
-		"sourcesDone": sourcesDone,
-		"merged":      merged,
-		"error":       err != nil && err != context.Canceled,
-	})
-}
 
 // --- Chapters ---
 

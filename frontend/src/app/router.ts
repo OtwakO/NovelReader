@@ -15,7 +15,7 @@ import SetupUnavailableView from '../features/account/SetupUnavailableView.vue';
 import RecoveryView from '../features/account/RecoveryView.vue';
 import ShelfView from '../features/shelf/ShelfView.vue';
 import SearchView from '../features/search/SearchView.vue';
-import BookPreviewView from '../features/books/BookPreviewView.vue';
+import CandidateBookDetailView from '../features/books/CandidateBookDetailView.vue';
 import BookDetailView from '../features/books/BookDetailView.vue';
 import ReaderView from '../features/reader/ReaderView.vue';
 import ExploreView from '../features/explore/ExploreView.vue';
@@ -53,7 +53,7 @@ export function createAppRouter(appPinia: Pinia = pinia) {
           { path: 'shelf', name: 'shelf', component: ShelfView },
           { path: 'explore', name: 'explore', component: ExploreView },
           { path: 'search', name: 'search', component: SearchView },
-          { path: 'books/preview', name: 'book-preview', component: BookPreviewView },
+          { path: 'books/candidate', name: 'candidate-book-detail', component: CandidateBookDetailView },
           { path: 'books/:bookId', name: 'book-detail', component: BookDetailView },
           { path: 'books/:bookId/read/:chapterIndex?', name: 'reader', component: ReaderView },
           { path: 'sources', name: 'sources', component: SourceManagementView },

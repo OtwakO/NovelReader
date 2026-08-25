@@ -18,6 +18,9 @@ export default defineComponent({
       </div>
       <slot name="status" />
     </header>
+    <div v-if="$slots.body" class="book-detail-section__body">
+      <slot name="body" />
+    </div>
     <slot />
   </section>
 </template>
@@ -50,6 +53,15 @@ export default defineComponent({
 }
 .book-detail-section__header > :deep(*) {
   flex: 0 0 auto;
+}
+.book-detail-section__body {
+  padding: 1rem;
+}
+.book-detail-section__body :deep(> :first-child) {
+  margin-top: 0;
+}
+.book-detail-section__body :deep(> :last-child) {
+  margin-bottom: 0;
 }
 @media (max-width: 42rem) {
   .book-detail-section__header {

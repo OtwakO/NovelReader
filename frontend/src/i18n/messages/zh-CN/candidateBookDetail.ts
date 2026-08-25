@@ -1,0 +1,18 @@
+export default {
+  title: '书籍详情',
+  description: '加入书架前，查看已经验证的书籍信息与目录。',
+  disconnected: '进度连接已中断，正在重新连接…',
+  cancel: '取消检查',
+  failed: '无法验证这本书。',
+  missing: '此候选书籍已不可用，请返回搜索或发现后重新打开。',
+  retry: '重试',
+  source: '阅读书源：{source}',
+  sourceCount: '共 {count} 个已知书源',
+  fallback: '原始结果无法阅读，已改用验证通过的书源“{source}”。',
+  noIntro: '此书源没有提供简介。',
+  shelve: '加入书架',
+  shelving: '正在加入…',
+  shelfFailed: '无法加入已验证的候选书籍。验证可能已过期，请重新检查。',
+  back: '返回搜索',
+  backExplore: '返回发现',
+};

@@ -12,14 +12,18 @@ import { getChapters, switchBookSource } from "../../api/reader";
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
 import SourceRecoveryPanel from "../source-recovery/SourceRecoveryPanel.vue";
+import BookCover from "./BookCover.vue";
 import BookDetailSection from "./BookDetailSection.vue";
 import BookDetailToc from "./BookDetailToc.vue";
 import WebViewFailureHint from "../../ui/components/WebViewFailureHint.vue";
+import { clearCandidateCommittedBook } from "../candidates/candidate-operation";
+import { readableChapterLabel } from "./book-display";
 
 export default defineComponent({
   name: "BookDetailView",
   components: {
     AppButton,
+    BookCover,
     BookDetailSection,
     BookDetailToc,
     FeatureScaffold,
@@ -44,6 +48,9 @@ export default defineComponent({
   computed: {
     bookId(): string {
       return String(this.$route.params.bookId || "");
+    },
+    displayLastChapter(): string {
+      return readableChapterLabel(this.book?.lastChapter);
     },
     progress(): number {
       if (!this.book?.totalChapterNum) return 0;
@@ -162,7 +169,9 @@ export default defineComponent({
       if (!this.book || this.removing) return;
       this.removing = true;
       try {
-        await deleteBook(this.book.id);
+        const bookId = this.book.id;
+        await deleteBook(bookId);
+        clearCandidateCommittedBook(bookId);
         await this.$router.replace("/shelf");
       } catch (cause) {
         this.bookError =
@@ -191,15 +200,7 @@ export default defineComponent({
     <template v-else>
       <p v-if="bookError" class="banner-error" role="alert">{{ bookError }}</p>
       <section class="hero">
-        <img
-          v-if="book.coverUrl"
-          :src="book.coverUrl"
-          :alt="$t('bookDetail.coverAlt', { name: book.name })"
-          class="cover"
-        >
-        <div v-else class="cover placeholder" aria-hidden="true">
-          {{ book.name.slice(0, 1) }}
-        </div>
+        <BookCover class="cover" :name="book.name" :url="book.coverUrl" :alt="$t('bookDetail.coverAlt', { name: book.name })" />
         <div class="identity">
           <h2>{{ book.name }}</h2>
           <p class="author">
@@ -212,8 +213,8 @@ export default defineComponent({
               $t("bookDetail.progress", { percent: progress })
             }}</span>
           </div>
-          <p v-if="book.lastChapter" class="latest">
-            {{ $t("bookDetail.latest", { chapter: book.lastChapter }) }}
+          <p v-if="displayLastChapter" class="latest">
+            {{ $t("bookDetail.latest", { chapter: displayLastChapter }) }}
           </p>
           <p class="source">
             {{
@@ -259,10 +260,10 @@ export default defineComponent({
         </div>
       </section>
       <BookDetailSection v-if="book.intro" :title="$t('bookDetail.synopsis')">
-<div class="section-body">
+        <template #body>
           <p class="intro">{{ book.intro }}</p>
-        </div>
-</BookDetailSection>
+        </template>
+      </BookDetailSection>
       <WebViewFailureHint v-if="tocError" />
       <BookDetailToc
         :book-id="book.id"
@@ -310,17 +311,6 @@ export default defineComponent({
   border-radius: 0;
   background: var(--color-paper-muted);
 }
-.placeholder {
-  display: grid;
-  place-items: center;
-  background: linear-gradient(
-    145deg,
-    var(--color-accent),
-    var(--color-accent-strong)
-  );
-  color: white;
-  font: 700 2.5rem var(--font-literary);
-}
 .identity {
   min-width: 0;
 }
@@ -366,9 +356,6 @@ export default defineComponent({
   color: white;
   text-decoration: none;
   font-weight: 700;
-}
-.section-body {
-  padding: 1rem;
 }
 .intro {
   max-width: 72ch;

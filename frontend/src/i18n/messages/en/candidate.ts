@@ -1,0 +1,17 @@
+export default {
+  title: 'Finding a readable source',
+  help: 'The first source with book information, contents, and readable chapter text is used.',
+  starting: 'Starting source checks…',
+  finishing: 'Adding verified book…',
+  runningSummary: 'Checking {active} sources · {completed}/{known}',
+  failedSummary: 'No readable source · {completed}/{known}',
+  counts: '{completed} of {known} checked · {active} active',
+  winnerCounts: 'Readable source found · finishing {active} active checks',
+  cancelling: 'Cancelling…',
+  cancelFailed: 'Could not cancel the source checks. Try again.',
+  queued: '{count} sources waiting',
+  skipped: '{count} remaining sources skipped after finding a readable copy',
+  moreFailed: '{count} more sources unavailable',
+  stage: { book_info: 'Getting book information', toc: 'Reading contents', content: 'Checking chapter text' },
+  state: { running: 'Checking', failed: 'Unavailable', verified: 'Readable', skipped: 'Not needed' },
+};
