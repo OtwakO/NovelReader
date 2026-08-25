@@ -2,9 +2,9 @@
 
 ### [2026-08-25] CI tests must not depend on private BookSource corpora
 - **Context**: The container publication workflow failed before image build because backend image-decoder tests opened ignored root `test_booksource*.json` corpora that existed locally but not in a GitHub checkout.
-- **Change**: Cover and chapter image-decoder tests now use small inline synthetic scripts. Root BookSource corpora are covered by explicit Git and Docker ignore patterns, and the standalone deployment defaults to `TZ: Asia/Taipei`.
-- **Reason**: Private imported corpora are manual compatibility inputs, not deterministic build dependencies. Local presence had hidden the checkout failure.
-- **Verified**: The workflow's exact backend test/race/build sequence passes with every root BookSource corpus physically absent; the Docker context contains none of them; both Compose files validate; and the production app image builds successfully with all 112 frontend tests.
+- **Change**: Cover and chapter image-decoder tests now use small inline synthetic scripts. Root BookSource corpora are covered by explicit Git and Docker ignore patterns. The Docker E2E now exercises the current batched Search SSE contract instead of removed `GET /api/search`, and both deployment Compose defaults use `TZ: Asia/Taipei`.
+- **Reason**: Private imported corpora are manual compatibility inputs, not deterministic build dependencies. Local presence had hidden the checkout failure. After that was fixed, CI exposed a separate stale E2E call to an intentionally removed private API.
+- **Verified**: The workflow's exact backend test/race/build sequence passes with every root BookSource corpus physically absent; the Docker context contains none of them; both Compose files validate; the production app image builds successfully with all 112 frontend tests; and the deterministic Docker E2E passes frontend delivery, readiness, private WebView, batched rendered Search, graceful stop, and persistence.
 - **Watch out**: Automated compatibility fixtures belong under `testdata/booksource/conformance/` and must remain small, deterministic, and offline. Never make CI or Docker depend on ignored root corpora.
 
 ### [2026-08-25] Candidate source state must remain authoritative across shelf and Search

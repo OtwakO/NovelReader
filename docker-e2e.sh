@@ -46,11 +46,20 @@ fi
 curl -fsS -b "$ROOT/.docker-e2e-cookies" -X POST -H 'Content-Type: application/json' -H "Origin: $base_url" \
   --data-binary "@$ROOT/testdata/docker/webview-source.json" \
   "$base_url/api/sources" >/dev/null
-curl -fsS -b "$ROOT/.docker-e2e-cookies" --get --data-urlencode 'q=Rendered Fixture Book' \
-  "$base_url/api/search" >"$ROOT/.docker-e2e-search.json"
+curl -fsS -N -b "$ROOT/.docker-e2e-cookies" --get \
+  --data-urlencode 'q=Rendered Fixture Book' \
+  --data-urlencode 'batchSize=10' \
+  --data-urlencode 'concurrency=2' \
+  "$base_url/api/search/stream" >"$ROOT/.docker-e2e-search.json"
 python3 - "$ROOT/.docker-e2e-search.json" <<'PY'
 import json, sys
-results = json.load(open(sys.argv[1], encoding="utf-8"))
+results = []
+for line in open(sys.argv[1], encoding="utf-8"):
+    if not line.startswith("data: "):
+        continue
+    event = json.loads(line[6:])
+    if event.get("type") == "results":
+        results.extend(event.get("data") or [])
 assert any(item.get("name") == "Rendered Fixture Book" for item in results), results
 PY
 rm -f "$ROOT/.docker-e2e-search.json"
