@@ -7,6 +7,8 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	xhtml "golang.org/x/net/html"
 )
@@ -161,19 +163,35 @@ func (p *ContentProcessor) removeTitle(title, content string) string {
 	return content
 }
 
-func (p *ContentProcessor) reSegment(content, title string) string {
-	// Split on common Chinese punctuation (. 。! ！? ？) followed by whitespace or newline
-	re := regexp.MustCompile(`([。！？.!?\n])`)
-	segments := re.Split(content, -1)
+func (p *ContentProcessor) reSegment(content, _ string) string {
+	return strings.ReplaceAll(content, "\r\n", "\n")
+}
 
-	var result []string
-	for _, seg := range segments {
-		seg = strings.TrimSpace(seg)
-		if seg != "" {
-			result = append(result, seg)
+func startsWithClosingPunctuation(line string) bool {
+	first, _ := utf8.DecodeRuneInString(line)
+	return strings.ContainsRune("”’」』）》】〕〉〗〙〛。，、；：！？!?.,;:", first)
+}
+
+func joinLeadingClosingPunctuation(line string) string {
+	first, size := utf8.DecodeRuneInString(line)
+	return string(first) + strings.TrimSpace(line[size:])
+}
+
+func spaceAfterCJKClosingQuote(text string) string {
+	runes := []rune(text)
+	var result strings.Builder
+	result.Grow(len(text))
+	for index, current := range runes {
+		result.WriteRune(current)
+		if !strings.ContainsRune("”」』", current) || index+1 >= len(runes) {
+			continue
+		}
+		next := runes[index+1]
+		if !unicode.IsSpace(next) && !unicode.IsPunct(next) {
+			result.WriteByte(' ')
 		}
 	}
-	return strings.Join(result, "\n")
+	return result.String()
 }
 
 func (p *ContentProcessor) convertChinese(content string, mode ChineseConvertMode) string {
@@ -208,21 +226,26 @@ func (p *ContentProcessor) toParagraphs(title, content string) []string {
 	lines := strings.Split(content, "\n")
 	var paragraphs []string
 
-	for i, line := range lines {
-		line = strings.TrimSpace(line)
+	for _, line := range lines {
 		trimmed := trimSpacePunct(line)
 		if trimmed == "" {
 			continue
 		}
-		if i == 0 {
-			paragraphs = append(paragraphs, trimmed)
-		} else {
-			paragraphs = append(paragraphs, p.config.ParagraphIndent+trimmed)
+		if len(paragraphs) > 0 && startsWithClosingPunctuation(trimmed) {
+			paragraphs[len(paragraphs)-1] += joinLeadingClosingPunctuation(trimmed)
+			continue
 		}
+		if len(paragraphs) > 0 {
+			trimmed = p.config.ParagraphIndent + trimmed
+		}
+		paragraphs = append(paragraphs, trimmed)
 	}
 
 	if len(paragraphs) == 0 {
 		paragraphs = append(paragraphs, title)
+	}
+	for index := range paragraphs {
+		paragraphs[index] = spaceAfterCJKClosingQuote(paragraphs[index])
 	}
 	return paragraphs
 }
