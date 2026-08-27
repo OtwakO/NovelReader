@@ -801,7 +801,7 @@ func (s *Server) handleGetFontFile(w http.ResponseWriter, r *http.Request) {
 
 // --- Static files (frontend) ---
 
-// ServeStatic serves the Svelte frontend build output.
+// ServeStatic serves the frontend build output.
 // Should be mounted at / with a fallback to index.html for SPA routing.
 func (s *Server) ServeStatic(mux *http.ServeMux, staticDir string, fs http.Handler) {
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

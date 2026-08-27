@@ -77,6 +77,7 @@ func NewSetupHTTPHandler(store *Store, readers *readerstore.Manager, config Setu
 }
 
 func (h *SetupHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	preventAuthResponseCaching(w)
 	h.mux.ServeHTTP(w, r)
 }
 
@@ -245,18 +246,7 @@ func (h *SetupHTTPHandler) revokeEventuallyCreatedSession(result <-chan struct {
 }
 
 func (h *SetupHTTPHandler) setSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
-	secure := h.secureCookie
-	if h.allowedOrigin == "" {
-		_, secure, _ = MatchRequestOrigin("", r)
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     SessionCookieName,
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
+	setBrowserSessionCookie(w, r, token, sessionCookieMaxAgeSecs, h.secureCookie, h.allowedOrigin)
 }
 
 var (

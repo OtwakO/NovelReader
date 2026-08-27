@@ -14,6 +14,7 @@ NovelReader must:
 - execute source-defined requests, rules, JavaScript, sessions, cookies, and WebView work on the backend;
 - distinguish engine defects from DNS, upstream, authentication, WAF, captcha, and stale-source failures;
 - provide a lightweight responsive Reader and management UI through stable typed domain APIs;
+- provide an installable resilient web app shell without service-worker ownership of authenticated API or Reader Data;
 - keep each reader account's books, sources, reading state, and files isolated and portable;
 - remain understandable and maintainable without source-specific patches or speculative abstraction.
 
@@ -36,6 +37,8 @@ Vue 3 SPA
 ```
 
 The frontend owns interaction and presentation. It never constructs BookSource URLs, evaluates source rules, or interprets source-specific crawling behavior.
+
+The production frontend is an installable PWA. Its service worker pre-caches only the app shell, manifest, icons, and fingerprinted frontend assets; `/api` requests remain network-owned and authenticated books, chapters, progress, and credentials are never placed in service-worker caches. Waiting updates activate at the next launch or reload boundary rather than interrupting an active reading session.
 
 ### Repository ownership
 

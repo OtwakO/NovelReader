@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSessionStore } from './session';
 import * as authApi from '../api/auth';
-import { ApiError } from '../api/transport';
+import { ApiError, NetworkError } from '../api/transport';
 
 vi.mock('../api/auth', async () => {
   const actual = await vi.importActual<typeof import('../api/auth')>('../api/auth');
@@ -49,6 +49,24 @@ describe('session store', () => {
 
   it('keeps a retryable logout failure after private state closes', async () => {
     vi.mocked(authApi.logout).mockRejectedValue(new Error('logout unavailable')); const session=useSessionStore();session.account={id:'u1',username:'reader',role:'reader'};session.phase='authenticated';await expect(session.logout()).rejects.toThrow('logout unavailable');expect(session.account).toBeNull();expect(session.phase).toBe('guest');expect(session.notice).toBe('logout-failed');
+  });
+
+  it('classifies an offline startup failure without exposing a fetch error as product copy', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    vi.mocked(authApi.getSetupStatus).mockRejectedValue(new NetworkError());
+    const session = useSessionStore();
+    await session.initialize();
+    expect(session.phase).toBe('error');
+    expect(session.startupFailure).toBe('offline');
+  });
+
+  it('classifies a reachable-network fetch failure as an unavailable server', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true);
+    vi.mocked(authApi.getSetupStatus).mockRejectedValue(new NetworkError());
+    const session = useSessionStore();
+    await session.initialize();
+    expect(session.phase).toBe('error');
+    expect(session.startupFailure).toBe('server-unreachable');
   });
 
   it('treats a current-account 401 as a guest session', async () => {

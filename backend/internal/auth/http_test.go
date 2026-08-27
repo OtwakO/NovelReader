@@ -451,7 +451,10 @@ func TestHTTPHandlerLoginAccountAndLogoutLifecycle(t *testing.T) {
 		t.Fatalf("login cookies=%#v", cookies)
 	}
 	cookie := cookies[0]
-	if cookie.Name != SessionCookieName || cookie.Value == "" || !cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/" || cookie.MaxAge != 0 {
+	if loginResponse.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("expected auth response to disable caching, got %q", loginResponse.Header().Get("Cache-Control"))
+	}
+	if cookie.Name != SessionCookieName || cookie.Value == "" || !cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/" || cookie.MaxAge != sessionCookieMaxAgeSecs {
 		t.Fatalf("session cookie=%#v", cookie)
 	}
 	var accountResponse struct {

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ApiError, onAuthenticationLoss } from '../api/transport';
+import { ApiError, NetworkError, onAuthenticationLoss } from '../api/transport';
 import {
   getCurrentAccount,
   getRegistrationPolicy,
@@ -11,6 +11,7 @@ import {
 } from '../api/auth';
 
 export type SessionPhase = 'idle' | 'loading' | 'setup' | 'setup-unavailable' | 'guest' | 'authenticated' | 'error';
+export type StartupFailure = '' | 'offline' | 'server-unreachable' | 'unexpected';
 
 interface SessionState {
   phase: SessionPhase;
@@ -18,6 +19,7 @@ interface SessionState {
   registrationEnabled: boolean;
   registrationInviteRequired: boolean;
   message: string;
+  startupFailure: StartupFailure;
   notice: '' | 'authentication-lost' | 'logout-failed';
   returnTo: string;
   initialized: boolean;
@@ -30,6 +32,7 @@ export const useSessionStore = defineStore('session', {
     registrationEnabled: false,
     registrationInviteRequired: false,
     message: '',
+    startupFailure: '',
     notice: '',
     returnTo: '/shelf',
     initialized: false,
@@ -55,6 +58,7 @@ export const useSessionStore = defineStore('session', {
       if (this.initialized) return;
       this.phase = 'loading';
       this.message = '';
+      this.startupFailure = '';
       this.notice = '';
       try {
         const setup = await getSetupStatus();
@@ -84,6 +88,11 @@ export const useSessionStore = defineStore('session', {
         }
       } catch (cause) {
         this.phase = 'error';
+        this.startupFailure = !navigator.onLine
+          ? 'offline'
+          : cause instanceof NetworkError
+            ? 'server-unreachable'
+            : 'unexpected';
         this.message = cause instanceof Error ? cause.message : '';
       } finally {
         this.initialized = true;
@@ -94,6 +103,7 @@ export const useSessionStore = defineStore('session', {
       this.account = account;
       this.phase = 'authenticated';
       this.message = '';
+      this.startupFailure = '';
       this.notice = '';
     },
 

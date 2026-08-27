@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-27] PWA shell stays separate from authenticated Reader Data
+- **Context**: NovelReader needed Android installation, resilient application chrome, persistent sign-in across full browser or installed-app closure, and Reader controls that overlay prose instead of shrinking the reading viewport.
+- **Change**: A focused Vite build module injects the finalized shell asset manifest and standard SHA-256 revision into a checked-in service worker source. The worker pre-caches the complete fingerprinted frontend shell and never intercepts `/api`; the manifest includes Chromium-required 192px and 512px PNG icons plus a maskable icon reproducibly generated from the canonical `frontend/assets/branding/novelreader-logo.png` artwork. Waiting workers activate only on a later launch or reload. Browser-session creation now uses one shared 30-day persistent-cookie policy across login, setup, and administrator recovery, while logout and password changes still revoke the server session and delete the cookie. Reader chrome is absolutely overlaid on a full-viewport scroll host with safe-area prose padding.
+- **Reason**: Offline domain data would add synchronization, privacy, invalidation, and account-isolation complexity that the selected resilient-shell scope does not need. A server session cookie was insufficient for reliable installed-app reopening because it could disappear when the browser process closed.
+- **Verified**: Focused auth, transport, PWA build, locale, session, and Reader tests; Vue type checking; ESLint; warning-free production build inspection; real Chrome worker/cache/API-exclusion/offline-state checks; and desktop/mobile Reader checks.
+- **Watch out**: Do not add `/api`, chapter payloads, user files, or session material to the service-worker cache. A newly installed worker must not interrupt a currently open Reader session.
+
 ### [2026-08-25] CI tests must not depend on private BookSource corpora
 - **Context**: The container publication workflow failed before image build because backend image-decoder tests opened ignored root `test_booksource*.json` corpora that existed locally but not in a GitHub checkout.
 - **Change**: Cover and chapter image-decoder tests now use small inline synthetic scripts. Root BookSource corpora are covered by explicit Git and Docker ignore patterns. The Docker E2E now exercises the current batched Search SSE contract instead of removed `GET /api/search`, and both deployment Compose defaults use `TZ: Asia/Taipei`.

@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { onAuthenticationLoss, requestForm } from './transport';
+import { NetworkError, onAuthenticationLoss, requestForm } from './transport';
 
 describe('multipart transport', () => {
   afterEach(() => { vi.unstubAllGlobals(); onAuthenticationLoss(); });
+  it('normalizes fetch rejection at the transport seam', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    await expect(requestForm('/fonts', new FormData())).rejects.toBeInstanceOf(NetworkError);
+  });
   it('posts FormData without overriding its content type', async () => {
     const fetchMock=vi.fn().mockResolvedValue(new Response(JSON.stringify({id:'font'}),{status:201,headers:{'Content-Type':'application/json'}}));vi.stubGlobal('fetch',fetchMock);const form=new FormData();form.append('name','Font');await expect(requestForm('/fonts',form)).resolves.toEqual({id:'font'});expect(fetchMock).toHaveBeenCalledWith('/api/fonts',{method:'POST',body:form});
   });

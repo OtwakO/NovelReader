@@ -3,6 +3,7 @@ import App from './App.vue';
 import { pinia } from './app/pinia';
 import { router } from './app/router';
 import { i18n, initializeI18n } from './i18n';
+import { registerServiceWorker } from './pwa/register-service-worker';
 import { useSessionStore } from './stores/session';
 import './ui/styles/base.css';
 
@@ -21,3 +22,4 @@ const removeAuthenticationLossHandler = session.installAuthenticationLossHandler
 
 window.addEventListener('pagehide', removeAuthenticationLossHandler, { once: true });
 app.mount('#app');
+registerServiceWorker();

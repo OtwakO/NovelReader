@@ -7,7 +7,18 @@ export default defineComponent({
   name: 'StartupErrorView',
   components: { AppButton },
   computed: {
-    message(): string { return useSessionStore().message || this.$t('app.startup.fallback'); },
+    title(): string {
+      const failure = useSessionStore().startupFailure;
+      if (failure === 'offline') return this.$t('app.startup.offlineTitle');
+      if (failure === 'server-unreachable') return this.$t('app.startup.unreachableTitle');
+      return this.$t('app.startup.title');
+    },
+    message(): string {
+      const session = useSessionStore();
+      if (session.startupFailure === 'offline') return this.$t('app.startup.offlineDescription');
+      if (session.startupFailure === 'server-unreachable') return this.$t('app.startup.unreachableDescription');
+      return session.message || this.$t('app.startup.fallback');
+    },
   },
   methods: {
     async retry() {
@@ -23,7 +34,7 @@ export default defineComponent({
 <template>
   <main class="state-page">
     <section>
-      <h1>{{ $t('app.startup.title') }}</h1>
+      <h1>{{ title }}</h1>
       <p role="alert">{{ message }}</p>
       <AppButton @click="retry">{{ $t('app.common.retry') }}</AppButton>
     </section>

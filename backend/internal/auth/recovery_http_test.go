@@ -35,7 +35,10 @@ func TestRecoveryHTTPHandlerResetsAdministratorAndCreatesSession(t *testing.T) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 	cookies := response.Result().Cookies()
-	if len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteLaxMode || cookies[0].Secure {
+	if response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("expected recovery response to disable caching, got %q", response.Header().Get("Cache-Control"))
+	}
+	if len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteLaxMode || cookies[0].Secure || cookies[0].MaxAge != sessionCookieMaxAgeSecs {
 		t.Fatalf("cookies=%#v", cookies)
 	}
 	if _, err := handler.sessions.Authenticate(context.Background(), cookies[0].Value, 201); err != nil {

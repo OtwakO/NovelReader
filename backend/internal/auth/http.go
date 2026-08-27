@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	SessionCookieName   = "novelreader_session"
-	maxLoginRequestSize = 4 * 1024
-	maxLoginRatePeers   = 4096
+	SessionCookieName       = "novelreader_session"
+	sessionCookieMaxAgeSecs = 30 * 24 * 60 * 60
+	maxLoginRequestSize     = 4 * 1024
+	maxLoginRatePeers       = 4096
 )
 
 type HTTPConfig struct {
@@ -188,6 +189,7 @@ func (h *HTTPHandler) ConfigureDeletionQuiescer(readers *readerstore.Manager, qu
 }
 
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	preventAuthResponseCaching(w)
 	h.mux.ServeHTTP(w, r)
 }
 
@@ -276,7 +278,7 @@ func (h *HTTPHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusInternalServerError, "login unavailable")
 		return
 	}
-	h.setSessionCookie(w, r, credential.Token, 0)
+	h.setSessionCookie(w, r, credential.Token, sessionCookieMaxAgeSecs)
 	writeAuthJSON(w, http.StatusOK, publicAccount(account))
 }
 
@@ -417,7 +419,7 @@ func (h *HTTPHandler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusInternalServerError, "registration unavailable")
 		return
 	}
-	h.setSessionCookie(w, r, credential.Token, 0)
+	h.setSessionCookie(w, r, credential.Token, sessionCookieMaxAgeSecs)
 	writeAuthJSON(w, http.StatusCreated, publicAccount(account))
 }
 
@@ -779,8 +781,16 @@ func directPeerAddress(remoteAddr string) string {
 }
 
 func (h *HTTPHandler) setSessionCookie(w http.ResponseWriter, r *http.Request, value string, maxAge int) {
-	secure := h.secureCookie
-	if h.allowedOrigin == "" {
+	setBrowserSessionCookie(w, r, value, maxAge, h.secureCookie, h.allowedOrigin)
+}
+
+func preventAuthResponseCaching(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+}
+
+func setBrowserSessionCookie(w http.ResponseWriter, r *http.Request, value string, maxAge int, secureCookie bool, allowedOrigin string) {
+	secure := secureCookie
+	if allowedOrigin == "" {
 		_, secure, _ = MatchRequestOrigin("", r)
 	}
 	http.SetCookie(w, &http.Cookie{

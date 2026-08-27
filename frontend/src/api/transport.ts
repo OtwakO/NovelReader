@@ -37,6 +37,21 @@ export class ExploreApiError extends Error {
   }
 }
 
+export class NetworkError extends Error {
+  constructor(cause?: unknown) {
+    super('Network request failed', { cause });
+    this.name = 'NetworkError';
+  }
+}
+
+async function fetchRequest(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (cause) {
+    throw new NetworkError(cause);
+  }
+}
+
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -66,7 +81,7 @@ async function responseError(response: Response): Promise<never> {
 }
 
 export async function request<T>(path: string, options?: RequestInit, errorKind: 'general' | 'explore' = 'general'): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetchRequest(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
   });
@@ -84,7 +99,7 @@ export async function request<T>(path: string, options?: RequestInit, errorKind:
 }
 
 export async function requestForm<T>(path: string, form: FormData): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { method: 'POST', body: form });
+  const response = await fetchRequest(`${API_BASE}${path}`, { method: 'POST', body: form });
   if (!response.ok) return responseError(response);
   return response.json() as Promise<T>;
 }

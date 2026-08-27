@@ -7,6 +7,19 @@ import vueParser from 'vue-eslint-parser';
 export default [
   { ignores: ['dist/**', 'coverage/**'] },
   eslint.configs.recommended,
+  {
+    files: ['src/pwa/service-worker.js'],
+    languageOptions: {
+      globals: {
+        self: 'readonly',
+        caches: 'readonly',
+        fetch: 'readonly',
+        Response: 'readonly',
+        URL: 'readonly',
+        __NOVELREADER_SHELL_ASSETS__: 'readonly',
+      },
+    },
+  },
   ...pluginVue.configs['flat/recommended'],
   {
     files: ['**/*.{ts,vue}'],

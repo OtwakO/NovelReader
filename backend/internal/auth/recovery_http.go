@@ -77,6 +77,7 @@ func NewRecoveryHTTPHandler(store *Store, readers *readerstore.Manager, config R
 }
 
 func (h *RecoveryHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	preventAuthResponseCaching(w)
 	h.mux.ServeHTTP(w, r)
 }
 
@@ -226,18 +227,7 @@ func (h *RecoveryHTTPHandler) revokeEventuallyCreatedSession(result <-chan struc
 }
 
 func (h *RecoveryHTTPHandler) setSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
-	secure := h.secureCookie
-	if h.allowedOrigin == "" {
-		_, secure, _ = MatchRequestOrigin("", r)
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     SessionCookieName,
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
+	setBrowserSessionCookie(w, r, token, sessionCookieMaxAgeSecs, h.secureCookie, h.allowedOrigin)
 }
 
 var (
