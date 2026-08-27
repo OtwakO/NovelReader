@@ -27,12 +27,16 @@ describe('session store', () => {
     expect(authApi.getCurrentAccount).not.toHaveBeenCalled();
   });
 
-  it('loads registration policy and current account after closed setup', async () => {
+  it('loads registration policy and current account concurrently after closed setup', async () => {
     vi.mocked(authApi.getSetupStatus).mockResolvedValue({ status: 'closed', available: false });
-    vi.mocked(authApi.getRegistrationPolicy).mockResolvedValue({ enabled: true, inviteRequired: true });
+    let resolveRegistration!: (value: { enabled: boolean; inviteRequired: boolean }) => void;
+    vi.mocked(authApi.getRegistrationPolicy).mockReturnValue(new Promise((resolve) => { resolveRegistration = resolve; }));
     vi.mocked(authApi.getCurrentAccount).mockResolvedValue({ id: 'u1', username: 'reader', role: 'reader' });
     const session = useSessionStore();
-    await session.initialize();
+    const initialization = session.initialize();
+    await vi.waitFor(() => expect(authApi.getCurrentAccount).toHaveBeenCalledOnce());
+    resolveRegistration({ enabled: true, inviteRequired: true });
+    await initialization;
     expect(session.phase).toBe('authenticated');
     expect(session.registrationEnabled).toBe(true);
     expect(session.account?.username).toBe('reader');

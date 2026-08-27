@@ -38,7 +38,6 @@ export async function setLocale(locale: SupportedLocale) {
 }
 
 export async function initializeI18n() {
-  await loadMessages(fallbackLocale);
   await setLocale(detectInitialLocale());
 }
 

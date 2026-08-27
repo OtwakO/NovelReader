@@ -64,17 +64,23 @@ export const useSessionStore = defineStore('session', {
           return;
         }
 
-        const registration = await getRegistrationPolicy();
+        const [registration, account] = await Promise.all([
+          getRegistrationPolicy(),
+          getCurrentAccount().then(
+            (value) => ({ value, error: null }),
+            (error: unknown) => ({ value: null, error }),
+          ),
+        ]);
         this.registrationEnabled = registration.enabled;
         this.registrationInviteRequired = registration.inviteRequired;
 
-        try {
-          this.account = await getCurrentAccount();
-          this.phase = 'authenticated';
-        } catch (cause) {
-          if (!(cause instanceof ApiError) || cause.status !== 401) throw cause;
+        if (account.error) {
+          if (!(account.error instanceof ApiError) || account.error.status !== 401) throw account.error;
           this.account = null;
           this.phase = 'guest';
+        } else {
+          this.account = account.value;
+          this.phase = 'authenticated';
         }
       } catch (cause) {
         this.phase = 'error';
