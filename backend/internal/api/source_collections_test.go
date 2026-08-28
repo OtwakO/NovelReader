@@ -30,6 +30,12 @@ func TestSourceCollectionUploadRenameReplaceAndDelete(t *testing.T) {
 	if creation.Collection.Name != "Main Sources" || creation.Changes.Added != 2 {
 		t.Fatalf("unexpected creation response: %#v", creation)
 	}
+	listed := httptest.NewRequest(http.MethodGet, "/api/sources", nil)
+	listedResponse := httptest.NewRecorder()
+	server.ServeHTTP(listedResponse, listed)
+	if listedResponse.Code != http.StatusOK || !strings.Contains(listedResponse.Body.String(), `"collectionId":"`+creation.Collection.ID+`"`) {
+		t.Fatalf("source management response lost collection ownership: %d %s", listedResponse.Code, listedResponse.Body.String())
+	}
 
 	rename := httptest.NewRequest(http.MethodPatch, "/api/source-collections/"+creation.Collection.ID, strings.NewReader(`{"name":"Renamed"}`))
 	rename.Header.Set("Content-Type", "application/json")
@@ -66,7 +72,7 @@ func TestSourceCollectionUploadRenameReplaceAndDelete(t *testing.T) {
 
 func newCollectionAPIServer(t *testing.T) *Server {
 	t.Helper()
-	db, err := sql.Open("sqlite", "file:"+t.Name()+"?mode=memory&cache=shared&_pragma=foreign_keys(1)")
+	db, err := sql.Open("sqlite", "file:"+t.Name()+"?mode=memory&cache=shared")
 	if err != nil {
 		t.Fatal(err)
 	}

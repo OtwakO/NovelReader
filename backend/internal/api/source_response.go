@@ -1,16 +1,28 @@
 package api
 
-import "github.com/otwako/novelreader/internal/booksource"
+import (
+	"encoding/json"
+	"fmt"
 
-type sourceManagementResponse struct {
-	booksource.BookSource
-	CollectionID string `json:"collectionId,omitempty"`
-}
+	"github.com/otwako/novelreader/internal/booksource"
+)
 
-func sourceManagementResponses(sources []booksource.BookSource) []sourceManagementResponse {
+type sourceManagementResponse map[string]json.RawMessage
+
+func sourceManagementResponses(sources []booksource.BookSource) ([]sourceManagementResponse, error) {
 	responses := make([]sourceManagementResponse, len(sources))
 	for index := range sources {
-		responses[index] = sourceManagementResponse{BookSource: sources[index], CollectionID: sources[index].CollectionID}
+		encoded, err := sources[index].MarshalJSON()
+		if err != nil {
+			return nil, fmt.Errorf("encode BookSource management response: %w", err)
+		}
+		if err := json.Unmarshal(encoded, &responses[index]); err != nil {
+			return nil, fmt.Errorf("decode BookSource management response: %w", err)
+		}
+		if sources[index].CollectionID != "" {
+			encodedID, _ := json.Marshal(sources[index].CollectionID)
+			responses[index]["collectionId"] = encodedID
+		}
 	}
-	return responses
+	return responses, nil
 }

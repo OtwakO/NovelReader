@@ -507,3 +507,10 @@
 - **Reason**: Keeping provenance and lifecycle in BookSource management lets Search, Explore, and reading continue consuming the same effective source interface while avoiding exclusions, field merges, snapshots, or a general job framework.
 - **Verified**: Focused booksource, auth, and API tests; frontend source tests, typecheck, lint, and production build.
 - **Watch out**: Sync intentionally overwrites individual edits and re-adds individually deleted collection members while they remain upstream. Scheduled sync refuses an unexpectedly empty replacement for a previously non-empty collection.
+
+
+### [2026-08-28] Fix Source Collection membership and deletion
+- **Context**: Imported collection tabs showed no sources and deleting a collection left its sources behind.
+- **Change**: Management responses now merge `collectionId` after lossless BookSource JSON encoding, and collection deletion explicitly removes owned sources in the same transaction.
+- **Reason**: `BookSource.MarshalJSON` overrode the embedded response shape, while SQLite foreign-key cascades were enabled in the test fixture but not on production reader connections.
+- **Verified**: The API regression test now runs without foreign-key enforcement and asserts both visible collection ownership and source removal.

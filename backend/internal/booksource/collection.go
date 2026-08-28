@@ -392,13 +392,26 @@ func (s *Store) RecordCollectionFailure(ctx context.Context, id, message string,
 }
 
 func (s *Store) DeleteCollection(ctx context.Context, id string) error {
-	result, err := s.db.ExecContext(ctx, `DELETE FROM book_source_collections WHERE id = ?`, id)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		return fmt.Errorf("booksource: begin collection deletion: %w", err)
+	}
+	defer tx.Rollback()
+	var exists int
+	if err := tx.QueryRowContext(ctx, `SELECT 1 FROM book_source_collections WHERE id = ?`, id).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrCollectionNotFound
+		}
 		return err
 	}
-	count, _ := result.RowsAffected()
-	if count == 0 {
-		return ErrCollectionNotFound
+	if _, err := tx.ExecContext(ctx, `DELETE FROM book_sources WHERE collection_id = ?`, id); err != nil {
+		return fmt.Errorf("booksource: delete collection sources: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM book_source_collections WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("booksource: delete collection: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("booksource: commit collection deletion: %w", err)
 	}
 	return nil
 }
