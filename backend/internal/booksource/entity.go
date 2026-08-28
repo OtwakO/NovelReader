@@ -51,7 +51,7 @@ type BookSource struct {
 	CreatedAt int64 `json:"createdAt" db:"created_at"`
 	UpdatedAt int64 `json:"updatedAt" db:"updated_at"`
 
-	CollectionID string `json:"-" db:"collection_id"`
+	CollectionID string `json:"collectionId,omitempty" db:"collection_id"`
 	sourceJSON   string `json:"-" db:"source_json"`
 }
 

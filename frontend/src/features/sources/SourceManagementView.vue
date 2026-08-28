@@ -7,8 +7,20 @@ import {
   updateSource,
   type BookSource,
 } from "../../api/sources";
+import {
+  createUploadCollection,
+  createURLCollection,
+  deleteSourceCollection,
+  listSourceCollections,
+  replaceUploadCollection,
+  syncSourceCollection,
+  updateSourceCollection,
+  type SourceCollection,
+  type SyncInterval,
+} from "../../api/source-collections";
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
+import SourceCollectionDialog from "./SourceCollectionDialog.vue";
 import SourceEditorDialog from "./SourceEditorDialog.vue";
 import SourceImportDialog from "./SourceImportDialog.vue";
 import {
@@ -29,12 +41,21 @@ export default defineComponent({
   components: {
     AppButton,
     FeatureScaffold,
+    SourceCollectionDialog,
     SourceEditorDialog,
     SourceImportDialog,
   },
   data() {
     return {
       sources: [] as BookSource[],
+      collections: [] as SourceCollection[],
+      selectedCollectionId: "all",
+      collectionDialog: false,
+      editingCollection: null as SourceCollection | null,
+      collectionBusy: false,
+      collectionError: "",
+      pendingCollectionDelete: null as SourceCollection | null,
+      replacingCollectionId: "",
       loading: true,
       error: "",
       notice: "",
@@ -67,6 +88,10 @@ export default defineComponent({
       const query = this.query.trim().toLocaleLowerCase();
       return this.sources.filter(
         (source) =>
+          (this.selectedCollectionId === "all" ||
+            (this.selectedCollectionId === "standalone"
+              ? !source.collectionId
+              : source.collectionId === this.selectedCollectionId)) &&
           (!this.group || source.bookSourceGroup === this.group) &&
           (!query ||
             `${source.bookSourceName}\n${source.bookSourceUrl}\n${source.bookSourceGroup || ""}`
@@ -102,6 +127,9 @@ export default defineComponent({
     group() {
       this.page = 1;
     },
+    selectedCollectionId() {
+      this.page = 1;
+    },
     filtered() {
       this.page = clampPage(this.page, this.filtered.length, this.pageSize);
     },
@@ -114,7 +142,10 @@ export default defineComponent({
       this.loading = true;
       this.error = "";
       try {
-        this.sources = await listSources();
+        [this.sources, this.collections] = await Promise.all([
+          listSources(),
+          listSourceCollections(),
+        ]);
       } catch (cause) {
         this.error =
           cause instanceof Error
@@ -124,8 +155,87 @@ export default defineComponent({
         this.loading = false;
       }
     },
+    collectionName(source: BookSource): string {
+      if (!source.collectionId) return this.$t("sources.collections.standalone");
+      return this.collections.find((item) => item.id === source.collectionId)?.name || "";
+    },
     capabilities(source: BookSource) {
       return sourceCapabilities(source);
+    },
+    openCollectionDialog(collection: SourceCollection | null = null) {
+      this.editingCollection = collection;
+      this.collectionError = "";
+      this.collectionDialog = true;
+    },
+    async saveCollection(input: { mode: string; name: string; url: string; interval: SyncInterval; file: File | null }) {
+      this.collectionBusy = true;
+      this.collectionError = "";
+      try {
+        if (this.editingCollection) {
+          await updateSourceCollection(this.editingCollection.id, { name: input.name, syncInterval: input.interval });
+        } else if (input.mode === "upload" && input.file) {
+          await createUploadCollection(input.name, input.file);
+        } else {
+          await createURLCollection(input.name, input.url, input.interval);
+        }
+        this.collectionDialog = false;
+        this.editingCollection = null;
+        this.notice = this.$t("sources.collections.saved");
+        await this.load();
+      } catch (cause) {
+        this.collectionError = cause instanceof Error ? cause.message : this.$t("sources.collections.failed");
+      } finally {
+        this.collectionBusy = false;
+      }
+    },
+    async syncCollection(collection: SourceCollection) {
+      this.collectionBusy = true;
+      this.error = "";
+      try {
+        const result = await syncSourceCollection(collection.id);
+        this.notice = this.$t("sources.collections.synced", { ...result.changes });
+        await this.load();
+      } catch (cause) {
+        this.error = cause instanceof Error ? cause.message : this.$t("sources.collections.failed");
+      } finally {
+        this.collectionBusy = false;
+      }
+    },
+    chooseReplacement(collection: SourceCollection) {
+      this.replacingCollectionId = collection.id;
+      (this.$refs.replacementInput as HTMLInputElement)?.click();
+    },
+    async replaceCollectionFile(event: Event) {
+      const input = event.target as HTMLInputElement;
+      const file = input.files?.[0];
+      input.value = "";
+      if (!file || !this.replacingCollectionId) return;
+      this.collectionBusy = true;
+      try {
+        const result = await replaceUploadCollection(this.replacingCollectionId, file);
+        this.notice = this.$t("sources.collections.synced", { ...result.changes });
+        await this.load();
+      } catch (cause) {
+        this.error = cause instanceof Error ? cause.message : this.$t("sources.collections.failed");
+      } finally {
+        this.collectionBusy = false;
+        this.replacingCollectionId = "";
+      }
+    },
+    async confirmCollectionDelete() {
+      if (!this.pendingCollectionDelete) return;
+      this.collectionBusy = true;
+      try {
+        await deleteSourceCollection(this.pendingCollectionDelete.id);
+        this.notice = this.$t("sources.collections.deleted", { name: this.pendingCollectionDelete.name });
+        if (this.selectedCollectionId === this.pendingCollectionDelete.id) this.selectedCollectionId = "all";
+        this.pendingCollectionDelete = null;
+        await this.load();
+      } catch (cause) {
+        this.error = cause instanceof Error ? cause.message : this.$t("sources.collections.failed");
+      } finally {
+        this.collectionBusy = false;
+      }
     },
     async chooseFile(event: Event) {
       const input = event.target as HTMLInputElement;
@@ -246,11 +356,23 @@ export default defineComponent({
             $t("sources.stats.explore", { count: exploreCount })
           }}</span>
         </div>
-        <label class="import-button"><span>{{ $t("sources.import.open") }}</span><input
-            type="file"
-            accept=".json,application/json"
-            @change="chooseFile"
-        ></label>
+        <div class="toolbar-actions">
+          <AppButton @click="openCollectionDialog()">{{ $t("sources.collections.add") }}</AppButton>
+          <label class="import-button"><span>{{ $t("sources.import.openStandalone") }}</span><input
+              type="file"
+              accept=".json,application/json"
+              @change="chooseFile"
+          ></label>
+        </div>
+        <input ref="replacementInput" class="hidden-input" type="file" accept=".json,application/json" @change="replaceCollectionFile">
+      </section>
+      <section v-if="collections.length" class="collection-strip">
+        <button :class="{ active: selectedCollectionId === 'all' }" @click="selectedCollectionId = 'all'"><strong>{{ $t('sources.collections.all') }}</strong><span>{{ sources.length }}</span></button>
+        <button v-for="collection in collections" :key="collection.id" :class="{ active: selectedCollectionId === collection.id }" @click="selectedCollectionId = collection.id"><strong>{{ collection.name }}</strong><span>{{ collection.sourceCount }}</span><small>{{ collection.originKind === 'url' ? $t('sources.collections.url') : $t('sources.collections.upload') }}</small></button>
+        <button :class="{ active: selectedCollectionId === 'standalone' }" @click="selectedCollectionId = 'standalone'"><strong>{{ $t('sources.collections.standalone') }}</strong><span>{{ sources.filter(source => !source.collectionId).length }}</span></button>
+      </section>
+      <section v-if="selectedCollectionId !== 'all' && selectedCollectionId !== 'standalone'" class="collection-actions">
+        <template v-for="collection in collections" :key="collection.id"><template v-if="collection.id === selectedCollectionId"><div><strong>{{ collection.name }}</strong><small>{{ collection.originUrl || collection.originFilename }}</small><p v-if="collection.lastError" class="collection-error">{{ collection.lastError }}</p></div><div><AppButton variant="secondary" @click="openCollectionDialog(collection)">{{ $t('sources.collections.renameSettings') }}</AppButton><AppButton variant="secondary" :busy="collectionBusy" @click="collection.originKind === 'url' ? syncCollection(collection) : chooseReplacement(collection)">{{ collection.originKind === 'url' ? $t('sources.collections.syncNow') : $t('sources.collections.replaceFile') }}</AppButton><AppButton variant="danger" @click="pendingCollectionDelete = collection">{{ $t('sources.collections.delete') }}</AppButton></div></template></template>
       </section>
       <section class="filters">
         <label><span>{{ $t("sources.search") }}</span><input
@@ -286,7 +408,7 @@ export default defineComponent({
         >
           <div class="identity">
             <div class="name">
-              <strong>{{ source.bookSourceName }}</strong><span v-if="source.bookSourceGroup">{{
+              <strong>{{ source.bookSourceName }}</strong><span v-if="source.collectionId">{{ collectionName(source) }}</span><span v-if="source.bookSourceGroup">{{
                 source.bookSourceGroup
               }}</span>
             </div>
@@ -368,6 +490,7 @@ export default defineComponent({
         </div>
       </nav>
     </div>
+    <SourceCollectionDialog v-if="collectionDialog" :collection="editingCollection" :busy="collectionBusy" :error="collectionError" @submit="saveCollection" @close="collectionDialog = false; editingCollection = null" />
     <SourceImportDialog
       v-if="importItems.length"
       v-model:items="importItems"
@@ -391,6 +514,7 @@ export default defineComponent({
         editorError = '';
       "
     />
+    <div v-if="pendingCollectionDelete" class="overlay" @click.self="pendingCollectionDelete = null"><section class="confirmation" role="alertdialog"><h2>{{ $t('sources.collections.deleteTitle') }}</h2><p>{{ $t('sources.collections.deleteDescription',{name:pendingCollectionDelete.name,count:pendingCollectionDelete.sourceCount}) }}</p><div><AppButton variant="secondary" :disabled="collectionBusy" @click="pendingCollectionDelete = null">{{ $t('sources.cancel') }}</AppButton><AppButton variant="danger" :busy="collectionBusy" @click="confirmCollectionDelete">{{ $t('sources.collections.deleteConfirm') }}</AppButton></div></section></div>
     <div
       v-if="pendingDelete"
       class="overlay"
@@ -464,12 +588,22 @@ export default defineComponent({
   font-weight: 700;
   cursor: pointer;
 }
-.import-button input {
+.toolbar-actions { display:flex; flex-wrap:wrap; gap:.5rem; }
+.import-button input,
+.hidden-input {
   position: absolute;
   width: 1px;
   height: 1px;
   opacity: 0;
 }
+.collection-strip { display:flex; gap:.55rem; overflow:auto; padding:.2rem 0 .45rem; }
+.collection-strip button { min-width:10rem; display:grid; gap:.12rem; text-align:left; border:1px solid var(--color-border); border-radius:var(--radius-lg); padding:.75rem; background:var(--color-paper-raised); color:var(--color-ink); }
+.collection-strip button.active { border-color:var(--color-accent); background:var(--color-accent-soft); }
+.collection-strip span,.collection-strip small,.collection-actions small { color:var(--color-ink-muted); font-size:.75rem; overflow-wrap:anywhere; }
+.collection-actions { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:1rem; border:1px solid var(--color-border); border-radius:var(--radius-lg); background:var(--color-paper-raised); }
+.collection-actions>div:last-child { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.45rem; }
+.collection-actions p { margin:.35rem 0 0; }
+.collection-error { color:var(--color-danger); font-size:.8rem; }
 .filters {
   padding: 1rem;
   border: 1px solid var(--color-border);
@@ -668,6 +802,7 @@ export default defineComponent({
 @media (max-width: 38rem) {
   .toolbar,
   .filters,
+  .collection-actions,
   .pagination {
     align-items: stretch;
     flex-direction: column;
