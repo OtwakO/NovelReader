@@ -52,6 +52,23 @@ func (s *Store) List() ([]BookSource, error) {
 }
 
 // ListEnabled returns enabled sources, used for search.
+func (s *Store) ListByCollection(collectionID string) ([]*BookSource, error) {
+	rows, err := s.db.Query(`SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ? ORDER BY custom_order ASC, name ASC, id ASC`, collectionID)
+	if err != nil {
+		return nil, fmt.Errorf("booksource: list collection sources: %w", err)
+	}
+	defer rows.Close()
+	values, err := scanSources(rows)
+	if err != nil {
+		return nil, err
+	}
+	sources := make([]*BookSource, len(values))
+	for index := range values {
+		sources[index] = &values[index]
+	}
+	return sources, nil
+}
+
 func (s *Store) ListEnabled() ([]BookSource, error) {
 	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources WHERE enabled = 1 ORDER BY custom_order ASC, name ASC, id ASC`)
 	if err != nil {

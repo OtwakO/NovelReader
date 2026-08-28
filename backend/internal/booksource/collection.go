@@ -61,6 +61,8 @@ type CreateCollection struct {
 	OriginURL      string
 	OriginFilename string
 	SyncInterval   SyncInterval
+	ETag           string
+	LastModified   string
 }
 
 func NormalizeCollectionName(name string) (string, error) {
@@ -181,10 +183,10 @@ func (s *Store) CreateCollection(ctx context.Context, input CreateCollection, so
 	at := now.UnixMilli()
 	_, err = tx.ExecContext(ctx, `INSERT INTO book_source_collections (
 		id, name, origin_kind, origin_url, origin_filename, sync_interval,
-		last_success_at, next_sync_at, created_at, updated_at
-	) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?)`,
+		last_success_at, next_sync_at, etag, last_modified, created_at, updated_at
+	) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?)`,
 		id, name, string(input.OriginKind), input.OriginURL, input.OriginFilename, string(input.SyncInterval),
-		at, NextSyncAt(input.SyncInterval, now), at, at)
+		at, NextSyncAt(input.SyncInterval, now), input.ETag, input.LastModified, at, at)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
 			return Collection{}, ReplaceResult{}, ErrCollectionNameUsed
@@ -260,21 +262,25 @@ func replaceCollectionSources(ctx context.Context, tx *sql.Tx, collectionID stri
 		}
 	}
 
-	existingRows, err := tx.QueryContext(ctx, `SELECT id, source_json FROM book_sources WHERE collection_id = ?`, collectionID)
+	existingRows, err := tx.QueryContext(ctx, `SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ?`, collectionID)
 	if err != nil {
 		return ReplaceResult{}, err
 	}
-	existing := map[string]string{}
-	for existingRows.Next() {
-		var id, raw string
-		if err := existingRows.Scan(&id, &raw); err != nil {
-			existingRows.Close()
+	existingSources, err := scanSources(existingRows)
+	closeErr := existingRows.Close()
+	if err != nil {
+		return ReplaceResult{}, err
+	}
+	if closeErr != nil {
+		return ReplaceResult{}, closeErr
+	}
+	existing := make(map[string]string, len(existingSources))
+	for _, source := range existingSources {
+		encoded, err := source.MarshalJSON()
+		if err != nil {
 			return ReplaceResult{}, err
 		}
-		existing[id] = raw
-	}
-	if err := existingRows.Close(); err != nil {
-		return ReplaceResult{}, err
+		existing[source.BookSourceURL] = string(encoded)
 	}
 
 	result := ReplaceResult{Total: len(sources)}
@@ -284,7 +290,9 @@ func replaceCollectionSources(ctx context.Context, tx *sql.Tx, collectionID stri
 				return ReplaceResult{}, err
 			}
 			result.Removed++
-		} else if incoming[id].sourceJSON == raw {
+		} else if incomingJSON, err := incoming[id].MarshalJSON(); err != nil {
+			return ReplaceResult{}, err
+		} else if string(incomingJSON) == raw {
 			result.Unchanged++
 		} else {
 			result.Updated++
@@ -335,6 +343,19 @@ func (s *Store) UpdateCollectionSchedule(ctx context.Context, id string, interva
 		return ErrCollectionNotFound
 	}
 	return nil
+}
+
+func (s *Store) RecordCollectionSuccess(ctx context.Context, id string, now time.Time) error {
+	collection, err := s.GetCollection(id)
+	if err != nil {
+		return err
+	}
+	if collection == nil {
+		return ErrCollectionNotFound
+	}
+	at := now.UnixMilli()
+	_, err = s.db.ExecContext(ctx, `UPDATE book_source_collections SET last_attempt_at = ?, last_success_at = ?, next_sync_at = ?, last_error = '', updated_at = ? WHERE id = ?`, at, at, NextSyncAt(collection.SyncInterval, now), at, id)
+	return err
 }
 
 func (s *Store) RecordCollectionFailure(ctx context.Context, id, message string, now time.Time) error {

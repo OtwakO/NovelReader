@@ -49,6 +49,7 @@ type Server struct {
 	chineseConversion   chineseconv.Service
 	candidateOperations *candidate.Manager
 	coverReferenceKey   []byte
+	collectionLoader    *booksource.RemoteLoader
 }
 
 // Mux exposes the underlying ServeMux for static file mounting.
@@ -102,6 +103,7 @@ func NewServer(
 		mux:                 http.NewServeMux(),
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(),
+		collectionLoader:    booksource.NewRemoteLoader(),
 	}
 	s.registerRoutes()
 	return s
@@ -130,6 +132,13 @@ func (s *Server) registerRoutesWithoutHealth() {
 	// Book sources — URLs with slashes can't go in path segments, use query param
 	s.mux.HandleFunc("GET /api/sources", s.handleListSources)
 	s.mux.HandleFunc("POST /api/sources", s.handleImportSources)
+	s.mux.HandleFunc("GET /api/source-collections", s.handleListSourceCollections)
+	s.mux.HandleFunc("POST /api/source-collections/upload", s.handleCreateUploadCollection)
+	s.mux.HandleFunc("POST /api/source-collections/url", s.handleCreateURLCollection)
+	s.mux.HandleFunc("PATCH /api/source-collections/{id}", s.handleUpdateSourceCollection)
+	s.mux.HandleFunc("POST /api/source-collections/{id}/replace", s.handleReplaceUploadCollection)
+	s.mux.HandleFunc("POST /api/source-collections/{id}/sync", s.handleSyncSourceCollection)
+	s.mux.HandleFunc("DELETE /api/source-collections/{id}", s.handleDeleteSourceCollection)
 	s.mux.HandleFunc("DELETE /api/sources", s.handleDeleteSource)
 	s.mux.HandleFunc("PUT /api/sources", s.handleUpdateSource)
 
@@ -187,6 +196,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health, webViewProbe: webViewProbe, chineseConversion: conversion,
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(),
+		collectionLoader:    booksource.NewRemoteLoader(),
 	}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, limits, 32, limits.SessionTTL)
 	authHandler.ConfigureDeletionQuiescer(readers, s.runtimes.quiesce)
