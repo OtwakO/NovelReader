@@ -50,6 +50,7 @@ type Server struct {
 	candidateOperations *candidate.Manager
 	coverReferenceKey   []byte
 	collectionLoader    *booksource.RemoteLoader
+	collectionScheduler *sourceCollectionScheduler
 }
 
 // Mux exposes the underlying ServeMux for static file mounting.
@@ -64,6 +65,9 @@ func (s *Server) Close() error {
 	}
 	if s.candidateOperations != nil {
 		s.candidateOperations.Close()
+	}
+	if s.collectionScheduler != nil {
+		s.collectionScheduler.Close()
 	}
 	if s.chineseConversion != nil {
 		if err := s.chineseConversion.Close(); err != nil {
@@ -199,6 +203,8 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		collectionLoader:    booksource.NewRemoteLoader(),
 	}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, limits, 32, limits.SessionTTL)
+	s.collectionScheduler = newSourceCollectionScheduler(s.runtimes, s.collectionLoader, authHandler.ListActiveReaderIDs)
+	s.collectionScheduler.Start()
 	authHandler.ConfigureDeletionQuiescer(readers, s.runtimes.quiesce)
 	s.registerAuthenticatedRoutes()
 	return s

@@ -107,6 +107,27 @@ func (s *AccountService) createAccount(ctx context.Context, userID readerstore.U
 }
 
 // ListReaderAccounts returns ordinary accounts in stable username order without credential material.
+func (s *AccountService) ListActiveReaderIDs(ctx context.Context) ([]readerstore.UserID, error) {
+	rows, err := s.store.db.QueryContext(ctx, `SELECT id FROM users WHERE status = ? ORDER BY id`, string(StatusActive))
+	if err != nil {
+		return nil, fmt.Errorf("auth: list active readers: %w", err)
+	}
+	defer rows.Close()
+	var ids []readerstore.UserID
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		id, err := readerstore.ParseUserID(raw)
+		if err != nil {
+			return nil, fmt.Errorf("%w: account ID: %v", ErrInvalidAccountRecord, err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (s *AccountService) ListReaderAccounts(ctx context.Context) ([]Account, error) {
 	rows, err := s.store.db.QueryContext(ctx, `
 		SELECT id, username, username_normalized, role, status, created_at, updated_at, auth_version

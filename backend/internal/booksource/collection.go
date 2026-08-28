@@ -128,6 +128,30 @@ func (s *Store) ListCollections() ([]Collection, error) {
 	return collections, rows.Err()
 }
 
+func (s *Store) ListDueCollections(now time.Time) ([]Collection, error) {
+	rows, err := s.db.Query(`
+		SELECT c.id, c.name, c.origin_kind, COALESCE(c.origin_url, ''), COALESCE(c.origin_filename, ''),
+			c.sync_interval, c.last_attempt_at, c.last_success_at, c.next_sync_at, c.last_error,
+			c.etag, c.last_modified, c.created_at, c.updated_at, COUNT(bs.id)
+		FROM book_source_collections c
+		LEFT JOIN book_sources bs ON bs.collection_id = c.id
+		WHERE c.origin_kind = 'url' AND c.sync_interval != 'manual' AND c.next_sync_at <= ?
+		GROUP BY c.id ORDER BY c.next_sync_at, c.id`, now.UnixMilli())
+	if err != nil {
+		return nil, fmt.Errorf("booksource: list due collections: %w", err)
+	}
+	defer rows.Close()
+	var collections []Collection
+	for rows.Next() {
+		collection, err := scanCollection(rows)
+		if err != nil {
+			return nil, err
+		}
+		collections = append(collections, collection)
+	}
+	return collections, rows.Err()
+}
+
 func (s *Store) GetCollection(id string) (*Collection, error) {
 	row := s.db.QueryRow(`
 		SELECT c.id, c.name, c.origin_kind, COALESCE(c.origin_url, ''), COALESCE(c.origin_filename, ''),
@@ -362,7 +386,8 @@ func (s *Store) RecordCollectionFailure(ctx context.Context, id, message string,
 	if len(message) > 500 {
 		message = message[:500]
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE book_source_collections SET last_attempt_at = ?, last_error = ?, updated_at = ? WHERE id = ?`, now.UnixMilli(), message, now.UnixMilli(), id)
+	retryAt := now.Add(6 * time.Hour).UnixMilli()
+	_, err := s.db.ExecContext(ctx, `UPDATE book_source_collections SET last_attempt_at = ?, next_sync_at = ?, last_error = ?, updated_at = ? WHERE id = ?`, now.UnixMilli(), retryAt, message, now.UnixMilli(), id)
 	return err
 }
 

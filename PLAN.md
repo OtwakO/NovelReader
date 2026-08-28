@@ -208,9 +208,9 @@ WebView is observable but not continuously monitored. Settings performs an authe
 
 ## Current State
 
-### Active work — Source Collections
+### Source Collections
 
-The `feat/source-collections` branch is adding reader-owned Source Collections without changing the flat BookSource execution model. Completion means:
+The `feat/source-collections` branch adds reader-owned Source Collections without changing the flat BookSource execution model:
 
 - a complete uploaded JSON document can be imported and atomically replaced as one renameable collection;
 - a URL collection can be manually synchronized, with failed downloads or malformed documents leaving the last good sources unchanged;
@@ -219,7 +219,7 @@ The `feat/source-collections` branch is adding reader-owned Source Collections w
 - standalone sources and existing individual source editing/deletion remain supported;
 - Search, Explore, candidate, and reading workflows continue consuming the existing flat effective source list and do not depend on collection concepts.
 
-Implementation order: transactional collection storage and tests, authenticated collection endpoints and bounded URL retrieval, management UI, then the smallest reader-owned scheduler that reuses the same synchronization operation.
+The implementation now includes transactional collection storage, authenticated upload/URL/rename/replace/sync/delete endpoints, bounded public URL retrieval, collection-aware management UI, and a small reader-runtime-owned daily/weekly scheduler that reuses manual synchronization semantics.
 
 ### Complete foundations
 

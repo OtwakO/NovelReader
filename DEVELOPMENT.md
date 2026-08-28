@@ -499,3 +499,11 @@
 - **Change**: Removed the manifest's `orientation: "any"` preference and added a PWA manifest regression test.
 - **Reason**: `any` is an app-level request to permit every orientation and can override Android's user rotation preference for installed PWAs. Omitting the member delegates orientation to the browser, operating system, and user settings.
 - **Verified**: The focused PWA test, production build, and emitted manifest check pass.
+
+
+### [2026-08-28] Add authoritative Source Collections
+- **Context**: Large BookSource JSON documents needed file-level ownership, replacement, URL synchronization, and optional schedules without coupling collection concepts into Search or crawling.
+- **Change**: Added renameable uploaded and URL Source Collections over the existing flat source table. Collection replacement is transactional and authoritative, ownership by `bookSourceUrl` is exclusive, and automatic URL sync is off by default with daily or weekly options.
+- **Reason**: Keeping provenance and lifecycle in BookSource management lets Search, Explore, and reading continue consuming the same effective source interface while avoiding exclusions, field merges, snapshots, or a general job framework.
+- **Verified**: Focused booksource, auth, and API tests; frontend source tests, typecheck, lint, and production build.
+- **Watch out**: Sync intentionally overwrites individual edits and re-adds individually deleted collection members while they remain upstream. Scheduled sync refuses an unexpectedly empty replacement for a previously non-empty collection.

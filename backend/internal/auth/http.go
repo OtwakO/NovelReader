@@ -188,6 +188,10 @@ func (h *HTTPHandler) ConfigureDeletionQuiescer(readers *readerstore.Manager, qu
 	h.deleteReader = h.deletions.Delete
 }
 
+func (h *HTTPHandler) ListActiveReaderIDs(ctx context.Context) ([]readerstore.UserID, error) {
+	return h.accounts.ListActiveReaderIDs(ctx)
+}
+
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	preventAuthResponseCaching(w)
 	h.mux.ServeHTTP(w, r)

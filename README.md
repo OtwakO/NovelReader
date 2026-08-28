@@ -148,3 +148,10 @@ Optional CPU and memory limits are shown as commented examples in `docker-compos
 - `ghcr.io/otwako/novelreader-webview`
 
 A successful `main` push receives `latest`, `edge`, and immutable `sha-*` tags. A valid `v*` tag receives its semantic version and `sha-*`; manual dispatch receives `manual` and `sha-*`. After the first publication, mark both packages **Public** in GitHub package settings, or authenticate deployments with `docker login ghcr.io`. GitHub Actions must retain `packages: write` permission.
+
+
+### Source Collections
+
+BookSources remain reader-owned inside each isolated Reader home. A complete Legado-compatible JSON document can be installed as a renameable Source Collection from an uploaded file or a direct public HTTP(S) URL. Replacing or synchronizing a collection treats the latest valid document as authoritative: definitions are overwritten and sources no longer present are removed in one transaction. Invalid downloads or JSON leave the last good collection unchanged.
+
+URL collections default to manual synchronization and can optionally run daily or weekly. Individually imported sources remain available as Standalone sources. Collection names are local organization metadata and do not change the imported `bookSourceGroup` or `bookSourceUrl` identity.
