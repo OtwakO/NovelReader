@@ -94,6 +94,9 @@ func (s *Server) handleSearchBatchStream(w http.ResponseWriter, r *http.Request)
 			event["type"] = "source_error"
 			event["message"] = sourceErr.Error()
 		} else {
+			for index := range results {
+				s.addCoverDisplayURL(&results[index])
+			}
 			batchResults += len(results)
 			event["type"] = "results"
 			event["data"] = results

@@ -2,7 +2,7 @@ import type { AltSource, Book, Chapter } from '../../api/models';
 import { request } from '../../api/transport';
 
 export interface BookCandidate {
-  name: string; author?: string; coverUrl?: string; intro?: string; kind?: string; lastChapter?: string;
+  name: string; author?: string; coverUrl?: string; coverDisplayUrl?: string; intro?: string; kind?: string; lastChapter?: string;
   updateTime?: string; wordCount?: string; sourceName?: string; sourceUrl: string; bookUrl: string; alternateSources?: AltSource[];
 }
 

@@ -200,7 +200,7 @@ export default defineComponent({
     <template v-else>
       <p v-if="bookError" class="banner-error" role="alert">{{ bookError }}</p>
       <section class="hero">
-        <BookCover class="cover" :name="book.name" :url="book.coverUrl" :alt="$t('bookDetail.coverAlt', { name: book.name })" />
+        <BookCover class="cover" :name="book.name" :url="book.coverDisplayUrl || ''" :alt="$t('bookDetail.coverAlt', { name: book.name })" />
         <div class="identity">
           <h2>{{ book.name }}</h2>
           <p class="author">

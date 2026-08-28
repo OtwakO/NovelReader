@@ -175,7 +175,7 @@ export default defineComponent({
 
     <template v-else-if="candidate && preview">
       <section class="hero">
-        <BookCover class="cover" :name="preview.book.name" :url="preview.book.coverUrl" :alt="$t('bookDetail.coverAlt', { name: preview.book.name })" />
+        <BookCover class="cover" :name="preview.book.name" :url="preview.book.coverDisplayUrl || ''" :alt="$t('bookDetail.coverAlt', { name: preview.book.name })" />
         <div class="copy">
           <p class="author">{{ preview.book.author || $t('app.common.unknownAuthor') }}</p>
           <p v-if="preview.book.kind || displayLastChapter" class="meta">

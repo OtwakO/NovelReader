@@ -61,6 +61,7 @@ export default defineComponent({
         this.$t("shelf.chapter", { chapter: this.chapter(book) })
       );
     },
+    coverURL(book: Book) { return book.coverDisplayUrl || ''; },
     coverFailed(event: Event) {
       (event.currentTarget as HTMLImageElement).classList.add("image-failed");
     },
@@ -105,8 +106,8 @@ export default defineComponent({
           >
             <span aria-hidden="true">{{ continueBook.name.slice(0, 1) }}</span>
             <img
-              v-if="continueBook.coverUrl"
-              :src="continueBook.coverUrl"
+              v-if="coverURL(continueBook)"
+              :src="coverURL(continueBook)"
               :alt="$t('shelf.coverAlt', { name: continueBook.name })"
               @error="coverFailed"
             >
@@ -191,8 +192,8 @@ export default defineComponent({
             >
               <span aria-hidden="true">{{ book.name.slice(0, 1) }}</span>
               <img
-                v-if="book.coverUrl"
-                :src="book.coverUrl"
+                v-if="coverURL(book)"
+                :src="coverURL(book)"
                 alt=""
                 loading="lazy"
                 @error="coverFailed"

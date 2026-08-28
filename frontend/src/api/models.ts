@@ -8,6 +8,7 @@ export interface SearchResult {
   name: string;
   author: string;
   coverUrl: string;
+  coverDisplayUrl?: string;
   intro: string;
   kind: string;
   lastChapter: string;
@@ -25,6 +26,7 @@ export interface Book {
   name: string;
   author: string;
   coverUrl: string;
+  coverDisplayUrl?: string;
   intro: string;
   kind: string;
   sourceUrl: string;

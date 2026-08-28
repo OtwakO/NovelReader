@@ -36,7 +36,7 @@ Vue 3 SPA
   → per-reader SQLite database and files
 ```
 
-The frontend owns interaction and presentation. It never constructs BookSource URLs, evaluates source rules, or interprets source-specific crawling behavior.
+The frontend owns interaction and presentation. It never constructs BookSource URLs, evaluates source rules, or interprets source-specific crawling behavior. BookSource cover bytes are also backend-owned: stored books use a book-derived endpoint, while temporary Search, Explore, and candidate results use authenticated opaque signed references so HTTP-only images and source request state work under HTTPS without exposing a general image proxy.
 
 The production frontend is an installable PWA. Its service worker pre-caches only the app shell, manifest, icons, and fingerprinted frontend assets; `/api` requests remain network-owned and authenticated books, chapters, progress, and credentials are never placed in service-worker caches. Waiting updates activate at the next launch or reload boundary rather than interrupting an active reading session.
 

@@ -2,11 +2,12 @@
 import { defineComponent, type PropType } from 'vue';
 import type { SearchResult } from '../../../api/search';
 import AppButton from '../../../ui/components/AppButton.vue';
+import BookCover from '../../books/BookCover.vue';
 import CandidateShelfAction from '../../candidates/CandidateShelfAction.vue';
 
 export default defineComponent({
   name: 'SearchResultCard',
-  components: { AppButton, CandidateShelfAction },
+  components: { AppButton, BookCover, CandidateShelfAction },
   props: {
     result: { type: Object as PropType<SearchResult>, required: true },
     canContinueSearch: { type: Boolean, default: false },
@@ -23,8 +24,7 @@ export default defineComponent({
 <template>
   <article class="result-card">
     <button type="button" class="main" :aria-label="$t('search.results.detailsFor', { name: result.name })" @click="$emit('open')">
-      <img v-if="result.coverUrl" :src="result.coverUrl" alt="" class="cover" loading="lazy">
-      <span v-else class="cover placeholder" aria-hidden="true">{{ result.name.slice(0, 1) }}</span>
+      <BookCover class="cover" :name="result.name" :url="result.coverDisplayUrl || ''" alt="" />
       <span class="info"><strong>{{ result.name }}</strong><span>{{ result.author || $t('app.common.unknownAuthor') }}</span><span v-if="result.lastChapter" class="chapter">{{ result.lastChapter }}</span><span class="source">{{ result.sourceName }} · {{ $t('search.results.sources', { count: sourceCount }) }}</span></span>
     </button>
     <AppButton class="preview-action" variant="secondary" @click="$emit('open')">{{ $t('search.results.preview') }}</AppButton>

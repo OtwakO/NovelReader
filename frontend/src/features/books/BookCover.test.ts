@@ -11,3 +11,11 @@ describe('BookCover', () => {
     expect(wrapper.text()).toContain('凡');
   });
 });
+
+
+describe('same-origin cover delivery', () => {
+  it('renders the backend display URL instead of the raw HTTP source URL', () => {
+    const wrapper = mount(BookCover, { props: { name: '猫眼看书', url: '/api/covers/signed-reference', alt: 'cover' } });
+    expect(wrapper.get('img').attributes('src')).toBe('/api/covers/signed-reference');
+  });
+});

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/otwako/novelreader/internal/book"
@@ -110,6 +111,65 @@ func TestStoredBookCoverDoesNotAcceptTargetURL(t *testing.T) {
 
 	response := performAPIRequest(server, http.MethodGet, "/api/books/missing/cover?url=http://127.0.0.1/private", nil)
 	if response.Code != http.StatusNotFound || !bytes.Contains(response.Body.Bytes(), []byte("book_not_found")) {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestCandidateCoverReferenceFetchesHTTPImageThroughSameOriginEndpoint(t *testing.T) {
+	image := []byte{0xff, 0xd8, 0xff, 0xdb, 0x00, 0x43}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/cover.jpg" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/jpeg")
+		_, _ = w.Write(image)
+	}))
+	defer upstream.Close()
+
+	server, closeDB := newWorkflowAPIServer(t)
+	defer closeDB()
+	src := booksource.BookSource{BookSourceURL: upstream.URL, BookSourceName: "HTTP cover fixture"}
+	if err := server.sourceStore.Upsert(&src); err != nil {
+		t.Fatal(err)
+	}
+	result := book.SearchResult{SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover.jpg"}
+	server.addCoverDisplayURL(&result)
+	if !strings.HasPrefix(result.CoverDisplayURL, "/api/covers/") || result.CoverDisplayURL == result.CoverURL {
+		t.Fatalf("display URL=%q, want opaque same-origin API URL", result.CoverDisplayURL)
+	}
+
+	response := performAPIRequest(server, http.MethodGet, result.CoverDisplayURL, nil)
+	if response.Code != http.StatusOK || !bytes.Equal(response.Body.Bytes(), image) {
+		t.Fatalf("status=%d body=%v", response.Code, response.Body.Bytes())
+	}
+	if got := response.Header().Get("Content-Type"); got != "image/jpeg" {
+		t.Fatalf("content-type=%q", got)
+	}
+}
+
+func TestStoredBookResponsesUseSameOriginCoverURL(t *testing.T) {
+	server, closeDB := newWorkflowAPIServer(t)
+	defer closeDB()
+	stored := &book.Book{ID: "display-book", Name: "Display", SourceURL: "https://source.test", BookURL: "https://source.test/book", CoverURL: "http://images.test/cover.jpg"}
+	if err := server.bookStore.AddBook(stored); err != nil {
+		t.Fatal(err)
+	}
+	for _, endpoint := range []string{"/api/books", "/api/books/display-book"} {
+		response := performAPIRequest(server, http.MethodGet, endpoint, nil)
+		if response.Code != http.StatusOK || !bytes.Contains(response.Body.Bytes(), []byte(`"coverDisplayUrl":"/api/books/display-book/cover"`)) {
+			t.Fatalf("endpoint=%s status=%d body=%s", endpoint, response.Code, response.Body.String())
+		}
+	}
+}
+
+func TestCandidateCoverReferenceRejectsTampering(t *testing.T) {
+	server, closeDB := newWorkflowAPIServer(t)
+	defer closeDB()
+	result := book.SearchResult{SourceURL: "https://source.test", BookURL: "https://source.test/book", CoverURL: "http://images.test/cover.jpg"}
+	server.addCoverDisplayURL(&result)
+	response := performAPIRequest(server, http.MethodGet, result.CoverDisplayURL+"x", nil)
+	if response.Code != http.StatusBadRequest || !bytes.Contains(response.Body.Bytes(), []byte("invalid_cover_reference")) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 }

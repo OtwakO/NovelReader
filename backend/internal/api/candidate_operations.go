@@ -30,6 +30,7 @@ func (s *Server) handleStartCandidateResolution(w http.ResponseWriter, r *http.R
 		writeErrorCode(w, http.StatusBadRequest, "invalid_candidate_operation", err.Error())
 		return
 	}
+	s.addCandidateCoverDisplayURL(&snapshot)
 	writeJSON(w, http.StatusAccepted, snapshot)
 }
 
@@ -39,6 +40,7 @@ func (s *Server) handleGetCandidateResolution(w http.ResponseWriter, r *http.Req
 		writeErrorCode(w, http.StatusNotFound, "candidate_operation_not_found", "candidate resolution not found")
 		return
 	}
+	s.addCandidateCoverDisplayURL(&snapshot)
 	writeJSON(w, http.StatusOK, snapshot)
 }
 
@@ -67,6 +69,7 @@ func (s *Server) handleStreamCandidateResolution(w http.ResponseWriter, r *http.
 			if !open {
 				return
 			}
+			s.addCandidateCoverDisplayURL(&snapshot)
 			payload, err := json.Marshal(snapshot)
 			if err != nil {
 				return
@@ -114,6 +117,7 @@ func (s *Server) handleCommitCandidateResolution(w http.ResponseWriter, r *http.
 	if snapshot.Created {
 		status = http.StatusCreated
 	}
+	s.addCandidateCoverDisplayURL(&snapshot)
 	writeJSON(w, status, snapshot)
 }
 

@@ -82,6 +82,7 @@ func (s *Server) handleExplorePage(w http.ResponseWriter, r *http.Request) {
 		writeExploreError(w, err)
 		return
 	}
+	s.addExploreCoverDisplayURLs(&page)
 	writeJSON(w, http.StatusOK, page)
 }
 

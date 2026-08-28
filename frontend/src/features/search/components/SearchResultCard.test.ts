@@ -30,3 +30,11 @@ describe('SearchResultCard',()=>{
     expect(wrapper.emitted('continue-search')).toHaveLength(1);
   });
 });
+
+
+describe('cover delivery', () => {
+  it('uses the same-origin display URL when the source cover is HTTP', () => {
+    const wrapper=mount(SearchResultCard,{global:{plugins:[i18n],stubs:{CandidateShelfAction:true}},props:{result:{...result,coverUrl:'http://images.example/cover.jpg',coverDisplayUrl:'/api/covers/signed'}}});
+    expect(wrapper.get('img').attributes('src')).toBe('/api/covers/signed');
+  });
+});
