@@ -253,7 +253,7 @@ func (s *Server) handleListSources(w http.ResponseWriter, r *http.Request) {
 	if sources == nil {
 		sources = []booksource.BookSource{}
 	}
-	writeJSON(w, http.StatusOK, sources)
+	writeJSON(w, http.StatusOK, sourceManagementResponses(sources))
 }
 
 func (s *Server) handleImportSources(w http.ResponseWriter, r *http.Request) {
