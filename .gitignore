@@ -1,5 +1,4 @@
-/test_booksource*.json
-/test_光遇聚合_aggregated_booksource.json
+/test-booksources/
 .pi/
 data/
 *.db

@@ -157,7 +157,7 @@
 
 - **Status:** Complete for stored books; search and Explore previews remain out of scope
 - **Priority:** Medium
-- **Impact:** One current source actively defines `coverDecodeJs` (`斋书苑` in `test_booksource4.json`).
+- **Impact:** One current source actively defines `coverDecodeJs` (`斋书苑` in `test-booksources/test_booksource4.json`).
 - **Implemented boundary:** `GET /api/books/{id}/cover` derives the cover URL and source identity from the stored book—there is no arbitrary target-URL parameter. Bookshelf and book-detail images use this endpoint; search and Explore result covers remain direct browser URLs by explicit product choice.
 - **Implemented behavior:** The backend evaluates source and URL-option headers, carries the existing source/book session, performs a 10 MiB bounded binary GET, evaluates `jsLib + coverDecodeJs` with byte-array `result` plus `source` and typed `book`, and returns decoded bytes with sniffed media type. Non-byte/null decoder results preserve the original bytes as upstream does. A narrow Rhino compatibility shim exposes only `Packages.java.io.ByteArrayOutputStream` and `InputStream`, required to initialize the active obfuscated library.
 - **Verification:** API regressions cover source headers, URL-scoped headers, byte transforms, null-result fallback, and stored-identity-only lookup. The exact active `jsLib + coverDecodeJs` now initializes and runs with byte input. Analyzer/fetcher/book/API/conformance tests pass; frontend 13 tests and production build pass.
@@ -304,7 +304,7 @@ These findings were not all in the revised top-15 ordering, but must remain trac
 - **Status:** Design analyzed; implementation not approved
 - **Priority:** High for aggregated/gateway BookSources
 - **Primary reference:** Use maintained successor fork `reference/legado-E` for current semantics; retain `reference/legado` as historical context.
-- **Fixture:** `test_光遇聚合_aggregated_booksource.json` uses ordinary Legado primitives to carry Search, Detail, TOC, and Content state through `data:;base64,...,{"type":"..."}` URLs. Labels such as `gysearch` are opaque and must not receive source-specific dispatch.
+- **Fixture:** `test-booksources/test_光遇聚合_aggregated_booksource.json` uses ordinary Legado primitives to carry Search, Detail, TOC, and Content state through `data:;base64,...,{"type":"..."}` URLs. Labels such as `gysearch` are opaque and must not receive source-specific dispatch.
 - **Current gap:** NovelReader preserves URL-option `type` and builds the synthetic URL, but routes every non-WebView request into HTTP; it does not decode data bytes into the Legado-compatible hexadecimal response body. `java.hexDecodeToString`, contextual `java.get/put`, and `book.getVariable` also need focused compatibility slices.
 - **Architecture:** Add a bounded generic in-memory request path behind the existing `sourceexec` request/response interface, then close exact bridge/context gaps. Do not add a GuangYu adapter or aggregate-source domain type.
 - **Separate structural work:** Durable per-reader source variables/settings remain distinct from encrypted login credentials and from optional source-defined login UI, browser verification, comments, media modes, and external bookshelf synchronization.

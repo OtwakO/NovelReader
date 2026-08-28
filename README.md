@@ -46,7 +46,7 @@ Use raw JSON index identity rather than source names. The command records the ex
 ```bash
 cd backend
 GOMODCACHE=/tmp/go-mod GOPATH=/tmp/go go run ./cmd/conformance \
-  -sources ../test_booksource4.json \
+  -sources ../test-booksources/test_booksource4.json \
   -indices 1,84,89 \
   -query '凡人修仙传' \
   -health-url http://localhost:8888/

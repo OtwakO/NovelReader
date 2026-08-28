@@ -9,7 +9,7 @@ Follow `.agents/skills/booksource-audit-workflow/SKILL.md`. This skill supplies 
 
 ## 1. Freeze scope
 
-Use `test_booksource3.json`. Eligible identities are enabled text sources with non-blank `searchUrl` and `ruleSearch`. Rank `(rawIndex, bookSourceUrl)` by:
+Use `test-booksources/test_booksource3.json`. Eligible identities are enabled text sources with non-blank `searchUrl` and `ruleSearch`. Rank `(rawIndex, bookSourceUrl)` by:
 
 ```text
 SHA-256(seed + NUL + rawIndex + NUL + bookSourceUrl)

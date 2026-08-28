@@ -17,7 +17,7 @@ root.
 
 Do not copy `novelreader.db`, global font files, or other old state into a new reader directory.
 There is intentionally no legacy migration, reset flag, dual-write mode, or automatic attachment.
-The ignored `test_booksource*.json` corpora and tracked `testdata/booksource/` fixtures are import
+The ignored `test-booksources/` corpora and tracked `testdata/booksource/` fixtures are import
 inputs/test evidence, not user data, and remain independent of `DATA_DIR`.
 
 ## Complete deployment cold copy

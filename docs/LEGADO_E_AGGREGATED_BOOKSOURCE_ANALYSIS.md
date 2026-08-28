@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document analyzes `test_光遇聚合_aggregated_booksource.json` against:
+This document analyzes `test-booksources/test_光遇聚合_aggregated_booksource.json` against:
 
 - the successor reference implementation in `reference/legado-E/`;
 - NovelReader's current BookSource import, JavaScript, request-execution, workflow-session, book-context, Search, Explore, Book Info, TOC, and Content modules.

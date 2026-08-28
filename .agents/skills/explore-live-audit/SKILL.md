@@ -11,7 +11,7 @@ Follow `.agents/skills/booksource-audit-workflow/SKILL.md`. This skill supplies 
 
 Read `PLAN.md`, `testdata/booksource/README.md`, and every JSON manifest in `testdata/booksource/audits/explore/`. Ask for batch size and recommend 25 or 50 based on remaining unsampled identities and recent shared-gap yield.
 
-Use `test_booksource4.json`. Eligible identities are enabled sources with a usable Explore rule. Rank unsampled `(rawIndex, bookSourceUrl)` identities by:
+Use `test-booksources/test_booksource4.json`. Eligible identities are enabled sources with a usable Explore rule. Rank unsampled `(rawIndex, bookSourceUrl)` identities by:
 
 ```text
 SHA-256(seed + NUL + rawIndex + NUL + bookSourceUrl)

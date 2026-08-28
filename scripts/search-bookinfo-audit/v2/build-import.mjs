@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 
-const corpus = JSON.parse(fs.readFileSync('test_booksource3.json', 'utf8'));
+const corpus = JSON.parse(fs.readFileSync('test-booksources/test_booksource3.json', 'utf8'));
 const frozen = JSON.parse(fs.readFileSync('/tmp/search-bookinfo-v2-frozen.json', 'utf8'));
 const sources = frozen.selection.identities.map(({ rawIndex, bookSourceUrl }) => {
   const source = corpus[rawIndex];

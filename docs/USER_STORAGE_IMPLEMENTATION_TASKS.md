@@ -68,7 +68,7 @@ pre-release compatibility debt.
       inspection, delete/rename `DATA_DIR`, restart, and re-import test BookSources.
 - [x] Keep old non-empty layouts fail-closed and provide an actionable startup error without a reset
       flag or automatic mutation.
-- [x] Document that ignored `test_booksource*.json` corpora and tracked `testdata/booksource/`
+- [x] Document that ignored `test-booksources/` corpora and tracked `testdata/booksource/`
       fixtures are import inputs/evidence rather than user data and do not need database migration.
 - [x] Document complete stopped-server copy/restore, including preserving SQLite WAL/SHM files after
       a crash.

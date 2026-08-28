@@ -5,7 +5,7 @@ let sources;
 if (fs.existsSync(preservedPath)) {
   sources = JSON.parse(fs.readFileSync(preservedPath, 'utf8'));
 } else {
-  const corpus = JSON.parse(fs.readFileSync('test_booksource4.json', 'utf8'));
+  const corpus = JSON.parse(fs.readFileSync('test-booksources/test_booksource4.json', 'utf8'));
   const frozen = JSON.parse(fs.readFileSync('/tmp/explore-v14-frozen.json', 'utf8'));
   sources = frozen.selection.identities.map(({ rawIndex, sourceUrl }) => {
     const source = corpus[rawIndex];

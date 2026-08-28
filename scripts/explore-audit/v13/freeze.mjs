@@ -3,7 +3,7 @@ import fs from 'node:fs';
 
 const seed = 'NovelReader-explore-random-v13-2026-08-11';
 const size = 50;
-const corpusPath = 'test_booksource4.json';
+const corpusPath = 'test-booksources/test_booksource4.json';
 const auditDir = 'testdata/booksource/audits/explore';
 const auditPattern = /^explore-live-audit(?:-v\d+)?-.*\.json$/;
 const corpusBytes = fs.readFileSync(corpusPath);
