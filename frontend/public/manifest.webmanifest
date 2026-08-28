@@ -8,7 +8,6 @@
   "display": "standalone",
   "background_color": "#f4eedc",
   "theme_color": "#f4eedc",
-  "orientation": "any",
   "categories": ["books", "entertainment"],
   "icons": [
     {

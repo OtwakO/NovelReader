@@ -492,3 +492,10 @@
 - **Change**: Search, Explore, and candidate responses now expose opaque signed same-origin cover references; stored books expose their existing `/api/books/{id}/cover` URL. The backend verifies temporary references, resolves the imported source, and fetches image bytes through the shared source session pipeline. Raw source URLs remain canonical data and are not rewritten.
 - **Reason**: BookSource request execution belongs to the backend. This fixes mixed content and source-specific image transport without introducing source heuristics, permanent image storage, or a general URL proxy.
 - **Watch out**: Temporary signed references are process-local and intentionally expire after a server restart; clients receive fresh references with fresh Search, Explore, or candidate responses.
+
+
+### [2026-08-28] Let the device own PWA orientation
+- **Context**: The installed Android PWA rotated even when the phone's rotation lock was enabled.
+- **Change**: Removed the manifest's `orientation: "any"` preference and added a PWA manifest regression test.
+- **Reason**: `any` is an app-level request to permit every orientation and can override Android's user rotation preference for installed PWAs. Omitting the member delegates orientation to the browser, operating system, and user settings.
+- **Verified**: The focused PWA test, production build, and emitted manifest check pass.

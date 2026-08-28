@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { renderServiceWorker } from './pwa-shell';
 
@@ -23,5 +25,10 @@ describe('PWA shell build', () => {
   it('rejects a worker source without the build contract placeholders', () => {
     expect(() => renderServiceWorker('self.addEventListener("fetch", () => {})', 'revision-1', ['/']))
       .toThrow('PWA service-worker build placeholders are missing');
+  });
+
+  it('leaves orientation to the device and user settings', async () => {
+    const manifest = JSON.parse(await readFile(resolve(process.cwd(), 'public/manifest.webmanifest'), 'utf8')) as Record<string, unknown>;
+    expect(manifest).not.toHaveProperty('orientation');
   });
 });
