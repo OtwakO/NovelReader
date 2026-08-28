@@ -19,6 +19,7 @@ import (
 	"github.com/otwako/novelreader/internal/auth"
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/chineseconv"
 	"github.com/otwako/novelreader/internal/config"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/fingerprint"
@@ -101,6 +102,18 @@ func main() {
 	// Content processor config
 	procCfg := processor.DefaultConfig()
 
+	// Display-only Chinese conversion is optional in ordinary local builds and required in release images.
+	conversion, err := chineseconv.New()
+	if err != nil {
+		log.Fatalf("Chinese conversion: %v", err)
+	}
+	capability := conversion.Capability()
+	if capability.Available {
+		slog.Info("Chinese conversion enabled", "engine", capability.Engine, "version", capability.Version, "presets", capability.Presets)
+	} else {
+		slog.Info("Chinese conversion unavailable in this build")
+	}
+
 	// Set up time function for API
 	api.TimeNowMillis = func() int64 { return time.Now().UnixMilli() }
 
@@ -120,7 +133,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("recovery HTTP: %v", err)
 	}
-	apiSrv := api.NewAuthenticatedServer(authHandler, readers, searcher, jsVM, limits, procCfg, systemStore, browserClient)
+	apiSrv := api.NewAuthenticatedServer(authHandler, readers, searcher, jsVM, limits, procCfg, systemStore, browserClient, conversion)
 	defer apiSrv.Close()
 	rootMux := applicationMux(apiSrv, authHandler, setupHandler, recoveryHandler, cfg.AdminRecoveryToken != "")
 

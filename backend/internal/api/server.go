@@ -22,6 +22,7 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/candidate"
+	"github.com/otwako/novelreader/internal/chineseconv"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/processor"
@@ -45,6 +46,7 @@ type Server struct {
 	runtimes            *readerRuntimeManager
 	health              interface{ PingContext(context.Context) error }
 	webViewProbe        interface{ Probe(context.Context) error }
+	chineseConversion   chineseconv.Service
 	candidateOperations *candidate.Manager
 }
 
@@ -60,6 +62,11 @@ func (s *Server) Close() error {
 	}
 	if s.candidateOperations != nil {
 		s.candidateOperations.Close()
+	}
+	if s.chineseConversion != nil {
+		if err := s.chineseConversion.Close(); err != nil {
+			return err
+		}
 	}
 	if s.runtimes == nil {
 		return nil
@@ -166,13 +173,15 @@ func (s *Server) registerRoutesWithoutHealth() {
 	s.mux.HandleFunc("DELETE /api/fonts/{id}", s.handleDeleteFont)
 	s.mux.HandleFunc("GET /api/fonts/{id}/file", s.handleGetFontFile)
 	s.mux.HandleFunc("GET /api/system/webview-status", s.handleWebViewStatus)
+	s.mux.HandleFunc("GET /api/system/chinese-conversion", s.handleChineseConversionCapability)
+	s.mux.HandleFunc("POST /api/system/chinese-conversion", s.handleChineseConversion)
 }
 
 // NewAuthenticatedServer creates the production Reader Data boundary.
-func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, webViewProbe interface{ Probe(context.Context) error }) *Server {
+func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) *Server {
 	s := &Server{
 		fetcher: rootSearcherFetcher(rootSearcher), jsVM: jsVM, cache: analyzer.NewCacheManager(),
-		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health, webViewProbe: webViewProbe,
+		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health, webViewProbe: webViewProbe, chineseConversion: conversion,
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 	}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, limits, 32, limits.SessionTTL)

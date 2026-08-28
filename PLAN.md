@@ -52,6 +52,7 @@ backend/internal/
   analyzer/     Default/CSS/XPath/JSONPath/Regex rules and JavaScript bridge
   book/         search, detail, TOC, content, shelf, progress, bookmarks
   candidate/    asynchronous readable-candidate validation and commit
+  chineseconv/  display-only Chinese conversion capability and official OpenCC adapter
   explore/      source-native catalog sessions and pagination where separated
   webview/      Go-side Patchright worker client and diagnostic
 
@@ -143,7 +144,7 @@ Compatibility work must fix shared executor, analyzer, session, or workflow seam
 - Reading progress is one canonical chapter/index position migrated across source switches by normalized chapter-title match, then a documented approximate index fallback.
 - Bookmark source migration requires an exact normalized-title match; otherwise the bookmark remains explicitly orphaned.
 - Processed chapter content may be cached server-side under bounded retention for upstream-outage fallback.
-- Reader Chinese conversion is display-only and frontend-local. It never changes canonical chapters, progress, bookmarks, shelf metadata, or backend data.
+- Reader Chinese conversion is display-only and never changes canonical chapters, progress, bookmarks, shelf metadata, or backend data. Simplified conversion and Taiwan Traditional phrase conversion are provided through a narrow backend capability; release images use the pinned official BYVoid/OpenCC runtime with the Jieba-backed `tw2sp_jieba` and `s2twp_jieba` presets, while ordinary local builds may explicitly report that native conversion is unavailable.
 
 ### Search and candidate journey
 
