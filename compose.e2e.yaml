@@ -26,6 +26,11 @@ services:
       WEBVIEW_ENDPOINT: ${WEBVIEW_ENDPOINT:-}
     cpus: ${APP_CPUS:-2.0}
     mem_limit: ${APP_MEMORY:-4g}
+    healthcheck:
+      interval: 2s
+      timeout: 2s
+      start_period: 2s
+      retries: 90
     depends_on:
       webview-worker:
         condition: service_healthy
@@ -54,6 +59,11 @@ services:
     cpus: ${WEBVIEW_CPUS:-2.0}
     mem_limit: ${WEBVIEW_MEMORY:-4g}
     shm_size: 512m
+    healthcheck:
+      interval: 2s
+      timeout: 2s
+      start_period: 2s
+      retries: 90
     networks:
       - novelreader
 

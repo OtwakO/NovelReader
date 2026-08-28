@@ -5,7 +5,7 @@ WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/ ./
-RUN npm test && npm run build
+RUN npm run build
 
 FROM golang:alpine AS opencc-build
 RUN apk add --no-cache build-base cmake curl python3

@@ -200,8 +200,8 @@ The production frontend is a Vue 3 SPA using Vue Router, Pinia, Vue I18n, Vite, 
 - It runs `ghcr.io/otwako/novelreader:latest` and the private-network WebView worker, persists `./data:/data`, and requires no `.env` file.
 - The app entrypoint prepares bind-mount ownership and drops to configured numeric `PUID:PGID`.
 - `compose.e2e.yaml` is the deterministic local-build and deployment-test contract.
-- GitHub Actions verifies backend, frontend, worker, and Compose behavior before publishing app and WebView images.
-- Main pushes publish `latest`, `edge`, and immutable `sha-*` tags to lowercase GHCR package names.
+- GitHub Actions runs backend, frontend, and changed WebView verification in parallel, builds each required container image once with Buildx, runs Compose E2E against those exact images, and publishes only after they pass.
+- Every successful container run records a full-commit `sha-*` app/worker pair for exact rollback. Main moves `latest` and `edge` only for changed images. Unchanged WebView code reuses the published `edge` image for main E2E; `v*` releases publish normalized semver image tags and reuse the preceding immutable release worker digest after verifying it with the new app.
 - `run-local.bat` remains the development workflow.
 
 WebView is observable but not continuously monitored. Settings performs an authenticated backend-owned synthetic execution through the same Go → worker → Chromium path used by sources and reports `not configured`, `unavailable`, or `verified`.

@@ -4,6 +4,19 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+    paths:
+      - '.github/workflows/publish.yml'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'webview-worker/**'
+      - 'build/**'
+      - '.dockerignore'
+      - 'Dockerfile'
+      - 'docker-entrypoint.sh'
+      - 'docker-compose.yml'
+      - 'compose.e2e.yaml'
+      - 'docker-e2e.sh'
+      - 'testdata/docker/**'
   workflow_dispatch:
 
 permissions:
@@ -12,21 +25,81 @@ permissions:
 
 concurrency:
   group: containers-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+env:
+  APP_IMAGE: ghcr.io/otwako/novelreader
+  WORKER_IMAGE: ghcr.io/otwako/novelreader-webview
 
 jobs:
-  verify-and-publish:
+  changes:
+    name: Plan container release
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.plan.outputs.app }}
+      worker: ${{ steps.plan.outputs.worker }}
+      previous_release: ${{ steps.plan.outputs.previous_release }}
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Determine required builds
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=false
+          worker=false
+          previous_release=
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            app=true
+            worker=true
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            # A release always rebuilds the app. The worker is rebuilt only when
+            # it changed since the preceding release; otherwise that immutable
+            # release image is pulled, verified with the new app, and retagged.
+            app=true
+            previous_release=$(git describe --tags --match 'v*' --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+            if [[ -z "$previous_release" ]] || ! git diff --quiet "$previous_release" HEAD -- webview-worker; then
+              worker=true
+            fi
+          else
+            base="${{ github.event.before }}"
+            if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+              base=HEAD^
+            fi
+            if ! git diff --quiet "$base" HEAD -- .github/workflows/publish.yml; then
+              app=true
+              worker=true
+            else
+              if ! git diff --quiet "$base" HEAD -- backend frontend build .dockerignore Dockerfile docker-entrypoint.sh; then
+                app=true
+              fi
+              if ! git diff --quiet "$base" HEAD -- webview-worker; then
+                worker=true
+              fi
+            fi
+          fi
+
+          printf 'app=%s\nworker=%s\nprevious_release=%s\n' \
+            "$app" "$worker" "$previous_release" | tee -a "$GITHUB_OUTPUT"
+
+  backend:
+    name: Verify backend
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
       - name: Set up Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
-
       - name: Test and build backend
         working-directory: backend
         run: |
@@ -34,27 +107,40 @@ jobs:
           go test -race ./internal/api ./internal/book ./internal/fingerprint ./internal/sourceexec
           go build ./cmd/server ./cmd/conformance
 
+  frontend:
+    name: Verify frontend
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set up Node
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: node
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Test and build frontend
+      - name: Test frontend
         working-directory: frontend
         run: |
           npm ci
           npm test
-          npm run build
 
+  webview:
+    name: Verify WebView worker
+    needs: changes
+    if: needs.changes.outputs.worker == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set up uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
-          version: "0.11.8"
+          version: '0.11.8'
           enable-cache: true
           cache-dependency-glob: webview-worker/uv.lock
-
       - name: Test WebView worker
         working-directory: webview-worker
         run: |
@@ -64,13 +150,22 @@ jobs:
           uv run --frozen --no-sync python -m py_compile browser.py worker.py
           uv run --frozen --no-sync python -c "import patchright; print('Patchright import passed')"
 
-      - name: Verify Compose configurations
-        run: |
-          docker compose -f docker-compose.yml config --quiet
-          docker compose -f compose.e2e.yaml --profile webview --profile e2e config --quiet
-
-      - name: Verify Compose deployment
-        run: ./docker-e2e.sh
+  containers:
+    name: Verify and publish images
+    needs: [changes, backend, frontend, webview]
+    concurrency:
+      group: novelreader-container-publication
+      cancel-in-progress: false
+    if: >-
+      always() &&
+      needs.changes.result == 'success' &&
+      (needs.backend.result == 'success' || needs.backend.result == 'skipped') &&
+      (needs.frontend.result == 'success' || needs.frontend.result == 'skipped') &&
+      (needs.webview.result == 'success' || needs.webview.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -82,54 +177,161 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: App image metadata
-        id: app-meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
-        with:
-          images: ghcr.io/otwako/novelreader
-          flavor: latest=false
-          tags: |
-            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-            type=raw,value=edge,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{version}}
-            type=raw,value=manual,enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=sha,prefix=sha-
+      - name: Verify Compose configurations
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f compose.e2e.yaml --profile webview --profile e2e config --quiet
 
-      - name: WebView image metadata
-        id: worker-meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
-        with:
-          images: ghcr.io/otwako/novelreader-webview
-          flavor: latest=false
-          tags: |
-            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-            type=raw,value=edge,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{version}}
-            type=raw,value=manual,enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=sha,prefix=sha-
-
-      - name: Build and publish app image
+      - name: Build app image once
+        if: needs.changes.outputs.app == 'true'
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           platforms: linux/amd64
-          push: true
-          tags: ${{ steps.app-meta.outputs.tags }}
-          labels: ${{ steps.app-meta.outputs.labels }}
+          load: true
+          push: false
+          tags: novelreader:e2e
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=novelreader
           cache-to: type=gha,mode=max,scope=novelreader
           provenance: false
           sbom: false
 
-      - name: Build and publish WebView image
+      - name: Use previously published app image
+        id: reused-app
+        if: needs.changes.outputs.app != 'true'
+        run: |
+          digest=$(docker buildx imagetools inspect "$APP_IMAGE:edge" --format '{{.Manifest.Digest}}')
+          docker pull "$APP_IMAGE@$digest"
+          docker tag "$APP_IMAGE@$digest" novelreader:e2e
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Build WebView image once
+        if: needs.changes.outputs.worker == 'true'
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: ./webview-worker
           platforms: linux/amd64
-          push: true
-          tags: ${{ steps.worker-meta.outputs.tags }}
-          labels: ${{ steps.worker-meta.outputs.labels }}
+          load: true
+          push: false
+          tags: novelreader-webview:e2e
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=novelreader-webview
           cache-to: type=gha,mode=max,scope=novelreader-webview
           provenance: false
           sbom: false
+
+      - name: Use previously verified WebView image
+        id: reused-worker
+        if: needs.changes.outputs.worker != 'true'
+        env:
+          PREVIOUS_RELEASE: ${{ needs.changes.outputs.previous_release }}
+        run: |
+          set -euo pipefail
+          source_tag=edge
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            if [[ -z "$PREVIOUS_RELEASE" ]]; then
+              echo 'A first release must build the WebView image.' >&2
+              exit 1
+            fi
+            source_tag="${PREVIOUS_RELEASE#v}"
+          fi
+          digest=$(docker buildx imagetools inspect "$WORKER_IMAGE:$source_tag" --format '{{.Manifest.Digest}}')
+          docker pull "$WORKER_IMAGE@$digest"
+          docker tag "$WORKER_IMAGE@$digest" novelreader-webview:e2e
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Verify exact release images with Compose
+        env:
+          E2E_SKIP_BUILD: '1'
+          NOVELREADER_IMAGE: novelreader:e2e
+          NOVELREADER_WEBVIEW_IMAGE: novelreader-webview:e2e
+        run: ./docker-e2e.sh
+
+      - name: Stage verified image digests
+        id: stage
+        env:
+          APP_CHANGED: ${{ needs.changes.outputs.app }}
+          WORKER_CHANGED: ${{ needs.changes.outputs.worker }}
+          PREVIOUS_RELEASE: ${{ needs.changes.outputs.previous_release }}
+        run: |
+          set -euo pipefail
+          staging_tag="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          stage_local() {
+            local source=$1 repository=$2
+            local target="$repository:$staging_tag"
+            docker tag "$source" "$target"
+            docker push "$target" >/dev/null
+            docker buildx imagetools inspect "$target" --format '{{.Manifest.Digest}}'
+          }
+
+          if [[ "$APP_CHANGED" == "true" ]]; then
+            app_digest=$(stage_local novelreader:e2e "$APP_IMAGE")
+          else
+            app_digest='${{ steps.reused-app.outputs.digest }}'
+          fi
+
+          if [[ "$WORKER_CHANGED" == "true" ]]; then
+            worker_digest=$(stage_local novelreader-webview:e2e "$WORKER_IMAGE")
+          else
+            worker_digest='${{ steps.reused-worker.outputs.digest }}'
+          fi
+
+          printf 'app_digest=%s\nworker_digest=%s\n' \
+            "$app_digest" "$worker_digest" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Promote verified image pair
+        env:
+          APP_CHANGED: ${{ needs.changes.outputs.app }}
+          WORKER_CHANGED: ${{ needs.changes.outputs.worker }}
+          APP_DIGEST: ${{ steps.stage.outputs.app_digest }}
+          WORKER_DIGEST: ${{ steps.stage.outputs.worker_digest }}
+        run: |
+          set -euo pipefail
+
+          ensure_immutable() {
+            local repository=$1 digest=$2
+            local tag="$repository:sha-$GITHUB_SHA"
+            local existing=
+            existing=$(docker buildx imagetools inspect "$tag" --format '{{.Manifest.Digest}}' 2>/dev/null || true)
+            if [[ -n "$existing" && "$existing" != "$digest" ]]; then
+              echo "$tag already points to $existing, refusing to overwrite it with $digest" >&2
+              exit 1
+            fi
+            if [[ -z "$existing" ]]; then
+              docker buildx imagetools create --prefer-index=false --tag "$tag" "$repository@$digest"
+            fi
+          }
+
+          promote() {
+            local repository=$1 digest=$2
+            shift 2
+            local args=(--prefer-index=false)
+            for alias in "$@"; do
+              args+=(--tag "$repository:$alias")
+            done
+            docker buildx imagetools create "${args[@]}" "$repository@$digest"
+          }
+
+          # Every participating image receives an immutable full-SHA reference
+          # before any public alias moves. Worker aliases move first; the app
+          # moves last so users never receive a new app before its paired worker.
+          ensure_immutable "$APP_IMAGE" "$APP_DIGEST"
+          ensure_immutable "$WORKER_IMAGE" "$WORKER_DIGEST"
+
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            release_tag="${GITHUB_REF_NAME#v}"
+            promote "$WORKER_IMAGE" "$WORKER_DIGEST" "$release_tag"
+            promote "$APP_IMAGE" "$APP_DIGEST" "$release_tag"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            promote "$WORKER_IMAGE" "$WORKER_DIGEST" manual
+            promote "$APP_IMAGE" "$APP_DIGEST" manual
+          else
+            if [[ "$WORKER_CHANGED" == "true" ]]; then
+              promote "$WORKER_IMAGE" "$WORKER_DIGEST" latest edge
+            fi
+            if [[ "$APP_CHANGED" == "true" ]]; then
+              promote "$APP_IMAGE" "$APP_DIGEST" latest edge
+            fi
+          fi

@@ -21,7 +21,9 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 compose config --quiet
-compose build app webview-worker
+if [[ "${E2E_SKIP_BUILD:-0}" != "1" ]]; then
+  compose build app webview-worker
+fi
 compose up -d --no-build --wait --wait-timeout 180 app webview-worker fixture
 
 base_url="http://127.0.0.1:${APP_PORT}"
