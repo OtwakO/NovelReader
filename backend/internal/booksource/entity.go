@@ -51,7 +51,8 @@ type BookSource struct {
 	CreatedAt int64 `json:"createdAt" db:"created_at"`
 	UpdatedAt int64 `json:"updatedAt" db:"updated_at"`
 
-	sourceJSON string `json:"-" db:"source_json"`
+	CollectionID string `json:"-" db:"collection_id"`
+	sourceJSON   string `json:"-" db:"source_json"`
 }
 
 // ponytail: flat struct, no sub-objects for rules. Rule JSON strings are parsed on demand.
@@ -65,7 +66,23 @@ func (s *BookSource) TableName() string { return "book_sources" }
 
 // ColumnDefs returns the CREATE TABLE statement for the book_sources table.
 func ColumnDefs() string {
-	return `CREATE TABLE IF NOT EXISTS book_sources (
+	return `CREATE TABLE IF NOT EXISTS book_source_collections (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+		origin_kind TEXT NOT NULL,
+		origin_url TEXT,
+		origin_filename TEXT,
+		sync_interval TEXT NOT NULL DEFAULT 'manual',
+		last_attempt_at INTEGER,
+		last_success_at INTEGER,
+		next_sync_at INTEGER,
+		last_error TEXT NOT NULL DEFAULT '',
+		etag TEXT NOT NULL DEFAULT '',
+		last_modified TEXT NOT NULL DEFAULT '',
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS book_sources (
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL DEFAULT '',
 		group_name TEXT DEFAULT '',
@@ -98,8 +115,10 @@ func ColumnDefs() string {
 		weight INTEGER DEFAULT 0,
 		created_at INTEGER NOT NULL,
 		updated_at INTEGER NOT NULL,
-		source_json TEXT NOT NULL DEFAULT ''
-	);`
+		source_json TEXT NOT NULL DEFAULT '',
+		collection_id TEXT REFERENCES book_source_collections(id) ON DELETE CASCADE
+	);
+	CREATE INDEX IF NOT EXISTS book_sources_collection_id ON book_sources(collection_id);`
 }
 
 // NewFromJSON creates a BookSource from raw JSON bytes (single source).

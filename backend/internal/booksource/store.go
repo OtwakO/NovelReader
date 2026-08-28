@@ -1,6 +1,7 @@
 package booksource
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -38,7 +39,7 @@ var sourceColumns = `id, name, group_name, source_type, book_url_pattern,
 	rule_search, rule_book_info, rule_toc, rule_content, rule_explore, rule_review,
 	js_lib, header, login_url, login_ui, login_check_js, cover_decode_js, concurrent_rate,
 	comment, variable_comment, last_update_time, respond_time, weight,
-	created_at, updated_at, source_json`
+	created_at, updated_at, source_json, COALESCE(collection_id, '')`
 
 // List returns all book sources in deterministic user order.
 func (s *Store) List() ([]BookSource, error) {
@@ -85,31 +86,11 @@ func (s *Store) GetByID(id string) (*BookSource, error) {
 
 // Upsert inserts or replaces a book source.
 func (s *Store) Upsert(src *BookSource) error {
-	now := time.Now().UnixMilli()
-	src.UpdatedAt = now
-	if src.CreatedAt == 0 {
-		src.CreatedAt = now
+	var collectionID sql.NullString
+	if err := s.db.QueryRow(`SELECT collection_id FROM book_sources WHERE id = ?`, src.BookSourceURL).Scan(&collectionID); err != nil && err != sql.ErrNoRows {
+		return err
 	}
-	// ponytail: simple REPLACE — no merge logic. Import overwrites existing fields.
-	_, err := s.db.Exec(`INSERT OR REPLACE INTO book_sources (
-		id, name, group_name, source_type, book_url_pattern, custom_order,
-		enabled, enabled_explore, enabled_cookie_jar,
-		search_url, explore_url, explore_screen,
-		rule_search, rule_book_info, rule_toc, rule_content, rule_explore, rule_review,
-		js_lib, header, login_url, login_ui, login_check_js, cover_decode_js, concurrent_rate,
-		comment, variable_comment, last_update_time, respond_time, weight,
-		created_at, updated_at, source_json
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		src.BookSourceURL, src.BookSourceName, src.BookSourceGroup, src.BookSourceType,
-		src.BookURLPattern, src.CustomOrder,
-		boolToInt(src.Enabled), boolToInt(src.EnabledExplore), boolToIntPtr(src.EnabledCookieJar),
-		src.SearchURL, src.ExploreURL, src.ExploreScreen,
-		src.RuleSearch, src.RuleBookInfo, src.RuleToc, src.RuleContent, src.RuleExplore, src.RuleReview,
-		src.JSLib, src.Header, src.LoginURL, src.LoginUI, src.LoginCheckJS, src.CoverDecodeJS, src.ConcurrentRate,
-		src.BookSourceComment, src.VariableComment, src.LastUpdateTime, src.RespondTime, src.Weight,
-		src.CreatedAt, src.UpdatedAt, src.sourceJSON,
-	)
-	return err
+	return upsertSource(context.Background(), s.db, src, collectionID.String, time.Now())
 }
 
 // Delete removes a source by its URL.
@@ -126,25 +107,17 @@ func (s *Store) ImportBatch(sources []*BookSource) (int, error) {
 	}
 	defer tx.Rollback() //nolint:errcheck
 
+	now := time.Now()
 	for _, src := range sources {
-		now := time.Now().UnixMilli()
-		src.UpdatedAt = now
-		if src.CreatedAt == 0 {
-			src.CreatedAt = now
+		var collectionID sql.NullString
+		err := tx.QueryRow(`SELECT collection_id FROM book_sources WHERE id = ?`, src.BookSourceURL).Scan(&collectionID)
+		if err != nil && err != sql.ErrNoRows {
+			return 0, fmt.Errorf("booksource: inspect import ownership: %w", err)
 		}
-		_, err := tx.Exec(`INSERT OR REPLACE INTO book_sources VALUES (
-			?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
-		)`,
-			src.BookSourceURL, src.BookSourceName, src.BookSourceGroup, src.BookSourceType,
-			src.BookURLPattern, src.CustomOrder,
-			boolToInt(src.Enabled), boolToInt(src.EnabledExplore), boolToIntPtr(src.EnabledCookieJar),
-			src.SearchURL, src.ExploreURL, src.ExploreScreen,
-			src.RuleSearch, src.RuleBookInfo, src.RuleToc, src.RuleContent, src.RuleExplore, src.RuleReview,
-			src.JSLib, src.Header, src.LoginURL, src.LoginUI, src.LoginCheckJS, src.CoverDecodeJS, src.ConcurrentRate,
-			src.BookSourceComment, src.VariableComment, src.LastUpdateTime, src.RespondTime, src.Weight,
-			src.CreatedAt, src.UpdatedAt, src.sourceJSON,
-		)
-		if err != nil {
+		if collectionID.Valid {
+			return 0, fmt.Errorf("%w: %s", ErrCollectionConflict, src.BookSourceURL)
+		}
+		if err := upsertSource(context.Background(), tx, src, "", now); err != nil {
 			return 0, fmt.Errorf("booksource: import batch insert: %w", err)
 		}
 	}
@@ -190,8 +163,39 @@ func scanRow(scanner interface {
 		&s.RuleSearch, &s.RuleBookInfo, &s.RuleToc, &s.RuleContent, &s.RuleExplore, &s.RuleReview,
 		&s.JSLib, &s.Header, &s.LoginURL, &s.LoginUI, &s.LoginCheckJS, &s.CoverDecodeJS, &s.ConcurrentRate,
 		&s.BookSourceComment, &s.VariableComment, &s.LastUpdateTime, &s.RespondTime, &s.Weight,
-		&s.CreatedAt, &s.UpdatedAt, &s.sourceJSON,
+		&s.CreatedAt, &s.UpdatedAt, &s.sourceJSON, &s.CollectionID,
 	)
+}
+
+type sourceExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func upsertSource(ctx context.Context, db sourceExecutor, src *BookSource, collectionID string, now time.Time) error {
+	src.UpdatedAt = now.UnixMilli()
+	if src.CreatedAt == 0 {
+		src.CreatedAt = src.UpdatedAt
+	}
+	src.CollectionID = collectionID
+	_, err := db.ExecContext(ctx, `INSERT OR REPLACE INTO book_sources (
+		id, name, group_name, source_type, book_url_pattern, custom_order,
+		enabled, enabled_explore, enabled_cookie_jar,
+		search_url, explore_url, explore_screen,
+		rule_search, rule_book_info, rule_toc, rule_content, rule_explore, rule_review,
+		js_lib, header, login_url, login_ui, login_check_js, cover_decode_js, concurrent_rate,
+		comment, variable_comment, last_update_time, respond_time, weight,
+		created_at, updated_at, source_json, collection_id
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULLIF(?, ''))`,
+		src.BookSourceURL, src.BookSourceName, src.BookSourceGroup, src.BookSourceType,
+		src.BookURLPattern, src.CustomOrder,
+		boolToInt(src.Enabled), boolToInt(src.EnabledExplore), boolToIntPtr(src.EnabledCookieJar),
+		src.SearchURL, src.ExploreURL, src.ExploreScreen,
+		src.RuleSearch, src.RuleBookInfo, src.RuleToc, src.RuleContent, src.RuleExplore, src.RuleReview,
+		src.JSLib, src.Header, src.LoginURL, src.LoginUI, src.LoginCheckJS, src.CoverDecodeJS, src.ConcurrentRate,
+		src.BookSourceComment, src.VariableComment, src.LastUpdateTime, src.RespondTime, src.Weight,
+		src.CreatedAt, src.UpdatedAt, src.sourceJSON, collectionID,
+	)
+	return err
 }
 
 func boolToInt(b bool) int {
