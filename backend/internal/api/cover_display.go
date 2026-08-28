@@ -21,6 +21,7 @@ const maxCoverReferenceBytes = 64 * 1024
 var errInvalidCoverReference = errors.New("cover reference is invalid")
 
 type coverReference struct {
+	SourceID  string `json:"sourceId"`
 	SourceURL string `json:"sourceUrl"`
 	BookURL   string `json:"bookUrl"`
 	CoverURL  string `json:"coverUrl"`
@@ -38,7 +39,7 @@ func (s *Server) addCoverDisplayURL(result *book.SearchResult) {
 	if result == nil || strings.TrimSpace(result.CoverURL) == "" {
 		return
 	}
-	result.CoverDisplayURL = s.coverDisplayURL(result.SourceURL, result.BookURL, result.CoverURL)
+	result.CoverDisplayURL = s.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL)
 }
 
 func (s *Server) addExploreCoverDisplayURLs(page *book.ExplorePage) {
@@ -56,16 +57,16 @@ func (s *Server) addCandidateCoverDisplayURL(snapshot *candidate.Snapshot) {
 	}
 	if snapshot.Preview != nil && strings.TrimSpace(snapshot.Preview.Book.CoverURL) != "" {
 		preview := &snapshot.Preview.Book
-		preview.CoverDisplayURL = s.coverDisplayURL(preview.SourceURL, preview.BookURL, preview.CoverURL)
+		preview.CoverDisplayURL = s.coverDisplayURL(preview.SourceID, preview.SourceURL, preview.BookURL, preview.CoverURL)
 	}
 	addStoredCoverDisplayURL(snapshot.StoredBook)
 }
 
-func (s *Server) coverDisplayURL(sourceURL, bookURL, coverURL string) string {
-	if s == nil || len(s.coverReferenceKey) == 0 || strings.TrimSpace(sourceURL) == "" || strings.TrimSpace(bookURL) == "" || strings.TrimSpace(coverURL) == "" {
+func (s *Server) coverDisplayURL(sourceID, sourceURL, bookURL, coverURL string) string {
+	if s == nil || len(s.coverReferenceKey) == 0 || strings.TrimSpace(sourceID) == "" || strings.TrimSpace(sourceURL) == "" || strings.TrimSpace(bookURL) == "" || strings.TrimSpace(coverURL) == "" {
 		return ""
 	}
-	payload, err := json.Marshal(coverReference{SourceURL: sourceURL, BookURL: bookURL, CoverURL: coverURL})
+	payload, err := json.Marshal(coverReference{SourceID: sourceID, SourceURL: sourceURL, BookURL: bookURL, CoverURL: coverURL})
 	if err != nil || len(payload) > maxCoverReferenceBytes {
 		return ""
 	}
@@ -108,7 +109,7 @@ func (s *Server) parseCoverReference(value string) (coverReference, error) {
 		return coverReference{}, errInvalidCoverReference
 	}
 	var ref coverReference
-	if err := json.Unmarshal(payload, &ref); err != nil || strings.TrimSpace(ref.SourceURL) == "" || strings.TrimSpace(ref.BookURL) == "" || strings.TrimSpace(ref.CoverURL) == "" {
+	if err := json.Unmarshal(payload, &ref); err != nil || strings.TrimSpace(ref.SourceID) == "" || strings.TrimSpace(ref.SourceURL) == "" || strings.TrimSpace(ref.BookURL) == "" || strings.TrimSpace(ref.CoverURL) == "" {
 		return coverReference{}, errInvalidCoverReference
 	}
 	return ref, nil
@@ -124,7 +125,7 @@ func (s *Server) handleGetCoverDisplay(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_cover_reference", "cover reference is invalid")
 		return
 	}
-	src, err := s.sourceStore.GetByID(ref.SourceURL)
+	src, err := s.sourceStore.GetByID(ref.SourceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "load source failed")
 		return
@@ -133,7 +134,7 @@ func (s *Server) handleGetCoverDisplay(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusNotFound, "source_not_found", "book source not found")
 		return
 	}
-	candidate := &book.Book{SourceURL: ref.SourceURL, BookURL: ref.BookURL, CoverURL: ref.CoverURL}
+	candidate := &book.Book{SourceID: ref.SourceID, SourceURL: ref.SourceURL, BookURL: ref.BookURL, CoverURL: ref.CoverURL}
 	data, contentType, err := s.searcher.GetBookCover(r.Context(), *src, candidate)
 	if err != nil {
 		writeErrorCode(w, http.StatusBadGateway, "cover_fetch_failed", "book cover unavailable")

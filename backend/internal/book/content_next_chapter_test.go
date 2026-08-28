@@ -91,6 +91,7 @@ func TestGetChapterContentStopsAfterRedirectToNextTOCChapter(t *testing.T) {
 
 	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
 	src := booksource.BookSource{
+		ID:             server.URL,
 		BookSourceURL:  server.URL,
 		BookSourceName: "fixture",
 		RuleContent:    `{"content":"@css:.content@text","nextContentUrl":"@css:.next@href"}`,
@@ -123,6 +124,7 @@ func TestGetChapterContentStopsBeforeNextTOCChapter(t *testing.T) {
 
 	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
 	src := booksource.BookSource{
+		ID:             server.URL,
 		BookSourceURL:  server.URL,
 		BookSourceName: "fixture",
 		RuleContent:    `{"content":"@css:.content@text","nextContentUrl":"@css:.next@href"}`,

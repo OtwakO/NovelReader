@@ -33,7 +33,7 @@ func initSchema(db schemaExecutor) error {
 }
 
 // ponytail: sourceColumns must stay field-synced with scanSource's scan order.
-var sourceColumns = `id, name, group_name, source_type, book_url_pattern,
+var sourceColumns = `id, book_source_url, name, group_name, source_type, book_url_pattern,
 	custom_order, enabled, enabled_explore, enabled_cookie_jar,
 	search_url, explore_url, explore_screen,
 	rule_search, rule_book_info, rule_toc, rule_content, rule_explore, rule_review,
@@ -51,7 +51,7 @@ func (s *Store) List() ([]BookSource, error) {
 	return scanSources(rows)
 }
 
-// ListEnabled returns enabled sources, used for search.
+// ListByCollection returns every definition owned by one collection.
 func (s *Store) ListByCollection(collectionID string) ([]*BookSource, error) {
 	rows, err := s.db.Query(`SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ? ORDER BY custom_order ASC, name ASC, id ASC`, collectionID)
 	if err != nil {
@@ -88,7 +88,7 @@ func (s *Store) ListExploreEnabled() ([]BookSource, error) {
 	return scanSources(rows)
 }
 
-// GetByID returns a single source by its URL (primary key).
+// GetByID returns one installed source definition by its immutable Source ID.
 func (s *Store) GetByID(id string) (*BookSource, error) {
 	row := s.db.QueryRow(`SELECT `+sourceColumns+` FROM book_sources WHERE id = ?`, id)
 	src, err := scanSource(row)
@@ -103,14 +103,21 @@ func (s *Store) GetByID(id string) (*BookSource, error) {
 
 // Upsert inserts or replaces a book source.
 func (s *Store) Upsert(src *BookSource) error {
+	if src.ID == "" {
+		id, err := newSourceID()
+		if err != nil {
+			return err
+		}
+		src.ID = id
+	}
 	var collectionID sql.NullString
-	if err := s.db.QueryRow(`SELECT collection_id FROM book_sources WHERE id = ?`, src.BookSourceURL).Scan(&collectionID); err != nil && err != sql.ErrNoRows {
+	if err := s.db.QueryRow(`SELECT collection_id FROM book_sources WHERE id = ?`, src.ID).Scan(&collectionID); err != nil && err != sql.ErrNoRows {
 		return err
 	}
 	return upsertSource(context.Background(), s.db, src, collectionID.String, time.Now())
 }
 
-// Delete removes a source by its URL.
+// Delete removes an installed source definition by immutable Source ID.
 func (s *Store) Delete(id string) error {
 	_, err := s.db.Exec(`DELETE FROM book_sources WHERE id = ?`, id)
 	return err
@@ -126,14 +133,11 @@ func (s *Store) ImportBatch(sources []*BookSource) (int, error) {
 
 	now := time.Now()
 	for _, src := range sources {
-		var collectionID sql.NullString
-		err := tx.QueryRow(`SELECT collection_id FROM book_sources WHERE id = ?`, src.BookSourceURL).Scan(&collectionID)
-		if err != nil && err != sql.ErrNoRows {
-			return 0, fmt.Errorf("booksource: inspect import ownership: %w", err)
+		id, err := newSourceID()
+		if err != nil {
+			return 0, err
 		}
-		if collectionID.Valid {
-			return 0, fmt.Errorf("%w: %s", ErrCollectionConflict, src.BookSourceURL)
-		}
+		src.ID = id
 		if err := upsertSource(context.Background(), tx, src, "", now); err != nil {
 			return 0, fmt.Errorf("booksource: import batch insert: %w", err)
 		}
@@ -173,7 +177,7 @@ func scanRow(scanner interface {
 	Scan(dest ...interface{}) error
 }, s *BookSource) error {
 	return scanner.Scan(
-		&s.BookSourceURL, &s.BookSourceName, &s.BookSourceGroup, &s.BookSourceType,
+		&s.ID, &s.BookSourceURL, &s.BookSourceName, &s.BookSourceGroup, &s.BookSourceType,
 		&s.BookURLPattern, &s.CustomOrder,
 		&s.Enabled, &s.EnabledExplore, &s.EnabledCookieJar,
 		&s.SearchURL, &s.ExploreURL, &s.ExploreScreen,
@@ -195,15 +199,15 @@ func upsertSource(ctx context.Context, db sourceExecutor, src *BookSource, colle
 	}
 	src.CollectionID = collectionID
 	_, err := db.ExecContext(ctx, `INSERT OR REPLACE INTO book_sources (
-		id, name, group_name, source_type, book_url_pattern, custom_order,
+		id, book_source_url, name, group_name, source_type, book_url_pattern, custom_order,
 		enabled, enabled_explore, enabled_cookie_jar,
 		search_url, explore_url, explore_screen,
 		rule_search, rule_book_info, rule_toc, rule_content, rule_explore, rule_review,
 		js_lib, header, login_url, login_ui, login_check_js, cover_decode_js, concurrent_rate,
 		comment, variable_comment, last_update_time, respond_time, weight,
 		created_at, updated_at, source_json, collection_id
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULLIF(?, ''))`,
-		src.BookSourceURL, src.BookSourceName, src.BookSourceGroup, src.BookSourceType,
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULLIF(?, ''))`,
+		src.ID, src.BookSourceURL, src.BookSourceName, src.BookSourceGroup, src.BookSourceType,
 		src.BookURLPattern, src.CustomOrder,
 		boolToInt(src.Enabled), boolToInt(src.EnabledExplore), boolToIntPtr(src.EnabledCookieJar),
 		src.SearchURL, src.ExploreURL, src.ExploreScreen,

@@ -18,7 +18,7 @@ func TestStoreUpdateProgressValidatesAndReportsMissingBooks(t *testing.T) {
 	defer db.Close()
 	store := NewStore(db)
 	initializeBookTestSchema(t, db)
-	if err := store.AddBook(&Book{ID: "book-1", Name: "Book", SourceURL: "source", BookURL: "book"}); err != nil {
+	if err := store.AddBook(&Book{ID: "book-1", Name: "Book", SourceID: "source", SourceURL: "source", BookURL: "book"}); err != nil {
 		t.Fatal(err)
 	}
 	if version, err := store.UpdateProgress("book-1", "source", 0, 3, 0.75); err != nil || version != 1 {

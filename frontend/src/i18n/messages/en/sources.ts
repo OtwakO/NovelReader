@@ -19,12 +19,15 @@ export default {
     enabled: "{count} enabled",
     searchable: "{count} searchable text",
     explore: "{count} Explore",
+    javascript: "{count} JavaScript",
+    webview: "{count} WebView",
   },
   capabilities: {
     search: "Search",
     explore: "Explore",
     headers: "Headers",
     javascript: "JavaScript",
+    webview: "WebView",
   },
   pagination: {
     label: "BookSource pages",
@@ -44,6 +47,7 @@ export default {
     add: "Add collection",
     all: "All sources",
     standalone: "Standalone",
+    sourceCount: "{count} sources",
     eyebrow: "Source collection",
     addTitle: "Add Source Collection",
     editTitle: "Collection settings",

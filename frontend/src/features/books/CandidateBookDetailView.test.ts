@@ -29,8 +29,8 @@ const i18n = createI18n({
 
 const selected = {
   name: 'Fixture Novel', author: 'Fixture Author', coverUrl: '', intro: 'Intro', kind: 'Novel', lastChapter: 'Chapter 2',
-  bookUrl: '/book', sourceUrl: 'primary', sourceName: 'Primary',
-  alternateSources: [{ sourceUrl: 'fallback', bookUrl: '/fallback', sourceName: 'Fallback' }],
+  bookUrl: '/book', sourceId: 'primary', sourceUrl: 'primary', sourceName: 'Primary',
+  alternateSources: [{ sourceId: 'fallback', sourceUrl: 'fallback', bookUrl: '/fallback', sourceName: 'Fallback' }],
 };
 
 class FakeEventSource {
@@ -49,11 +49,11 @@ function verifiedOperation() {
   return {
     ...operation('verified'), completed: 1, active: 0,
     attempts: [
-      { sourceName: 'Primary', sourceUrl: 'primary', bookUrl: '/book', state: 'failed', stage: 'content' },
-      { sourceName: 'Fallback', sourceUrl: 'fallback', bookUrl: '/fallback', state: 'verified', stage: 'content' },
+      { sourceName: 'Primary', sourceId: 'primary', sourceUrl: 'primary', bookUrl: '/book', state: 'failed', stage: 'content' },
+      { sourceName: 'Fallback', sourceId: 'fallback', sourceUrl: 'fallback', bookUrl: '/fallback', state: 'verified', stage: 'content' },
     ],
     preview: {
-        book: { ...selected, lastChapter: '/raw/path.html', sourceUrl: 'fallback', bookUrl: '/fallback', origin: 'Fallback' },
+        book: { ...selected, lastChapter: '/raw/path.html', sourceId: 'fallback', sourceUrl: 'fallback', bookUrl: '/fallback', origin: 'Fallback' },
       chapters: [{ index: 0, title: 'Chapter 1', url: '/chapter' }],
       selection: { requestedSourceUrl: 'primary', selectedSourceUrl: 'fallback', selectedSourceName: 'Fallback', usedFallback: true },
     },
@@ -118,7 +118,7 @@ describe('CandidateBookDetailView', () => {
     sessionStorage.setItem('novelreader.candidate-operations.v1', JSON.stringify({ ['primary\u0000/book']: 'operation' }));
     const stale = {
       ...verifiedOperation(), known: 1,
-      attempts: [{ sourceName: 'Primary', sourceUrl: 'primary', bookUrl: '/book', state: 'verified', stage: 'content' }],
+      attempts: [{ sourceName: 'Primary', sourceId: 'primary', sourceUrl: 'primary', bookUrl: '/book', state: 'verified', stage: 'content' }],
     };
     const fresh = operation();
     const fetchMock = vi.fn()

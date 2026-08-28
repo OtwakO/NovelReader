@@ -45,7 +45,7 @@ func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
 	if err := server.sourceStore.Upsert(&source); err != nil {
 		t.Fatal(err)
 	}
-	storedBook := book.Book{ID: "image-book", Name: "Image", SourceURL: source.BookSourceURL, BookURL: upstream.URL + "/novel/book"}
+	storedBook := book.Book{ID: "image-book", Name: "Image", SourceID: source.ID, SourceURL: source.BookSourceURL, BookURL: upstream.URL + "/novel/book"}
 	if err := server.bookStore.AddBook(&storedBook); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestStoredChapterImageRejectsAndroidBitmapDecoder(t *testing.T) {
 	if err := server.sourceStore.Upsert(&source); err != nil {
 		t.Fatal(err)
 	}
-	storedBook := book.Book{ID: "bitmap-book", Name: "Bitmap", SourceURL: source.BookSourceURL, BookURL: "https://source.test/book"}
+	storedBook := book.Book{ID: "bitmap-book", Name: "Bitmap", SourceID: source.ID, SourceURL: source.BookSourceURL, BookURL: "https://source.test/book"}
 	if err := server.bookStore.AddBook(&storedBook); err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestStoredChapterImageRejectsAndroidBitmapDecoder(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := server.bookStore.SaveChapterCache(book.CachedChapter{
-		BookID: storedBook.ID, SourceURL: source.BookSourceURL, ChapterIndex: chapter.Index, ChapterURL: chapter.URL,
+		BookID: storedBook.ID, SourceID: source.ID, ChapterIndex: chapter.Index, ChapterURL: chapter.URL,
 		Blocks: []processor.ContentBlock{{Type: "image", Src: "https://source.test/image"}},
 	}); err != nil {
 		t.Fatal(err)

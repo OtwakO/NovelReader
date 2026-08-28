@@ -20,11 +20,11 @@ func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
 	initializeBookTestSchema(t, db)
 	for bookIndex := 0; bookIndex < 6; bookIndex++ {
 		bookID := fmt.Sprintf("book-%d", bookIndex)
-		if err := store.AddBook(&Book{ID: bookID, Name: bookID, SourceURL: "source", BookURL: "url"}); err != nil {
+		if err := store.AddBook(&Book{ID: bookID, Name: bookID, SourceID: "source", SourceURL: "source", BookURL: "url"}); err != nil {
 			t.Fatal(err)
 		}
 		for chapter := 0; chapter < 101; chapter++ {
-			entry := CachedChapter{BookID: bookID, SourceURL: "source", ChapterIndex: chapter, ChapterURL: fmt.Sprintf("url-%d", chapter), Title: "Title", Paragraphs: []string{fmt.Sprintf("content-%d", chapter)}, Blocks: []processor.ContentBlock{{Type: "image", Src: fmt.Sprintf("image-%d", chapter)}}}
+			entry := CachedChapter{BookID: bookID, SourceID: "source", ChapterIndex: chapter, ChapterURL: fmt.Sprintf("url-%d", chapter), Title: "Title", Paragraphs: []string{fmt.Sprintf("content-%d", chapter)}, Blocks: []processor.ContentBlock{{Type: "image", Src: fmt.Sprintf("image-%d", chapter)}}}
 			if err := store.SaveChapterCache(entry); err != nil {
 				t.Fatal(err)
 			}
@@ -48,7 +48,7 @@ func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
 	if err := store.DeleteBook("book-5"); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SaveChapterCache(CachedChapter{BookID: "book-5", SourceURL: "source", ChapterIndex: 0, ChapterURL: "late", Paragraphs: []string{"late"}}); err != nil {
+	if err := store.SaveChapterCache(CachedChapter{BookID: "book-5", SourceID: "source", ChapterIndex: 0, ChapterURL: "late", Paragraphs: []string{"late"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.QueryRow(`SELECT COUNT(*) FROM chapter_cache WHERE book_id = 'book-5'`).Scan(&perBook); err != nil || perBook != 0 {

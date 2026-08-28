@@ -27,12 +27,13 @@ func TestHandleGetChaptersExposesTypedPaginationFailure(t *testing.T) {
 
 	server, store, closeDB := newCrawlAPIServer(t)
 	defer closeDB()
-	if err := store.sourceStore.Upsert(&booksource.BookSource{
+	source := &booksource.BookSource{
 		BookSourceURL: sourceServer.URL, BookSourceName: "fixture", RuleToc: `{"chapterList":"@css:.chapter","chapterName":"@text","chapterUrl":"@href","nextTocUrl":"@css:.next@href"}`,
-	}); err != nil {
+	}
+	if err := store.sourceStore.Upsert(source); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.bookStore.AddBook(&book.Book{ID: "book-1", Name: "Fixture", SourceURL: sourceServer.URL, BookURL: sourceServer.URL + "/book", TocURL: sourceServer.URL + "/toc", Origin: "fixture"}); err != nil {
+	if err := store.bookStore.AddBook(&book.Book{ID: "book-1", Name: "Fixture", SourceID: source.ID, SourceURL: sourceServer.URL, BookURL: sourceServer.URL + "/book", TocURL: sourceServer.URL + "/toc", Origin: "fixture"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,12 +63,13 @@ func TestHandleGetChapterContentExposesTypedPaginationFailure(t *testing.T) {
 
 	server, store, closeDB := newCrawlAPIServer(t)
 	defer closeDB()
-	if err := store.sourceStore.Upsert(&booksource.BookSource{
+	source := &booksource.BookSource{
 		BookSourceURL: sourceServer.URL, BookSourceName: "fixture", RuleContent: `{"content":"@css:.content@text","nextContentUrl":"@css:.next@href"}`,
-	}); err != nil {
+	}
+	if err := store.sourceStore.Upsert(source); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.bookStore.AddBook(&book.Book{ID: "book-1", Name: "Fixture", SourceURL: sourceServer.URL, BookURL: sourceServer.URL + "/book", Origin: "fixture"}); err != nil {
+	if err := store.bookStore.AddBook(&book.Book{ID: "book-1", Name: "Fixture", SourceID: source.ID, SourceURL: sourceServer.URL, BookURL: sourceServer.URL + "/book", Origin: "fixture"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.bookStore.SaveChapters("book-1", []book.Chapter{{ID: "book-1_0", BookID: "book-1", Index: 0, Title: "第一章", URL: sourceServer.URL + "/chapter/1"}}); err != nil {

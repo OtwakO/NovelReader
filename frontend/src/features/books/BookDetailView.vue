@@ -138,6 +138,7 @@ export default defineComponent({
         this.book = await mergeBookSources(this.book.id, [source]);
         const result = await switchBookSource(
           this.book.id,
+          source.sourceId,
           source.sourceUrl,
           source.bookUrl,
         );
@@ -273,7 +274,7 @@ export default defineComponent({
       />
       <SourceRecoveryPanel
         :book="{ name: book.name, author: book.author }"
-        :current-source-url="book.sourceUrl"
+        :current-source-id="book.sourceId"
         :stored-sources="book.alternateSources || []"
         :switching="switching"
         :action-error="sourceError"

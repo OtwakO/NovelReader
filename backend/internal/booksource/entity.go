@@ -12,7 +12,8 @@ const BookSourceTypeFile = 3
 //
 // Unknown imported fields are retained in sourceJSON so imports can be exported without data loss.
 type BookSource struct {
-	BookSourceURL    string `json:"bookSourceUrl" db:"id"`
+	ID               string `json:"-" db:"id"`
+	BookSourceURL    string `json:"bookSourceUrl" db:"book_source_url"`
 	BookSourceName   string `json:"bookSourceName" db:"name"`
 	BookSourceGroup  string `json:"bookSourceGroup,omitempty" db:"group_name"`
 	BookSourceType   int    `json:"bookSourceType" db:"source_type"`
@@ -58,7 +59,7 @@ type BookSource struct {
 // ponytail: flat struct, no sub-objects for rules. Rule JSON strings are parsed on demand.
 // Add nested rule structs only when we have a real use case for querying rule sub-fields in SQL.
 
-func (s *BookSource) GetKey() string { return s.BookSourceURL }
+func (s *BookSource) GetKey() string { return s.ID }
 func (s *BookSource) GetTag() string { return s.BookSourceName }
 
 // TableName returns the SQLite table name.
@@ -84,6 +85,7 @@ func ColumnDefs() string {
 	);
 	CREATE TABLE IF NOT EXISTS book_sources (
 		id TEXT PRIMARY KEY,
+		book_source_url TEXT NOT NULL,
 		name TEXT NOT NULL DEFAULT '',
 		group_name TEXT DEFAULT '',
 		source_type INTEGER DEFAULT 0,
@@ -118,7 +120,8 @@ func ColumnDefs() string {
 		source_json TEXT NOT NULL DEFAULT '',
 		collection_id TEXT REFERENCES book_source_collections(id) ON DELETE CASCADE
 	);
-	CREATE INDEX IF NOT EXISTS book_sources_collection_id ON book_sources(collection_id);`
+	CREATE INDEX IF NOT EXISTS book_sources_collection_id ON book_sources(collection_id);
+	CREATE INDEX IF NOT EXISTS book_sources_url ON book_sources(book_source_url);`
 }
 
 // NewFromJSON creates a BookSource from raw JSON bytes (single source).

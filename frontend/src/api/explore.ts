@@ -2,7 +2,7 @@ import type { SearchResult } from './models';
 import { request } from './transport';
 
 export interface ExploreDiagnostic { code: string; stage: string; severity: string; retryable: boolean; message: string }
-export interface ExploreSource { id: string; name: string; group: string }
+export interface ExploreSource { id: string; name: string; group: string; capabilities?: string[] }
 export interface ExploreEntry { id: string; title: string; type: 'url' | 'text' | 'button' | 'toggle' | 'select' | string; selectable: boolean; value?: string; options?: string[] }
 export interface ExploreCatalog { source: ExploreSource; sessionId: string; entries: ExploreEntry[]; diagnostics: ExploreDiagnostic[] }
 export interface ExplorePageResult { sourceId: string; sessionId: string; categoryId: string; page: number; nextPage: number; books: SearchResult[]; exhausted: boolean; diagnostics: ExploreDiagnostic[] }

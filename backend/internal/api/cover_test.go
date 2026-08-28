@@ -35,7 +35,7 @@ func TestStoredBookCoverUsesSourceHeadersAndDecodeScript(t *testing.T) {
 	if err := server.sourceStore.Upsert(&src); err != nil {
 		t.Fatal(err)
 	}
-	b := book.Book{ID: "cover-book", Name: "Cover Fixture", SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover"}
+	b := book.Book{ID: "cover-book", Name: "Cover Fixture", SourceID: src.ID, SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover"}
 	if err := server.bookStore.AddBook(&b); err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestStoredBookCoverAppliesURLScopedHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	coverURL := upstream.URL + `/cover,{"headers":{"Referer":"https://reader.fixture/book"}}`
-	b := book.Book{ID: "header-cover", Name: "Header", SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: coverURL}
+	b := book.Book{ID: "header-cover", Name: "Header", SourceID: src.ID, SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: coverURL}
 	if err := server.bookStore.AddBook(&b); err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestStoredBookCoverPreservesOriginalBytesWhenDecoderReturnsNull(t *testing.
 	if err := server.sourceStore.Upsert(&src); err != nil {
 		t.Fatal(err)
 	}
-	b := book.Book{ID: "null-cover", Name: "Null", SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover"}
+	b := book.Book{ID: "null-cover", Name: "Null", SourceID: src.ID, SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover"}
 	if err := server.bookStore.AddBook(&b); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestCandidateCoverReferenceFetchesHTTPImageThroughSameOriginEndpoint(t *tes
 	if err := server.sourceStore.Upsert(&src); err != nil {
 		t.Fatal(err)
 	}
-	result := book.SearchResult{SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover.jpg"}
+	result := book.SearchResult{SourceID: src.ID, SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover.jpg"}
 	server.addCoverDisplayURL(&result)
 	if !strings.HasPrefix(result.CoverDisplayURL, "/api/covers/") || result.CoverDisplayURL == result.CoverURL {
 		t.Fatalf("display URL=%q, want opaque same-origin API URL", result.CoverDisplayURL)
@@ -151,7 +151,7 @@ func TestCandidateCoverReferenceFetchesHTTPImageThroughSameOriginEndpoint(t *tes
 func TestStoredBookResponsesUseSameOriginCoverURL(t *testing.T) {
 	server, closeDB := newWorkflowAPIServer(t)
 	defer closeDB()
-	stored := &book.Book{ID: "display-book", Name: "Display", SourceURL: "https://source.test", BookURL: "https://source.test/book", CoverURL: "http://images.test/cover.jpg"}
+	stored := &book.Book{ID: "display-book", Name: "Display", SourceID: "source-display", SourceURL: "https://source.test", BookURL: "https://source.test/book", CoverURL: "http://images.test/cover.jpg"}
 	if err := server.bookStore.AddBook(stored); err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestStoredBookResponsesUseSameOriginCoverURL(t *testing.T) {
 func TestCandidateCoverReferenceRejectsTampering(t *testing.T) {
 	server, closeDB := newWorkflowAPIServer(t)
 	defer closeDB()
-	result := book.SearchResult{SourceURL: "https://source.test", BookURL: "https://source.test/book", CoverURL: "http://images.test/cover.jpg"}
+	result := book.SearchResult{SourceID: "source-test", SourceURL: "https://source.test", BookURL: "https://source.test/book", CoverURL: "http://images.test/cover.jpg"}
 	server.addCoverDisplayURL(&result)
 	response := performAPIRequest(server, http.MethodGet, result.CoverDisplayURL+"x", nil)
 	if response.Code != http.StatusBadRequest || !bytes.Contains(response.Body.Bytes(), []byte("invalid_cover_reference")) {

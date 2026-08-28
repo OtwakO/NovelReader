@@ -6,10 +6,10 @@ import { useExploreStore } from './explore-store';
 const api = vi.hoisted(() => ({ listExploreSources: vi.fn(), openExplore: vi.fn(), updateExploreControl: vi.fn(), getExplorePage: vi.fn() }));
 vi.mock('../../api/explore', () => api);
 
-const source = { id: 'source-a', name: 'Source A', group: '' };
+const source = { id: 'source-a', name: 'Source A', group: 'Group A', capabilities: ['explore', 'javascript', 'webview'] };
 const catalog = { source, sessionId: 'session-a', entries: [{ id: 'category', title: 'Category', type: 'url', selectable: true }], diagnostics: [] };
 
-function result(name: string) { return { name, author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', sourceUrl: 'source-a', sourceName: 'Source A', bookUrl: `/${name}`, alternateSources: [] }; }
+function result(name: string) { return { name, author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', sourceId: 'source-a', sourceUrl: 'source-a', sourceName: 'Source A', bookUrl: `/${name}`, alternateSources: [] }; }
 
 describe('Explore store', () => {
   beforeEach(() => { setActivePinia(createPinia()); sessionStorage.clear(); Object.values(api).forEach(mock => mock.mockReset()); api.listExploreSources.mockResolvedValue([source]); api.openExplore.mockResolvedValue(catalog); });

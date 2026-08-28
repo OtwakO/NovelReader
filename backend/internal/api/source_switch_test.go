@@ -31,11 +31,24 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 		}
 	}
 
+	sources, err := server.sourceStore.ListEnabled()
+	if err != nil || len(sources) != 3 {
+		t.Fatalf("sources=%+v err=%v", sources, err)
+	}
+	sourceID := func(sourceURL string) string {
+		for index := range sources {
+			if sources[index].BookSourceURL == sourceURL {
+				return sources[index].ID
+			}
+		}
+		return ""
+	}
+
 	stored := &book.Book{
-		ID: "book-1", Name: "Fixture", SourceURL: primary.URL, BookURL: primary.URL + "/book", TocURL: primary.URL + "/toc", Origin: "Primary",
+		ID: "book-1", Name: "Fixture", SourceID: sourceID(primary.URL), SourceURL: primary.URL, BookURL: primary.URL + "/book", TocURL: primary.URL + "/toc", Origin: "Primary",
 		AlternateSources: []book.AltSource{
-			{SourceURL: target.URL, BookURL: target.URL + "/book", SourceName: "Target"},
-			{SourceURL: bad.URL, BookURL: bad.URL + "/book", SourceName: "Bad"},
+			{SourceID: sourceID(target.URL), SourceURL: target.URL, BookURL: target.URL + "/book", SourceName: "Target"},
+			{SourceID: sourceID(bad.URL), SourceURL: bad.URL, BookURL: bad.URL + "/book", SourceName: "Bad"},
 		},
 	}
 	if err := server.bookStore.AddBook(stored); err != nil {
@@ -44,14 +57,14 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	if response := performAPIRequest(server, http.MethodGet, "/api/books/book-1/chapters", nil); response.Code != http.StatusOK {
 		t.Fatalf("primary toc status=%d body=%s", response.Code, response.Body.String())
 	}
-	progressBody, _ := json.Marshal(map[string]interface{}{"sourceUrl": primary.URL, "stateVersion": 0, "chapterIndex": 1, "position": 0.65})
+	progressBody, _ := json.Marshal(map[string]interface{}{"sourceId": sourceID(primary.URL), "stateVersion": 0, "chapterIndex": 1, "position": 0.65})
 	if response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/progress", progressBody); response.Code != http.StatusOK {
 		t.Fatalf("progress status=%d body=%s", response.Code, response.Body.String())
 	}
 
 	for _, mark := range []map[string]interface{}{
-		{"id": "matching", "sourceUrl": primary.URL, "stateVersion": 1, "chapterIndex": 1, "position": 0.3, "note": "matched note"},
-		{"id": "orphan", "sourceUrl": primary.URL, "stateVersion": 1, "chapterIndex": 2, "position": 0.8, "note": "orphan note"},
+		{"id": "matching", "sourceId": sourceID(primary.URL), "stateVersion": 1, "chapterIndex": 1, "position": 0.3, "note": "matched note"},
+		{"id": "orphan", "sourceId": sourceID(primary.URL), "stateVersion": 1, "chapterIndex": 2, "position": 0.8, "note": "orphan note"},
 	} {
 		body, _ := json.Marshal(mark)
 		if response := performAPIRequest(server, http.MethodPost, "/api/books/book-1/bookmarks", body); response.Code != http.StatusCreated {
@@ -59,13 +72,13 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 		}
 	}
 
-	badRequest, _ := json.Marshal(map[string]string{"sourceUrl": bad.URL, "bookUrl": bad.URL + "/book"})
+	badRequest, _ := json.Marshal(map[string]string{"sourceId": sourceID(bad.URL), "sourceUrl": bad.URL, "bookUrl": bad.URL + "/book"})
 	if response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/source", badRequest); response.Code != http.StatusBadGateway {
 		t.Fatalf("bad target status=%d body=%s", response.Code, response.Body.String())
 	}
 	assertStoredSource(t, server, primary.URL, 1, 0.65, 1, 3)
 
-	targetRequest, _ := json.Marshal(map[string]string{"sourceUrl": target.URL, "bookUrl": target.URL + "/book"})
+	targetRequest, _ := json.Marshal(map[string]string{"sourceId": sourceID(target.URL), "sourceUrl": target.URL, "bookUrl": target.URL + "/book"})
 	response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/source", targetRequest)
 	if response.Code != http.StatusOK {
 		t.Fatalf("switch status=%d body=%s", response.Code, response.Body.String())
@@ -87,7 +100,7 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	if byID["matching"].Orphaned || byID["matching"].ChapterIndex != 1 || !byID["orphan"].Orphaned {
 		t.Fatalf("migrated bookmarks=%+v", byID)
 	}
-	staleProgress, _ := json.Marshal(map[string]interface{}{"sourceUrl": primary.URL, "stateVersion": 1, "chapterIndex": 0, "position": 0.1})
+	staleProgress, _ := json.Marshal(map[string]interface{}{"sourceId": sourceID(primary.URL), "stateVersion": 1, "chapterIndex": 0, "position": 0.1})
 	if response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/progress", staleProgress); response.Code != http.StatusConflict {
 		t.Fatalf("stale progress status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -95,7 +108,7 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	if len(result.Book.AlternateSources) != 2 || result.Book.AlternateSources[0].SourceURL != primary.URL {
 		t.Fatalf("switch was not reversible: %+v", result.Book.AlternateSources)
 	}
-	primaryRequest, _ := json.Marshal(map[string]string{"sourceUrl": primary.URL, "bookUrl": primary.URL + "/book"})
+	primaryRequest, _ := json.Marshal(map[string]string{"sourceId": sourceID(primary.URL), "sourceUrl": primary.URL, "bookUrl": primary.URL + "/book"})
 	if response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/source", primaryRequest); response.Code != http.StatusOK {
 		t.Fatalf("switch back status=%d body=%s", response.Code, response.Body.String())
 	}

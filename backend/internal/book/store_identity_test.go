@@ -18,9 +18,9 @@ func TestStoreAddOrMergeBookUsesNormalizedTitleAuthorIdentity(t *testing.T) {
 	initializeBookTestSchema(t, db)
 	first := &Book{
 		ID: "book-first", Name: "异度旅社", Author: "远瞳",
-		SourceURL: "source-a", BookURL: "/a", Origin: "Source A",
+		SourceID: "source-a", SourceURL: "source-a", BookURL: "/a", Origin: "Source A",
 		DurChapterIndex: 50, DurChapterPos: 0.4, StateVersion: 7,
-		AlternateSources: []AltSource{{SourceURL: "source-b", BookURL: "/b", SourceName: "Source B"}},
+		AlternateSources: []AltSource{{SourceID: "source-b", SourceURL: "source-b", BookURL: "/b", SourceName: "Source B"}},
 	}
 	stored, created, err := store.AddOrMergeBook(first)
 	if err != nil || !created || stored.ID != first.ID {
@@ -28,10 +28,10 @@ func TestStoreAddOrMergeBookUsesNormalizedTitleAuthorIdentity(t *testing.T) {
 	}
 	duplicate := &Book{
 		ID: "book-duplicate", Name: " 异度，旅社 ", Author: "作者：远瞳",
-		SourceURL: "source-c", BookURL: "/c", Origin: "Source C",
+		SourceID: "source-c", SourceURL: "source-c", BookURL: "/c", Origin: "Source C",
 		AlternateSources: []AltSource{
-			{SourceURL: "source-b", BookURL: "/b", SourceName: "Source B duplicate"},
-			{SourceURL: "source-d", BookURL: "/d", SourceName: "Source D"},
+			{SourceID: "source-b", SourceURL: "source-b", BookURL: "/b", SourceName: "Source B duplicate"},
+			{SourceID: "source-d", SourceURL: "source-d", BookURL: "/d", SourceName: "Source D"},
 		},
 	}
 	stored, created, err = store.AddOrMergeBook(duplicate)
@@ -61,10 +61,10 @@ func TestStoreLowLevelAddCannotReplaceAnotherLogicalBookID(t *testing.T) {
 	defer db.Close()
 	store := NewStore(db)
 	initializeBookTestSchema(t, db)
-	if err := store.AddBook(&Book{ID: "book-a", Name: "Fixture", Author: "Author", SourceURL: "a", BookURL: "/a"}); err != nil {
+	if err := store.AddBook(&Book{ID: "book-a", Name: "Fixture", Author: "Author", SourceID: "a", SourceURL: "a", BookURL: "/a"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.AddBook(&Book{ID: "book-b", Name: "Fixture", Author: "Author", SourceURL: "b", BookURL: "/b"}); err == nil {
+	if err := store.AddBook(&Book{ID: "book-b", Name: "Fixture", Author: "Author", SourceID: "b", SourceURL: "b", BookURL: "/b"}); err == nil {
 		t.Fatal("low-level add replaced a different logical book ID")
 	}
 	books, err := store.ListBooks()
@@ -84,8 +84,8 @@ func TestStoreConcurrentLogicalBookAddsConverge(t *testing.T) {
 	var wait sync.WaitGroup
 	errorsFound := make(chan error, 2)
 	for _, candidate := range []*Book{
-		{ID: "book-a", Name: "Fixture", Author: "Author", SourceURL: "a", BookURL: "/a", Origin: "A"},
-		{ID: "book-b", Name: "Fixture", Author: "Author", SourceURL: "b", BookURL: "/b", Origin: "B"},
+		{ID: "book-a", Name: "Fixture", Author: "Author", SourceID: "a", SourceURL: "a", BookURL: "/a", Origin: "A"},
+		{ID: "book-b", Name: "Fixture", Author: "Author", SourceID: "b", SourceURL: "b", BookURL: "/b", Origin: "B"},
 	} {
 		wait.Add(1)
 		go func(candidate *Book) {

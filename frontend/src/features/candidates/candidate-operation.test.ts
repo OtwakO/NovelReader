@@ -11,8 +11,8 @@ import {
 
 const result = {
   name: 'Fixture Novel', author: 'Fixture Author', coverUrl: '', intro: '', kind: '', lastChapter: '',
-  bookUrl: '/book', sourceUrl: 'source', sourceName: 'Primary', score: 9,
-  alternateSources: [{ sourceUrl: 'other', bookUrl: '/other', sourceName: 'Other' }],
+  bookUrl: '/book', sourceId: 'source', sourceUrl: 'source', sourceName: 'Primary', score: 9,
+  alternateSources: [{ sourceId: 'other', sourceUrl: 'other', bookUrl: '/other', sourceName: 'Other' }],
 };
 
 describe('candidate operation client', () => {
@@ -23,18 +23,18 @@ describe('candidate operation client', () => {
     const call = fetchMock.mock.calls[0];
     expect(call?.[0]).toContain('/candidate-resolutions');
     const body = JSON.parse(String(call?.[1]?.body));
-    expect(body).toMatchObject({ shelveBookId: 'book-id', sourceUrl: 'source', alternateSources: result.alternateSources });
+    expect(body).toMatchObject({ shelveBookId: 'book-id', sourceId: 'source', sourceUrl: 'source', alternateSources: result.alternateSources });
     expect(body.score).toBeUndefined();
   });
 
   it('compares the complete ordered source binding set', () => {
     const matching = { attempts: [
-      { sourceUrl: 'source', bookUrl: '/book' },
-      { sourceUrl: 'other', bookUrl: '/other' },
+      { sourceId: 'source', sourceUrl: 'source', bookUrl: '/book' },
+      { sourceId: 'other', sourceUrl: 'other', bookUrl: '/other' },
     ] };
-    const stale = { attempts: [{ sourceUrl: 'source', bookUrl: '/book' }] };
+    const stale = { attempts: [{ sourceId: 'source', sourceUrl: 'source', bookUrl: '/book' }] };
     expect(candidateOperationMatches(result, matching as never)).toBe(true);
-    expect(candidateOperationMatches({ ...result, sourceUrl: ' source ', bookUrl: ' /book ' }, matching as never)).toBe(true);
+    expect(candidateOperationMatches({ ...result, sourceId: ' source ', sourceUrl: ' source ', bookUrl: ' /book ' }, matching as never)).toBe(true);
     expect(candidateOperationMatches(result, stale as never)).toBe(false);
   });
 

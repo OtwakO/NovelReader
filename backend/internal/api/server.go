@@ -288,12 +288,12 @@ func (s *Server) handleImportSources(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
-	rawURL := r.URL.Query().Get("url")
-	if rawURL == "" {
-		writeError(w, http.StatusBadRequest, "missing query param url")
+	sourceID := r.URL.Query().Get("id")
+	if sourceID == "" {
+		writeError(w, http.StatusBadRequest, "missing query param id")
 		return
 	}
-	if err := s.sourceStore.Delete(rawURL); err != nil {
+	if err := s.sourceStore.Delete(sourceID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -301,9 +301,9 @@ func (s *Server) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
-	rawURL := r.URL.Query().Get("url")
-	if rawURL == "" {
-		writeError(w, http.StatusBadRequest, "missing query param url")
+	sourceID := r.URL.Query().Get("id")
+	if sourceID == "" {
+		writeError(w, http.StatusBadRequest, "missing query param id")
 		return
 	}
 	body, err := io.ReadAll(r.Body)
@@ -318,7 +318,7 @@ func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	src.BookSourceURL = rawURL
+	src.ID = sourceID
 	if err := s.sourceStore.Upsert(src); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -376,7 +376,7 @@ func (s *Server) handleGetBookCover(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusNotFound, "cover_not_found", "book cover not found")
 		return
 	}
-	src, err := s.sourceStore.GetByID(b.SourceURL)
+	src, err := s.sourceStore.GetByID(b.SourceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "load source failed")
 		return
@@ -474,7 +474,7 @@ func (s *Server) handleGetChapters(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch TOC from source.
-	src, err := s.sourceStore.GetByID(b.SourceURL)
+	src, err := s.sourceStore.GetByID(b.SourceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "load source failed")
 		return
@@ -541,7 +541,7 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	src, err := s.sourceStore.GetByID(b.SourceURL)
+	src, err := s.sourceStore.GetByID(b.SourceID)
 	if err != nil {
 		if s.writeChapterCacheFallback(w, b, ch) {
 			return
@@ -593,7 +593,7 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 	bookID := r.PathValue("id")
 	var req struct {
-		SourceURL    *string  `json:"sourceUrl"`
+		SourceID     *string  `json:"sourceId"`
 		StateVersion *int64   `json:"stateVersion"`
 		ChapterIndex *int     `json:"chapterIndex"`
 		Position     *float64 `json:"position"`
@@ -610,8 +610,8 @@ func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "invalid progress request")
 		return
 	}
-	if req.SourceURL == nil || *req.SourceURL == "" || req.StateVersion == nil || *req.StateVersion < 0 || req.ChapterIndex == nil || req.Position == nil || *req.ChapterIndex < 0 || math.IsNaN(*req.Position) || math.IsInf(*req.Position, 0) || *req.Position < 0 || *req.Position > 1 {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "sourceUrl, stateVersion, chapterIndex, and position are required and must be valid")
+	if req.SourceID == nil || *req.SourceID == "" || req.StateVersion == nil || *req.StateVersion < 0 || req.ChapterIndex == nil || req.Position == nil || *req.ChapterIndex < 0 || math.IsNaN(*req.Position) || math.IsInf(*req.Position, 0) || *req.Position < 0 || *req.Position > 1 {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "sourceId, stateVersion, chapterIndex, and position are required and must be valid")
 		return
 	}
 	chapterIndex, position := *req.ChapterIndex, *req.Position
@@ -624,7 +624,7 @@ func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
 		return
 	}
-	if storedBook.SourceURL != *req.SourceURL || storedBook.StateVersion != *req.StateVersion {
+	if storedBook.SourceID != *req.SourceID || storedBook.StateVersion != *req.StateVersion {
 		writeErrorCode(w, http.StatusConflict, "state_changed", "book state changed before progress was saved")
 		return
 	}
@@ -644,7 +644,7 @@ func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "chapterIndex is not a readable chapter")
 		return
 	}
-	stateVersion, err := s.bookStore.UpdateProgress(bookID, *req.SourceURL, *req.StateVersion, chapterIndex, position)
+	stateVersion, err := s.bookStore.UpdateProgress(bookID, *req.SourceID, *req.StateVersion, chapterIndex, position)
 	if err != nil {
 		if errors.Is(err, book.ErrBookNotFound) {
 			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
@@ -663,6 +663,7 @@ func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 	bookID := r.PathValue("id")
 	var req struct {
+		SourceID   string `json:"sourceId"`
 		SourceURL  string `json:"sourceUrl"`
 		BookURL    string `json:"bookUrl"`
 		SourceName string `json:"sourceName,omitempty"` // accepted for older clients; the imported source is authoritative
@@ -675,8 +676,8 @@ func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_source_switch", "invalid source switch request")
 		return
 	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF || req.SourceURL == "" || req.BookURL == "" {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_source_switch", "sourceUrl and bookUrl are required")
+	if err := decoder.Decode(&struct{}{}); err != io.EOF || req.SourceID == "" || req.SourceURL == "" || req.BookURL == "" {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_source_switch", "sourceId, sourceUrl, and bookUrl are required")
 		return
 	}
 
@@ -691,7 +692,7 @@ func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 	}
 	isAlternate := false
 	for _, alternate := range current.AlternateSources {
-		if alternate.SourceURL == req.SourceURL && alternate.BookURL == req.BookURL {
+		if alternate.SourceID == req.SourceID && alternate.BookURL == req.BookURL {
 			isAlternate = true
 			break
 		}
@@ -714,7 +715,7 @@ func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	src, err := s.sourceStore.GetByID(req.SourceURL)
+	src, err := s.sourceStore.GetByID(req.SourceID)
 	if err != nil {
 		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load source")
 		return
@@ -731,6 +732,7 @@ func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	target.ID = bookID
+	target.SourceID = req.SourceID
 	target.SourceURL = req.SourceURL
 	target.BookURL = req.BookURL
 	target.Origin = src.BookSourceName

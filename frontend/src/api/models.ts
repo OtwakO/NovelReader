@@ -1,7 +1,10 @@
 export interface AltSource {
+  sourceId: string;
   sourceUrl: string;
   bookUrl: string;
   sourceName: string;
+  sourceGroup?: string;
+  capabilities?: string[];
 }
 
 export interface SearchResult {
@@ -15,8 +18,11 @@ export interface SearchResult {
   updateTime?: string;
   wordCount?: string;
   bookUrl: string;
+  sourceId: string;
   sourceUrl: string;
   sourceName: string;
+  sourceGroup?: string;
+  capabilities?: string[];
   score?: number;
   alternateSources?: AltSource[];
 }
@@ -29,6 +35,7 @@ export interface Book {
   coverDisplayUrl?: string;
   intro: string;
   kind: string;
+  sourceId: string;
   sourceUrl: string;
   bookUrl: string;
   origin?: string;

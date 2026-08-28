@@ -1,6 +1,6 @@
 import { saveProgress } from '../../api/reader';
 
-interface ProgressWrite { sourceUrl: string; chapterIndex: number; position: number }
+interface ProgressWrite { sourceId: string; chapterIndex: number; position: number }
 const versions = new Map<string, number>();
 const pending = new Map<string, Promise<void>>();
 
@@ -12,7 +12,7 @@ export function queueProgressWrite(bookId: string, write: ProgressWrite): Promis
   const operation = previous.catch(() => undefined).then(async () => {
     const version = versions.get(bookId);
     if (version === undefined) throw new Error('Reading state is not initialized');
-    const saved = await saveProgress(bookId, write.sourceUrl, version, write.chapterIndex, write.position);
+    const saved = await saveProgress(bookId, write.sourceId, version, write.chapterIndex, write.position);
     versions.set(bookId, saved.stateVersion);
   });
   const barrier = operation.then(() => undefined, () => undefined);

@@ -19,12 +19,15 @@ export default {
     enabled: "已啟用 {count} 個",
     searchable: "可搜尋文字書源 {count} 個",
     explore: "支援發現 {count} 個",
+    javascript: "JavaScript 書源 {count} 個",
+    webview: "WebView 書源 {count} 個",
   },
   capabilities: {
     search: "搜尋",
     explore: "發現",
     headers: "請求標頭",
     javascript: "JavaScript",
+    webview: "WebView",
   },
   pagination: {
     label: "書源分頁",
@@ -43,6 +46,7 @@ export default {
     add: "新增書源集合",
     all: "全部書源",
     standalone: "獨立書源",
+    sourceCount: "{count} 個書源",
     eyebrow: "書源集合",
     addTitle: "新增書源集合",
     editTitle: "集合設定",

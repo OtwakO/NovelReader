@@ -67,7 +67,7 @@ func normalizeChapterTitle(title string) string {
 
 // SwitchSource atomically replaces active crawl state after the caller validates the target TOC.
 func (s *Store) SwitchSource(bookID string, expectedVersion int64, target Book, chapters []Chapter, chapterIndex int, position float64) error {
-	if target.SourceURL == "" || target.BookURL == "" || chapterIndex < 0 || math.IsNaN(position) || math.IsInf(position, 0) || position < 0 || position > 1 {
+	if target.SourceID == "" || target.SourceURL == "" || target.BookURL == "" || chapterIndex < 0 || math.IsNaN(position) || math.IsInf(position, 0) || position < 0 || position > 1 {
 		return ErrInvalidSourceSwitch
 	}
 	readableProgress := false
@@ -97,9 +97,9 @@ func (s *Store) SwitchSource(bookID string, expectedVersion int64, target Book, 
 	alternates := make([]AltSource, 0, len(current.AlternateSources))
 	found := false
 	for _, alternate := range current.AlternateSources {
-		if alternate.SourceURL == target.SourceURL && alternate.BookURL == target.BookURL {
+		if alternate.SourceID == target.SourceID && alternate.BookURL == target.BookURL {
 			found = true
-			alternates = append(alternates, AltSource{SourceURL: current.SourceURL, BookURL: current.BookURL, SourceName: current.Origin})
+			alternates = append(alternates, AltSource{SourceID: current.SourceID, SourceURL: current.SourceURL, BookURL: current.BookURL, SourceName: current.Origin})
 			continue
 		}
 		alternates = append(alternates, alternate)
@@ -112,10 +112,10 @@ func (s *Store) SwitchSource(bookID string, expectedVersion int64, target Book, 
 		return fmt.Errorf("switch source: encode alternates: %w", err)
 	}
 
-	if _, err := tx.Exec(`UPDATE books SET source_url = ?, book_url = ?, toc_url = ?, origin = ?, variable_map = ?,
+	if _, err := tx.Exec(`UPDATE books SET source_id = ?, source_url = ?, book_url = ?, toc_url = ?, origin = ?, variable_map = ?,
 		last_chapter = ?, update_time = ?, word_count = ?, dur_chapter_index = ?, dur_chapter_pos = ?,
 		total_chapter_num = ?, state_version = state_version + 1, alternate_sources = ?, updated_at = ? WHERE id = ?`,
-		target.SourceURL, target.BookURL, target.TocURL, target.Origin, target.VariableMap,
+		target.SourceID, target.SourceURL, target.BookURL, target.TocURL, target.Origin, target.VariableMap,
 		target.LastChapter, target.UpdateTime, target.WordCount, chapterIndex, position,
 		len(chapters), string(alternateJSON), time.Now().UnixMilli(), bookID); err != nil {
 		return err

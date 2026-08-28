@@ -39,7 +39,7 @@ func TestExploreAPIRoundTripKeepsRulesPrivate(t *testing.T) {
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Explore API") {
 		t.Fatalf("sources status=%d body=%s", response.Code, response.Body.String())
 	}
-	response = performAPIRequest(server, http.MethodPost, "/api/explore/catalog", []byte(`{"sourceId":"`+upstream.URL+`"}`))
+	response = performAPIRequest(server, http.MethodPost, "/api/explore/catalog", []byte(`{"sourceId":"`+source.ID+`"}`))
 	var catalog book.ExploreCatalog
 	if err := json.Unmarshal(response.Body.Bytes(), &catalog); err != nil || response.Code != http.StatusOK || catalog.SessionID == "" {
 		t.Fatalf("catalog status=%d value=%+v err=%v body=%s", response.Code, catalog, err, response.Body.String())
@@ -68,7 +68,7 @@ func TestExploreAPIRoundTripKeepsRulesPrivate(t *testing.T) {
 	if err := sourceStore.Upsert(source); err != nil {
 		t.Fatal(err)
 	}
-	response = performAPIRequest(server, http.MethodPost, "/api/explore/catalog", []byte(`{"sourceId":"`+upstream.URL+`"}`))
+	response = performAPIRequest(server, http.MethodPost, "/api/explore/catalog", []byte(`{"sourceId":"`+source.ID+`"}`))
 	if err := json.Unmarshal(response.Body.Bytes(), &catalog); err != nil || response.Code != http.StatusOK {
 		t.Fatalf("webview catalog status=%d err=%v body=%s", response.Code, err, response.Body.String())
 	}

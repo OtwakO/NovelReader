@@ -24,7 +24,7 @@ type Bookmark struct {
 	CreatedAt    int64   `json:"createdAt"`
 }
 
-func (s *Store) AddBookmark(mark Bookmark, sourceURL string, stateVersion int64) error {
+func (s *Store) AddBookmark(mark Bookmark, sourceID string, stateVersion int64) error {
 	if mark.ID == "" || mark.BookID == "" || mark.ChapterIndex < 0 || math.IsNaN(mark.Position) || math.IsInf(mark.Position, 0) || mark.Position < 0 || mark.Position > 1 {
 		return ErrInvalidBookmark
 	}
@@ -32,9 +32,9 @@ func (s *Store) AddBookmark(mark Bookmark, sourceURL string, stateVersion int64)
 		mark.CreatedAt = time.Now().UnixMilli()
 	}
 	result, err := s.db.Exec(`INSERT OR IGNORE INTO bookmarks (id, book_id, chapter_index, chapter_title, position, note, orphaned, created_at)
-		SELECT ?, ?, ?, ?, ?, ?, 0, ? WHERE EXISTS (SELECT 1 FROM books WHERE id = ? AND source_url = ? AND state_version = ?)`,
+		SELECT ?, ?, ?, ?, ?, ?, 0, ? WHERE EXISTS (SELECT 1 FROM books WHERE id = ? AND source_id = ? AND state_version = ?)`,
 		mark.ID, mark.BookID, mark.ChapterIndex, mark.ChapterTitle, mark.Position, mark.Note, mark.CreatedAt,
-		mark.BookID, sourceURL, stateVersion)
+		mark.BookID, sourceID, stateVersion)
 	if err != nil {
 		return err
 	}

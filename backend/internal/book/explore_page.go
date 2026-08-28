@@ -113,7 +113,7 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 		return ExplorePage{}, newExploreError("result_rule_failed", "result", "Could not parse Explore results", false, err)
 	}
 	if len(books) == 0 && session.source.BookURLPattern == "" {
-		book := &Book{SourceURL: session.source.BookSourceURL, BookURL: baseURL, Origin: session.source.BookSourceName}
+		book := &Book{SourceID: session.source.ID, SourceURL: session.source.BookSourceURL, BookURL: baseURL, Origin: session.source.BookSourceName}
 		book, detailErr := s.parseBookInfoResponse(pageCtx, session.source, response.Body, baseURL, book, nil, session.state)
 		if detailErr != nil {
 			return ExplorePage{}, newExploreError("result_rule_failed", "result", "Could not parse Explore detail fallback", false, detailErr)
@@ -139,7 +139,7 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 		})
 	}
 	pageResult = ExplorePage{
-		SourceID: session.source.BookSourceURL, SessionID: request.SessionID, CategoryID: request.CategoryID,
+		SourceID: session.source.ID, SessionID: request.SessionID, CategoryID: request.CategoryID,
 		Page: request.Page, NextPage: request.Page + 1, Books: unique, Exhausted: truncated || len(unique) == 0,
 		Diagnostics: diagnostics,
 	}

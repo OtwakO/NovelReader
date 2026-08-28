@@ -35,7 +35,7 @@ describe('source discovery', () => {
     const { controller, streams } = harness(); controller.start();
     streams[0]?.handlers.onStart({ offset: 10, eligible: 80, sourcesInBatch: 25, requestedConcurrency: 7, retryCursor: 'retry-10', effectiveConcurrency: 6 });
     controller.stop(); expect(streams[0]?.closed).toBe(true); expect(controller.state.retryRequired).toBe(true); controller.retry();
-    streams[0]?.handlers.onResult('old', [{ name: 'Old', author: '', coverUrl: '', intro: '', kind: '', lastChapter: '', sourceUrl: 'old', sourceName: 'old', bookUrl: '/old' }], 20);
+    streams[0]?.handlers.onResult('old', [{ name: 'Old', author: '', coverUrl: '', intro: '', kind: '', lastChapter: '', sourceId: 'old', sourceUrl: 'old', sourceName: 'old', bookUrl: '/old' }], 20);
     expect(controller.state.resultCount).toBe(0); expect(streams[1]?.options.cursor).toBe('retry-10');
   });
 });

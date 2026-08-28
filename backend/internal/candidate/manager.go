@@ -25,6 +25,7 @@ const (
 
 type SourceStore interface {
 	GetByID(string) (*booksource.BookSource, error)
+	ListEnabled() ([]booksource.BookSource, error)
 }
 type BookStore interface {
 	AddOrMergeBookWithChapters(*book.Book, []book.Chapter) (*book.Book, bool, error)
@@ -47,6 +48,9 @@ type Input struct {
 	UpdateTime       string           `json:"updateTime,omitempty"`
 	WordCount        string           `json:"wordCount,omitempty"`
 	SourceName       string           `json:"sourceName,omitempty"`
+	SourceGroup      string           `json:"sourceGroup,omitempty"`
+	Capabilities     []string         `json:"capabilities,omitempty"`
+	SourceID         string           `json:"sourceId"`
 	SourceURL        string           `json:"sourceUrl"`
 	BookURL          string           `json:"bookUrl"`
 	AlternateSources []book.AltSource `json:"alternateSources,omitempty"`
@@ -74,6 +78,7 @@ const (
 
 type Attempt struct {
 	SourceName string `json:"sourceName,omitempty"`
+	SourceID   string `json:"sourceId"`
 	SourceURL  string `json:"sourceUrl"`
 	BookURL    string `json:"bookUrl"`
 	Stage      Stage  `json:"stage,omitempty"`
@@ -82,6 +87,8 @@ type Attempt struct {
 }
 
 type Selection struct {
+	RequestedSourceID  string `json:"requestedSourceId"`
+	SelectedSourceID   string `json:"selectedSourceId"`
 	RequestedSourceURL string `json:"requestedSourceUrl"`
 	SelectedSourceURL  string `json:"selectedSourceUrl"`
 	SelectedSourceName string `json:"selectedSourceName,omitempty"`
@@ -154,7 +161,10 @@ type operation struct {
 	commitMu     sync.Mutex
 }
 
-type binding struct{ sourceURL, bookURL, sourceName string }
+type binding struct {
+	sourceID, sourceURL, bookURL, sourceName, sourceGroup string
+	capabilities                                          []string
+}
 type resolved struct {
 	book      *book.Book
 	chapters  []book.Chapter
@@ -195,10 +205,15 @@ func (m *Manager) Start(ownerID string, input Input, runtime Runtime) (Snapshot,
 		return Snapshot{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), m.policy.OperationTimeout)
+	input, err = resolveInputSourceIDs(input, runtime.Sources)
+	if err != nil {
+		cancel()
+		return Snapshot{}, err
+	}
 	queue := bindings(input)
 	attempts := make([]Attempt, len(queue))
 	for i, binding := range queue {
-		attempts[i] = Attempt{SourceName: binding.sourceName, SourceURL: binding.sourceURL, BookURL: binding.bookURL, State: "queued"}
+		attempts[i] = Attempt{SourceName: binding.sourceName, SourceID: binding.sourceID, SourceURL: binding.sourceURL, BookURL: binding.bookURL, State: "queued"}
 	}
 	op := &operation{id: id, ownerID: ownerID, input: input, runtime: runtime, policy: m.policy, ctx: ctx, cancel: cancel, subscribers: make(map[chan Snapshot]struct{}), commitID: strings.TrimSpace(input.ShelveBookID), done: make(chan struct{})}
 	op.snapshot = Snapshot{ID: id, State: StateRunning, Known: len(queue), Attempts: attempts, AutomaticCommit: op.commitID != "", UpdatedAt: time.Now()}
@@ -348,4 +363,43 @@ func release(runtime Runtime) {
 	if runtime.Release != nil {
 		runtime.Release()
 	}
+}
+
+func resolveInputSourceIDs(input Input, sources SourceStore) (Input, error) {
+	if strings.TrimSpace(input.SourceID) == "" {
+		input.SourceID = uniqueSourceIDByURL(sources, input.SourceURL)
+	}
+	for index := range input.AlternateSources {
+		alternate := &input.AlternateSources[index]
+		if strings.TrimSpace(alternate.SourceID) == "" {
+			alternate.SourceID = uniqueSourceIDByURL(sources, alternate.SourceURL)
+		}
+	}
+	if strings.TrimSpace(input.SourceID) == "" {
+		return Input{}, errors.New("candidate sourceId is required")
+	}
+	for _, alternate := range input.AlternateSources {
+		if strings.TrimSpace(alternate.SourceID) == "" {
+			return Input{}, errors.New("candidate alternate sourceId is required")
+		}
+	}
+	return input, nil
+}
+
+func uniqueSourceIDByURL(sources SourceStore, sourceURL string) string {
+	values, err := sources.ListEnabled()
+	if err != nil {
+		return ""
+	}
+	var match string
+	for index := range values {
+		if values[index].BookSourceURL != sourceURL {
+			continue
+		}
+		if match != "" {
+			return ""
+		}
+		match = values[index].ID
+	}
+	return match
 }

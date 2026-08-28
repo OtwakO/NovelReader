@@ -356,7 +356,7 @@ func TestCloseWaitsForCancelledAttemptBeforeReleasingRuntime(t *testing.T) {
 		<-r.Context().Done()
 	}))
 	defer server.Close()
-	source := booksource.BookSource{BookSourceName: "Blocking", BookSourceURL: server.URL, Enabled: true, SearchURL: server.URL, RuleBookInfo: `{"name":".name@text"}`}
+	source := booksource.BookSource{ID: server.URL, BookSourceName: "Blocking", BookSourceURL: server.URL, Enabled: true, SearchURL: server.URL, RuleBookInfo: `{"name":".name@text"}`}
 	sources := sourceMap{server.URL: source}
 	searcher := book.NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), analyzer.NewCacheManager(), sources, nil)
 	released := make(chan struct{})
@@ -517,7 +517,7 @@ func newBindingFixture(t *testing.T, content string, delay time.Duration) bindin
 		}
 	}))
 	t.Cleanup(server.Close)
-	source := booksource.BookSource{BookSourceName: "Fixture", BookSourceURL: server.URL, Enabled: true, SearchURL: server.URL, RuleBookInfo: `{"name":".name@text","author":".author@text","tocUrl":".toc@href"}`, RuleToc: `{"chapterList":".chapter","chapterName":"text","chapterUrl":"href"}`, RuleContent: `{"content":".content@text"}`}
+	source := booksource.BookSource{ID: server.URL, BookSourceName: "Fixture", BookSourceURL: server.URL, Enabled: true, SearchURL: server.URL, RuleBookInfo: `{"name":".name@text","author":".author@text","tocUrl":".toc@href"}`, RuleToc: `{"chapterList":".chapter","chapterName":"text","chapterUrl":"href"}`, RuleContent: `{"content":".content@text"}`}
 	return bindingFixture{server, source}
 }
 func credibleText(label string) string {

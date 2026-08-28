@@ -18,7 +18,7 @@ const messages = {
   } },
 };
 const i18n = createI18n({ legacy: false, globalInjection: true, locale: 'en', messages: { en: messages } });
-const result = { name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', bookUrl: '/book', sourceUrl: 'source', sourceName: 'Primary' };
+const result = { name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', bookUrl: '/book', sourceId: 'source', sourceUrl: 'source', sourceName: 'Primary' };
 
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
@@ -34,11 +34,11 @@ function snapshot(state = 'running') {
   return {
     id: 'operation', state, known: 5, completed: 1, active: 2, updatedAt: new Date().toISOString(),
     attempts: [
-      { sourceName: 'Primary', sourceUrl: 'source', bookUrl: '/book', state: 'running', stage: 'toc' },
-      { sourceName: 'Alternate', sourceUrl: 'alternate', bookUrl: '/alternate', state: 'running', stage: 'content' },
-      { sourceName: 'Broken', sourceUrl: 'broken', bookUrl: '/broken', state: 'failed', stage: 'book_info' },
-      { sourceName: 'Waiting', sourceUrl: 'waiting', bookUrl: '/waiting', state: 'queued' },
-      { sourceName: 'Waiting 2', sourceUrl: 'waiting-2', bookUrl: '/waiting-2', state: 'queued' },
+      { sourceName: 'Primary', sourceId: 'source', sourceUrl: 'source', bookUrl: '/book', state: 'running', stage: 'toc' },
+      { sourceName: 'Alternate', sourceId: 'alternate', sourceUrl: 'alternate', bookUrl: '/alternate', state: 'running', stage: 'content' },
+      { sourceName: 'Broken', sourceId: 'broken', sourceUrl: 'broken', bookUrl: '/broken', state: 'failed', stage: 'book_info' },
+      { sourceName: 'Waiting', sourceId: 'waiting', sourceUrl: 'waiting', bookUrl: '/waiting', state: 'queued' },
+      { sourceName: 'Waiting 2', sourceId: 'waiting-2', sourceUrl: 'waiting-2', bookUrl: '/waiting-2', state: 'queued' },
     ],
   };
 }
@@ -46,7 +46,7 @@ function snapshot(state = 'running') {
 function rememberedSnapshot(state = 'running') {
   return {
     id: 'operation', state, known: 1, completed: 0, active: state === 'running' ? 1 : 0, updatedAt: new Date().toISOString(),
-    attempts: [{ sourceName: 'Primary', sourceUrl: 'source', bookUrl: '/book', state: state === 'running' ? 'running' : 'verified', stage: 'content' }],
+    attempts: [{ sourceName: 'Primary', sourceId: 'source', sourceUrl: 'source', bookUrl: '/book', state: state === 'running' ? 'running' : 'verified', stage: 'content' }],
   };
 }
 
@@ -85,11 +85,11 @@ describe('CandidateShelfAction', () => {
     const winning = {
       ...snapshot(), active: 1, completed: 4,
       attempts: [
-        { sourceName: 'Winner', sourceUrl: 'winner', state: 'verified', stage: 'content' },
-        { sourceName: 'Draining', sourceUrl: 'draining', state: 'running', stage: 'toc' },
-        { sourceName: 'Broken', sourceUrl: 'broken', state: 'failed', stage: 'content' },
-        { sourceName: 'Unused', sourceUrl: 'unused', state: 'skipped' },
-        { sourceName: 'Unused 2', sourceUrl: 'unused-2', state: 'skipped' },
+        { sourceName: 'Winner', sourceId: 'winner', sourceUrl: 'winner', state: 'verified', stage: 'content' },
+        { sourceName: 'Draining', sourceId: 'draining', sourceUrl: 'draining', state: 'running', stage: 'toc' },
+        { sourceName: 'Broken', sourceId: 'broken', sourceUrl: 'broken', state: 'failed', stage: 'content' },
+        { sourceName: 'Unused', sourceId: 'unused', sourceUrl: 'unused', state: 'skipped' },
+        { sourceName: 'Unused 2', sourceId: 'unused-2', sourceUrl: 'unused-2', state: 'skipped' },
       ],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(winning), {
@@ -136,7 +136,7 @@ describe('CandidateShelfAction', () => {
   });
 
   it('discards a remembered operation when the Search result has newer source bindings', async () => {
-    const enriched = { ...result, alternateSources: [{ sourceUrl: 'new-source', bookUrl: '/new-book', sourceName: 'New' }] };
+    const enriched = { ...result, alternateSources: [{ sourceId: 'new-source', sourceUrl: 'new-source', bookUrl: '/new-book', sourceName: 'New' }] };
     sessionStorage.setItem('novelreader.candidate-operations.v1', JSON.stringify({ ['source\u0000/book']: 'operation' }));
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(rememberedSnapshot('verified')), {
       status: 200, headers: { 'Content-Type': 'application/json' },
@@ -163,7 +163,7 @@ describe('CandidateShelfAction', () => {
     await flushPromises();
     expect(wrapper.find('.progress-toggle').exists()).toBe(false);
 
-    await wrapper.setProps({ result: { ...result, alternateSources: [{ sourceUrl: 'new-source', bookUrl: '/new-book', sourceName: 'New' }] } });
+    await wrapper.setProps({ result: { ...result, alternateSources: [{ sourceId: 'new-source', sourceUrl: 'new-source', bookUrl: '/new-book', sourceName: 'New' }] } });
     await flushPromises();
 
     expect(wrapper.get('button').text()).toBe('Add');
@@ -175,7 +175,7 @@ describe('CandidateShelfAction', () => {
     const verified = {
       ...snapshot('verified'), active: 0, completed: 1, automaticCommit: true,
       preview: { book: {}, chapters: [], selection: {} },
-      attempts: [{ sourceName: 'Winner', sourceUrl: 'winner', state: 'verified', stage: 'content' }],
+      attempts: [{ sourceName: 'Winner', sourceId: 'winner', sourceUrl: 'winner', state: 'verified', stage: 'content' }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(verified), { status: 202, headers: { 'Content-Type': 'application/json' } })));
 
@@ -192,7 +192,7 @@ describe('CandidateShelfAction', () => {
     const verified = {
       ...snapshot('verified'), active: 0, completed: 3, automaticCommit: false,
       preview: { book: {}, chapters: [], selection: {} },
-      attempts: [{ sourceName: 'Primary', sourceUrl: 'source', bookUrl: '/book', state: 'verified', stage: 'content' }],
+      attempts: [{ sourceName: 'Primary', sourceId: 'source', sourceUrl: 'source', bookUrl: '/book', state: 'verified', stage: 'content' }],
     };
     const committed = { ...verified, state: 'committed', storedBook: { id: 'stored' } };
     const fetchMock = vi.fn()
@@ -246,9 +246,9 @@ describe('CandidateShelfAction', () => {
     const exhausted = {
       ...rememberedSnapshot('exhausted'), active: 0, completed: 3, known: 3,
       attempts: [
-        { sourceName: 'One', sourceUrl: 'source', bookUrl: '/book', state: 'failed', stage: 'content' },
-        { sourceName: 'Two', sourceUrl: 'two', bookUrl: '/two', state: 'failed', stage: 'toc' },
-        { sourceName: 'Three', sourceUrl: 'three', bookUrl: '/three', state: 'failed', stage: 'book_info' },
+        { sourceName: 'One', sourceId: 'source', sourceUrl: 'source', bookUrl: '/book', state: 'failed', stage: 'content' },
+        { sourceName: 'Two', sourceId: 'two', sourceUrl: 'two', bookUrl: '/two', state: 'failed', stage: 'toc' },
+        { sourceName: 'Three', sourceId: 'three', sourceUrl: 'three', bookUrl: '/three', state: 'failed', stage: 'book_info' },
       ],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(exhausted), {
@@ -258,8 +258,8 @@ describe('CandidateShelfAction', () => {
     const failedResult = {
       ...result,
       alternateSources: [
-        { sourceUrl: 'two', bookUrl: '/two', sourceName: 'Two' },
-        { sourceUrl: 'three', bookUrl: '/three', sourceName: 'Three' },
+        { sourceId: 'two', sourceUrl: 'two', bookUrl: '/two', sourceName: 'Two' },
+        { sourceId: 'three', sourceUrl: 'three', bookUrl: '/three', sourceName: 'Three' },
       ],
     };
     const wrapper = mount(CandidateShelfAction, { global: { plugins: [i18n] }, props: { result: failedResult } });
@@ -275,7 +275,7 @@ describe('CandidateShelfAction', () => {
     sessionStorage.setItem('novelreader.candidate-operations.v1', JSON.stringify({ ['source\u0000/book']: 'operation' }));
     const exhausted = {
       ...rememberedSnapshot('exhausted'), active: 0, completed: 1, known: 1,
-      attempts: [{ sourceName: 'Primary', sourceUrl: 'source', bookUrl: '/book', state: 'failed', stage: 'content' }],
+      attempts: [{ sourceName: 'Primary', sourceId: 'source', sourceUrl: 'source', bookUrl: '/book', state: 'failed', stage: 'content' }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(exhausted), {
       status: 200, headers: { 'Content-Type': 'application/json' },
@@ -304,7 +304,7 @@ describe('CandidateShelfAction', () => {
     sessionStorage.setItem('novelreader.candidate-operations.v1', JSON.stringify({ ['source\u0000/book']: 'operation' }));
     const exhausted = {
       ...rememberedSnapshot('exhausted'), active: 0, completed: 1, known: 1,
-      attempts: [{ sourceName: 'Primary', sourceUrl: 'source', bookUrl: '/book', state: 'failed', stage: 'content' }],
+      attempts: [{ sourceName: 'Primary', sourceId: 'source', sourceUrl: 'source', bookUrl: '/book', state: 'failed', stage: 'content' }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(exhausted), {
       status: 200, headers: { 'Content-Type': 'application/json' },
@@ -332,7 +332,7 @@ describe('CandidateShelfAction', () => {
     sessionStorage.setItem('novelreader.candidate-operations.v1', JSON.stringify({ ['source\u0000/book']: 'operation' }));
     const exhausted = {
       ...rememberedSnapshot('exhausted'), active: 0, completed: 1, known: 1,
-      attempts: [{ sourceName: 'Primary', sourceUrl: 'source', bookUrl: '/book', state: 'failed', stage: 'content' }],
+      attempts: [{ sourceName: 'Primary', sourceId: 'source', sourceUrl: 'source', bookUrl: '/book', state: 'failed', stage: 'content' }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(exhausted), {
       status: 200, headers: { 'Content-Type': 'application/json' },
@@ -355,7 +355,7 @@ describe('CandidateShelfAction', () => {
     sessionStorage.setItem('novelreader.candidate-operations.v1', JSON.stringify({ ['source\u0000/book']: 'operation' }));
     const exhausted = {
       ...rememberedSnapshot('exhausted'), active: 0, completed: 1, known: 1,
-      attempts: [{ sourceName: 'Primary', sourceUrl: 'source', bookUrl: '/book', state: 'failed', stage: 'content' }],
+      attempts: [{ sourceName: 'Primary', sourceId: 'source', sourceUrl: 'source', bookUrl: '/book', state: 'failed', stage: 'content' }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(exhausted), {
       status: 200, headers: { 'Content-Type': 'application/json' },

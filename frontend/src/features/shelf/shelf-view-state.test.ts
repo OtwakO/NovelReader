@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Book } from '../../api/models';
 import { loadShelfViewState, saveShelfViewState, visibleShelfBooks } from './shelf-view-state';
 
-const book = (name: string, author: string, updatedAt: number, index: number, total = 10): Book => ({ id: name, name, author, coverUrl: '', intro: '', kind: '', sourceUrl: '', bookUrl: '', lastChapter: '', durChapterIndex: index, durChapterPos: 0, totalChapterNum: total, stateVersion: 1, updatedAt });
+const book = (name: string, author: string, updatedAt: number, index: number, total = 10): Book => ({ id: name, name, author, coverUrl: '', intro: '', kind: '', sourceId: '', sourceUrl: '', bookUrl: '', lastChapter: '', durChapterIndex: index, durChapterPos: 0, totalChapterNum: total, stateVersion: 1, updatedAt });
 
 describe('shelf view state', () => {
   const values = new Map<string, string>();

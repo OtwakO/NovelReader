@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import SearchResultCard from './SearchResultCard.vue';
 
 const i18n = createI18n({ legacy:false,globalInjection:true,locale:'en',messages:{en:{search:{results:{detailsFor:'Preview {name}',preview:'Preview book',sources:'{count} sources'}},app:{common:{unknownAuthor:'Unknown'}}}} });
-const result = { name:'Book',author:'Author',coverUrl:'',intro:'',kind:'',lastChapter:'',bookUrl:'/book',sourceUrl:'source',sourceName:'Source',alternateSources:[{sourceUrl:'other',bookUrl:'/other',sourceName:'Other'}] };
+const result = { name:'Book',author:'Author',coverUrl:'',intro:'',kind:'',lastChapter:'',bookUrl:'/book',sourceId:'source',sourceUrl:'source',sourceName:'Source',alternateSources:[{sourceId:'other',sourceUrl:'other',bookUrl:'/other',sourceName:'Other'}] };
 
 describe('SearchResultCard',()=>{
   it('offers both a broad metadata preview target and an explicit preview action',async()=>{

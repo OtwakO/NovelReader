@@ -34,7 +34,11 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 	if response := performAPIRequest(server, http.MethodPost, "/api/sources", raw); response.Code != http.StatusOK {
 		t.Fatalf("import status=%d body=%s", response.Code, response.Body.String())
 	}
-	if err := server.bookStore.AddBook(&book.Book{ID: "book", Name: "Book", SourceURL: upstream.URL, BookURL: upstream.URL}); err != nil {
+	sources, err := server.sourceStore.ListEnabled()
+	if err != nil || len(sources) != 1 {
+		t.Fatalf("sources=%+v err=%v", sources, err)
+	}
+	if err := server.bookStore.AddBook(&book.Book{ID: "book", Name: "Book", SourceID: sources[0].ID, SourceURL: upstream.URL, BookURL: upstream.URL}); err != nil {
 		t.Fatal(err)
 	}
 	chapter := book.Chapter{Index: 0, Title: "Chapter", URL: upstream.URL + "/chapter"}

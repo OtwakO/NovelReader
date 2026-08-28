@@ -3,7 +3,6 @@ package booksource
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"testing"
 	"time"
 
@@ -23,10 +22,7 @@ func TestCollectionReplacementIsAuthoritativeAndTransactional(t *testing.T) {
 		t.Fatalf("unexpected creation result: %#v %#v", first, collection)
 	}
 
-	one, err := store.GetByID("https://one")
-	if err != nil {
-		t.Fatal(err)
-	}
+	one := collectionSourceByURL(t, store, collection.ID, "https://one")
 	one.BookSourceName = "Local edit"
 	if err := store.Upsert(one); err != nil {
 		t.Fatal(err)
@@ -42,36 +38,82 @@ func TestCollectionReplacementIsAuthoritativeAndTransactional(t *testing.T) {
 	if result.Added != 1 || result.Updated != 1 || result.Removed != 1 || result.Total != 2 {
 		t.Fatalf("unexpected replacement result: %#v", result)
 	}
-	one, _ = store.GetByID("https://one")
+	one = collectionSourceByURL(t, store, collection.ID, "https://one")
 	if one.BookSourceName != "Upstream replacement" || one.CollectionID != collection.ID {
 		t.Fatalf("source was not authoritatively replaced: %#v", one)
 	}
-	if removed, _ := store.GetByID("https://two"); removed != nil {
+	if removed := collectionSourceByURLOrNil(t, store, collection.ID, "https://two"); removed != nil {
 		t.Fatalf("missing upstream source was retained: %#v", removed)
 	}
 }
 
-func TestCollectionRejectsExclusiveOwnershipConflictWithoutPartialChanges(t *testing.T) {
+func TestCollectionsAllowIndependentDefinitionsWithTheSameURL(t *testing.T) {
 	store := newCollectionStore(t)
 	now := time.Unix(100, 0)
 	first, _, err := store.CreateCollection(context.Background(), CreateCollection{
 		Name: "First", OriginKind: CollectionOriginUpload, SyncInterval: SyncManual,
-	}, []*BookSource{collectionSource(t, "https://owned", "Owned")}, now)
+	}, []*BookSource{collectionSource(t, "https://shared", "First definition")}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = store.CreateCollection(context.Background(), CreateCollection{
+	second, result, err := store.CreateCollection(context.Background(), CreateCollection{
 		Name: "Second", OriginKind: CollectionOriginUpload, SyncInterval: SyncManual,
-	}, []*BookSource{collectionSource(t, "https://new", "New"), collectionSource(t, "https://owned", "Conflict")}, now)
-	if !errors.Is(err, ErrCollectionConflict) {
-		t.Fatalf("expected ownership conflict, got %v", err)
+	}, []*BookSource{collectionSource(t, "https://shared", "Second definition")}, now)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if source, _ := store.GetByID("https://new"); source != nil {
-		t.Fatalf("conflicted import partially wrote source: %#v", source)
+	if result.Added != 1 {
+		t.Fatalf("unexpected second import: %#v", result)
 	}
-	owned, _ := store.GetByID("https://owned")
-	if owned.CollectionID != first.ID || owned.BookSourceName != "Owned" {
-		t.Fatalf("existing ownership changed: %#v", owned)
+	firstSource := collectionSourceByURL(t, store, first.ID, "https://shared")
+	secondSource := collectionSourceByURL(t, store, second.ID, "https://shared")
+	if firstSource.ID == secondSource.ID || firstSource.BookSourceName == secondSource.BookSourceName {
+		t.Fatalf("duplicate URL definitions were not independent: first=%#v second=%#v", firstSource, secondSource)
+	}
+}
+
+func TestCollectionReplacementPreservesDuplicateSourceIDsByExactDefinitionThenOrder(t *testing.T) {
+	store := newCollectionStore(t)
+	now := time.Unix(100, 0)
+	collection, _, err := store.CreateCollection(context.Background(), CreateCollection{
+		Name: "Duplicates", OriginKind: CollectionOriginUpload, SyncInterval: SyncManual,
+	}, []*BookSource{
+		collectionSource(t, "https://shared", "Alpha"),
+		collectionSource(t, "https://shared", "Beta"),
+	}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.ListByCollection(collection.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeByName := make(map[string]string, len(before))
+	for _, source := range before {
+		beforeByName[source.BookSourceName] = source.ID
+	}
+	alphaID, betaID := beforeByName["Alpha"], beforeByName["Beta"]
+
+	result, err := store.ReplaceCollection(context.Background(), collection.ID, []*BookSource{
+		collectionSource(t, "https://shared", "Beta"),
+		collectionSource(t, "https://shared", "Gamma"),
+	}, "duplicates.json", "", "", now.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Added != 0 || result.Removed != 0 || result.Total != 2 {
+		t.Fatalf("unexpected replacement membership result: %#v", result)
+	}
+	after, err := store.ListByCollection(collection.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := make(map[string]string, len(after))
+	for _, source := range after {
+		byName[source.BookSourceName] = source.ID
+	}
+	if byName["Beta"] != betaID || byName["Gamma"] != alphaID {
+		t.Fatalf("source IDs did not follow exact-then-order matching: before=%#v after=%#v", before, after)
 	}
 }
 
@@ -93,7 +135,7 @@ func TestCollectionRenameAndDeletePreserveSimpleOwnershipModel(t *testing.T) {
 	if err := store.DeleteCollection(context.Background(), collection.ID); err != nil {
 		t.Fatal(err)
 	}
-	if source, _ := store.GetByID("https://one"); source != nil {
+	if source := collectionSourceByURLOrNil(t, store, collection.ID, "https://one"); source != nil {
 		t.Fatalf("collection delete did not remove owned source: %#v", source)
 	}
 }
@@ -109,6 +151,29 @@ func newCollectionStore(t *testing.T) *Store {
 	return NewStore(db)
 }
 
+func collectionSourceByURL(t *testing.T, store *Store, collectionID, sourceURL string) *BookSource {
+	t.Helper()
+	source := collectionSourceByURLOrNil(t, store, collectionID, sourceURL)
+	if source == nil {
+		t.Fatalf("source %q not found in collection %q", sourceURL, collectionID)
+	}
+	return source
+}
+
+func collectionSourceByURLOrNil(t *testing.T, store *Store, collectionID, sourceURL string) *BookSource {
+	t.Helper()
+	sources, err := store.ListByCollection(collectionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, source := range sources {
+		if source.BookSourceURL == sourceURL {
+			return source
+		}
+	}
+	return nil
+}
+
 func collectionSource(t *testing.T, url, name string) *BookSource {
 	t.Helper()
 	source, err := NewFromJSON([]byte(`{"bookSourceUrl":"` + url + `","bookSourceName":"` + name + `","enabled":true}`))
@@ -116,4 +181,24 @@ func collectionSource(t *testing.T, url, name string) *BookSource {
 		t.Fatal(err)
 	}
 	return source
+}
+
+func TestCapabilityTagsIncludeSourceFeatures(t *testing.T) {
+	source := collectionSource(t, "https://source", "Capabilities")
+	source.SearchURL = `https://source/search,{"webView":true}`
+	source.ExploreURL = "https://source/explore"
+	source.EnabledExplore = true
+	source.Header = `{"Referer":"https://source"}`
+	source.RuleContent = `{"content":"@js:java.getString('content')"}`
+
+	got := CapabilityTags(*source)
+	want := []string{"search", "explore", "headers", "javascript", "webview"}
+	if len(got) != len(want) {
+		t.Fatalf("capabilities=%v want=%v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("capabilities=%v want=%v", got, want)
+		}
+	}
 }

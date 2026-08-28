@@ -16,7 +16,7 @@ export default defineComponent({
   mounted() { this.search.initialize(); },
   beforeUnmount() { this.search.stop(); },
   methods: {
-    key(result: SearchResult) { return `${result.sourceUrl}\u0000${result.bookUrl}`; },
+    key(result: SearchResult) { return `${result.sourceId}\u0000${result.bookUrl}`; },
     submit() { this.search.search(); },
     open(result: SearchResult) {
       const selectionKey = createCandidateSelectionKey();

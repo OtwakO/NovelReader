@@ -23,9 +23,12 @@ var (
 
 // AltSource is a secondary source for the same book.
 type AltSource struct {
-	SourceURL  string `json:"sourceUrl"`
-	BookURL    string `json:"bookUrl"`
-	SourceName string `json:"sourceName"`
+	SourceID     string   `json:"sourceId"`
+	SourceURL    string   `json:"sourceUrl"`
+	BookURL      string   `json:"bookUrl"`
+	SourceName   string   `json:"sourceName"`
+	SourceGroup  string   `json:"sourceGroup,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // PreviewBook is source-derived detail data without shelf ownership or progress.
@@ -36,6 +39,7 @@ type PreviewBook struct {
 	CoverDisplayURL  string      `json:"coverDisplayUrl,omitempty"`
 	Intro            string      `json:"intro,omitempty"`
 	Kind             string      `json:"kind,omitempty"`
+	SourceID         string      `json:"sourceId"`
 	SourceURL        string      `json:"sourceUrl"`
 	BookURL          string      `json:"bookUrl"`
 	TocURL           string      `json:"tocUrl,omitempty"`
@@ -56,6 +60,7 @@ type Book struct {
 	CoverDisplayURL string   `json:"coverDisplayUrl,omitempty" db:"-"`
 	Intro           string   `json:"intro,omitempty" db:"intro"`
 	Kind            string   `json:"kind,omitempty" db:"kind"`
+	SourceID        string   `json:"sourceId" db:"source_id"`
 	SourceURL       string   `json:"sourceUrl" db:"source_url"`
 	BookURL         string   `json:"bookUrl" db:"book_url"`
 	TocURL          string   `json:"tocUrl,omitempty" db:"toc_url"`
@@ -106,8 +111,11 @@ type SearchResult struct {
 	UpdateTime       string      `json:"updateTime"`
 	WordCount        string      `json:"wordCount"`
 	BookURL          string      `json:"bookUrl"`
+	SourceID         string      `json:"sourceId"`
 	SourceURL        string      `json:"sourceUrl"`
 	SourceName       string      `json:"sourceName"`
+	SourceGroup      string      `json:"sourceGroup,omitempty"`
+	Capabilities     []string    `json:"capabilities,omitempty"`
 	Score            int         `json:"score"`
 	AlternateSources []AltSource `json:"alternateSources,omitempty"`
 }
@@ -142,6 +150,7 @@ func initSchema(db schemaDatabase) error {
 			cover_url TEXT DEFAULT '',
 			intro TEXT DEFAULT '',
 			kind TEXT DEFAULT '',
+			source_id TEXT NOT NULL,
 			source_url TEXT NOT NULL,
 			book_url TEXT NOT NULL,
 			toc_url TEXT DEFAULT '',
@@ -188,7 +197,7 @@ func initSchema(db schemaDatabase) error {
 		`CREATE INDEX IF NOT EXISTS idx_bookmarks_book_id ON bookmarks(book_id, created_at DESC)`,
 		`CREATE TABLE IF NOT EXISTS chapter_cache (
 			book_id TEXT NOT NULL,
-			source_url TEXT NOT NULL,
+			source_id TEXT NOT NULL,
 			chapter_index INTEGER NOT NULL,
 			chapter_url TEXT NOT NULL,
 			title TEXT NOT NULL,
@@ -196,7 +205,7 @@ func initSchema(db schemaDatabase) error {
 			blocks TEXT NOT NULL DEFAULT '[]',
 			cached_at INTEGER NOT NULL,
 			last_accessed INTEGER NOT NULL,
-			PRIMARY KEY (book_id, source_url, chapter_index)
+			PRIMARY KEY (book_id, source_id, chapter_index)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_chapter_cache_lru ON chapter_cache(last_accessed)`,
 		`CREATE INDEX IF NOT EXISTS idx_chapter_cache_book_lru ON chapter_cache(book_id, last_accessed)`,
@@ -211,7 +220,7 @@ func initSchema(db schemaDatabase) error {
 
 // bookColumns keeps SELECT scan order explicit and deterministic.
 var bookColumns = `id, name, author, cover_url, intro, kind,
-	source_url, book_url, toc_url, origin, variable_map,
+	source_id, source_url, book_url, toc_url, origin, variable_map,
 	last_chapter, update_time, word_count,
 	dur_chapter_index, dur_chapter_pos, total_chapter_num, state_version,
 	alternate_sources, created_at, updated_at`
@@ -259,24 +268,24 @@ func (s *Store) AddBook(b *Book) error {
 	}
 	_, err := s.db.Exec(`INSERT INTO books (
 		id, name, author, identity_name, identity_author, cover_url, intro, kind,
-		source_url, book_url, toc_url, origin, variable_map,
+		source_id, source_url, book_url, toc_url, origin, variable_map,
 		last_chapter, update_time, word_count,
 		dur_chapter_index, dur_chapter_pos, total_chapter_num, state_version,
 		alternate_sources,
 		created_at, updated_at
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 	ON CONFLICT(id) DO UPDATE SET
 		name=excluded.name, author=excluded.author,
 		identity_name=excluded.identity_name, identity_author=excluded.identity_author,
 		cover_url=excluded.cover_url, intro=excluded.intro, kind=excluded.kind,
-		source_url=excluded.source_url, book_url=excluded.book_url, toc_url=excluded.toc_url,
+		source_id=excluded.source_id, source_url=excluded.source_url, book_url=excluded.book_url, toc_url=excluded.toc_url,
 		origin=excluded.origin, variable_map=excluded.variable_map,
 		last_chapter=excluded.last_chapter, update_time=excluded.update_time, word_count=excluded.word_count,
 		dur_chapter_index=excluded.dur_chapter_index, dur_chapter_pos=excluded.dur_chapter_pos,
 		total_chapter_num=excluded.total_chapter_num, state_version=excluded.state_version,
 		alternate_sources=excluded.alternate_sources, updated_at=excluded.updated_at`,
 		b.ID, b.Name, b.Author, identityName, identityAuthor, b.CoverURL, b.Intro, b.Kind,
-		b.SourceURL, b.BookURL, b.TocURL, b.Origin, b.VariableMap,
+		b.SourceID, b.SourceURL, b.BookURL, b.TocURL, b.Origin, b.VariableMap,
 		b.LastChapter, b.UpdateTime, b.WordCount,
 		b.DurChapterIndex, b.DurChapterPos, b.TotalChapterNum, b.StateVersion,
 		string(altJSON),
@@ -311,21 +320,21 @@ func (s *Store) AddOrMergeBook(candidate *Book) (*Book, bool, error) {
 		now := time.Now().UnixMilli()
 		candidate.CreatedAt = now
 		candidate.UpdatedAt = now
-		candidate.AlternateSources = mergeAlternateSources(candidate.SourceURL, candidate.BookURL, candidate.AlternateSources)
+		candidate.AlternateSources = mergeAlternateSources(candidate.SourceID, candidate.BookURL, candidate.AlternateSources)
 		alternateJSON, err := json.Marshal(candidate.AlternateSources)
 		if err != nil {
 			return nil, false, err
 		}
 		if _, err := tx.Exec(`INSERT INTO books (
 			id, name, author, identity_name, identity_author, cover_url, intro, kind,
-			source_url, book_url, toc_url, origin, variable_map,
+			source_id, source_url, book_url, toc_url, origin, variable_map,
 			last_chapter, update_time, word_count,
 			dur_chapter_index, dur_chapter_pos, total_chapter_num, state_version,
 			alternate_sources, created_at, updated_at
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			candidate.ID, candidate.Name, candidate.Author, identityName, identityAuthor,
 			candidate.CoverURL, candidate.Intro, candidate.Kind,
-			candidate.SourceURL, candidate.BookURL, candidate.TocURL, candidate.Origin, candidate.VariableMap,
+			candidate.SourceID, candidate.SourceURL, candidate.BookURL, candidate.TocURL, candidate.Origin, candidate.VariableMap,
 			candidate.LastChapter, candidate.UpdateTime, candidate.WordCount,
 			candidate.DurChapterIndex, candidate.DurChapterPos, candidate.TotalChapterNum, candidate.StateVersion,
 			string(alternateJSON), candidate.CreatedAt, candidate.UpdatedAt,
@@ -339,9 +348,9 @@ func (s *Store) AddOrMergeBook(candidate *Book) (*Book, bool, error) {
 	}
 
 	discovered := append([]AltSource(nil), existing.AlternateSources...)
-	discovered = append(discovered, AltSource{SourceURL: candidate.SourceURL, BookURL: candidate.BookURL, SourceName: candidate.Origin})
+	discovered = append(discovered, AltSource{SourceID: candidate.SourceID, SourceURL: candidate.SourceURL, BookURL: candidate.BookURL, SourceName: candidate.Origin})
 	discovered = append(discovered, candidate.AlternateSources...)
-	existing.AlternateSources = mergeAlternateSources(existing.SourceURL, existing.BookURL, discovered)
+	existing.AlternateSources = mergeAlternateSources(existing.SourceID, existing.BookURL, discovered)
 	alternateJSON, err := json.Marshal(existing.AlternateSources)
 	if err != nil {
 		return nil, false, err
@@ -379,9 +388,9 @@ func (s *Store) AddOrMergeBookWithChapters(candidate *Book, chapters []Chapter) 
 	}
 	if err == nil {
 		discovered := append([]AltSource(nil), existing.AlternateSources...)
-		discovered = append(discovered, AltSource{SourceURL: candidate.SourceURL, BookURL: candidate.BookURL, SourceName: candidate.Origin})
+		discovered = append(discovered, AltSource{SourceID: candidate.SourceID, SourceURL: candidate.SourceURL, BookURL: candidate.BookURL, SourceName: candidate.Origin})
 		discovered = append(discovered, candidate.AlternateSources...)
-		existing.AlternateSources = mergeAlternateSources(existing.SourceURL, existing.BookURL, discovered)
+		existing.AlternateSources = mergeAlternateSources(existing.SourceID, existing.BookURL, discovered)
 		alternateJSON, marshalErr := json.Marshal(existing.AlternateSources)
 		if marshalErr != nil {
 			return nil, false, marshalErr
@@ -399,21 +408,21 @@ func (s *Store) AddOrMergeBookWithChapters(candidate *Book, chapters []Chapter) 
 	candidate.CreatedAt = now
 	candidate.UpdatedAt = now
 	candidate.TotalChapterNum = len(chapters)
-	candidate.AlternateSources = mergeAlternateSources(candidate.SourceURL, candidate.BookURL, candidate.AlternateSources)
+	candidate.AlternateSources = mergeAlternateSources(candidate.SourceID, candidate.BookURL, candidate.AlternateSources)
 	alternateJSON, err := json.Marshal(candidate.AlternateSources)
 	if err != nil {
 		return nil, false, err
 	}
 	if _, err := tx.Exec(`INSERT INTO books (
 		id, name, author, identity_name, identity_author, cover_url, intro, kind,
-		source_url, book_url, toc_url, origin, variable_map,
+		source_id, source_url, book_url, toc_url, origin, variable_map,
 		last_chapter, update_time, word_count,
 		dur_chapter_index, dur_chapter_pos, total_chapter_num, state_version,
 		alternate_sources, created_at, updated_at
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		candidate.ID, candidate.Name, candidate.Author, identityName, identityAuthor,
 		candidate.CoverURL, candidate.Intro, candidate.Kind,
-		candidate.SourceURL, candidate.BookURL, candidate.TocURL, candidate.Origin, candidate.VariableMap,
+		candidate.SourceID, candidate.SourceURL, candidate.BookURL, candidate.TocURL, candidate.Origin, candidate.VariableMap,
 		candidate.LastChapter, candidate.UpdateTime, candidate.WordCount,
 		candidate.DurChapterIndex, candidate.DurChapterPos, candidate.TotalChapterNum, candidate.StateVersion,
 		string(alternateJSON), candidate.CreatedAt, candidate.UpdatedAt,
@@ -471,7 +480,7 @@ func (s *Store) MergeBookSources(bookID string, sources []AltSource) (*Book, err
 		}
 		return nil, err
 	}
-	existing.AlternateSources = mergeAlternateSources(existing.SourceURL, existing.BookURL, append(existing.AlternateSources, sources...))
+	existing.AlternateSources = mergeAlternateSources(existing.SourceID, existing.BookURL, append(existing.AlternateSources, sources...))
 	alternateJSON, err := json.Marshal(existing.AlternateSources)
 	if err != nil {
 		return nil, err
@@ -485,14 +494,14 @@ func (s *Store) MergeBookSources(bookID string, sources []AltSource) (*Book, err
 	return &existing, nil
 }
 
-func mergeAlternateSources(currentSourceURL, currentBookURL string, sources []AltSource) []AltSource {
-	seen := map[string]bool{currentSourceURL + "\n" + currentBookURL: true}
+func mergeAlternateSources(currentSourceID, currentBookURL string, sources []AltSource) []AltSource {
+	seen := map[string]bool{currentSourceID + "\n" + currentBookURL: true}
 	merged := make([]AltSource, 0, len(sources))
 	for _, source := range sources {
-		if source.SourceURL == "" || source.BookURL == "" {
+		if source.SourceID == "" || source.BookURL == "" {
 			continue
 		}
-		key := source.SourceURL + "\n" + source.BookURL
+		key := source.SourceID + "\n" + source.BookURL
 		if seen[key] {
 			continue
 		}
@@ -586,12 +595,12 @@ func (s *Store) GetChapters(bookID string) ([]Chapter, error) {
 }
 
 // UpdateProgress saves reading progress and total chapter count for a book.
-func (s *Store) UpdateProgress(bookID, sourceURL string, stateVersion int64, chapterIndex int, position float64) (int64, error) {
+func (s *Store) UpdateProgress(bookID, sourceID string, stateVersion int64, chapterIndex int, position float64) (int64, error) {
 	if chapterIndex < 0 || math.IsNaN(position) || math.IsInf(position, 0) || position < 0 || position > 1 {
 		return 0, ErrInvalidProgress
 	}
-	result, err := s.db.Exec(`UPDATE books SET dur_chapter_index = ?, dur_chapter_pos = ?, state_version = state_version + 1, updated_at = ? WHERE id = ? AND source_url = ? AND state_version = ?`,
-		chapterIndex, position, time.Now().UnixMilli(), bookID, sourceURL, stateVersion)
+	result, err := s.db.Exec(`UPDATE books SET dur_chapter_index = ?, dur_chapter_pos = ?, state_version = state_version + 1, updated_at = ? WHERE id = ? AND source_id = ? AND state_version = ?`,
+		chapterIndex, position, time.Now().UnixMilli(), bookID, sourceID, stateVersion)
 	if err != nil {
 		return 0, err
 	}
@@ -671,7 +680,7 @@ func scanBook(s scanner, includeCurrentChapter bool) (*Book, error) {
 	var altSourcesStr string
 	destinations := []interface{}{
 		&b.ID, &b.Name, &b.Author, &b.CoverURL, &b.Intro, &b.Kind,
-		&b.SourceURL, &b.BookURL, &b.TocURL, &b.Origin, &b.VariableMap,
+		&b.SourceID, &b.SourceURL, &b.BookURL, &b.TocURL, &b.Origin, &b.VariableMap,
 		&b.LastChapter, &b.UpdateTime, &b.WordCount,
 		&b.DurChapterIndex, &b.DurChapterPos, &b.TotalChapterNum, &b.StateVersion,
 		&altSourcesStr,

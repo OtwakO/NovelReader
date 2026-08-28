@@ -124,11 +124,13 @@ func (op *operation) run() {
 
 func (op *operation) validate(index int, b binding) attemptResult {
 	result := attemptResult{index: index, stage: StageBookInfo}
-	src, err := op.runtime.Sources.GetByID(b.sourceURL)
+	src, err := op.runtime.Sources.GetByID(b.sourceID)
 	if err != nil || src == nil {
 		result.reason = "book source not found"
 		return result
 	}
+	b.sourceGroup = src.BookSourceGroup
+	b.capabilities = booksource.CapabilityTags(*src)
 	candidate := inputBook(op.input, b, *src)
 	if candidate, err = op.bookInfo(candidate, *src, index); err != nil {
 		result.reason = err.Error()
@@ -164,7 +166,7 @@ func (op *operation) validate(index int, b binding) attemptResult {
 		candidate.Author = op.input.Author
 	}
 	candidate.AlternateSources = alternates(bindings(op.input), b)
-	result.resolved = &resolved{candidate, chapters, Selection{op.input.SourceURL, b.sourceURL, candidate.Origin, b.sourceURL != op.input.SourceURL || b.bookURL != op.input.BookURL}}
+	result.resolved = &resolved{candidate, chapters, Selection{op.input.SourceID, b.sourceID, op.input.SourceURL, b.sourceURL, candidate.Origin, b.sourceURL != op.input.SourceURL || b.bookURL != op.input.BookURL}}
 	return result
 }
 
@@ -325,10 +327,10 @@ func previewFromResolved(value *resolved) Preview {
 	return Preview{previewBook(value.book), chapters, value.selection}
 }
 func previewBook(value *book.Book) book.PreviewBook {
-	return book.PreviewBook{Name: value.Name, Author: value.Author, CoverURL: value.CoverURL, Intro: value.Intro, Kind: value.Kind, LastChapter: value.LastChapter, UpdateTime: value.UpdateTime, WordCount: value.WordCount, Origin: value.Origin, SourceURL: value.SourceURL, BookURL: value.BookURL, TocURL: value.TocURL, AlternateSources: value.AlternateSources}
+	return book.PreviewBook{Name: value.Name, Author: value.Author, CoverURL: value.CoverURL, Intro: value.Intro, Kind: value.Kind, SourceID: value.SourceID, LastChapter: value.LastChapter, UpdateTime: value.UpdateTime, WordCount: value.WordCount, Origin: value.Origin, SourceURL: value.SourceURL, BookURL: value.BookURL, TocURL: value.TocURL, AlternateSources: value.AlternateSources}
 }
 func inputBook(in Input, b binding, src booksource.BookSource) *book.Book {
-	return &book.Book{Name: in.Name, Author: in.Author, CoverURL: in.CoverURL, Intro: in.Intro, Kind: in.Kind, LastChapter: in.LastChapter, UpdateTime: in.UpdateTime, WordCount: in.WordCount, Origin: sourceName(src, b.sourceName), SourceURL: b.sourceURL, BookURL: b.bookURL}
+	return &book.Book{Name: in.Name, Author: in.Author, CoverURL: in.CoverURL, Intro: in.Intro, Kind: in.Kind, LastChapter: in.LastChapter, UpdateTime: in.UpdateTime, WordCount: in.WordCount, Origin: sourceName(src, b.sourceName), SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL}
 }
 func sourceName(src booksource.BookSource, fallback string) string {
 	if strings.TrimSpace(src.BookSourceName) != "" {
@@ -340,27 +342,28 @@ func bindings(in Input) []binding {
 	result := make([]binding, 0, 1+len(in.AlternateSources))
 	seen := map[string]bool{}
 	add := func(b binding) {
+		b.sourceID = strings.TrimSpace(b.sourceID)
 		b.sourceURL = strings.TrimSpace(b.sourceURL)
 		b.bookURL = strings.TrimSpace(b.bookURL)
-		key := b.sourceURL + "\x00" + b.bookURL
-		if b.sourceURL != "" && b.bookURL != "" && !seen[key] {
+		key := b.sourceID + "\x00" + b.bookURL
+		if b.sourceID != "" && b.bookURL != "" && !seen[key] {
 			seen[key] = true
 			result = append(result, b)
 		}
 	}
-	add(binding{in.SourceURL, in.BookURL, in.SourceName})
+	add(binding{sourceID: in.SourceID, sourceURL: in.SourceURL, bookURL: in.BookURL, sourceName: in.SourceName, sourceGroup: in.SourceGroup, capabilities: in.Capabilities})
 	for _, a := range in.AlternateSources {
-		add(binding{a.SourceURL, a.BookURL, a.SourceName})
+		add(binding{sourceID: a.SourceID, sourceURL: a.SourceURL, bookURL: a.BookURL, sourceName: a.SourceName, sourceGroup: a.SourceGroup, capabilities: a.Capabilities})
 	}
 	return result
 }
 func alternates(all []binding, winner binding) []book.AltSource {
 	result := make([]book.AltSource, 0, len(all)-1)
 	for _, b := range all {
-		if b.sourceURL == winner.sourceURL && b.bookURL == winner.bookURL {
+		if b.sourceID == winner.sourceID && b.bookURL == winner.bookURL {
 			continue
 		}
-		result = append(result, book.AltSource{SourceURL: b.sourceURL, BookURL: b.bookURL, SourceName: b.sourceName})
+		result = append(result, book.AltSource{SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL, SourceName: b.sourceName, SourceGroup: b.sourceGroup, Capabilities: b.capabilities})
 	}
 	return result
 }

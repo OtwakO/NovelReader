@@ -94,7 +94,7 @@ See `docs/AUTHENTICATION_DESIGN.md`, `docs/USER_STORAGE_IMPLEMENTATION_TASKS.md`
 
 #### Canonical model
 
-- `bookSourceUrl` is source identity; source names are display labels and may duplicate.
+- Each installed definition has an immutable NovelReader Source ID; `bookSourceUrl` remains imported Legado address data, may duplicate, and is never the runtime locator. Source names are display labels and may also duplicate.
 - All imported fields, including unknown fields, survive import, editing, persistence, and export.
 - Typed fields exist for behavior NovelReader executes; original definitions remain available for round-trip fidelity and diagnostics.
 - Malformed executable fields produce explicit import or runtime diagnostics rather than silently becoming empty behavior.
@@ -214,12 +214,13 @@ The `feat/source-collections` branch adds reader-owned Source Collections withou
 
 - a complete uploaded JSON document can be imported and atomically replaced as one renameable collection;
 - a URL collection can be manually synchronized, with failed downloads or malformed documents leaving the last good sources unchanged;
-- collection replacement is authoritative: existing definitions and user edits are overwritten, missing sources are removed, and `bookSourceUrl` remains exclusively owned by one collection;
+- collection replacement is authoritative: existing definitions and user edits are overwritten and missing entries are removed;
+- an immutable NovelReader Source ID identifies each installed definition, while duplicate `bookSourceUrl` values are allowed within and across collections and remain independent through Search, Explore, candidate resolution, stored bindings, and source sessions;
 - automatic synchronization is off by default, with only manual, daily, and weekly schedules;
 - standalone sources and existing individual source editing/deletion remain supported;
 - Search, Explore, candidate, and reading workflows continue consuming the existing flat effective source list and do not depend on collection concepts.
 
-The implementation now includes transactional collection storage, authenticated upload/URL/rename/replace/sync/delete endpoints, bounded public URL retrieval, collection-aware management UI, and a small reader-runtime-owned daily/weekly scheduler that reuses manual synchronization semantics.
+The implementation includes transactional collection storage, authenticated upload/URL/rename/replace/sync/delete endpoints, bounded public URL retrieval, collection-aware management UI, immutable Source IDs across runtime workflows, and a small reader-runtime-owned daily/weekly scheduler that reuses manual synchronization semantics.
 
 ### Complete foundations
 
@@ -308,7 +309,7 @@ Add diagnostics only for demonstrated needs. Likely future work includes redacte
 | Work ownership | Go owns fetching, parsing, aggregation, persistence, source sessions, and other resource-intensive work. |
 | Frontend framework | Vue 3 SPA, Vue Router, narrow Pinia, Vue I18n, Vite, Options API convention. |
 | Routing | Hash history until deployment requirements justify server route handling. |
-| Source identity | `bookSourceUrl`, never display name. |
+| Source identity | Immutable NovelReader Source ID; `bookSourceUrl` is imported Legado address data and may duplicate. |
 | Logical book identity | Normalized title plus author, with source bindings beneath it. |
 | Candidate validation | Backend-owned asynchronous operation with five work-conserving pipelines and first fully readable winner. |
 | Candidate persistence | Server-held verified result; idempotent no-recrawl commit. |

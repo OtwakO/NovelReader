@@ -38,7 +38,7 @@ func (s *Server) handleAddBookmark(w http.ResponseWriter, r *http.Request) {
 	bookID := r.PathValue("id")
 	var req struct {
 		ID           string   `json:"id"`
-		SourceURL    string   `json:"sourceUrl"`
+		SourceID     string   `json:"sourceId"`
 		StateVersion *int64   `json:"stateVersion"`
 		ChapterIndex *int     `json:"chapterIndex"`
 		Position     *float64 `json:"position"`
@@ -57,7 +57,7 @@ func (s *Server) handleAddBookmark(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_bookmark", "invalid bookmark request")
 		return
 	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF || !safeBookmarkID(req.ID) || req.SourceURL == "" || req.StateVersion == nil || *req.StateVersion < 0 || req.ChapterIndex == nil || *req.ChapterIndex < 0 || req.Position == nil || math.IsNaN(*req.Position) || math.IsInf(*req.Position, 0) || *req.Position < 0 || *req.Position > 1 || !utf8.ValidString(req.Note) || utf8.RuneCountInString(req.Note) > 1000 {
+	if err := decoder.Decode(&struct{}{}); err != io.EOF || !safeBookmarkID(req.ID) || req.SourceID == "" || req.StateVersion == nil || *req.StateVersion < 0 || req.ChapterIndex == nil || *req.ChapterIndex < 0 || req.Position == nil || math.IsNaN(*req.Position) || math.IsInf(*req.Position, 0) || *req.Position < 0 || *req.Position > 1 || !utf8.ValidString(req.Note) || utf8.RuneCountInString(req.Note) > 1000 {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_bookmark", "bookmark fields are required and must be valid")
 		return
 	}
@@ -87,7 +87,7 @@ func (s *Server) handleAddBookmark(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mark := book.Bookmark{ID: req.ID, BookID: bookID, ChapterIndex: *req.ChapterIndex, ChapterTitle: chapterTitle, Position: *req.Position, Note: strings.TrimSpace(req.Note), CreatedAt: time.Now().UnixMilli()}
-	if err := s.bookStore.AddBookmark(mark, req.SourceURL, *req.StateVersion); err != nil {
+	if err := s.bookStore.AddBookmark(mark, req.SourceID, *req.StateVersion); err != nil {
 		switch {
 		case errors.Is(err, book.ErrBookNotFound):
 			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")

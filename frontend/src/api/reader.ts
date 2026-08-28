@@ -20,11 +20,11 @@ export function getChapterContent(bookId: string, chapterIdx: number) {
   }));
 }
 export function getChapterImageUrl(bookId: string, chapterIdx: number, imageIdx: number) { return `${API_BASE}/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/images/${imageIdx}`; }
-export function switchBookSource(bookId: string, sourceUrl: string, bookUrl: string) { return request<{ book: Book; mapping: 'title' | 'index' }>(`/books/${encodeURIComponent(bookId)}/source`, { method: 'PUT', body: JSON.stringify({ sourceUrl, bookUrl }) }); }
+export function switchBookSource(bookId: string, sourceId: string, sourceUrl: string, bookUrl: string) { return request<{ book: Book; mapping: 'title' | 'index' }>(`/books/${encodeURIComponent(bookId)}/source`, { method: 'PUT', body: JSON.stringify({ sourceId, sourceUrl, bookUrl }) }); }
 export function listBookmarks(bookId: string) { return request<Bookmark[]>(`/books/${encodeURIComponent(bookId)}/bookmarks`); }
-export function addBookmark(bookId: string, bookmark: { id: string; sourceUrl: string; stateVersion: number; chapterIndex: number; position: number; note: string }) { return request<Bookmark>(`/books/${encodeURIComponent(bookId)}/bookmarks`, { method: 'POST', body: JSON.stringify(bookmark) }); }
+export function addBookmark(bookId: string, bookmark: { id: string; sourceId: string; stateVersion: number; chapterIndex: number; position: number; note: string }) { return request<Bookmark>(`/books/${encodeURIComponent(bookId)}/bookmarks`, { method: 'POST', body: JSON.stringify(bookmark) }); }
 export function deleteBookmark(bookId: string, bookmarkId: string) { return request<{ status: string }>(`/books/${encodeURIComponent(bookId)}/bookmarks/${encodeURIComponent(bookmarkId)}`, { method: 'DELETE' }); }
-export function saveProgress(bookId: string, sourceUrl: string, stateVersion: number, chapterIndex: number, position: number) { return request<{ status: string; stateVersion: number }>(`/books/${encodeURIComponent(bookId)}/progress`, { method: 'PUT', body: JSON.stringify({ sourceUrl, stateVersion, chapterIndex, position }) }); }
+export function saveProgress(bookId: string, sourceId: string, stateVersion: number, chapterIndex: number, position: number) { return request<{ status: string; stateVersion: number }>(`/books/${encodeURIComponent(bookId)}/progress`, { method: 'PUT', body: JSON.stringify({ sourceId, stateVersion, chapterIndex, position }) }); }
 export function listFonts() { return request<Font[]>('/fonts'); }
 export function uploadFont(file: File, name: string) {
   const form = new FormData(); form.append('file', file); form.append('name', name);

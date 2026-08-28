@@ -264,33 +264,17 @@ func (s *Store) ReplaceCollection(ctx context.Context, id string, sources []*Boo
 }
 
 func replaceCollectionSources(ctx context.Context, tx *sql.Tx, collectionID string, sources []*BookSource, now time.Time) (ReplaceResult, error) {
-	incoming := make(map[string]*BookSource, len(sources))
 	for _, source := range sources {
 		if source == nil || strings.TrimSpace(source.BookSourceURL) == "" {
 			return ReplaceResult{}, fmt.Errorf("booksource: collection contains a source without bookSourceUrl")
 		}
-		if _, exists := incoming[source.BookSourceURL]; exists {
-			return ReplaceResult{}, fmt.Errorf("booksource: duplicate bookSourceUrl %q", source.BookSourceURL)
-		}
-		incoming[source.BookSourceURL] = source
-		var owner sql.NullString
-		err := tx.QueryRowContext(ctx, `SELECT collection_id FROM book_sources WHERE id = ?`, source.BookSourceURL).Scan(&owner)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return ReplaceResult{}, err
-		}
-		if owner.Valid && owner.String != collectionID {
-			return ReplaceResult{}, fmt.Errorf("%w: %s", ErrCollectionConflict, source.BookSourceURL)
-		}
-		if !owner.Valid && err == nil {
-			return ReplaceResult{}, fmt.Errorf("%w: %s", ErrCollectionConflict, source.BookSourceURL)
-		}
 	}
 
-	existingRows, err := tx.QueryContext(ctx, `SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ?`, collectionID)
+	existingRows, err := tx.QueryContext(ctx, `SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ? ORDER BY custom_order, id`, collectionID)
 	if err != nil {
 		return ReplaceResult{}, err
 	}
-	existingSources, err := scanSources(existingRows)
+	existing, err := scanSources(existingRows)
 	closeErr := existingRows.Close()
 	if err != nil {
 		return ReplaceResult{}, err
@@ -298,41 +282,96 @@ func replaceCollectionSources(ctx context.Context, tx *sql.Tx, collectionID stri
 	if closeErr != nil {
 		return ReplaceResult{}, closeErr
 	}
-	existing := make(map[string]string, len(existingSources))
-	for _, source := range existingSources {
-		encoded, err := source.MarshalJSON()
+
+	matches, err := matchCollectionSources(existing, sources)
+	if err != nil {
+		return ReplaceResult{}, err
+	}
+	matchedExisting := make(map[int]bool, len(matches))
+	result := ReplaceResult{Total: len(sources)}
+	for incomingIndex, existingIndex := range matches {
+		matchedExisting[existingIndex] = true
+		incoming := sources[incomingIndex]
+		current := existing[existingIndex]
+		incoming.ID = current.ID
+		currentJSON, _ := collectionDefinitionJSON(&current)
+		incomingJSON, err := collectionDefinitionJSON(incoming)
 		if err != nil {
 			return ReplaceResult{}, err
 		}
-		existing[source.BookSourceURL] = string(encoded)
-	}
-
-	result := ReplaceResult{Total: len(sources)}
-	for id, raw := range existing {
-		if _, ok := incoming[id]; !ok {
-			if _, err := tx.ExecContext(ctx, `DELETE FROM book_sources WHERE id = ? AND collection_id = ?`, id, collectionID); err != nil {
-				return ReplaceResult{}, err
-			}
-			result.Removed++
-		} else if incomingJSON, err := incoming[id].MarshalJSON(); err != nil {
-			return ReplaceResult{}, err
-		} else if string(incomingJSON) == raw {
+		if string(currentJSON) == string(incomingJSON) {
 			result.Unchanged++
 		} else {
 			result.Updated++
 		}
 	}
-	for id := range incoming {
-		if _, ok := existing[id]; !ok {
+	for index, source := range sources {
+		if _, matched := matches[index]; !matched {
+			id, err := newSourceID()
+			if err != nil {
+				return ReplaceResult{}, err
+			}
+			source.ID = id
 			result.Added++
 		}
-	}
-	for _, source := range sources {
 		if err := upsertSource(ctx, tx, source, collectionID, now); err != nil {
 			return ReplaceResult{}, err
 		}
 	}
+	for index, source := range existing {
+		if matchedExisting[index] {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM book_sources WHERE id = ? AND collection_id = ?`, source.ID, collectionID); err != nil {
+			return ReplaceResult{}, err
+		}
+		result.Removed++
+	}
 	return result, nil
+}
+
+func matchCollectionSources(existing []BookSource, incoming []*BookSource) (map[int]int, error) {
+	matches := make(map[int]int)
+	used := make(map[int]bool)
+	for incomingIndex, next := range incoming {
+		nextJSON, err := collectionDefinitionJSON(next)
+		if err != nil {
+			return nil, err
+		}
+		for existingIndex := range existing {
+			if used[existingIndex] || existing[existingIndex].BookSourceURL != next.BookSourceURL {
+				continue
+			}
+			currentJSON, _ := collectionDefinitionJSON(&existing[existingIndex])
+			if string(currentJSON) == string(nextJSON) {
+				matches[incomingIndex] = existingIndex
+				used[existingIndex] = true
+				break
+			}
+		}
+	}
+	for incomingIndex, next := range incoming {
+		if _, matched := matches[incomingIndex]; matched {
+			continue
+		}
+		for existingIndex := range existing {
+			if !used[existingIndex] && existing[existingIndex].BookSourceURL == next.BookSourceURL {
+				matches[incomingIndex] = existingIndex
+				used[existingIndex] = true
+				break
+			}
+		}
+	}
+	return matches, nil
+}
+
+func collectionDefinitionJSON(source *BookSource) ([]byte, error) {
+	definition := *source
+	definition.ID = ""
+	definition.CollectionID = ""
+	definition.CreatedAt = 0
+	definition.UpdatedAt = 0
+	return definition.MarshalJSON()
 }
 
 func (s *Store) RenameCollection(ctx context.Context, id, name string, now time.Time) error {
@@ -416,10 +455,18 @@ func (s *Store) DeleteCollection(ctx context.Context, id string) error {
 	return nil
 }
 
+func newSourceID() (string, error) {
+	return newUUID("source")
+}
+
 func newCollectionID() (string, error) {
+	return newUUID("collection")
+}
+
+func newUUID(kind string) (string, error) {
 	var value [16]byte
 	if _, err := rand.Read(value[:]); err != nil {
-		return "", fmt.Errorf("booksource: create collection id: %w", err)
+		return "", fmt.Errorf("booksource: create %s id: %w", kind, err)
 	}
 	value[6] = (value[6] & 0x0f) | 0x40
 	value[8] = (value[8] & 0x3f) | 0x80

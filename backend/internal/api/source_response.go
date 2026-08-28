@@ -19,6 +19,8 @@ func sourceManagementResponses(sources []booksource.BookSource) ([]sourceManagem
 		if err := json.Unmarshal(encoded, &responses[index]); err != nil {
 			return nil, fmt.Errorf("decode BookSource management response: %w", err)
 		}
+		encodedID, _ := json.Marshal(sources[index].ID)
+		responses[index]["sourceId"] = encodedID
 		if sources[index].CollectionID != "" {
 			encodedID, _ := json.Marshal(sources[index].CollectionID)
 			responses[index]["collectionId"] = encodedID

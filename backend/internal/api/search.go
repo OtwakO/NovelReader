@@ -86,7 +86,7 @@ func (s *Server) handleSearchBatchStream(w http.ResponseWriter, r *http.Request)
 	err = s.searcher.SearchBatch(r.Context(), query, plan, func(source booksource.BookSource, results []book.SearchResult, sourceErr error) {
 		batchChecked++
 		event := map[string]interface{}{
-			"sourceId": source.BookSourceURL, "source": source.BookSourceName,
+			"sourceId": source.ID, "source": source.BookSourceName,
 			"batchChecked": batchChecked, "checked": plan.Offset + batchChecked, "eligible": plan.Eligible,
 		}
 		if sourceErr != nil {

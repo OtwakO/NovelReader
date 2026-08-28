@@ -16,15 +16,27 @@ type exploreSourceFixtureStore struct {
 }
 
 func (s exploreSourceFixtureStore) ListEnabled() ([]booksource.BookSource, error) { return nil, nil }
-func (s exploreSourceFixtureStore) ListExploreEnabled() ([]booksource.BookSource, error) {
-	return []booksource.BookSource{s.source}, nil
-}
 func (s exploreSourceFixtureStore) GetByID(id string) (*booksource.BookSource, error) {
-	if id != s.source.BookSourceURL {
+	sourceID := s.source.ID
+	if sourceID == "" {
+		sourceID = s.source.BookSourceURL
+	}
+	if id != sourceID {
 		return nil, nil
 	}
 	source := s.source
+	if source.ID == "" {
+		source.ID = source.BookSourceURL
+	}
 	return &source, nil
+}
+
+func (s exploreSourceFixtureStore) ListExploreEnabled() ([]booksource.BookSource, error) {
+	source := s.source
+	if source.ID == "" {
+		source.ID = source.BookSourceURL
+	}
+	return []booksource.BookSource{source}, nil
 }
 
 func TestExploreServicePagesOneSourceSequentiallyAndReplaysLastSuccess(t *testing.T) {
@@ -39,6 +51,7 @@ func TestExploreServicePagesOneSourceSequentiallyAndReplaysLastSuccess(t *testin
 	defer server.Close()
 
 	source := booksource.BookSource{
+		ID:              server.URL,
 		BookSourceURL:   server.URL,
 		BookSourceName:  "Explore fixture",
 		BookSourceGroup: "Fixtures",
@@ -54,7 +67,7 @@ func TestExploreServicePagesOneSourceSequentiallyAndReplaysLastSuccess(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sources) != 1 || sources[0].ID != source.BookSourceURL {
+	if len(sources) != 1 || sources[0].ID != source.BookSourceURL || len(sources[0].Capabilities) != 2 || sources[0].Capabilities[0] != "explore" || sources[0].Capabilities[1] != "headers" {
 		t.Fatalf("sources=%+v", sources)
 	}
 	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)

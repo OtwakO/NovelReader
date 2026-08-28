@@ -3,10 +3,12 @@ import { request } from '../../api/transport';
 
 export interface BookCandidate {
   name: string; author?: string; coverUrl?: string; coverDisplayUrl?: string; intro?: string; kind?: string; lastChapter?: string;
-  updateTime?: string; wordCount?: string; sourceName?: string; sourceUrl: string; bookUrl: string; alternateSources?: AltSource[];
+  updateTime?: string; wordCount?: string; sourceName?: string; sourceGroup?: string; capabilities?: string[]; sourceId: string; sourceUrl: string; bookUrl: string; alternateSources?: AltSource[];
 }
 
 export interface CandidateSelection {
+  requestedSourceId: string;
+  selectedSourceId: string;
   requestedSourceUrl: string;
   selectedSourceUrl: string;
   selectedSourceName?: string;
@@ -18,6 +20,7 @@ export type CandidateOperationStage = 'book_info' | 'toc' | 'content';
 
 export interface CandidateOperationAttempt {
   sourceName?: string;
+  sourceId: string;
   sourceUrl: string;
   bookUrl?: string;
   stage?: CandidateOperationStage;
@@ -61,6 +64,9 @@ function payload(candidate: BookCandidate, shelveBookId?: string) {
     ...(candidate.updateTime !== undefined ? { updateTime: candidate.updateTime } : {}),
     ...(candidate.wordCount !== undefined ? { wordCount: candidate.wordCount } : {}),
     ...(candidate.sourceName !== undefined ? { sourceName: candidate.sourceName } : {}),
+    ...(candidate.sourceGroup !== undefined ? { sourceGroup: candidate.sourceGroup } : {}),
+    ...(candidate.capabilities !== undefined ? { capabilities: candidate.capabilities } : {}),
+    sourceId: candidate.sourceId,
     sourceUrl: candidate.sourceUrl,
     bookUrl: candidate.bookUrl,
     ...(candidate.alternateSources !== undefined ? { alternateSources: candidate.alternateSources } : {}),
@@ -69,7 +75,7 @@ function payload(candidate: BookCandidate, shelveBookId?: string) {
 }
 
 export function candidateOperationKey(candidate: BookCandidate): string {
-  return bindingKey(candidate.sourceUrl, candidate.bookUrl);
+  return bindingKey(candidate.sourceId, candidate.bookUrl);
 }
 
 export function candidateBindingSignature(candidate: BookCandidate): string {
@@ -78,7 +84,7 @@ export function candidateBindingSignature(candidate: BookCandidate): string {
 
 export function candidateOperationMatches(candidate: BookCandidate, snapshot: CandidateOperationSnapshot): boolean {
   const expected = candidateBindings(candidate);
-  const actual = (snapshot.attempts ?? []).map(attempt => bindingKey(attempt.sourceUrl, attempt.bookUrl));
+  const actual = (snapshot.attempts ?? []).map(attempt => bindingKey(attempt.sourceId, attempt.bookUrl));
   return expected.length === actual.length && expected.every((key, index) => key === actual[index]);
 }
 
@@ -162,17 +168,17 @@ export function forgetCandidateOperation(candidate: BookCandidate) {
 
 function candidateBindings(candidate: BookCandidate): string[] {
   const seen = new Set<string>();
-  const bindings = [{ sourceUrl: candidate.sourceUrl, bookUrl: candidate.bookUrl }, ...(candidate.alternateSources ?? [])];
+  const bindings = [{ sourceId: candidate.sourceId, bookUrl: candidate.bookUrl }, ...(candidate.alternateSources ?? [])];
   return bindings.flatMap(binding => {
-    const key = bindingKey(binding.sourceUrl, binding.bookUrl);
-    if (!binding.sourceUrl || !binding.bookUrl || seen.has(key)) return [];
+    const key = bindingKey(binding.sourceId, binding.bookUrl);
+    if (!binding.sourceId || !binding.bookUrl || seen.has(key)) return [];
     seen.add(key);
     return [key];
   });
 }
 
-function bindingKey(sourceUrl: string, bookUrl = '') {
-  return `${sourceUrl.trim()}\u0000${bookUrl.trim()}`;
+function bindingKey(sourceId: string, bookUrl = '') {
+  return `${sourceId.trim()}\u0000${bookUrl.trim()}`;
 }
 
 function loadOperationRegistry(): Record<string, string> {

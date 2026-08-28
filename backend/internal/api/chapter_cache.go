@@ -23,7 +23,7 @@ type chapterContentResponse struct {
 }
 
 func (s *Server) writeChapterCacheFallback(w http.ResponseWriter, storedBook *book.Book, chapter *book.Chapter) bool {
-	cached, err := s.bookStore.GetChapterCache(storedBook.ID, storedBook.SourceURL, chapter.Index, chapter.URL)
+	cached, err := s.bookStore.GetChapterCache(storedBook.ID, storedBook.SourceID, chapter.Index, chapter.URL)
 	if err != nil {
 		slog.Warn("api: chapter cache lookup failed", "book_id", storedBook.ID, "chapter_index", chapter.Index, "error", err)
 		return false
@@ -37,7 +37,7 @@ func (s *Server) writeChapterCacheFallback(w http.ResponseWriter, storedBook *bo
 
 func (s *Server) saveChapterCache(storedBook *book.Book, chapter *book.Chapter, result processor.ProcessResult) {
 	if err := s.bookStore.SaveChapterCache(book.CachedChapter{
-		BookID: storedBook.ID, SourceURL: storedBook.SourceURL, ChapterIndex: chapter.Index,
+		BookID: storedBook.ID, SourceID: storedBook.SourceID, ChapterIndex: chapter.Index,
 		ChapterURL: chapter.URL, Title: result.Title, Paragraphs: result.Paragraphs, Blocks: result.Blocks,
 	}); err != nil {
 		slog.Warn("api: chapter cache save failed", "book_id", storedBook.ID, "chapter_index", chapter.Index, "error", err)

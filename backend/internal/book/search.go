@@ -333,13 +333,13 @@ func (s *Searcher) rateLimitWait(ctx context.Context, src booksource.BookSource)
 	now := time.Now()
 	s.rateMu.Lock()
 	reserved := now
-	if previous, ok := s.lastAccess[src.BookSourceURL]; ok {
+	if previous, ok := s.lastAccess[src.ID]; ok {
 		reserved = previous.Add(rate)
 		if reserved.Before(now) {
 			reserved = now
 		}
 	}
-	s.lastAccess[src.BookSourceURL] = reserved
+	s.lastAccess[src.ID] = reserved
 	s.rateMu.Unlock()
 	wait := time.Until(reserved)
 	if wait <= 0 {
@@ -439,6 +439,7 @@ func applySearchResultToBook(book *Book, result SearchResult) {
 	book.WordCount = result.WordCount
 	book.BookURL = result.BookURL
 	book.TocURL = ""
+	book.SourceID = result.SourceID
 	book.SourceURL = result.SourceURL
 	book.Origin = result.SourceName
 }
@@ -528,8 +529,11 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		elAn.SetContext(ctx)
 
 		r := SearchResult{
-			SourceURL:  src.BookSourceURL,
-			SourceName: src.BookSourceName,
+			SourceID:     src.ID,
+			SourceURL:    src.BookSourceURL,
+			SourceName:   src.BookSourceName,
+			SourceGroup:  src.BookSourceGroup,
+			Capabilities: booksource.CapabilityTags(src),
 		}
 		bookData := bookContext(nil, src)
 		elAn.SetBookDataValues(bookData)
@@ -621,7 +625,7 @@ func (s *Searcher) GetBookInfoForBook(src booksource.BookSource, b *Book, bookUR
 
 // GetBookInfoForBookContext enriches a candidate within the caller-owned workflow deadline.
 func (s *Searcher) GetBookInfoForBookContext(ctx context.Context, src booksource.BookSource, b *Book, bookURL string) (*Book, error) {
-	return s.getBookInfoForBookWithSession(ctx, src, b, bookURL, s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL))
+	return s.getBookInfoForBookWithSession(ctx, src, b, bookURL, s.sessions.GetOrCreateBook(src.ID, bookURL))
 }
 
 func (s *Searcher) getBookInfoForBookWithSession(ctx context.Context, src booksource.BookSource, b *Book, bookURL string, session *sourceexec.SourceSession) (*Book, error) {
@@ -711,7 +715,7 @@ func (s *Searcher) GetChapterListForBookContext(ctx context.Context, src booksou
 		fetchURL = bookURL
 	}
 
-	session := s.sessions.GetOrCreateBook(src.BookSourceURL, bookURL)
+	session := s.sessions.GetOrCreateBook(src.ID, bookURL)
 	configureSourceSession(src, session)
 	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
 	if err != nil {
@@ -746,7 +750,7 @@ func (s *Searcher) GetChapterListForBookContext(ctx context.Context, src booksou
 					return nil, fmt.Errorf("chapter list: preUpdateJs reGetBook: %w", err)
 				}
 				applySearchResultToBook(b, result)
-				s.sessions.AssociateBook(src.BookSourceURL, b.BookURL, session)
+				s.sessions.AssociateBook(src.ID, b.BookURL, session)
 				if _, err := s.getBookInfoForBookWithSession(ctx, src, b, b.BookURL, session); err != nil {
 					return nil, fmt.Errorf("chapter list: preUpdateJs reGetBook: %w", err)
 				}
@@ -805,7 +809,7 @@ func (s *Searcher) GetChapterListForBookContext(ctx context.Context, src booksou
 	}
 	for _, chapter := range chapters {
 		if chapter.URL != "" {
-			s.sessions.AssociateChapter(src.BookSourceURL, b.BookURL, chapter.URL)
+			s.sessions.AssociateChapter(src.ID, b.BookURL, chapter.URL)
 		}
 	}
 
@@ -834,9 +838,9 @@ func (s *Searcher) GetChapterContentForBookContext(ctx context.Context, src book
 
 	var session *sourceexec.SourceSession
 	if b != nil && b.BookURL != "" {
-		session = s.sessions.GetOrCreateBook(src.BookSourceURL, b.BookURL)
+		session = s.sessions.GetOrCreateBook(src.ID, b.BookURL)
 	} else {
-		session = s.sessions.GetChapter(src.BookSourceURL, chapterURL)
+		session = s.sessions.GetChapter(src.ID, chapterURL)
 	}
 	if session == nil {
 		session = sourceexec.NewSourceSession()
@@ -934,7 +938,7 @@ func (s *Searcher) GetChapterContentForBookContext(ctx context.Context, src book
 			if next != nil && sameChapterURL(candidate, next.URL, fullURL) {
 				return true
 			}
-			if next == nil && s.sessions.IsChapter(src.BookSourceURL, contentURLKey(candidate)) {
+			if next == nil && s.sessions.IsChapter(src.ID, contentURLKey(candidate)) {
 				return true
 			}
 			scheduledRequests[candidate] = true

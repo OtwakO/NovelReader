@@ -48,7 +48,7 @@ func (s *Server) handleGetChapterImage(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusNotFound, "chapter_not_found", "chapter not found")
 		return
 	}
-	cached, err := s.bookStore.GetChapterCache(storedBook.ID, storedBook.SourceURL, chapter.Index, chapter.URL)
+	cached, err := s.bookStore.GetChapterCache(storedBook.ID, storedBook.SourceID, chapter.Index, chapter.URL)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "load chapter images failed")
 		return
@@ -58,7 +58,7 @@ func (s *Server) handleGetChapterImage(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusNotFound, "chapter_image_not_found", "chapter image not found")
 		return
 	}
-	source, err := s.sourceStore.GetByID(storedBook.SourceURL)
+	source, err := s.sourceStore.GetByID(storedBook.SourceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "load source failed")
 		return

@@ -30,7 +30,9 @@ import {
   pageRange,
 } from "./source-pagination";
 import {
+  isJavaScriptSource,
   isSearchEligible,
+  isWebViewSource,
   parseSourceImport,
   selectedImportJSON,
   sourceCapabilities,
@@ -118,6 +120,37 @@ export default defineComponent({
     },
     searchableCount(): number {
       return this.sources.filter(isSearchEligible).length;
+    },
+    javascriptCount(): number {
+      return this.sources.filter(isJavaScriptSource).length;
+    },
+    webViewCount(): number {
+      return this.sources.filter(isWebViewSource).length;
+    },
+    selectedCollectionSources(): BookSource[] {
+      return this.sources.filter(
+        (source) => source.collectionId === this.selectedCollectionId,
+      );
+    },
+    selectedCollectionStats(): {
+      total: number;
+      enabled: number;
+      searchable: number;
+      explore: number;
+      javascript: number;
+      webview: number;
+    } {
+      const sources = this.selectedCollectionSources;
+      return {
+        total: sources.length,
+        enabled: sources.filter((source) => source.enabled).length,
+        searchable: sources.filter(isSearchEligible).length,
+        explore: sources.filter(
+          (source) => source.enabledExplore && source.exploreUrl,
+        ).length,
+        javascript: sources.filter(isJavaScriptSource).length,
+        webview: sources.filter(isWebViewSource).length,
+      };
     },
   },
   watch: {
@@ -284,7 +317,7 @@ export default defineComponent({
       this.editorBusy = true;
       this.editorError = "";
       try {
-        await updateSource(this.editing.bookSourceUrl, source);
+        await updateSource(this.editing.sourceId!, source);
         this.notice = this.$t("sources.editor.saved");
         this.editing = null;
         await this.load();
@@ -298,10 +331,10 @@ export default defineComponent({
       }
     },
     async toggle(source: BookSource, field: "enabled" | "enabledExplore") {
-      this.busyUrl = source.bookSourceUrl;
+      this.busyUrl = source.sourceId!;
       this.error = "";
       try {
-        await updateSource(source.bookSourceUrl, {
+        await updateSource(source.sourceId!, {
           ...source,
           [field]: !source[field],
         });
@@ -317,10 +350,10 @@ export default defineComponent({
     },
     async confirmDelete() {
       if (!this.pendingDelete) return;
-      this.busyUrl = this.pendingDelete.bookSourceUrl;
+      this.busyUrl = this.pendingDelete.sourceId!;
       this.error = "";
       try {
-        await deleteSource(this.pendingDelete.bookSourceUrl);
+        await deleteSource(this.pendingDelete.sourceId!);
         this.notice = this.$t("sources.delete.deleted", {
           name: this.pendingDelete.bookSourceName,
         });
@@ -354,6 +387,10 @@ export default defineComponent({
             $t("sources.stats.searchable", { count: searchableCount })
           }}</span><span>{{
             $t("sources.stats.explore", { count: exploreCount })
+          }}</span><span>{{
+            $t("sources.stats.javascript", { count: javascriptCount })
+          }}</span><span>{{
+            $t("sources.stats.webview", { count: webViewCount })
           }}</span>
         </div>
         <div class="toolbar-actions">
@@ -367,12 +404,40 @@ export default defineComponent({
         <input ref="replacementInput" class="hidden-input" type="file" accept=".json,application/json" @change="replaceCollectionFile">
       </section>
       <section v-if="collections.length" class="collection-strip">
-        <button :class="{ active: selectedCollectionId === 'all' }" @click="selectedCollectionId = 'all'"><strong>{{ $t('sources.collections.all') }}</strong><span>{{ sources.length }}</span></button>
-        <button v-for="collection in collections" :key="collection.id" :class="{ active: selectedCollectionId === collection.id }" @click="selectedCollectionId = collection.id"><strong>{{ collection.name }}</strong><span>{{ collection.sourceCount }}</span><small>{{ collection.originKind === 'url' ? $t('sources.collections.url') : $t('sources.collections.upload') }}</small></button>
-        <button :class="{ active: selectedCollectionId === 'standalone' }" @click="selectedCollectionId = 'standalone'"><strong>{{ $t('sources.collections.standalone') }}</strong><span>{{ sources.filter(source => !source.collectionId).length }}</span></button>
+        <button :class="{ active: selectedCollectionId === 'all' }" @click="selectedCollectionId = 'all'">
+          <strong>{{ $t('sources.collections.all') }}</strong>
+        </button>
+        <button v-for="collection in collections" :key="collection.id" :class="{ active: selectedCollectionId === collection.id }" @click="selectedCollectionId = collection.id">
+          <strong>{{ collection.name }}</strong>
+        </button>
+        <button :class="{ active: selectedCollectionId === 'standalone' }" @click="selectedCollectionId = 'standalone'">
+          <strong>{{ $t('sources.collections.standalone') }}</strong>
+        </button>
       </section>
       <section v-if="selectedCollectionId !== 'all' && selectedCollectionId !== 'standalone'" class="collection-actions">
-        <template v-for="collection in collections" :key="collection.id"><template v-if="collection.id === selectedCollectionId"><div><strong>{{ collection.name }}</strong><small>{{ collection.originUrl || collection.originFilename }}</small><p v-if="collection.lastError" class="collection-error">{{ collection.lastError }}</p></div><div><AppButton variant="secondary" @click="openCollectionDialog(collection)">{{ $t('sources.collections.renameSettings') }}</AppButton><AppButton variant="secondary" :busy="collectionBusy" @click="collection.originKind === 'url' ? syncCollection(collection) : chooseReplacement(collection)">{{ collection.originKind === 'url' ? $t('sources.collections.syncNow') : $t('sources.collections.replaceFile') }}</AppButton><AppButton variant="danger" @click="pendingCollectionDelete = collection">{{ $t('sources.collections.delete') }}</AppButton></div></template></template>
+        <template v-for="collection in collections" :key="collection.id">
+          <template v-if="collection.id === selectedCollectionId">
+            <div class="collection-details">
+              <strong>{{ collection.name }}</strong>
+              <div class="collection-badges">
+                <span>{{ collection.originKind === 'url' ? $t('sources.collections.url') : $t('sources.collections.upload') }}</span>
+                <span>{{ $t('sources.stats.total', { count: selectedCollectionStats.total }) }}</span>
+                <span>{{ $t('sources.stats.enabled', { count: selectedCollectionStats.enabled }) }}</span>
+                <span>{{ $t('sources.stats.searchable', { count: selectedCollectionStats.searchable }) }}</span>
+                <span>{{ $t('sources.stats.explore', { count: selectedCollectionStats.explore }) }}</span>
+                <span>{{ $t('sources.stats.javascript', { count: selectedCollectionStats.javascript }) }}</span>
+                <span>{{ $t('sources.stats.webview', { count: selectedCollectionStats.webview }) }}</span>
+              </div>
+              <small class="collection-address">{{ collection.originUrl || collection.originFilename }}</small>
+              <p v-if="collection.lastError" class="collection-error">{{ collection.lastError }}</p>
+            </div>
+            <div class="collection-action-buttons">
+              <AppButton variant="secondary" @click="openCollectionDialog(collection)">{{ $t('sources.collections.renameSettings') }}</AppButton>
+              <AppButton variant="secondary" :busy="collectionBusy" @click="collection.originKind === 'url' ? syncCollection(collection) : chooseReplacement(collection)">{{ collection.originKind === 'url' ? $t('sources.collections.syncNow') : $t('sources.collections.replaceFile') }}</AppButton>
+              <AppButton variant="danger" @click="pendingCollectionDelete = collection">{{ $t('sources.collections.delete') }}</AppButton>
+            </div>
+          </template>
+        </template>
       </section>
       <section class="filters">
         <label><span>{{ $t("sources.search") }}</span><input
@@ -403,7 +468,7 @@ export default defineComponent({
       <ul v-else class="source-list">
         <li
           v-for="source in visibleSources"
-          :key="source.bookSourceUrl"
+          :key="source.sourceId"
           :class="{ disabled: !source.enabled }"
         >
           <div class="identity">
@@ -427,13 +492,13 @@ export default defineComponent({
             <label><input
                 type="checkbox"
                 :checked="source.enabled"
-                :disabled="busyUrl === source.bookSourceUrl"
+                :disabled="busyUrl === source.sourceId"
                 @change="toggle(source, 'enabled')"
               ><span>{{ $t("sources.enabled") }}</span></label><label><input
                 type="checkbox"
                 :checked="source.enabledExplore"
                 :disabled="
-                  busyUrl === source.bookSourceUrl || !source.exploreUrl
+                  busyUrl === source.sourceId || !source.exploreUrl
                 "
                 @change="toggle(source, 'enabledExplore')"
               ><span>{{ $t("sources.exploreEnabled") }}</span></label>
@@ -441,13 +506,13 @@ export default defineComponent({
           <div class="actions">
             <AppButton
               variant="secondary"
-              :disabled="busyUrl === source.bookSourceUrl"
+              :disabled="busyUrl === source.sourceId"
               @click="editing = source"
               >
 {{ $t("sources.edit") }}
 </AppButton><AppButton
               variant="danger"
-              :disabled="busyUrl === source.bookSourceUrl"
+              :disabled="busyUrl === source.sourceId"
               @click="pendingDelete = source"
               >
 {{ $t("sources.delete.action") }}
@@ -543,7 +608,7 @@ export default defineComponent({
 {{ $t("sources.cancel") }}
 </AppButton><AppButton
             variant="danger"
-            :busy="busyUrl === pendingDelete.bookSourceUrl"
+            :busy="busyUrl === pendingDelete.sourceId"
             @click="confirmDelete"
             >
 {{ $t("sources.delete.confirm") }}
@@ -596,13 +661,80 @@ export default defineComponent({
   height: 1px;
   opacity: 0;
 }
-.collection-strip { display:flex; gap:.55rem; overflow:auto; padding:.2rem 0 .45rem; }
-.collection-strip button { min-width:10rem; display:grid; gap:.12rem; text-align:left; border:1px solid var(--color-border); border-radius:var(--radius-lg); padding:.75rem; background:var(--color-paper-raised); color:var(--color-ink); }
-.collection-strip button.active { border-color:var(--color-accent); background:var(--color-accent-soft); }
-.collection-strip span,.collection-strip small,.collection-actions small { color:var(--color-ink-muted); font-size:.75rem; overflow-wrap:anywhere; }
-.collection-actions { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:1rem; border:1px solid var(--color-border); border-radius:var(--radius-lg); background:var(--color-paper-raised); }
-.collection-actions>div:last-child { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.45rem; }
-.collection-actions p { margin:.35rem 0 0; }
+.collection-strip {
+  display: flex;
+  gap: 0.55rem;
+  overflow: auto;
+  padding: 0.2rem 0 0.45rem;
+}
+.collection-strip button {
+  min-width: max-content;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0.65rem 0.9rem;
+  background: var(--color-paper-raised);
+  color: var(--color-ink);
+}
+.collection-strip button.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.collection-strip strong {
+  line-height: 1.25;
+}
+.collection-actions small {
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.collection-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper-raised);
+}
+.collection-details {
+  min-width: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+.collection-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.collection-badges span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0.18rem 0.45rem;
+  background: var(--color-paper-muted);
+  color: var(--color-ink-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.collection-address {
+  display: block;
+  min-width: 0;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--color-border);
+}
+.collection-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+.collection-actions p { margin: 0; }
 .collection-error { color:var(--color-danger); font-size:.8rem; }
 .filters {
   padding: 1rem;
@@ -806,6 +938,12 @@ export default defineComponent({
   .pagination {
     align-items: stretch;
     flex-direction: column;
+  }
+  .collection-action-buttons {
+    justify-content: flex-start;
+  }
+  .collection-action-buttons :deep(.app-button) {
+    flex: 1 1 auto;
   }
   .filters label,
   .filters label:last-child {

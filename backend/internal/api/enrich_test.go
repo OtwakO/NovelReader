@@ -22,13 +22,13 @@ func TestHandleMergeBookSourcesPreservesCurrentSource(t *testing.T) {
 	initializeBookAPITestSchema(t, db)
 	if _, _, err := bookStore.AddOrMergeBook(&book.Book{
 		ID: "book-1", Name: "Fixture", Author: "Author",
-		SourceURL: "source-a", BookURL: "/a", Origin: "Source A",
+		SourceID: "source-a", SourceURL: "source-a", BookURL: "/a", Origin: "Source A",
 	}); err != nil {
 		t.Fatal(err)
 	}
 	server := &Server{bookStore: bookStore}
 	request := httptest.NewRequest(http.MethodPost, "/api/books/book-1/sources", bytes.NewBufferString(`{
-		"sources":[{"sourceUrl":"source-b","bookUrl":"/b","sourceName":"Source B"}]
+		"sources":[{"sourceId":"source-b","sourceUrl":"source-b","bookUrl":"/b","sourceName":"Source B"}]
 	}`))
 	request.SetPathValue("id", "book-1")
 	response := httptest.NewRecorder()
@@ -56,7 +56,7 @@ func TestHandleClearBookSourcesPreservesCurrentSource(t *testing.T) {
 	initializeBookAPITestSchema(t, db)
 	if _, _, err := bookStore.AddOrMergeBook(&book.Book{
 		ID: "book-1", Name: "Fixture", Author: "Author",
-		SourceURL: "source-a", BookURL: "/a", Origin: "Source A",
+		SourceID: "source-a", SourceURL: "source-a", BookURL: "/a", Origin: "Source A",
 		AlternateSources: []book.AltSource{{SourceURL: "source-b", BookURL: "/b", SourceName: "Source B"}},
 	}); err != nil {
 		t.Fatal(err)

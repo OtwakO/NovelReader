@@ -1,7 +1,7 @@
 import type { AltSource, SearchResult } from '../../api/search';
 
 const authorPrefixes = ['作者：', '作者:', '作 者 ：'];
-const identity = ({ sourceUrl, bookUrl }: Pick<AltSource, 'sourceUrl' | 'bookUrl'>) => `${sourceUrl}\u0000${bookUrl}`;
+const identity = ({ sourceId, bookUrl }: Pick<AltSource, 'sourceId' | 'bookUrl'>) => `${sourceId}\u0000${bookUrl}`;
 const normalizeName = (name = '') => name.trim();
 
 function normalizeAuthor(author = '') {
@@ -28,7 +28,7 @@ function relevance(query: string, name: string) {
   return 20;
 }
 
-function alternatives(items: AltSource[], primary: Pick<SearchResult, 'sourceUrl' | 'bookUrl'>) {
+function alternatives(items: AltSource[], primary: Pick<SearchResult, 'sourceId' | 'bookUrl'>) {
   const seen = new Set([identity(primary)]);
   return items.filter((item) => {
     const key = identity(item);
@@ -64,14 +64,14 @@ export function mergeSearchResults(current: SearchResult[], incoming: SearchResu
       const index = merged.indexOf(match);
       item.alternateSources = alternatives([
         ...(match.alternateSources ?? []),
-        { sourceUrl: match.sourceUrl, bookUrl: match.bookUrl, sourceName: match.sourceName },
+        { sourceId: match.sourceId, sourceUrl: match.sourceUrl, bookUrl: match.bookUrl, sourceName: match.sourceName, sourceGroup: match.sourceGroup, capabilities: match.capabilities },
         ...(item.alternateSources ?? []),
       ], item);
       merged[index] = item;
     } else {
       match.alternateSources = alternatives([
         ...(match.alternateSources ?? []),
-        { sourceUrl: item.sourceUrl, bookUrl: item.bookUrl, sourceName: item.sourceName },
+        { sourceId: item.sourceId, sourceUrl: item.sourceUrl, bookUrl: item.bookUrl, sourceName: item.sourceName, sourceGroup: item.sourceGroup, capabilities: item.capabilities },
         ...(item.alternateSources ?? []),
       ], match);
     }

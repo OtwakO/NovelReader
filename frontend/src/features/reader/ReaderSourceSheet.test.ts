@@ -27,7 +27,7 @@ describe('ReaderSourceSheet', () => {
       props: {
         book: { name: 'Book', author: 'Author' },
         currentSource: 'Current source',
-        currentSourceUrl: 'https://current.example',
+        currentSourceId: 'https://current.example',
         onClearAndRescan: async () => undefined,
       },
     });

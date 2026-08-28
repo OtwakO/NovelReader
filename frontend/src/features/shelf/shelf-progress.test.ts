@@ -3,7 +3,7 @@ import type { Book } from '../../api/models';
 import { currentChapterNumber, shelfProgressPercent } from './shelf-progress';
 
 const book = (overrides: Partial<Book> = {}): Book => ({
-  id: 'book-1', name: '凡人修仙传', author: '忘语', coverUrl: '', intro: '', kind: '', sourceUrl: 'source', bookUrl: 'book',
+  id: 'book-1', name: '凡人修仙传', author: '忘语', coverUrl: '', intro: '', kind: '', sourceId: 'source', sourceUrl: 'source', bookUrl: 'book',
   lastChapter: '', durChapterIndex: 24, durChapterPos: 0.5, totalChapterNum: 100, stateVersion: 1, ...overrides,
 });
 

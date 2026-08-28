@@ -93,7 +93,7 @@ func TestBookSourceStoreRoundTripPreservesRawJSON(t *testing.T) {
 	if _, err := store.ImportBatch([]*BookSource{source}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := store.GetByID(source.BookSourceURL)
+	got, err := store.GetByID(source.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,9 +15,10 @@ type exploreSourceStore interface {
 }
 
 type ExploreSource struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Group string `json:"group"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Group        string   `json:"group"`
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 type ExploreEntry struct {
@@ -142,5 +143,5 @@ func (s *Searcher) OpenExplore(ctx context.Context, sourceID string) (ExploreCat
 }
 
 func exploreSource(source booksource.BookSource) ExploreSource {
-	return ExploreSource{source.BookSourceURL, source.BookSourceName, source.BookSourceGroup}
+	return ExploreSource{ID: source.ID, Name: source.BookSourceName, Group: source.BookSourceGroup, Capabilities: booksource.CapabilityTags(source)}
 }
