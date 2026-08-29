@@ -215,6 +215,7 @@ The `feat/source-collections` branch adds reader-owned Source Collections withou
 - a complete uploaded JSON document can be imported and atomically replaced as one renameable collection;
 - a URL collection can be manually synchronized, with failed downloads or malformed documents leaving the last good sources unchanged;
 - collection replacement is authoritative: existing definitions and user edits are overwritten and missing entries are removed;
+- collection membership stores an internal document position separate from imported Legado `customOrder`; synchronization preserves Source IDs by exact imported definition first, then by the prior persisted document order, and writes the incoming document order for the next synchronization;
 - an immutable NovelReader Source ID identifies each installed definition, while duplicate `bookSourceUrl` values are allowed within and across collections and remain independent through Search, Explore, candidate resolution, stored bindings, and source sessions;
 - automatic synchronization is off by default, with only manual, daily, and weekly schedules;
 - standalone sources and existing individual source editing/deletion remain supported;

@@ -117,6 +117,102 @@ func TestCollectionReplacementPreservesDuplicateSourceIDsByExactDefinitionThenOr
 	}
 }
 
+func TestCollectionReplacementUsesStoredDocumentOrderWhenEveryDuplicateChanges(t *testing.T) {
+	store := newCollectionStore(t)
+	now := time.Unix(100, 0)
+	collection, _, err := store.CreateCollection(context.Background(), CreateCollection{
+		Name: "Changed duplicates", OriginKind: CollectionOriginUpload, SyncInterval: SyncManual,
+	}, []*BookSource{
+		collectionSource(t, "https://shared", "Alpha"),
+		collectionSource(t, "https://shared", "Beta"),
+	}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.ListByCollection(collection.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alphaID, betaID := before[0].ID, before[1].ID
+
+	if _, err := store.ReplaceCollection(context.Background(), collection.ID, []*BookSource{
+		collectionSource(t, "https://shared", "Gamma"),
+		collectionSource(t, "https://shared", "Delta"),
+	}, "changed.json", "", "", now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	after, err := store.ListByCollection(collection.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after[0].BookSourceName != "Gamma" || after[0].ID != alphaID || after[1].BookSourceName != "Delta" || after[1].ID != betaID {
+		t.Fatalf("changed duplicates did not follow stored document order: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestCollectionReplacementKeepsExactIdentityAcrossDocumentReorder(t *testing.T) {
+	store := newCollectionStore(t)
+	now := time.Unix(100, 0)
+	collection, _, err := store.CreateCollection(context.Background(), CreateCollection{
+		Name: "Reordered duplicates", OriginKind: CollectionOriginUpload, SyncInterval: SyncManual,
+	}, []*BookSource{
+		collectionSource(t, "https://shared", "Alpha"),
+		collectionSource(t, "https://shared", "Beta"),
+	}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.ListByCollection(collection.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]string{before[0].BookSourceName: before[0].ID, before[1].BookSourceName: before[1].ID}
+
+	if _, err := store.ReplaceCollection(context.Background(), collection.ID, []*BookSource{
+		collectionSource(t, "https://shared", "Beta"),
+		collectionSource(t, "https://shared", "Alpha"),
+	}, "reordered.json", "", "", now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	after, err := store.ListByCollection(collection.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after[0].BookSourceName != "Beta" || after[0].ID != byName["Beta"] || after[1].BookSourceName != "Alpha" || after[1].ID != byName["Alpha"] {
+		t.Fatalf("exact identities did not survive document reorder: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestCollectionSourceEditPreservesDocumentPosition(t *testing.T) {
+	store := newCollectionStore(t)
+	now := time.Unix(100, 0)
+	collection, _, err := store.CreateCollection(context.Background(), CreateCollection{
+		Name: "Edited collection", OriginKind: CollectionOriginUpload, SyncInterval: SyncManual,
+	}, []*BookSource{
+		collectionSource(t, "https://one", "One"),
+		collectionSource(t, "https://two", "Two"),
+	}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.ListByCollection(collection.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before[0].BookSourceName = "Locally edited"
+	before[0].collectionPosition = nil // Simulate a management payload that cannot carry internal ownership order.
+	if err := store.Upsert(before[0]); err != nil {
+		t.Fatal(err)
+	}
+	after, err := store.ListByCollection(collection.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after[0].ID != before[0].ID || after[0].BookSourceName != "Locally edited" || after[1].BookSourceName != "Two" {
+		t.Fatalf("individual edit changed collection document order: before=%#v after=%#v", before, after)
+	}
+}
+
 func TestCollectionRenameAndDeletePreserveSimpleOwnershipModel(t *testing.T) {
 	store := newCollectionStore(t)
 	collection, _, err := store.CreateCollection(context.Background(), CreateCollection{

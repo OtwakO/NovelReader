@@ -270,7 +270,7 @@ func replaceCollectionSources(ctx context.Context, tx *sql.Tx, collectionID stri
 		}
 	}
 
-	existingRows, err := tx.QueryContext(ctx, `SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ? ORDER BY custom_order, id`, collectionID)
+	existingRows, err := tx.QueryContext(ctx, `SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ? ORDER BY collection_position, id`, collectionID)
 	if err != nil {
 		return ReplaceResult{}, err
 	}
@@ -306,6 +306,8 @@ func replaceCollectionSources(ctx context.Context, tx *sql.Tx, collectionID stri
 		}
 	}
 	for index, source := range sources {
+		position := index
+		source.collectionPosition = &position
 		if _, matched := matches[index]; !matched {
 			id, err := newSourceID()
 			if err != nil {
@@ -330,6 +332,8 @@ func replaceCollectionSources(ctx context.Context, tx *sql.Tx, collectionID stri
 	return result, nil
 }
 
+// matchCollectionSources preserves identity by exact definition first, then by prior document position.
+// Callers must provide existing entries in persisted collection-position order.
 func matchCollectionSources(existing []BookSource, incoming []*BookSource) (map[int]int, error) {
 	matches := make(map[int]int)
 	used := make(map[int]bool)
@@ -369,6 +373,7 @@ func collectionDefinitionJSON(source *BookSource) ([]byte, error) {
 	definition := *source
 	definition.ID = ""
 	definition.CollectionID = ""
+	definition.collectionPosition = nil
 	definition.CreatedAt = 0
 	definition.UpdatedAt = 0
 	return definition.MarshalJSON()

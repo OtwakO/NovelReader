@@ -39,7 +39,7 @@ var sourceColumns = `id, book_source_url, name, group_name, source_type, book_ur
 	rule_search, rule_book_info, rule_toc, rule_content, rule_explore, rule_review,
 	js_lib, header, login_url, login_ui, login_check_js, cover_decode_js, concurrent_rate,
 	comment, variable_comment, last_update_time, respond_time, weight,
-	created_at, updated_at, source_json, COALESCE(collection_id, '')`
+	created_at, updated_at, source_json, COALESCE(collection_id, ''), collection_position`
 
 // List returns all book sources in deterministic user order.
 func (s *Store) List() ([]BookSource, error) {
@@ -53,7 +53,7 @@ func (s *Store) List() ([]BookSource, error) {
 
 // ListByCollection returns every definition owned by one collection.
 func (s *Store) ListByCollection(collectionID string) ([]*BookSource, error) {
-	rows, err := s.db.Query(`SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ? ORDER BY custom_order ASC, name ASC, id ASC`, collectionID)
+	rows, err := s.db.Query(`SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ? ORDER BY collection_position ASC, id ASC`, collectionID)
 	if err != nil {
 		return nil, fmt.Errorf("booksource: list collection sources: %w", err)
 	}
@@ -101,7 +101,7 @@ func (s *Store) GetByID(id string) (*BookSource, error) {
 	return src, nil
 }
 
-// Upsert inserts or replaces a book source.
+// Upsert inserts or replaces a source definition while retaining installed ownership metadata.
 func (s *Store) Upsert(src *BookSource) error {
 	if src.ID == "" {
 		id, err := newSourceID()
@@ -111,8 +111,13 @@ func (s *Store) Upsert(src *BookSource) error {
 		src.ID = id
 	}
 	var collectionID sql.NullString
-	if err := s.db.QueryRow(`SELECT collection_id FROM book_sources WHERE id = ?`, src.ID).Scan(&collectionID); err != nil && err != sql.ErrNoRows {
+	var collectionPosition sql.NullInt64
+	if err := s.db.QueryRow(`SELECT collection_id, collection_position FROM book_sources WHERE id = ?`, src.ID).Scan(&collectionID, &collectionPosition); err != nil && err != sql.ErrNoRows {
 		return err
+	}
+	if collectionPosition.Valid {
+		position := int(collectionPosition.Int64)
+		src.collectionPosition = &position
 	}
 	return upsertSource(context.Background(), s.db, src, collectionID.String, time.Now())
 }
@@ -184,7 +189,7 @@ func scanRow(scanner interface {
 		&s.RuleSearch, &s.RuleBookInfo, &s.RuleToc, &s.RuleContent, &s.RuleExplore, &s.RuleReview,
 		&s.JSLib, &s.Header, &s.LoginURL, &s.LoginUI, &s.LoginCheckJS, &s.CoverDecodeJS, &s.ConcurrentRate,
 		&s.BookSourceComment, &s.VariableComment, &s.LastUpdateTime, &s.RespondTime, &s.Weight,
-		&s.CreatedAt, &s.UpdatedAt, &s.sourceJSON, &s.CollectionID,
+		&s.CreatedAt, &s.UpdatedAt, &s.sourceJSON, &s.CollectionID, &s.collectionPosition,
 	)
 }
 
@@ -192,6 +197,7 @@ type sourceExecutor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
 
+// upsertSource persists both the imported definition and NovelReader-owned installation metadata.
 func upsertSource(ctx context.Context, db sourceExecutor, src *BookSource, collectionID string, now time.Time) error {
 	src.UpdatedAt = now.UnixMilli()
 	if src.CreatedAt == 0 {
@@ -205,16 +211,16 @@ func upsertSource(ctx context.Context, db sourceExecutor, src *BookSource, colle
 		rule_search, rule_book_info, rule_toc, rule_content, rule_explore, rule_review,
 		js_lib, header, login_url, login_ui, login_check_js, cover_decode_js, concurrent_rate,
 		comment, variable_comment, last_update_time, respond_time, weight,
-		created_at, updated_at, source_json, collection_id
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULLIF(?, ''))`,
+		created_at, updated_at, source_json, collection_id, collection_position
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULLIF(?, ''),?)`,
 		src.ID, src.BookSourceURL, src.BookSourceName, src.BookSourceGroup, src.BookSourceType,
 		src.BookURLPattern, src.CustomOrder,
-		boolToInt(src.Enabled), boolToInt(src.EnabledExplore), boolToIntPtr(src.EnabledCookieJar),
+		boolToInt(src.Enabled), boolToInt(src.EnabledExplore), nullableBoolValue(src.EnabledCookieJar),
 		src.SearchURL, src.ExploreURL, src.ExploreScreen,
 		src.RuleSearch, src.RuleBookInfo, src.RuleToc, src.RuleContent, src.RuleExplore, src.RuleReview,
 		src.JSLib, src.Header, src.LoginURL, src.LoginUI, src.LoginCheckJS, src.CoverDecodeJS, src.ConcurrentRate,
 		src.BookSourceComment, src.VariableComment, src.LastUpdateTime, src.RespondTime, src.Weight,
-		src.CreatedAt, src.UpdatedAt, src.sourceJSON, collectionID,
+		src.CreatedAt, src.UpdatedAt, src.sourceJSON, collectionID, src.collectionPosition,
 	)
 	return err
 }
@@ -226,9 +232,10 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-func boolToIntPtr(b *bool) int {
-	if b == nil {
-		return 1 // default true for legacy sources
+// nullableBoolValue preserves omitted versus explicitly enabled/disabled imported options.
+func nullableBoolValue(value *bool) any {
+	if value == nil {
+		return nil
 	}
-	return boolToInt(*b)
+	return boolToInt(*value)
 }

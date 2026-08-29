@@ -52,8 +52,9 @@ type BookSource struct {
 	CreatedAt int64 `json:"createdAt" db:"created_at"`
 	UpdatedAt int64 `json:"updatedAt" db:"updated_at"`
 
-	CollectionID string `json:"-" db:"collection_id"`
-	sourceJSON   string `json:"-" db:"source_json"`
+	CollectionID       string `json:"-" db:"collection_id"`
+	collectionPosition *int
+	sourceJSON         string `json:"-" db:"source_json"`
 }
 
 // ponytail: flat struct, no sub-objects for rules. Rule JSON strings are parsed on demand.
@@ -93,7 +94,7 @@ func ColumnDefs() string {
 		custom_order INTEGER DEFAULT 0,
 		enabled INTEGER DEFAULT 1,
 		enabled_explore INTEGER DEFAULT 1,
-		enabled_cookie_jar INTEGER DEFAULT 1,
+		enabled_cookie_jar INTEGER,
 		search_url TEXT DEFAULT '',
 		explore_url TEXT DEFAULT '',
 		explore_screen TEXT DEFAULT '',
@@ -118,9 +119,14 @@ func ColumnDefs() string {
 		created_at INTEGER NOT NULL,
 		updated_at INTEGER NOT NULL,
 		source_json TEXT NOT NULL DEFAULT '',
-		collection_id TEXT REFERENCES book_source_collections(id) ON DELETE CASCADE
+		collection_id TEXT REFERENCES book_source_collections(id) ON DELETE CASCADE,
+		collection_position INTEGER,
+		CHECK (
+			(collection_id IS NULL AND collection_position IS NULL) OR
+			(collection_id IS NOT NULL AND collection_position >= 0)
+		)
 	);
-	CREATE INDEX IF NOT EXISTS book_sources_collection_id ON book_sources(collection_id);
+	CREATE INDEX IF NOT EXISTS book_sources_collection_id ON book_sources(collection_id, collection_position);
 	CREATE INDEX IF NOT EXISTS book_sources_url ON book_sources(book_source_url);`
 }
 

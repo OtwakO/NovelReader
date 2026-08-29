@@ -113,6 +113,45 @@ func TestBookSourceStoreRoundTripPreservesRawJSON(t *testing.T) {
 	}
 }
 
+func TestBookSourceStorePreservesEnabledCookieJarTriState(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "sources.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	initializeBookSourceTestSchema(t, db)
+	store := NewStore(db)
+
+	for _, test := range []struct {
+		name      string
+		fieldJSON string
+		want      *bool
+	}{
+		{name: "omitted"},
+		{name: "enabled", fieldJSON: `,"enabledCookieJar":true`, want: pointerToBool(true)},
+		{name: "disabled", fieldJSON: `,"enabledCookieJar":false`, want: pointerToBool(false)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			source, err := NewFromJSON([]byte(`{"bookSourceUrl":"https://` + test.name + `.test","bookSourceName":"` + test.name + `"` + test.fieldJSON + `}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.ImportBatch([]*BookSource{source}); err != nil {
+				t.Fatal(err)
+			}
+			stored, err := store.GetByID(source.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (stored.EnabledCookieJar == nil) != (test.want == nil) || stored.EnabledCookieJar != nil && *stored.EnabledCookieJar != *test.want {
+				t.Fatalf("enabledCookieJar=%v, want %v", stored.EnabledCookieJar, test.want)
+			}
+		})
+	}
+}
+
+func pointerToBool(value bool) *bool { return &value }
+
 func containsJSONField(data []byte, field string) bool {
 	var values map[string]json.RawMessage
 	if json.Unmarshal(data, &values) != nil {
