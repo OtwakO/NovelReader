@@ -52,6 +52,7 @@ pushd backend
 go run ./cmd/server/ %*
 set "EXIT_CODE=%ERRORLEVEL%"
 popd
+pause
 exit /b %EXIT_CODE%
 
 :failed_popd
