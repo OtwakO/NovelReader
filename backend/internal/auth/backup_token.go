@@ -112,7 +112,7 @@ func (s *BackupTokenService) List(ctx context.Context, userID readerstore.UserID
 		return nil, fmt.Errorf("auth: list backup tokens: %w", err)
 	}
 	defer rows.Close()
-	var tokens []BackupToken
+	tokens := make([]BackupToken, 0)
 	for rows.Next() {
 		var token BackupToken
 		var expiresAt, lastUsedAt sql.NullInt64

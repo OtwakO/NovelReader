@@ -541,3 +541,9 @@
 - **Reason**: Duplicate source URLs must remain independent without making runtime rule selection ambiguous or losing stable shelf/session relationships during synchronization.
 - **Verified**: Full backend `go test ./...`; frontend typecheck, ESLint, focused Source Collection/Explore/source-switching tests, production build during implementation, and `git diff --check`.
 - **Watch out**: This is a fresh canonical schema change with no migration path by design. Existing development reader data must be recreated before using this branch.
+
+### [2026-08-29] Empty backup-token response blanked the Backup page
+- **Context**: The Backup & Restore interface rendered briefly, then its content disappeared while the application shell remained.
+- **Change**: Backup token listing now returns an empty JSON array instead of `null`; the frontend also normalizes `null` to an empty array for compatibility with older backends.
+- **Reason**: Go serialized the service's nil token slice as `{"tokens":null}`. After the asynchronous response, Vue evaluated `tokens.length`, threw during rendering, and removed the page content.
+- **Verified**: The auth HTTP regression test asserts `{"tokens":[]}`; the frontend transport test covers the legacy `null` response; a production browser run with a mocked `{"tokens":null}` response retained the page and empty state with no console errors.

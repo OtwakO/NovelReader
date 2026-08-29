@@ -36,7 +36,10 @@ export function getPreparedRestore(operationId: string) { return request<Prepare
 export function cancelRestore(operationId: string) { return request<void>(`/backups/restores/${encodeURIComponent(operationId)}`, { method: 'DELETE' }); }
 export function commitRestore(operationId: string) { return request<{ restored: boolean }>(`/backups/restores/${encodeURIComponent(operationId)}/commit`, { method: 'POST' }); }
 
-export async function listBackupTokens() { return (await request<{ tokens: BackupToken[] }>('/auth/backup-tokens')).tokens; }
+export async function listBackupTokens() {
+  const response = await request<{ tokens: BackupToken[] | null }>('/auth/backup-tokens');
+  return response.tokens ?? [];
+}
 export function createBackupToken(input: { name: string; canExport: boolean; canRestore: boolean; currentPassword?: string; expiresAt?: number }) {
   return request<BackupTokenCredential>('/auth/backup-tokens', { method: 'POST', body: JSON.stringify(input) });
 }

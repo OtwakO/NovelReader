@@ -9,6 +9,33 @@ import (
 	"testing"
 )
 
+func TestBackupTokenHTTPListsEmptyArray(t *testing.T) {
+	store := openTestStore(t)
+	defer store.Close()
+	account, err := NewAccountService(store).CreateReaderAccount(context.Background(), testUserID, "Alice", "correct horse battery staple", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := NewSessionService(store).CreateAuthenticated(context.Background(), account, 101)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := NewHTTPHandler(store, HTTPConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "http://reader.local/api/auth/backup-tokens", nil)
+	request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: session.Token})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if got := response.Body.String(); got != "{\"tokens\":[]}\n" {
+		t.Fatalf("body=%q", got)
+	}
+}
+
 func TestBackupTokenHTTPRequiresPasswordForRestoreScope(t *testing.T) {
 	store := openTestStore(t)
 	defer store.Close()

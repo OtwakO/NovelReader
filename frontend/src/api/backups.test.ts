@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createBackupToken, downloadBackup, prepareRestore } from './backups';
+import { createBackupToken, downloadBackup, listBackupTokens, prepareRestore } from './backups';
 
 const request = vi.fn();
 const requestBinary = vi.fn();
@@ -20,6 +20,11 @@ describe('backup transport', () => {
     requestUpload.mockResolvedValue({ operationId: 'restore-1' });
     await prepareRestore(file);
     expect(requestUpload).toHaveBeenCalledWith('/backups/restores', file);
+  });
+
+  it('normalizes an older backend empty-token response to an empty array', async () => {
+    request.mockResolvedValue({ tokens: null });
+    await expect(listBackupTokens()).resolves.toEqual([]);
   });
 
   it('sends restore authority, password, and expiry only through token creation', async () => {
