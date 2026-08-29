@@ -18,13 +18,18 @@ function sameBook(left: SearchResult, right: SearchResult) {
   return !leftAuthor || !rightAuthor || leftAuthor === rightAuthor;
 }
 
-function relevance(query: string, name: string) {
+function relevance(query: string, name: string, author: string) {
   const normalizedQuery = query.trim();
-  const normalizedName = name.trim();
   if (!normalizedQuery) return 0;
+
+  const normalizedName = normalizeName(name);
+  const normalizedAuthor = normalizeAuthor(author);
   if (normalizedName === normalizedQuery) return 100;
+  if (normalizedAuthor === normalizedQuery) return 90;
   if (normalizedName.startsWith(normalizedQuery)) return 80;
+  if (normalizedAuthor.startsWith(normalizedQuery)) return 70;
   if (normalizedName.includes(normalizedQuery)) return 60;
+  if (normalizedAuthor.includes(normalizedQuery)) return 50;
   return 20;
 }
 
@@ -48,7 +53,7 @@ export function mergeSearchResults(current: SearchResult[], incoming: SearchResu
 
   for (const value of incoming) {
     if (known.has(identity(value))) continue;
-    const item: SearchResult = { ...value, score: value.score || relevance(query, value.name || '') };
+    const item: SearchResult = { ...value, score: value.score || relevance(query, value.name || '', value.author || '') };
     const match = merged.find((candidate) => sameBook(candidate, item));
     if (!match) {
       item.alternateSources = alternatives(item.alternateSources ?? [], item);
@@ -58,7 +63,7 @@ export function mergeSearchResults(current: SearchResult[], incoming: SearchResu
       continue;
     }
 
-    const matchScore = match.score || relevance(query, match.name || '');
+    const matchScore = match.score || relevance(query, match.name || '', match.author || '');
     const promote = (item.score ?? 0) > matchScore || ((item.score ?? 0) === matchScore && item.coverUrl.length > match.coverUrl.length);
     if (promote) {
       const index = merged.indexOf(match);
@@ -80,7 +85,7 @@ export function mergeSearchResults(current: SearchResult[], incoming: SearchResu
   }
 
   return merged.sort((left, right) => {
-    const difference = (right.score || relevance(query, right.name)) - (left.score || relevance(query, left.name));
+    const difference = (right.score || relevance(query, right.name, right.author)) - (left.score || relevance(query, left.name, left.author));
     return difference || left.name.length - right.name.length;
   });
 }

@@ -423,7 +423,7 @@ func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src book
 		return nil, err
 	}
 	for i := range results {
-		results[i].Score = scoreResult(query, results[i].Name)
+		results[i].Score = scoreResult(query, results[i].Name, results[i].Author)
 	}
 	return results, nil
 }

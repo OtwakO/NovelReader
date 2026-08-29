@@ -5,20 +5,29 @@ import (
 	"strings"
 )
 
-// scoreResult ranks a result name against the query. Higher is better.
+// scoreResult ranks title matches ahead of author matches at the same specificity.
 // ponytail: byte-prefix on UTF-8 is fine — rune boundaries are self-synchronizing.
-func scoreResult(query, name string) int {
+func scoreResult(query, name, author string) int {
 	q := strings.TrimSpace(query)
-	n := strings.TrimSpace(name)
-	switch {
-	case q == "":
+	if q == "" {
 		return 0
+	}
+
+	n := normName(name)
+	a := normAuthor(author)
+	switch {
 	case n == q:
 		return 100
+	case a == q:
+		return 90
 	case strings.HasPrefix(n, q):
 		return 80
+	case strings.HasPrefix(a, q):
+		return 70
 	case strings.Contains(n, q):
 		return 60
+	case strings.Contains(a, q):
+		return 50
 	default:
 		return 20
 	}
@@ -68,7 +77,7 @@ func MergeAndSort(query string, results []SearchResult) []SearchResult {
 	// Score each result
 	for i := range results {
 		if results[i].Score == 0 {
-			results[i].Score = scoreResult(query, results[i].Name)
+			results[i].Score = scoreResult(query, results[i].Name, results[i].Author)
 		}
 	}
 
