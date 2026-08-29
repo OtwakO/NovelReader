@@ -136,27 +136,27 @@ func (m *Manager) Create(ctx context.Context, userID UserID) error {
 		return err
 	}
 	if _, err := os.Lstat(homePath); err == nil {
-		return validateHome(homePath, userID, m.schemas)
+		return validateHome(homePath, m.schemas)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("readerstore: inspect reader home: %w", err)
 	}
 
 	stagingPath := homePath + homeStagingSuffix
 	if _, err := os.Lstat(stagingPath); err == nil {
-		if err := recoverStagedHome(stagingPath, homePath, userID, m.schemas); err != nil {
+		if err := recoverStagedHome(stagingPath, homePath, m.schemas); err != nil {
 			return err
 		}
 		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("readerstore: inspect staged reader home: %w", err)
 	}
-	if err := createStagedHome(stagingPath, userID, m.schemas); err != nil {
+	if err := createStagedHome(stagingPath, m.schemas); err != nil {
 		_ = os.RemoveAll(stagingPath)
 		return err
 	}
 	if err := os.Rename(stagingPath, homePath); err != nil {
 		_ = os.RemoveAll(stagingPath)
-		if validateErr := validateHome(homePath, userID, m.schemas); validateErr == nil {
+		if validateErr := validateHome(homePath, m.schemas); validateErr == nil {
 			return nil
 		}
 		return fmt.Errorf("readerstore: publish reader home: %w", err)
@@ -338,7 +338,7 @@ func (m *Manager) openEntry(userID UserID) (*homeEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := validateHome(homePath, userID, m.schemas); err != nil {
+	if err := validateHome(homePath, m.schemas); err != nil {
 		return nil, err
 	}
 	readerDB, err := openHomeDatabase(filepath.Join(homePath, ReaderDatabaseName))

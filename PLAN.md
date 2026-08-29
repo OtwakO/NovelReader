@@ -256,7 +256,19 @@ Detailed compatibility backlog: `docs/LEGADO_COMPATIBILITY_TASKS.md`.
 
 ### Work in progress
 
-The current `perf/reader-startup` branch contains verified startup and delivery optimizations committed as `09c1a3f perf: reduce Reader startup work`:
+The current `feat/reader-backup-restore` branch adds credential-free, cross-account Reader Data backup and replacement restore:
+
+- exports stream a versioned `.tar.gz` physical snapshot with a source-username and system-timezone timestamp in the download filename;
+- the payload contains `reader.db` and ordinary Reader Data files, while account credentials, Application Sessions, API tokens, source credentials, locks, and SQLite sidecars remain owned by the target account;
+- same-schema archives remain manually restorable by copying the documented payload into a stopped target Reader Directory;
+- web restore validates into same-root staging, briefly quiesces only the target reader, atomically publishes with rollback, and leaves other readers online;
+- archive format compatibility stays separate from Reader schema compatibility so future staged `N → N+1` migration steps can be added without changing HTTP, UI, or cutover behavior;
+- reader-owned hash-only API tokens use separate `backup:export` and `backup:restore` scopes, with export-only recommended for scheduled automation;
+- a dedicated Backup & Restore page owns download, upload/validation/confirmation, operation progress, and token management.
+
+Completion requires safe bounded archive handling, consistent SQLite snapshots, target-identity rewriting, current-schema validation, rollback-protected runtime cutover, scoped token authentication, frontend integration in all locales, and focused backend/frontend verification.
+
+The previously documented `perf/reader-startup` slice remains integrated separately:
 
 - fingerprinted static assets receive immutable long-term caching while the app shell remains revalidated;
 - Vue feature routes load lazily;

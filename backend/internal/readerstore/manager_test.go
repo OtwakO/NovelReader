@@ -218,7 +218,7 @@ func TestManagerCreateIsIdempotentAndProducesPortableHome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Format != HomeFormat || manifest.Version != CurrentHomeVersion || manifest.UserID != testUserAlice {
+	if manifest.Format != HomeFormat || manifest.Version != CurrentHomeVersion {
 		t.Fatalf("manifest = %#v", manifest)
 	}
 	for _, relative := range []string{
@@ -267,7 +267,7 @@ func TestManagerRecoversCompleteAndIncompleteStaging(t *testing.T) {
 			homePath := filepath.Join(manager.root, UsersDirectory, string(testUserAlice))
 			stagingPath := homePath + homeStagingSuffix
 			if complete {
-				if err := createStagedHome(stagingPath, testUserAlice, manager.schemas); err != nil {
+				if err := createStagedHome(stagingPath, manager.schemas); err != nil {
 					t.Fatal(err)
 				}
 			} else {
@@ -282,7 +282,7 @@ func TestManagerRecoversCompleteAndIncompleteStaging(t *testing.T) {
 			if err := manager.Create(context.Background(), testUserAlice); err != nil {
 				t.Fatal(err)
 			}
-			if err := validateHome(homePath, testUserAlice, manager.schemas); err != nil {
+			if err := validateHome(homePath, manager.schemas); err != nil {
 				t.Fatalf("published home: %v", err)
 			}
 			if _, err := os.Lstat(stagingPath); !errors.Is(err, os.ErrNotExist) {
@@ -296,7 +296,7 @@ func TestManagerRebuildsStructurallyCompleteVersionZeroStaging(t *testing.T) {
 	manager := newTestManager(t, 2)
 	homePath := filepath.Join(manager.root, UsersDirectory, string(testUserAlice))
 	stagingPath := homePath + homeStagingSuffix
-	if err := createStagedHome(stagingPath, testUserAlice, manager.schemas); err != nil {
+	if err := createStagedHome(stagingPath, manager.schemas); err != nil {
 		t.Fatal(err)
 	}
 	databasePath := filepath.Join(stagingPath, CredentialsDatabaseName)
@@ -314,7 +314,7 @@ func TestManagerRebuildsStructurallyCompleteVersionZeroStaging(t *testing.T) {
 	if err := manager.Create(context.Background(), testUserAlice); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateHome(homePath, testUserAlice, manager.schemas); err != nil {
+	if err := validateHome(homePath, manager.schemas); err != nil {
 		t.Fatalf("recovered home: %v", err)
 	}
 }

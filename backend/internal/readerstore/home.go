@@ -31,7 +31,6 @@ var (
 type HomeManifest struct {
 	Format  string `json:"format"`
 	Version int    `json:"version"`
-	UserID  UserID `json:"userId"`
 }
 
 type FileStore struct {
@@ -115,12 +114,12 @@ func filePath(segments []string) (string, error) {
 	return filepath.Join(segments...), nil
 }
 
-func recoverStagedHome(stagingPath, homePath string, userID UserID, schemas []ReaderSchema) error {
+func recoverStagedHome(stagingPath, homePath string, schemas []ReaderSchema) error {
 	info, err := os.Lstat(stagingPath)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%w: unsafe staged reader home", ErrInvalidHome)
 	}
-	if err := validateHome(stagingPath, userID, schemas); err == nil {
+	if err := validateHome(stagingPath, schemas); err == nil {
 		if err := os.Rename(stagingPath, homePath); err != nil {
 			return fmt.Errorf("readerstore: publish staged reader home: %w", err)
 		}
@@ -129,7 +128,7 @@ func recoverStagedHome(stagingPath, homePath string, userID UserID, schemas []Re
 	if err := os.RemoveAll(stagingPath); err != nil {
 		return fmt.Errorf("readerstore: remove incomplete staged reader home: %w", err)
 	}
-	if err := createStagedHome(stagingPath, userID, schemas); err != nil {
+	if err := createStagedHome(stagingPath, schemas); err != nil {
 		_ = os.RemoveAll(stagingPath)
 		return err
 	}
@@ -140,7 +139,7 @@ func recoverStagedHome(stagingPath, homePath string, userID UserID, schemas []Re
 	return nil
 }
 
-func createStagedHome(path string, userID UserID, schemas []ReaderSchema) error {
+func createStagedHome(path string, schemas []ReaderSchema) error {
 	if err := os.Mkdir(path, 0o700); err != nil {
 		return fmt.Errorf("readerstore: create staged reader home: %w", err)
 	}
@@ -149,13 +148,8 @@ func createStagedHome(path string, userID UserID, schemas []ReaderSchema) error 
 			return fmt.Errorf("readerstore: create reader files: %w", err)
 		}
 	}
-	manifest := HomeManifest{Format: HomeFormat, Version: CurrentHomeVersion, UserID: userID}
-	encoded, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return fmt.Errorf("readerstore: encode reader manifest: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(path, HomeManifestName), append(encoded, '\n'), 0o600); err != nil {
-		return fmt.Errorf("readerstore: write reader manifest: %w", err)
+	if err := writeHomeManifest(path); err != nil {
+		return err
 	}
 	if err := initializeReaderDatabase(filepath.Join(path, ReaderDatabaseName), schemas); err != nil {
 		return fmt.Errorf("readerstore: initialize %s: %w", ReaderDatabaseName, err)
@@ -163,10 +157,10 @@ func createStagedHome(path string, userID UserID, schemas []ReaderSchema) error 
 	if err := initializeCredentialsDatabase(filepath.Join(path, CredentialsDatabaseName)); err != nil {
 		return fmt.Errorf("readerstore: initialize %s: %w", CredentialsDatabaseName, err)
 	}
-	return validateHome(path, userID, schemas)
+	return validateHome(path, schemas)
 }
 
-func validateHome(path string, userID UserID, schemas []ReaderSchema) error {
+func validateHome(path string, schemas []ReaderSchema) error {
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return ErrHomeNotFound
@@ -180,7 +174,7 @@ func validateHome(path string, userID UserID, schemas []ReaderSchema) error {
 		return ErrInvalidHome
 	}
 	manifest, err := readHomeManifest(manifestPath)
-	if err != nil || manifest.Format != HomeFormat || manifest.Version != CurrentHomeVersion || manifest.UserID != userID {
+	if err != nil || manifest.Format != HomeFormat || manifest.Version != CurrentHomeVersion {
 		return ErrInvalidHome
 	}
 	for _, relative := range append([]string{FilesDirectory}, requiredHomeDirectories()...) {
@@ -214,6 +208,18 @@ func requiredHomeDirectories() []string {
 		filepath.Join(FilesDirectory, CoversDirectory),
 		filepath.Join(FilesDirectory, ChapterAssetsDirectory),
 	}
+}
+
+func writeHomeManifest(path string) error {
+	manifest := HomeManifest{Format: HomeFormat, Version: CurrentHomeVersion}
+	encoded, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return fmt.Errorf("readerstore: encode reader manifest: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(path, HomeManifestName), append(encoded, '\n'), 0o600); err != nil {
+		return fmt.Errorf("readerstore: write reader manifest: %w", err)
+	}
+	return nil
 }
 
 func readHomeManifest(path string) (HomeManifest, error) {
