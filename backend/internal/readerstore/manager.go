@@ -68,6 +68,10 @@ func NewManager(root string, capacity int, schemas ...ReaderSchema) (*Manager, e
 		_ = rootHandle.Close()
 		return nil, fmt.Errorf("readerstore: root state %q", state)
 	}
+	if err := reconcileReplacementArtifacts(absoluteRoot, schemas); err != nil {
+		_ = rootHandle.Close()
+		return nil, err
+	}
 	return &Manager{
 		root:       absoluteRoot,
 		rootHandle: rootHandle,

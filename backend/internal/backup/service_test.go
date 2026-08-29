@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,7 +42,11 @@ func TestServiceExportsTimestampedPortableArchiveAndRestoresAcrossReaders(t *tes
 		t.Fatal(err)
 	}
 	alice.Close()
-	service := NewService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {})
+	service, err := NewService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
 	service.now = func() time.Time { return time.Date(2026, 8, 29, 21, 45, 30, 0, time.FixedZone("UTC+8", 8*60*60)) }
 
 	var archive bytes.Buffer
@@ -118,7 +123,11 @@ func TestPreparedRestoreIsOwnerScopedAndCancelable(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	service := NewService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {})
+	service, err := NewService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
 	var archive bytes.Buffer
 	if _, err := service.Export(context.Background(), backupAlice, "alice", service.now(), &archive); err != nil {
 		t.Fatal(err)
@@ -135,5 +144,75 @@ func TestPreparedRestoreIsOwnerScopedAndCancelable(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "users", string(backupAlice)+".restore-staging")); !os.IsNotExist(err) {
 		t.Fatalf("restore staging remains: %v", err)
+	}
+}
+
+func TestServiceJanitorRemovesExpiredRestoreWithoutAPITraffic(t *testing.T) {
+	root := t.TempDir()
+	readers, err := readerstore.NewManager(root, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer readers.Close()
+	if err := readers.Create(context.Background(), backupAlice); err != nil {
+		t.Fatal(err)
+	}
+	ticks := make(chan time.Time)
+	service, err := newService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {}, ticks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	now := time.Date(2026, 8, 29, 22, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+	var archive bytes.Buffer
+	if _, err := service.Export(context.Background(), backupAlice, "alice", now, &archive); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := service.PrepareRestore(context.Background(), backupAlice, bytes.NewReader(archive.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	staging := filepath.Join(root, "users", string(backupAlice)+".restore-staging")
+	now = now.Add(restoreLifetime)
+	ticks <- now
+	for range 100 {
+		if _, err := os.Stat(staging); os.IsNotExist(err) {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if _, err := os.Stat(staging); !os.IsNotExist(err) {
+		t.Fatalf("expired staging remains: %v", err)
+	}
+	if _, err := service.GetRestore(backupAlice, prepared.ID); !errors.Is(err, ErrRestoreNotFound) {
+		t.Fatalf("expired restore error=%v", err)
+	}
+}
+
+func TestServiceStartupRemovesOnlyOwnedAbandonedWorkspaces(t *testing.T) {
+	root := t.TempDir()
+	readers, err := readerstore.NewManager(root, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer readers.Close()
+	for _, name := range []string{exportWorkspacePrefix + "old", restoreWorkspacePrefix + "old", "keep-me"} {
+		if err := os.Mkdir(filepath.Join(root, name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	service, err := NewService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	for _, name := range []string{exportWorkspacePrefix + "old", restoreWorkspacePrefix + "old"} {
+		if _, err := os.Stat(filepath.Join(root, name)); !os.IsNotExist(err) {
+			t.Fatalf("workspace %q remains: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "keep-me")); err != nil {
+		t.Fatalf("unowned directory removed: %v", err)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -253,4 +254,63 @@ func safeRemoveDirectory(path string) error {
 		return ErrInvalidHome
 	}
 	return os.RemoveAll(path)
+}
+
+func reconcileReplacementArtifacts(root string, schemas []ReaderSchema) error {
+	usersRoot := filepath.Join(root, UsersDirectory)
+	entries, err := os.ReadDir(usersRoot)
+	if err != nil {
+		return fmt.Errorf("readerstore: inspect replacement artifacts: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink != 0 || (!entry.IsDir() && (strings.HasSuffix(entry.Name(), backupStagingSuffix) || strings.HasSuffix(entry.Name(), backupRollbackSuffix))) {
+			return ErrInvalidHome
+		}
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), backupRollbackSuffix) {
+			continue
+		}
+		base := strings.TrimSuffix(entry.Name(), backupRollbackSuffix)
+		if _, err := ParseUserID(base); err != nil {
+			continue
+		}
+		homePath := filepath.Join(usersRoot, base)
+		rollbackPath := filepath.Join(usersRoot, entry.Name())
+		if err := validateHome(rollbackPath, schemas); err != nil {
+			return fmt.Errorf("readerstore: replacement rollback is invalid: %w", err)
+		}
+		if validateHome(homePath, schemas) == nil {
+			if err := safeRemoveDirectory(rollbackPath); err != nil {
+				return fmt.Errorf("readerstore: remove completed replacement rollback: %w", err)
+			}
+			continue
+		}
+		if err := safeRemoveDirectory(homePath); err != nil {
+			return fmt.Errorf("readerstore: clear interrupted replacement home: %w", err)
+		}
+		if err := os.Rename(rollbackPath, homePath); err != nil {
+			return fmt.Errorf("readerstore: recover interrupted replacement: %w", err)
+		}
+		if err := validateHome(homePath, schemas); err != nil {
+			return fmt.Errorf("readerstore: recovered replacement rollback is invalid: %w", err)
+		}
+	}
+	entries, err = os.ReadDir(usersRoot)
+	if err != nil {
+		return fmt.Errorf("readerstore: inspect replacement staging: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), backupStagingSuffix) {
+			continue
+		}
+		base := strings.TrimSuffix(entry.Name(), backupStagingSuffix)
+		if _, err := ParseUserID(base); err != nil {
+			continue
+		}
+		if err := safeRemoveDirectory(filepath.Join(usersRoot, entry.Name())); err != nil {
+			return fmt.Errorf("readerstore: remove abandoned replacement staging: %w", err)
+		}
+	}
+	return nil
 }

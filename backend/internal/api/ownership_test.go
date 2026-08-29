@@ -124,9 +124,12 @@ func newOwnershipServer(t *testing.T) (*Server, *auth.SessionService, *readersto
 	limits.SessionTTL = time.Minute
 	jsVM := analyzer.NewJSVMWithPoolSize(1)
 	searcher := book.NewSearcherWithLimits(nil, jsVM, analyzer.NewCacheManager(), nil, nil, limits)
-	server := NewAuthenticatedServer(authHandler, readers, root, searcher, jsVM, limits, processor.Config{}, system, nil, nil)
+	server, err := NewAuthenticatedServer(authHandler, readers, root, searcher, jsVM, limits, processor.Config{}, system, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return server, auth.NewSessionService(system), readers, alice.ID, func() {
-		server.runtimes.Close()
+		server.Close()
 		readers.Close()
 		system.Close()
 	}

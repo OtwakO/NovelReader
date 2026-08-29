@@ -201,7 +201,7 @@ func (s *Server) registerRoutesWithoutHealth() {
 }
 
 // NewAuthenticatedServer creates the production Reader Data boundary.
-func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, dataRoot string, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) *Server {
+func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, dataRoot string, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) (*Server, error) {
 	s := &Server{
 		fetcher: rootSearcherFetcher(rootSearcher), jsVM: jsVM, cache: analyzer.NewCacheManager(),
 		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health, webViewProbe: webViewProbe, chineseConversion: conversion,
@@ -210,12 +210,17 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		collectionLoader:    booksource.NewRemoteLoader(),
 	}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, limits, 32, limits.SessionTTL)
-	s.backups = backupservice.NewService(readers, dataRoot, s.runtimes.quiesce, s.runtimes.resume)
+	backups, err := backupservice.NewService(readers, dataRoot, s.runtimes.quiesce, s.runtimes.resume)
+	if err != nil {
+		_ = s.runtimes.Close()
+		return nil, fmt.Errorf("initialize backup service: %w", err)
+	}
+	s.backups = backups
 	s.collectionScheduler = newSourceCollectionScheduler(s.runtimes, s.collectionLoader, authHandler.ListActiveReaderIDs)
 	s.collectionScheduler.Start()
 	authHandler.ConfigureDeletionQuiescer(readers, s.runtimes.quiesce)
 	s.registerAuthenticatedRoutes()
-	return s
+	return s, nil
 }
 
 func rootSearcherFetcher(searcher *book.Searcher) *fetcher.Client {

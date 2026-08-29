@@ -126,3 +126,98 @@ func assertDatabaseValue(t *testing.T, path, query, want string) {
 		t.Fatalf("value=%q want=%q error=%v", got, want, err)
 	}
 }
+
+func TestManagerStartupRemovesAbandonedReplacementStaging(t *testing.T) {
+	root, schemas := newReplacementRecoveryRoot(t)
+	manager, err := NewManager(root, 2, schemas...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Create(context.Background(), testUserAlice); err != nil {
+		t.Fatal(err)
+	}
+	homePath, err := manager.homePath(testUserAlice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := copyHomeForRecovery(homePath, homePath+backupStagingSuffix); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewManager(root, 2, schemas...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if _, err := os.Stat(homePath + backupStagingSuffix); !os.IsNotExist(err) {
+		t.Fatalf("abandoned staging remains: %v", err)
+	}
+}
+
+func TestManagerStartupRecoversInterruptedReplacementRollback(t *testing.T) {
+	root, schemas := newReplacementRecoveryRoot(t)
+	manager, err := NewManager(root, 2, schemas...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Create(context.Background(), testUserAlice); err != nil {
+		t.Fatal(err)
+	}
+	homePath, err := manager.homePath(testUserAlice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, err := manager.Open(context.Background(), testUserAlice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := home.DB().Exec(`INSERT INTO retained_value VALUES ('recover me')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := home.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(homePath, homePath+backupRollbackSuffix); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewManager(root, 2, schemas...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	assertDatabaseValue(t, filepath.Join(homePath, ReaderDatabaseName), `SELECT value FROM retained_value`, "recover me")
+	if _, err := os.Stat(homePath + backupRollbackSuffix); !os.IsNotExist(err) {
+		t.Fatalf("rollback remains: %v", err)
+	}
+}
+
+func newReplacementRecoveryRoot(t *testing.T) (string, []ReaderSchema) {
+	t.Helper()
+	root := filepath.Join(t.TempDir(), "data")
+	return root, []ReaderSchema{{Initialize: func(tx *sql.Tx) error {
+		_, err := tx.Exec(`CREATE TABLE retained_value (value TEXT NOT NULL)`)
+		return err
+	}}}
+}
+
+func copyHomeForRecovery(source, destination string) error {
+	return filepath.WalkDir(source, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(destination, relative)
+		if entry.IsDir() {
+			return os.MkdirAll(target, 0o700)
+		}
+		return copyRegularFile(path, target, 0o600)
+	})
+}

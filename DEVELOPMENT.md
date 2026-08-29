@@ -547,3 +547,9 @@
 - **Change**: Backup token listing now returns an empty JSON array instead of `null`; the frontend also normalizes `null` to an empty array for compatibility with older backends.
 - **Reason**: Go serialized the service's nil token slice as `{"tokens":null}`. After the asynchronous response, Vue evaluated `tokens.length`, threw during rendering, and removed the page content.
 - **Verified**: The auth HTTP regression test asserts `{"tokens":[]}`; the frontend transport test covers the legacy `null` response; a production browser run with a mocked `{"tokens":null}` response retained the page and empty state with no console errors.
+
+### [2026-08-30] Restore staging cleanup follows storage ownership
+- **Context**: An expired prepared restore could retain a complete Reader-home copy indefinitely after inactivity or an abrupt process stop.
+- **Change**: The backup service now expires registered operations with a bounded janitor and removes only its fixed top-level workspaces at startup. Readerstore separately reconciles its per-reader replacement staging and rollback paths, recovering an interrupted cutover when necessary instead of blindly deleting rollback data.
+- **Reason**: Archive-operation lifecycle and atomic Reader-home publication have different safety owners. Keeping cleanup at those boundaries avoids broad path sweeps and preserves the only valid rollback after a crash.
+- **Verified**: Deterministic injected-tick coverage exercises inactive expiry; readerstore tests cover abandoned staging and rollback recovery; the full backend suite passes.

@@ -9,13 +9,19 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
-const restoreLifetime = 30 * time.Minute
+const (
+	restoreLifetime        = 30 * time.Minute
+	restoreCleanupInterval = time.Minute
+	exportWorkspacePrefix  = ".backup-export-"
+	restoreWorkspacePrefix = ".backup-restore-"
+)
 
 var (
 	ErrRestoreNotFound = errors.New("backup: restore operation not found")
@@ -50,26 +56,48 @@ type operation struct {
 
 // Service owns archive staging and delegates Reader-home lifecycle to readerstore.
 type Service struct {
-	readers  *readerstore.Manager
-	root     string
-	quiesce  func(context.Context, readerstore.UserID) error
-	resume   func(readerstore.UserID)
-	now      func() time.Time
-	mu       sync.Mutex
-	byID     map[string]operation
-	byReader map[readerstore.UserID]string
+	readers      *readerstore.Manager
+	root         string
+	quiesce      func(context.Context, readerstore.UserID) error
+	resume       func(readerstore.UserID)
+	now          func() time.Time
+	mu           sync.Mutex
+	byID         map[string]operation
+	byReader     map[readerstore.UserID]string
+	janitorTicks <-chan time.Time
+	janitorTimer *time.Ticker
+	janitorStop  chan struct{}
+	janitorDone  chan struct{}
+	closed       bool
 }
 
-func NewService(readers *readerstore.Manager, dataRoot string, quiesce func(context.Context, readerstore.UserID) error, resume func(readerstore.UserID)) *Service {
-	return &Service{
-		readers: readers, root: dataRoot, quiesce: quiesce, resume: resume, now: time.Now,
-		byID: make(map[string]operation), byReader: make(map[readerstore.UserID]string),
+func NewService(readers *readerstore.Manager, dataRoot string, quiesce func(context.Context, readerstore.UserID) error, resume func(readerstore.UserID)) (*Service, error) {
+	timer := time.NewTicker(restoreCleanupInterval)
+	service, err := newService(readers, dataRoot, quiesce, resume, timer.C)
+	if err != nil {
+		timer.Stop()
+		return nil, err
 	}
+	service.janitorTimer = timer
+	return service, nil
+}
+
+func newService(readers *readerstore.Manager, dataRoot string, quiesce func(context.Context, readerstore.UserID) error, resume func(readerstore.UserID), ticks <-chan time.Time) (*Service, error) {
+	if err := removeAbandonedWorkspaces(dataRoot); err != nil {
+		return nil, err
+	}
+	service := &Service{
+		readers: readers, root: dataRoot, quiesce: quiesce, resume: resume, now: time.Now,
+		byID: make(map[string]operation), byReader: make(map[readerstore.UserID]string), janitorTicks: ticks,
+		janitorStop: make(chan struct{}), janitorDone: make(chan struct{}),
+	}
+	go service.runJanitor()
+	return service, nil
 }
 
 func (s *Service) Export(ctx context.Context, userID readerstore.UserID, username string, createdAt time.Time, output io.Writer) (ExportInfo, error) {
 	createdAt = createdAt.In(time.Local)
-	temporary, err := os.MkdirTemp(s.root, ".backup-export-")
+	temporary, err := os.MkdirTemp(s.root, exportWorkspacePrefix)
 	if err != nil {
 		return ExportInfo{}, fmt.Errorf("backup: create export staging: %w", err)
 	}
@@ -115,7 +143,7 @@ func (s *Service) PrepareRestore(ctx context.Context, userID readerstore.UserID,
 		}
 		s.mu.Unlock()
 	}()
-	temporary, err := os.MkdirTemp(s.root, ".backup-restore-")
+	temporary, err := os.MkdirTemp(s.root, restoreWorkspacePrefix)
 	if err != nil {
 		return PreparedRestore{}, fmt.Errorf("backup: create restore staging: %w", err)
 	}
@@ -189,18 +217,75 @@ func (s *Service) CommitRestore(ctx context.Context, userID readerstore.UserID, 
 // Close removes every uncommitted restore staged by this process.
 func (s *Service) Close() error {
 	s.mu.Lock()
-	operations := make([]operation, 0, len(s.byID))
-	for _, pending := range s.byID {
-		operations = append(operations, pending)
+	if s.closed {
+		s.mu.Unlock()
+		return nil
 	}
-	s.byID = make(map[string]operation)
-	s.byReader = make(map[readerstore.UserID]string)
+	s.closed = true
+	if s.janitorTimer != nil {
+		s.janitorTimer.Stop()
+	}
+	close(s.janitorStop)
 	s.mu.Unlock()
+	<-s.janitorDone
+	operations := s.takeExpiredOperations(time.Time{})
 	var cleanupErr error
 	for _, pending := range operations {
 		cleanupErr = errors.Join(cleanupErr, os.RemoveAll(pending.staging))
 	}
 	return cleanupErr
+}
+
+func (s *Service) runJanitor() {
+	defer close(s.janitorDone)
+	for {
+		select {
+		case <-s.janitorTicks:
+			for _, expired := range s.takeExpiredOperations(s.now()) {
+				_ = os.RemoveAll(expired.staging)
+			}
+		case <-s.janitorStop:
+			return
+		}
+	}
+}
+
+// takeExpiredOperations removes expired operations from the indexes. A zero cutoff
+// removes every registered operation and is used after the janitor has stopped.
+func (s *Service) takeExpiredOperations(cutoff time.Time) []operation {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	operations := make([]operation, 0)
+	for id, pending := range s.byID {
+		if !cutoff.IsZero() && cutoff.Before(pending.expiresAt) {
+			continue
+		}
+		operations = append(operations, pending)
+		delete(s.byID, id)
+		if s.byReader[pending.owner] == id {
+			delete(s.byReader, pending.owner)
+		}
+	}
+	return operations
+}
+
+func removeAbandonedWorkspaces(root string) error {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return fmt.Errorf("backup: inspect abandoned workspaces: %w", err)
+	}
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), exportWorkspacePrefix) && !strings.HasPrefix(entry.Name(), restoreWorkspacePrefix) {
+			continue
+		}
+		if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("backup: unsafe abandoned workspace %q", entry.Name())
+		}
+		if err := os.RemoveAll(filepath.Join(root, entry.Name())); err != nil {
+			return fmt.Errorf("backup: remove abandoned workspace %q: %w", entry.Name(), err)
+		}
+	}
+	return nil
 }
 
 func (s *Service) takeOperation(userID readerstore.UserID, operationID string) (operation, error) {

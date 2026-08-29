@@ -134,7 +134,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("recovery HTTP: %v", err)
 	}
-	apiSrv := api.NewAuthenticatedServer(authHandler, readers, cfg.DataDir, searcher, jsVM, limits, procCfg, systemStore, browserClient, conversion)
+	apiSrv, err := api.NewAuthenticatedServer(authHandler, readers, cfg.DataDir, searcher, jsVM, limits, procCfg, systemStore, browserClient, conversion)
+	if err != nil {
+		log.Fatalf("authenticated API: %v", err)
+	}
 	defer apiSrv.Close()
 	rootMux := applicationMux(apiSrv, authHandler, setupHandler, recoveryHandler, cfg.AdminRecoveryToken != "")
 
