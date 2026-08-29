@@ -50,3 +50,39 @@ func TestBackupTokenHTTPRequiresPasswordForRestoreScope(t *testing.T) {
 		t.Fatalf("credential=%#v error=%v", credential, err)
 	}
 }
+
+func TestRequireBackupScopeEnforcesAutomationTokenScope(t *testing.T) {
+	store := openTestStore(t)
+	defer store.Close()
+	account, err := NewAccountService(store).CreateReaderAccount(context.Background(), testUserID, "Alice", "correct horse battery staple", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := NewHTTPHandler(store, HTTPConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential, err := handler.backupTokens.Create(context.Background(), account.ID, CreateBackupToken{Name: "Export", CanExport: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	perform := func(scope BackupScope) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodPost, "http://reader.local/api/backups/test", nil)
+		request.Header.Set("Authorization", "Bearer "+credential.Token)
+		response := httptest.NewRecorder()
+		handler.RequireBackupScope(scope, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			identity, ok := IdentityFromContext(request.Context())
+			if !ok || identity.ID != account.ID {
+				t.Fatalf("identity=%#v ok=%v", identity, ok)
+			}
+			writer.WriteHeader(http.StatusNoContent)
+		})).ServeHTTP(response, request)
+		return response
+	}
+	if response := perform(BackupExport); response.Code != http.StatusNoContent {
+		t.Fatalf("export status=%d body=%s", response.Code, response.Body.String())
+	}
+	if response := perform(BackupRestore); response.Code != http.StatusUnauthorized {
+		t.Fatalf("restore status=%d body=%s", response.Code, response.Body.String())
+	}
+}
