@@ -66,6 +66,39 @@ export default defineComponent({
         <p v-else-if="tokens.length === 0" class="muted empty-state">{{ $t('backups.tokens.empty') }}</p>
         <ul v-else class="token-list"><li v-for="token in tokens" :key="token.id"><div><div class="token-title"><strong>{{ token.name }}</strong><span class="scopes"><em v-if="token.canExport">{{ $t('backups.tokens.export') }}</em><em v-if="token.canRestore">{{ $t('backups.tokens.restore') }}</em></span></div><small>{{ $t('backups.tokens.created', { date: formatDate(token.createdAt) }) }} · {{ token.lastUsedAt ? $t('backups.tokens.lastUsed', { date: formatDate(token.lastUsedAt) }) : $t('backups.tokens.neverUsed') }} · {{ token.expiresAt ? $t('backups.tokens.expires', { date: formatDate(token.expiresAt) }) : $t('backups.tokens.noExpiry') }}</small></div><AppButton variant="quiet" @click="revoke(token.id)">{{ $t('backups.tokens.revoke') }}</AppButton></li></ul>
       </section>
+
+      <section class="panel api-panel">
+        <header><div><h2>{{ $t('backups.api.title') }}</h2><p>{{ $t('backups.api.description') }}</p></div></header>
+        <details>
+          <summary>{{ $t('backups.api.show') }}</summary>
+          <div class="api-docs">
+            <p class="api-note">{{ $t('backups.api.auth') }}</p>
+            <div class="endpoint-list" role="list">
+              <div role="listitem"><code>GET /api/backups/export</code><span><strong>backup:export</strong> · {{ $t('backups.api.export') }}</span></div>
+              <div role="listitem"><code>POST /api/backups/restores</code><span><strong>backup:restore</strong> · {{ $t('backups.api.prepare') }}</span></div>
+              <div role="listitem"><code>GET /api/backups/restores/{operationId}</code><span><strong>backup:restore</strong> · {{ $t('backups.api.status') }}</span></div>
+              <div role="listitem"><code>POST /api/backups/restores/{operationId}/commit</code><span><strong>backup:restore</strong> · {{ $t('backups.api.commit') }}</span></div>
+              <div role="listitem"><code>DELETE /api/backups/restores/{operationId}</code><span><strong>backup:restore</strong> · {{ $t('backups.api.cancel') }}</span></div>
+            </div>
+            <h3>{{ $t('backups.api.exampleTitle') }}</h3>
+            <p>{{ $t('backups.api.exampleDescription') }}</p>
+            <pre><code>curl -H "Authorization: Bearer $EXPORT_TOKEN" \
+  -o reader-backup.tar.gz \
+  "$NOVELREADER_URL/api/backups/export"
+
+operation_id=$(curl -fsS -X POST \
+  -H "Authorization: Bearer $RESTORE_TOKEN" \
+  -H "Content-Type: application/gzip" \
+  --data-binary @reader-backup.tar.gz \
+  "$NOVELREADER_URL/api/backups/restores" | jq -r .operationId)
+
+curl -fsS -X POST \
+  -H "Authorization: Bearer $RESTORE_TOKEN" \
+  "$NOVELREADER_URL/api/backups/restores/$operation_id/commit"</code></pre>
+            <p class="api-note">{{ $t('backups.api.note') }}</p>
+          </div>
+        </details>
+      </section>
     </div>
   </FeatureScaffold>
 </template>
@@ -111,6 +144,21 @@ export default defineComponent({
 .scopes { display: inline-flex; gap: .35rem; }
 .token-list small { display: block; margin-top: .3rem; color: var(--color-ink-muted); }
 .empty-state { margin-top: 1rem; padding: 1rem; text-align: center; }
+.api-panel details { margin-top: .9rem; }
+.api-panel summary { width: fit-content; color: var(--color-accent); font-weight: 750; cursor: pointer; }
+.api-panel summary:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 30%, transparent); outline-offset: 3px; border-radius: var(--radius-sm); }
+.api-docs { display: grid; gap: .85rem; margin-top: 1rem; }
+.api-docs h3 { margin: .35rem 0 -.45rem; font: 700 1rem var(--font-literary); }
+.api-docs p { margin: 0; color: var(--color-ink-muted); line-height: 1.55; }
+.api-note { max-width: 72ch; }
+.endpoint-list { display: grid; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+.endpoint-list > div { display: grid; grid-template-columns: minmax(18rem, .9fr) minmax(0, 1fr); gap: 1rem; padding: .7rem; background: var(--color-paper-muted); }
+.endpoint-list > div + div { border-top: 1px solid var(--color-border); }
+.endpoint-list code { color: var(--color-ink); font-size: .8rem; overflow-wrap: anywhere; }
+.endpoint-list span { color: var(--color-ink-muted); font-size: .82rem; }
+.endpoint-list strong { color: var(--color-accent); }
+.api-docs pre { max-width: 100%; margin: 0; padding: .85rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: #26343a; color: #f8f3e7; overflow-x: auto; font-size: .78rem; line-height: 1.55; tab-size: 2; }
+.api-docs pre code { user-select: all; }
 @media (max-width: 42rem) {
   .panel > header { align-items: stretch; flex-direction: column; gap: .75rem; }
   .panel > header :deep(.app-button) { width: 100%; }
@@ -122,5 +170,7 @@ export default defineComponent({
   .secret-value { align-items: stretch; flex-direction: column; }
   .token-list li { align-items: flex-start; }
   .token-list :deep(.app-button) { flex: none; }
+  .endpoint-list > div { grid-template-columns: 1fr; gap: .35rem; }
+  .api-docs pre { font-size: .72rem; }
 }
 </style>
