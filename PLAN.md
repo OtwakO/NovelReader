@@ -324,6 +324,7 @@ Add diagnostics only for demonstrated needs. Likely future work includes redacte
 | Errors | Structured and explicit; never collapse failures into silent empty results. |
 | Reader conversion | Frontend display-only; canonical text and reading state remain unchanged. |
 | Source health | User-triggered diagnostics only; no continuous background monitoring. |
+| Go toolchain | Go 1.27.0 is authoritative in `backend/go.mod`, and CI follows that module directive; Docker retains its existing unpinned Go Alpine builder image. |
 | Deployment | Standalone production Compose plus separate deterministic E2E Compose contract. |
 
 ## Constraints and Out of Scope

@@ -1,5 +1,11 @@
 # Development Notes
 
+### [2026-08-29] Go 1.27 upgrade keeps legacy JSON semantics
+- **Context**: Go 1.27 substantially improved BookSource JSON throughput through the v2-backed standard library, while the existing `encoding/json` package continues applying `DefaultOptionsV1`. A differential diagnostic confirmed that the flaky Source Collection test was independent of the JSON engine.
+- **Change**: The module now requires Go 1.27.0 and CI consumes that version from `backend/go.mod`; Docker continues using its existing unpinned Go Alpine builder image. Temporary one-off benchmark code and reports were removed after the decision rather than becoming an unsupported performance suite.
+- **Reason**: Keep development, CI, and container builds reproducible on one toolchain without changing NovelReader's JSON interface or publishing fixture-dependent benchmark scaffolding.
+- **Verified**: The complete backend tests and server/conformance builds pass under Go 1.27.0; BookSource raw-JSON round-trip coverage remains green.
+
 ### [2026-08-29] Source Collection identity uses persisted document order
 - **Context**: Duplicate-URL collection synchronization promised exact-definition matching followed by document order, but persistence expanded an omitted `enabledCookieJar` to explicit `true` and duplicate rows with equal `customOrder` were ordered by random Source IDs. The identity regression test therefore passed or failed according to UUID ordering.
 - **Change**: BookSource persistence now preserves the `enabledCookieJar` omitted/true/false states, while runtime still interprets omission as enabled. Collection entries store a NovelReader-owned document position separate from imported Legado `customOrder`; exact matches keep identity through reorder, and changed duplicates fall back to the prior persisted position before receiving their new incoming position. Individual source edits preserve this ownership metadata.
