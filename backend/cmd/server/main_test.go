@@ -184,6 +184,21 @@ func TestCredentialOriginMiddlewareAllowsOnlyConfiguredOrigin(t *testing.T) {
 		t.Fatalf("foreign response status=%d calls=%d", foreignResponse.Code, nextCalls)
 	}
 
+	automation := httptest.NewRequest(http.MethodPost, "/api/backups/restores", nil)
+	automation.Header.Set("Authorization", "Bearer nr_backup_test")
+	automationResponse := httptest.NewRecorder()
+	handler.ServeHTTP(automationResponse, automation)
+	if automationResponse.Code != http.StatusNoContent || nextCalls != 2 {
+		t.Fatalf("backup automation status=%d calls=%d", automationResponse.Code, nextCalls)
+	}
+	nonBackupBearer := httptest.NewRequest(http.MethodPost, "/api/auth/login", nil)
+	nonBackupBearer.Header.Set("Authorization", "Bearer nr_backup_test")
+	nonBackupBearerResponse := httptest.NewRecorder()
+	handler.ServeHTTP(nonBackupBearerResponse, nonBackupBearer)
+	if nonBackupBearerResponse.Code != http.StatusForbidden || nextCalls != 2 {
+		t.Fatalf("non-backup bearer status=%d calls=%d", nonBackupBearerResponse.Code, nextCalls)
+	}
+
 	dynamic, err := credentialOriginMiddleware("", next)
 	if err != nil {
 		t.Fatal(err)

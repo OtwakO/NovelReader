@@ -230,6 +230,35 @@ func (h *HTTPHandler) RequireIdentity(next http.Handler) http.Handler {
 	})
 }
 
+// RequireBackupScope authenticates either the current browser session or a scoped automation token.
+func (h *HTTPHandler) RequireBackupScope(scope BackupScope, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if cookie, err := r.Cookie(SessionCookieName); err == nil && cookie.Value != "" {
+			account, err := h.sessions.Authenticate(r.Context(), cookie.Value, h.now().Unix())
+			if err == nil {
+				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), identityContextKey{}, account)))
+				return
+			}
+			if !errors.Is(err, ErrInvalidSession) {
+				writeAuthError(w, http.StatusInternalServerError, "authentication unavailable")
+				return
+			}
+		}
+		const bearerPrefix = "Bearer "
+		authorization := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authorization, bearerPrefix) {
+			writeAuthError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
+		account, err := h.backupTokens.Authenticate(r.Context(), strings.TrimSpace(strings.TrimPrefix(authorization, bearerPrefix)), scope)
+		if err != nil {
+			writeAuthError(w, http.StatusUnauthorized, "invalid backup token")
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), identityContextKey{}, account)))
+	})
+}
+
 func (h *HTTPHandler) RequireAdmin(next http.Handler) http.Handler {
 	return h.RequireIdentity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		account, ok := IdentityFromContext(r.Context())

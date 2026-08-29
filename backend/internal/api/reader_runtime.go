@@ -182,6 +182,14 @@ func (m *readerRuntimeManager) quiesce(ctx context.Context, userID readerstore.U
 	}
 }
 
+// resume permits new runtime acquisitions after a temporary Reader Data replacement.
+func (m *readerRuntimeManager) resume(userID readerstore.UserID) {
+	m.mu.Lock()
+	delete(m.deleting, userID)
+	m.signalLocked()
+	m.mu.Unlock()
+}
+
 func (m *readerRuntimeManager) signalLocked() {
 	close(m.changed)
 	m.changed = make(chan struct{})

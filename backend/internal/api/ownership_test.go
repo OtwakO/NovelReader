@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -50,6 +51,42 @@ func TestAuthenticatedServerDeniesAnonymousReaderDataAndIsolatesEqualIDs(t *test
 	}
 }
 
+func TestAuthenticatedServerExportsAndStagesReaderBackupWithoutRuntimeLease(t *testing.T) {
+	server, sessions, _, aliceID, closeStores := newOwnershipServer(t)
+	defer closeStores()
+	credential, err := sessions.Create(context.Background(), aliceID, time.Now().Unix())
+	if err != nil {
+		t.Fatal(err)
+	}
+	exportRequest := httptest.NewRequest(http.MethodGet, "/api/backups/export", nil)
+	exportRequest.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: credential.Token})
+	exportResponse := httptest.NewRecorder()
+	server.ServeHTTP(exportResponse, exportRequest)
+	if exportResponse.Code != http.StatusOK || exportResponse.Header().Get("Content-Type") != "application/gzip" || exportResponse.Body.Len() == 0 {
+		t.Fatalf("export status=%d headers=%v bytes=%d", exportResponse.Code, exportResponse.Header(), exportResponse.Body.Len())
+	}
+
+	restoreRequest := httptest.NewRequest(http.MethodPost, "/api/backups/restores", bytes.NewReader(exportResponse.Body.Bytes()))
+	restoreRequest.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: credential.Token})
+	restoreResponse := httptest.NewRecorder()
+	server.ServeHTTP(restoreResponse, restoreRequest)
+	if restoreResponse.Code != http.StatusCreated {
+		t.Fatalf("restore status=%d body=%s", restoreResponse.Code, restoreResponse.Body.String())
+	}
+	var prepared struct {
+		OperationID   string `json:"operationId"`
+		Compatibility string `json:"compatibility"`
+	}
+	if err := json.Unmarshal(restoreResponse.Body.Bytes(), &prepared); err != nil || prepared.OperationID == "" || prepared.Compatibility != "compatible" {
+		t.Fatalf("prepared=%#v error=%v", prepared, err)
+	}
+	if _, release, err := server.runtimes.acquire(context.Background(), aliceID); err != nil {
+		t.Fatalf("prepared restore blocked reader runtime: %v", err)
+	} else {
+		release()
+	}
+}
+
 func newOwnershipServer(t *testing.T) (*Server, *auth.SessionService, *readerstore.Manager, readerstore.UserID, func()) {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "data")
@@ -87,7 +124,7 @@ func newOwnershipServer(t *testing.T) (*Server, *auth.SessionService, *readersto
 	limits.SessionTTL = time.Minute
 	jsVM := analyzer.NewJSVMWithPoolSize(1)
 	searcher := book.NewSearcherWithLimits(nil, jsVM, analyzer.NewCacheManager(), nil, nil, limits)
-	server := NewAuthenticatedServer(authHandler, readers, searcher, jsVM, limits, processor.Config{}, system, nil, nil)
+	server := NewAuthenticatedServer(authHandler, readers, root, searcher, jsVM, limits, processor.Config{}, system, nil, nil)
 	return server, auth.NewSessionService(system), readers, alice.ID, func() {
 		server.runtimes.Close()
 		readers.Close()

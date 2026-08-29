@@ -1,5 +1,12 @@
 # Development Notes
 
+### [2026-08-29] Portable backups replace Reader homes, not account authority
+- **Context**: Reader Data needed both a simple extract-and-copy backup and online restore without stopping unrelated readers. A live `reader.db` cannot be archived safely, and restore must not transplant usernames, passwords, sessions, or automation credentials.
+- **Change**: Portable backups are versioned physical Reader-home `.tar.gz` snapshots built from SQLite `VACUUM INTO`, with an account-neutral payload and separate archive/schema versions. Restore validates in staging, then briefly quiesces only the target reader and atomically swaps homes with rollback. Reader-owned hash-only tokens expose separate export/restore scopes; restore-token issuance requires the current password.
+- **Reason**: Keeping archive, Reader-home lifecycle, HTTP, and authentication ownership separate preserves manual restoration while leaving one explicit seam for future schema migration.
+- **Verified**: Focused readerstore, auth, backup, API, and server tests cover cross-account replacement, hash-only scoped tokens, password reauthentication, unsafe archive rejection, owner-scoped staging, runtime-independent preparation, and rollback-aware cutover.
+- **Watch out**: Backup routes must remain outside the ordinary per-request Reader-runtime lease wrapper, or restore commit can deadlock while quiescing its own lease. Never tar a live SQLite database or include `credentials.db`, `system.db`, passwords, sessions, or token secrets in the portable payload.
+
 ### [2026-08-29] Go 1.27 upgrade keeps legacy JSON semantics
 - **Context**: Go 1.27 substantially improved BookSource JSON throughput through the v2-backed standard library, while the existing `encoding/json` package continues applying `DefaultOptionsV1`. A differential diagnostic confirmed that the flaky Source Collection test was independent of the JSON engine.
 - **Change**: The module now requires Go 1.27.0 and CI consumes that version from `backend/go.mod`; Docker continues using its existing unpinned Go Alpine builder image. Temporary one-off benchmark code and reports were removed after the decision rather than becoming an unsupported performance suite.

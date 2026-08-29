@@ -46,7 +46,8 @@ The production frontend is an installable PWA. Its service worker pre-caches onl
 backend/internal/
   api/          HTTP/SSE adapters, authentication boundaries, static delivery
   auth/         accounts, sessions, setup, recovery, administration
-  readerstore/  per-reader homes, schema validation, lifecycle, deletion
+  readerstore/  per-reader homes, schema validation, lifecycle, replacement
+  backup/       portable Reader-home archives and staged restore operations
   booksource/   canonical source model, import/export, persistence
   sourceexec/   request construction, sessions, routing transports
   analyzer/     Default/CSS/XPath/JSONPath/Regex rules and JavaScript bridge
@@ -80,7 +81,9 @@ Feature code should stay near the feature it supports. New shared layers require
 - `readerstore` exclusively owns reader-home paths, schema validation, database lifecycle, export/import boundaries, and deletion coordination.
 - One writable `DATA_DIR` has one NovelReader server owner. Shared writable multi-process access is unsupported.
 - A stopped-server copy of the complete `data/` directory is the disaster-recovery backup boundary.
-- Portable reader exports exclude authentication authority and source credentials.
+- Portable reader backups are versioned `.tar.gz` physical Reader-home snapshots (`manifest.json`, `RESTORE.txt`, `reader-home/`) created from a consistent SQLite snapshot. They exclude account identity, passwords, sessions, and automation tokens; restoring replaces the target's Reader Data while keeping the target account authority.
+- Online restore stages and validates the complete archive while reading continues, then performs a brief per-reader quiesce and same-filesystem atomic replacement with rollback. Prepared restores are reader-owned, expire after 30 minutes, and disappear on restart.
+- Reader-owned hash-only automation tokens have separate `backup:export` and `backup:restore` scopes; issuing restore authority requires current-password reauthentication. Archive format compatibility and Reader schema compatibility remain separate so a future migration step can sit between extraction and validation.
 
 NovelReader remains pre-public. Development data is disposable:
 

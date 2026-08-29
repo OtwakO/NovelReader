@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -133,7 +134,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("recovery HTTP: %v", err)
 	}
-	apiSrv := api.NewAuthenticatedServer(authHandler, readers, searcher, jsVM, limits, procCfg, systemStore, browserClient, conversion)
+	apiSrv := api.NewAuthenticatedServer(authHandler, readers, cfg.DataDir, searcher, jsVM, limits, procCfg, systemStore, browserClient, conversion)
 	defer apiSrv.Close()
 	rootMux := applicationMux(apiSrv, authHandler, setupHandler, recoveryHandler, cfg.AdminRecoveryToken != "")
 
@@ -258,7 +259,8 @@ func credentialOriginMiddleware(publicURL string, next http.Handler) (http.Handl
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Add("Vary", "Origin")
 		}
-		if isUnsafeMethod(r.Method) && !matches {
+		backupAutomation := strings.HasPrefix(r.URL.Path, "/api/backups/") && strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if isUnsafeMethod(r.Method) && !matches && !backupAutomation {
 			http.Error(w, "origin not allowed", http.StatusForbidden)
 			return
 		}
@@ -268,7 +270,7 @@ func credentialOriginMiddleware(publicURL string, next http.Handler) (http.Handl
 				return
 			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}

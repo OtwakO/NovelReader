@@ -19,6 +19,7 @@ import (
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/auth"
+	backupservice "github.com/otwako/novelreader/internal/backup"
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/candidate"
@@ -51,6 +52,7 @@ type Server struct {
 	coverReferenceKey   []byte
 	collectionLoader    *booksource.RemoteLoader
 	collectionScheduler *sourceCollectionScheduler
+	backups             *backupservice.Service
 }
 
 // Mux exposes the underlying ServeMux for static file mounting.
@@ -65,6 +67,11 @@ func (s *Server) Close() error {
 	}
 	if s.candidateOperations != nil {
 		s.candidateOperations.Close()
+	}
+	if s.backups != nil {
+		if err := s.backups.Close(); err != nil {
+			return err
+		}
 	}
 	if s.collectionScheduler != nil {
 		s.collectionScheduler.Close()
@@ -194,7 +201,7 @@ func (s *Server) registerRoutesWithoutHealth() {
 }
 
 // NewAuthenticatedServer creates the production Reader Data boundary.
-func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) *Server {
+func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, dataRoot string, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) *Server {
 	s := &Server{
 		fetcher: rootSearcherFetcher(rootSearcher), jsVM: jsVM, cache: analyzer.NewCacheManager(),
 		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health, webViewProbe: webViewProbe, chineseConversion: conversion,
@@ -203,6 +210,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		collectionLoader:    booksource.NewRemoteLoader(),
 	}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, limits, 32, limits.SessionTTL)
+	s.backups = backupservice.NewService(readers, dataRoot, s.runtimes.quiesce, s.runtimes.resume)
 	s.collectionScheduler = newSourceCollectionScheduler(s.runtimes, s.collectionLoader, authHandler.ListActiveReaderIDs)
 	s.collectionScheduler.Start()
 	authHandler.ConfigureDeletionQuiescer(readers, s.runtimes.quiesce)
@@ -216,6 +224,11 @@ func rootSearcherFetcher(searcher *book.Searcher) *fetcher.Client {
 
 func (s *Server) registerAuthenticatedRoutes() {
 	s.mux.HandleFunc("GET /api/healthz", s.handleHealth)
+	s.mux.Handle("GET /api/backups/export", s.auth.RequireBackupScope(auth.BackupExport, http.HandlerFunc(s.handleBackupExport)))
+	s.mux.Handle("POST /api/backups/restores", s.auth.RequireBackupScope(auth.BackupRestore, http.HandlerFunc(s.handlePrepareBackupRestore)))
+	s.mux.Handle("GET /api/backups/restores/{id}", s.auth.RequireBackupScope(auth.BackupRestore, http.HandlerFunc(s.handleGetBackupRestore)))
+	s.mux.Handle("DELETE /api/backups/restores/{id}", s.auth.RequireBackupScope(auth.BackupRestore, http.HandlerFunc(s.handleCancelBackupRestore)))
+	s.mux.Handle("POST /api/backups/restores/{id}/commit", s.auth.RequireBackupScope(auth.BackupRestore, http.HandlerFunc(s.handleCommitBackupRestore)))
 	s.mux.Handle("/api/", s.auth.RequireIdentity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		account, ok := auth.IdentityFromContext(r.Context())
 		if !ok {
