@@ -20,6 +20,7 @@ export default defineComponent({
         { to: '/sources', labelKey: 'app.navigation.sources', short: 'B' },
         { to: '/settings', labelKey: 'app.navigation.settings', short: 'P' },
         { to: '/account', labelKey: 'app.navigation.account', short: 'A' },
+        { to: '/backups', labelKey: 'app.navigation.backups', short: 'D' },
         { to: '/account/readers', labelKey: 'app.navigation.readers', short: 'R', adminOnly: true },
       ] as NavigationItem[],
       mobileMenuOpen: false,

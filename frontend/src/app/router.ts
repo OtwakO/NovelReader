@@ -23,6 +23,7 @@ const ExploreView = () => import('../features/explore/ExploreView.vue');
 const SourceManagementView = () => import('../features/sources/SourceManagementView.vue');
 const SettingsView = () => import('../features/settings/SettingsView.vue');
 const AccountView = () => import('../features/account/AccountView.vue');
+const BackupRestoreView = () => import('../features/backups/BackupRestoreView.vue');
 const ReaderAdministrationView = () => import('../features/account/ReaderAdministrationView.vue');
 
 const publicNames = new Set(['login', 'register', 'password-reset', 'recovery', 'setup', 'setup-unavailable', 'loading', 'startup-error']);
@@ -60,6 +61,7 @@ export function createAppRouter(appPinia: Pinia = pinia) {
           { path: 'sources', name: 'sources', component: SourceManagementView },
           { path: 'settings', name: 'settings', component: SettingsView },
           { path: 'account', name: 'account', component: AccountView },
+          { path: 'backups', name: 'backups', component: BackupRestoreView },
           { path: 'account/readers', name: 'reader-admin', component: ReaderAdministrationView, meta: { administrator: true } },
         ],
       },

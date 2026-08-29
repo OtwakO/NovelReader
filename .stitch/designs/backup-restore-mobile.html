@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>备份与还原 - NovelReader</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            paper: '#F5F2E9',
+                            paperLight: '#FAF9F5',
+                            ink: '#2C2C2C',
+                            inkMuted: '#5C5C5C',
+                            primary: '#3A5A60',
+                            primaryHover: '#2d464b',
+                            primaryMuted: '#8BB3BA',
+                            accent: '#C49F63',
+                            danger: '#A84C4C',
+                            border: '#E5E2D9',
+                            hover: '#EBE8DE'
+                        }
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        "headline": ["Noto Serif SC", "serif"],
+                        "display": ["Noto Serif SC", "serif"],
+                        "body": ["Noto Sans SC", "sans-serif"],
+                        "label": ["Noto Sans SC", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.brand.paper');
+            color: theme('colors.brand.ink');
+            -webkit-tap-highlight-color: transparent;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.filled {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        /* Subtle paper shadow */
+        .paper-card {
+            background-color: theme('colors.brand.paperLight');
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+            border: 1px solid theme('colors.brand.border');
+            border-radius: theme('borderRadius.xl');
+        }
+
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 1rem); }
+        .pt-safe { padding-top: env(safe-area-inset-top, 0); }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body antialiased min-h-screen flex flex-col pt-safe">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 h-14 bg-[#F5F2E9] text-[#2C2C2C] border-b border-[#E5E2D9] pt-safe">
+<div class="flex items-center gap-3">
+<button aria-label="Menu" class="w-11 h-11 flex items-center justify-center rounded-full hover:bg-[#EBE8DE] transition-colors duration-200 ease-in-out">
+<span class="material-symbols-outlined">menu_book</span>
+</button>
+<h1 class="font-headline text-xl font-bold text-[#2C2C2C] tracking-tight">NovelReader</h1>
+</div>
+<button aria-label="Account" class="w-11 h-11 flex items-center justify-center rounded-full hover:bg-[#EBE8DE] transition-colors duration-200 ease-in-out">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</header>
+<!-- Main Content -->
+<main class="flex-1 overflow-y-auto px-4 pt-20 pb-28 max-w-2xl mx-auto w-full">
+<!-- Intro -->
+<section class="mb-8 px-2">
+<h2 class="font-headline text-3xl font-bold text-brand-ink mb-3">备份与还原</h2>
+<p class="text-brand-inkMuted text-base leading-relaxed">您可以保存便携式阅读器数据副本，或从受信任的 NovelReader 存档替换当前数据。</p>
+</section>
+<!-- Export Section -->
+<section class="paper-card p-5 mb-6">
+<div class="flex items-start justify-between mb-4">
+<div>
+<h3 class="font-headline text-xl font-bold mb-1">匯出閱讀資料</h3>
+<p class="text-sm text-brand-inkMuted">将当前进度和配置保存为本地文件。</p>
+</div>
+<span class="material-symbols-outlined text-brand-primary">upload</span>
+</div>
+<div class="bg-brand-paper rounded-lg p-4 mb-5 border border-brand-border">
+<p class="text-sm font-medium mb-2">包含内容：</p>
+<div class="flex flex-wrap gap-2 text-sm text-brand-inkMuted">
+<span class="bg-brand-paperLight px-2 py-1 rounded border border-brand-border">书架</span>
+<span class="bg-brand-paperLight px-2 py-1 rounded border border-brand-border">进度</span>
+<span class="bg-brand-paperLight px-2 py-1 rounded border border-brand-border">书签</span>
+<span class="bg-brand-paperLight px-2 py-1 rounded border border-brand-border">书源</span>
+<span class="bg-brand-paperLight px-2 py-1 rounded border border-brand-border">偏好设置和字体</span>
+</div>
+</div>
+<button class="w-full h-11 bg-brand-primary hover:bg-brand-primaryHover text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">download</span>
+                下載備份
+            </button>
+</section>
+<!-- Restore Section (Initial) -->
+<section class="paper-card p-5 mb-6">
+<div class="flex items-start justify-between mb-4">
+<div>
+<h3 class="font-headline text-xl font-bold mb-1">還原閱讀資料</h3>
+<p class="text-sm text-brand-inkMuted">从之前的备份存档中恢复所有数据。</p>
+</div>
+<span class="material-symbols-outlined text-brand-primary">download</span>
+</div>
+<!-- File Picker Area -->
+<label class="block mb-4">
+<div class="w-full h-32 border-2 border-dashed border-brand-primaryMuted rounded-xl flex flex-col items-center justify-center bg-brand-paper cursor-pointer hover:bg-brand-hover transition-colors">
+<span class="material-symbols-outlined text-brand-primary text-3xl mb-2">folder_open</span>
+<span class="text-sm font-medium text-brand-primary">選擇 .tar.gz 備份</span>
+<span class="text-xs text-brand-inkMuted mt-1">支持最大 50MB</span>
+</div>
+<input accept=".tar.gz" class="hidden" type="file"/>
+</label>
+<!-- Restore Section (Prepared State - Embedded Demonstration) -->
+<div class="border-t border-brand-border pt-5 mt-5">
+<h4 class="text-sm font-bold mb-3 flex items-center gap-2 text-brand-ink">
+<span class="material-symbols-outlined text-brand-accent text-base">verified</span>
+                    已就绪存档信息
+                </h4>
+<div class="bg-brand-paper rounded-lg p-3 text-sm grid grid-cols-2 gap-3 mb-4 border border-brand-border">
+<div>
+<span class="text-brand-inkMuted block text-xs">用户名</span>
+<span class="font-medium">User123</span>
+</div>
+<div>
+<span class="text-brand-inkMuted block text-xs">创建时间</span>
+<span class="font-medium">2023-10-27</span>
+</div>
+<div>
+<span class="text-brand-inkMuted block text-xs">架构兼容性</span>
+<span class="font-medium">1.2.0</span>
+</div>
+<div>
+<span class="text-brand-inkMuted block text-xs">过期时间</span>
+<span class="font-medium">24h</span>
+</div>
+</div>
+<div class="bg-[#Fdf3f3] text-brand-danger p-3 rounded-lg text-sm mb-4 border border-[#f5c6c6] flex gap-2 items-start">
+<span class="material-symbols-outlined text-base mt-0.5">warning</span>
+<p>提交将完全替换当前阅读器数据并丢弃备份后的更改。</p>
+</div>
+<div class="mb-5">
+<label class="block text-sm font-medium mb-1" for="confirm-restore">请输入 <span class="font-mono bg-brand-paperLight px-1 border border-brand-border rounded">RESTORE</span> 以确认</label>
+<input class="w-full h-11 bg-brand-paperLight border border-brand-border rounded-lg px-3 focus:ring-2 focus:ring-brand-danger focus:border-brand-danger outline-none transition-shadow text-brand-ink uppercase" id="confirm-restore" placeholder="RESTORE" type="text"/>
+</div>
+<div class="flex gap-3">
+<button class="flex-1 h-11 bg-brand-paper border border-brand-border text-brand-ink rounded-lg font-medium hover:bg-brand-hover transition-colors">
+                        取消
+                    </button>
+<button class="flex-1 h-11 bg-brand-danger hover:bg-[#8f3e3e] text-white rounded-lg font-medium transition-colors opacity-50 cursor-not-allowed">
+                        取代閱讀資料
+                    </button>
+</div>
+</div>
+</section>
+<!-- Automation Tokens -->
+<section class="paper-card p-5 mb-6">
+<div class="flex items-start justify-between mb-4">
+<div>
+<h3 class="font-headline text-xl font-bold mb-1">自動化權杖</h3>
+<p class="text-sm text-brand-inkMuted">生成 API 密钥用于定时自动备份或同步。</p>
+</div>
+<span class="material-symbols-outlined text-brand-primary">key</span>
+</div>
+<div class="space-y-4 mb-5">
+<div>
+<label class="block text-sm font-medium mb-1">Token Name</label>
+<input class="w-full h-11 bg-brand-paperLight border border-brand-border rounded-lg px-3 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition-shadow" placeholder="例如: 每日网盘同步" type="text"/>
+</div>
+<div>
+<label class="block text-sm font-medium mb-2">Scope</label>
+<div class="flex gap-4">
+<label class="flex items-center gap-2 cursor-pointer h-11 px-3 bg-brand-paper rounded-lg border border-brand-border">
+<input checked="" class="rounded text-brand-primary focus:ring-brand-primary w-4 h-4 bg-brand-paperLight border-brand-border" type="checkbox"/>
+<span class="text-sm">匯出 (Read)</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer h-11 px-3 bg-brand-paper rounded-lg border border-brand-border">
+<input class="rounded text-brand-primary focus:ring-brand-primary w-4 h-4 bg-brand-paperLight border-brand-border" type="checkbox"/>
+<span class="text-sm">還原 (Write)</span>
+</label>
+</div>
+</div>
+<div>
+<label class="block text-sm font-medium mb-1">Expiry</label>
+<select class="w-full h-11 bg-brand-paperLight border border-brand-border rounded-lg px-3 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition-shadow">
+<option>30 天</option>
+<option>90 天</option>
+<option>1 年</option>
+<option>永不过期</option>
+</select>
+</div>
+<div>
+<label class="block text-sm font-medium mb-1 text-brand-inkMuted flex items-center gap-1">
+                        Password
+                        <span class="material-symbols-outlined text-xs">info</span>
+</label>
+<input class="w-full h-11 bg-brand-paperLight border border-brand-border rounded-lg px-3 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition-shadow opacity-60 cursor-not-allowed" disabled="" placeholder="需要还原本机数据时验证" type="password"/>
+</div>
+</div>
+<button class="w-full h-11 bg-brand-paper border border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                建立權杖
+            </button>
+<!-- One-time Secret (Visible after creation) -->
+<div class="mt-5 bg-[#f0f4f5] border border-brand-primaryMuted rounded-lg p-4">
+<p class="text-sm text-brand-ink font-medium mb-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-brand-primary text-base">visibility_off</span>
+                    此密钥仅显示一次，请妥善保存
+                </p>
+<div class="flex items-center bg-white border border-brand-border rounded-md p-1 pl-3">
+<code class="text-sm flex-1 font-mono text-brand-primary tracking-wider">nr_tk_883a9f2bc7e4d5x92</code>
+<button class="w-9 h-9 flex items-center justify-center rounded text-brand-inkMuted hover:bg-brand-paper hover:text-brand-ink transition-colors" title="Copy">
+<span class="material-symbols-outlined text-[20px]">content_copy</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Existing Tokens -->
+<section class="mb-4">
+<h4 class="text-sm font-bold text-brand-inkMuted mb-3 px-2 uppercase tracking-widest">Active Tokens</h4>
+<div class="space-y-3">
+<div class="bg-brand-paperLight border border-brand-border rounded-xl p-3 flex items-center justify-between group hover:border-brand-primaryMuted transition-colors">
+<div class="flex-1">
+<div class="flex items-center gap-2 mb-1">
+<span class="font-medium text-brand-ink text-sm">Home-Sync</span>
+<span class="text-[10px] bg-brand-paper border border-brand-border px-1.5 py-0.5 rounded text-brand-primary">匯出</span>
+</div>
+<div class="text-xs text-brand-inkMuted flex items-center gap-3">
+<span>创建于 2023-09-10</span>
+<span class="flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]">schedule</span> 最后使用 2小时前</span>
+</div>
+</div>
+<button class="w-11 h-11 flex items-center justify-center rounded-full text-brand-inkMuted hover:text-brand-danger hover:bg-[#Fdf3f3] transition-colors">
+<span class="material-symbols-outlined">delete</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center pt-2 pb-safe px-6 h-16 bg-[#F5F2E9] border-t border-[#E5E2D9] shadow-sm rounded-t-lg hidden md:hidden flex">
+<!-- 发现 is active visually for context, though generic prompt didn't specify page, settings usually fall under a profile/explore context. Marking None active to respect generic settings nature, or matching exact array. Let's make "发现" inactive, no exact match. Defaulting to none active to respect strict instruction on active state logic. -->
+<button class="flex flex-col items-center justify-center text-[#5C5C5C] hover:text-[#3A5A60] active:scale-95 transition-transform duration-150 h-full w-16">
+<span class="material-symbols-outlined text-2xl mb-1">library_books</span>
+<span class="font-body text-xs font-sans">书架</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#5C5C5C] hover:text-[#3A5A60] active:scale-95 transition-transform duration-150 h-full w-16">
+<span class="material-symbols-outlined text-2xl mb-1">explore</span>
+<span class="font-body text-xs font-sans">发现</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#5C5C5C] hover:text-[#3A5A60] active:scale-95 transition-transform duration-150 h-full w-16">
+<span class="material-symbols-outlined text-2xl mb-1">search</span>
+<span class="font-body text-xs font-sans">搜索</span>
+</button>
+</nav>
+<script>
+        // Simple client side logic for demonstration
+        document.getElementById('confirm-restore').addEventListener('input', function(e) {
+            const btn = e.target.closest('section').querySelector('button.bg-brand-danger');
+            if(e.target.value === 'RESTORE') {
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        });
+    </script>
+</body></html>

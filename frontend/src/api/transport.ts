@@ -103,3 +103,15 @@ export async function requestForm<T>(path: string, form: FormData): Promise<T> {
   if (!response.ok) return responseError(response);
   return response.json() as Promise<T>;
 }
+
+export async function requestBinary(path: string): Promise<Response> {
+  const response = await fetchRequest(`${API_BASE}${path}`);
+  if (!response.ok) return responseError(response);
+  return response;
+}
+
+export async function requestUpload<T>(path: string, body: Blob): Promise<T> {
+  const response = await fetchRequest(`${API_BASE}${path}`, { method: 'POST', body, headers: { 'Content-Type': 'application/gzip' } });
+  if (!response.ok) return responseError(response);
+  return response.json() as Promise<T>;
+}

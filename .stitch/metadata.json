@@ -62,8 +62,31 @@
       "height": 1768,
       "html": "01-generated-mobile-reference/source-recovery-mobile.html",
       "screenshot": "01-generated-mobile-reference/source-recovery-mobile.png"
+    },
+    {
+      "id": "1578918527224e35a495eb7647cdc2bd",
+      "name": "backup-restore-mobile",
+      "title": "备份与还原 - NovelReader",
+      "deviceType": "MOBILE",
+      "model": "GEMINI_3_1_PRO",
+      "width": 780,
+      "height": 4198,
+      "html": "designs/backup-restore-mobile.html",
+      "screenshot": "designs/backup-restore-mobile.png"
+    },
+    {
+      "id": "3f8d2448e42f42f8a6be00273e4a5b91",
+      "name": "backup-restore-desktop",
+      "title": "备份与还原 - NovelReader",
+      "deviceType": "DESKTOP",
+      "model": "GEMINI_3_1_PRO",
+      "width": 2560,
+      "height": 2404,
+      "html": "designs/backup-restore-desktop.html",
+      "screenshot": "designs/backup-restore-desktop.png"
     }
   ],
+  "lastSyncTime": "2026-08-29T14:20:00Z",
   "prototype": {
     "entry": "02-interactive-prototype/runtime/index.html",
     "state": "in-memory only",
