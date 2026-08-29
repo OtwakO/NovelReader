@@ -4,10 +4,96 @@ import { cancelRestore, commitRestore, createBackupToken, downloadBackup, listBa
 import AppButton from '../../ui/components/AppButton.vue';
 import FeatureScaffold from '../../ui/components/FeatureScaffold.vue';
 
+type ApiExample = 'curl' | 'python' | 'javascript' | 'rest';
+
+const apiExamples: Record<ApiExample, string> = {
+  curl: `curl -f -H "Authorization: Bearer $EXPORT_TOKEN" \\
+  -o reader-backup.tar.gz \\
+  "$NOVELREADER_URL/api/backups/export"
+
+operation_id=$(curl -fsS -X POST \\
+  -H "Authorization: Bearer $RESTORE_TOKEN" \\
+  -H "Content-Type: application/gzip" \\
+  --data-binary @reader-backup.tar.gz \\
+  "$NOVELREADER_URL/api/backups/restores" | jq -r .operationId)
+
+curl -f -X POST \\
+  -H "Authorization: Bearer $RESTORE_TOKEN" \\
+  "$NOVELREADER_URL/api/backups/restores/$operation_id/commit"`,
+  python: `import json, os, urllib.request
+
+base = os.environ["NOVELREADER_URL"]
+export_token = os.environ["EXPORT_TOKEN"]
+restore_token = os.environ["RESTORE_TOKEN"]
+
+request = urllib.request.Request(f"{base}/api/backups/export",
+    headers={"Authorization": f"Bearer {export_token}"})
+with urllib.request.urlopen(request) as response:
+    open("reader-backup.tar.gz", "wb").write(response.read())
+
+request = urllib.request.Request(f"{base}/api/backups/restores",
+    data=open("reader-backup.tar.gz", "rb").read(), method="POST",
+    headers={"Authorization": f"Bearer {restore_token}",
+             "Content-Type": "application/gzip"})
+with urllib.request.urlopen(request) as response:
+    operation_id = json.load(response)["operationId"]
+
+request = urllib.request.Request(
+    f"{base}/api/backups/restores/{operation_id}/commit", method="POST",
+    headers={"Authorization": f"Bearer {restore_token}"})
+urllib.request.urlopen(request).close()`,
+  javascript: `import { readFile, writeFile } from "node:fs/promises";
+
+const base = process.env.NOVELREADER_URL;
+const exportHeaders = { Authorization: \`Bearer \${process.env.EXPORT_TOKEN}\` };
+const restoreHeaders = { Authorization: \`Bearer \${process.env.RESTORE_TOKEN}\` };
+
+let response = await fetch(\`\${base}/api/backups/export\`, { headers: exportHeaders });
+await writeFile("reader-backup.tar.gz", Buffer.from(await response.arrayBuffer()));
+
+response = await fetch(\`\${base}/api/backups/restores\`, {
+  method: "POST",
+  headers: { ...restoreHeaders, "Content-Type": "application/gzip" },
+  body: await readFile("reader-backup.tar.gz"),
+});
+const { operationId } = await response.json();
+
+await fetch(\`\${base}/api/backups/restores/\${operationId}/commit\`, {
+  method: "POST", headers: restoreHeaders,
+});`,
+  rest: `GET /api/backups/export HTTP/1.1
+Host: novelreader.example
+Authorization: Bearer <SOURCE_EXPORT_TOKEN>
+
+HTTP/1.1 200 OK
+Content-Type: application/gzip
+
+<save response body as reader-backup.tar.gz>
+
+POST /api/backups/restores HTTP/1.1
+Host: novelreader.example
+Authorization: Bearer <DESTINATION_RESTORE_TOKEN>
+Content-Type: application/gzip
+
+<reader-backup.tar.gz bytes>
+
+HTTP/1.1 201 Created
+Content-Type: application/json
+
+{"operationId":"<OPERATION_ID>", ...}
+
+POST /api/backups/restores/<OPERATION_ID>/commit HTTP/1.1
+Host: novelreader.example
+Authorization: Bearer <DESTINATION_RESTORE_TOKEN>`,
+};
+
 export default defineComponent({
   name: 'BackupRestoreView', components: { AppButton, FeatureScaffold },
-  data() { return { exporting: false, exportError: '', restoreFile: null as File | null, preparing: false, restoreError: '', prepared: null as PreparedRestore | null, confirmation: '', committing: false, tokenLoading: true, tokenError: '', tokens: [] as BackupToken[], tokenName: '', tokenCanExport: true, tokenCanRestore: false, currentPassword: '', tokenExpiry: '', creatingToken: false, revealedToken: null as BackupTokenCredential | null, copied: false }; },
-  computed: { canCommit(): boolean { return this.confirmation === this.$t('backups.restore.confirmWord') && !this.committing; } },
+  data() { return { exporting: false, exportError: '', restoreFile: null as File | null, preparing: false, restoreError: '', prepared: null as PreparedRestore | null, confirmation: '', committing: false, tokenLoading: true, tokenError: '', tokens: [] as BackupToken[], tokenName: '', tokenCanExport: true, tokenCanRestore: false, currentPassword: '', tokenExpiry: '', creatingToken: false, revealedToken: null as BackupTokenCredential | null, copied: false, activeApiExample: 'curl' as ApiExample, apiExampleTabs: ['curl', 'python', 'javascript', 'rest'] as ApiExample[] }; },
+  computed: {
+    canCommit(): boolean { return this.confirmation === this.$t('backups.restore.confirmWord') && !this.committing; },
+    apiExampleCode(): string { return apiExamples[this.activeApiExample]; },
+  },
   async mounted() { await this.loadTokens(); },
   methods: {
     formatDate(value?: string | number) { if (!value) return ''; const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value); return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date); },
@@ -82,19 +168,10 @@ export default defineComponent({
             </div>
             <h3>{{ $t('backups.api.exampleTitle') }}</h3>
             <p>{{ $t('backups.api.exampleDescription') }}</p>
-            <pre><code>curl -H "Authorization: Bearer $EXPORT_TOKEN" \
-  -o reader-backup.tar.gz \
-  "$NOVELREADER_URL/api/backups/export"
-
-operation_id=$(curl -fsS -X POST \
-  -H "Authorization: Bearer $RESTORE_TOKEN" \
-  -H "Content-Type: application/gzip" \
-  --data-binary @reader-backup.tar.gz \
-  "$NOVELREADER_URL/api/backups/restores" | jq -r .operationId)
-
-curl -fsS -X POST \
-  -H "Authorization: Bearer $RESTORE_TOKEN" \
-  "$NOVELREADER_URL/api/backups/restores/$operation_id/commit"</code></pre>
+            <div class="example-tabs" role="tablist" :aria-label="$t('backups.api.exampleTabs')">
+              <button v-for="tab in apiExampleTabs" :id="`api-example-${tab}`" :key="tab" type="button" role="tab" :aria-selected="activeApiExample === tab" :aria-controls="'api-example-panel'" @click="activeApiExample = tab">{{ tab === 'javascript' ? 'JavaScript' : tab === 'python' ? 'Python' : tab === 'rest' ? 'REST' : 'cURL' }}</button>
+            </div>
+            <pre id="api-example-panel" role="tabpanel" :aria-labelledby="`api-example-${activeApiExample}`"><code>{{ apiExampleCode }}</code></pre>
             <p class="api-note">{{ $t('backups.api.note') }}</p>
           </div>
         </details>
@@ -157,8 +234,13 @@ curl -fsS -X POST \
 .endpoint-list code { color: var(--color-ink); font-size: .8rem; overflow-wrap: anywhere; }
 .endpoint-list span { color: var(--color-ink-muted); font-size: .82rem; }
 .endpoint-list strong { color: var(--color-accent); }
-.api-docs pre { max-width: 100%; margin: 0; padding: .85rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: #26343a; color: #f8f3e7; overflow-x: auto; font-size: .78rem; line-height: 1.55; tab-size: 2; }
-.api-docs pre code { user-select: all; }
+.example-tabs { display: flex; gap: .25rem; margin-bottom: -.85rem; padding: .25rem .25rem 0; border: 1px solid var(--color-border); border-bottom: 0; border-radius: var(--radius-md) var(--radius-md) 0 0; background: var(--color-paper-muted); overflow-x: auto; }
+.example-tabs button { min-height: 2.4rem; border: 0; border-radius: var(--radius-sm) var(--radius-sm) 0 0; padding: .45rem .75rem; background: transparent; color: var(--color-ink-muted); font: inherit; font-size: .8rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.example-tabs button:hover { color: var(--color-ink); background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.example-tabs button[aria-selected="true"] { background: #26343a; color: #f8f3e7; }
+.example-tabs button:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 35%, transparent); outline-offset: -1px; }
+.api-docs pre { max-width: 100%; margin: 0; padding: .85rem; border: 1px solid var(--color-border); border-radius: 0 0 var(--radius-md) var(--radius-md); background: #26343a; color: #f8f3e7; overflow-x: auto; font-size: .78rem; line-height: 1.55; tab-size: 2; }
+.api-docs pre code { user-select: all; white-space: pre; }
 @media (max-width: 42rem) {
   .panel > header { align-items: stretch; flex-direction: column; gap: .75rem; }
   .panel > header :deep(.app-button) { width: 100%; }
