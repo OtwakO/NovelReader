@@ -56,6 +56,7 @@ type HTTPHandler struct {
 	completeReset      func(context.Context, string, string) error
 	deletions          *DeletionService
 	deleteReader       func(context.Context, readerstore.UserID, string, Account, int64) (DeletionJob, error)
+	backupTokens       *BackupTokenService
 }
 
 type loginRateLimiter struct {
@@ -99,6 +100,14 @@ type passwordResetCompleteRequest struct {
 
 type readerDeletionRequest struct {
 	Username string
+}
+
+type backupTokenCreateRequest struct {
+	Name            string
+	CanExport       bool
+	CanRestore      bool
+	ExpiresAt       *int64
+	CurrentPassword string
 }
 
 type accountResponse struct {
@@ -164,6 +173,7 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 	handler.passwordResets.now = func() int64 { return handler.now().Unix() }
 	handler.issuePasswordReset = handler.passwordResets.Issue
 	handler.completeReset = handler.passwordResets.Complete
+	handler.backupTokens = NewBackupTokenService(store)
 	if config.Readers != nil {
 		handler.registration = NewRegistrationService(store, config.Readers, config.RegistrationEnabled, config.RegistrationInviteCode)
 		handler.registerAccount = handler.registration.Register
@@ -179,6 +189,9 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 	handler.mux.Handle("PUT /api/auth/admin/readers/{userID}/status", handler.RequireAdmin(http.HandlerFunc(handler.handleReaderStatus)))
 	handler.mux.Handle("POST /api/auth/admin/readers/{userID}/password-reset", handler.RequireAdmin(http.HandlerFunc(handler.handlePasswordResetIssue)))
 	handler.mux.Handle("DELETE /api/auth/admin/readers/{userID}", handler.RequireAdmin(http.HandlerFunc(handler.handleReaderDeletion)))
+	handler.mux.Handle("GET /api/auth/backup-tokens", handler.RequireIdentity(http.HandlerFunc(handler.handleListBackupTokens)))
+	handler.mux.Handle("POST /api/auth/backup-tokens", handler.RequireIdentity(http.HandlerFunc(handler.handleCreateBackupToken)))
+	handler.mux.Handle("DELETE /api/auth/backup-tokens/{id}", handler.RequireIdentity(http.HandlerFunc(handler.handleRevokeBackupToken)))
 	return handler, nil
 }
 
@@ -736,6 +749,84 @@ func (h *HTTPHandler) handleAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeAuthJSON(w, http.StatusOK, publicAccount(account))
+}
+
+func (h *HTTPHandler) handleListBackupTokens(w http.ResponseWriter, r *http.Request) {
+	account, ok := IdentityFromContext(r.Context())
+	if !ok {
+		writeAuthError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	tokens, err := h.backupTokens.List(r.Context(), account.ID)
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "backup token management unavailable")
+		return
+	}
+	writeAuthJSON(w, http.StatusOK, map[string]any{"tokens": tokens})
+}
+
+func (h *HTTPHandler) handleCreateBackupToken(w http.ResponseWriter, r *http.Request) {
+	if !h.allowUnsafeRequest(w, r) {
+		return
+	}
+	account, ok := IdentityFromContext(r.Context())
+	if !ok {
+		writeAuthError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var request backupTokenCreateRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxLoginRequestSize))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil || decoder.Decode(&struct{}{}) != io.EOF {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.loginTimeout)
+	defer cancel()
+	if request.CanRestore {
+		if err := h.accounts.VerifyPassword(ctx, account.ID, request.CurrentPassword); err != nil {
+			if errors.Is(err, ErrInvalidCredentials) {
+				writeAuthError(w, http.StatusUnauthorized, "current password is incorrect")
+				return
+			}
+			writeAuthError(w, http.StatusServiceUnavailable, "backup token management unavailable")
+			return
+		}
+	}
+	credential, err := h.backupTokens.Create(ctx, account.ID, CreateBackupToken{
+		Name: request.Name, CanExport: request.CanExport, CanRestore: request.CanRestore, ExpiresAt: request.ExpiresAt,
+	})
+	if errors.Is(err, ErrInvalidBackupToken) {
+		writeAuthError(w, http.StatusBadRequest, "invalid backup token")
+		return
+	}
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "backup token management unavailable")
+		return
+	}
+	preventAuthResponseCaching(w)
+	writeAuthJSON(w, http.StatusCreated, credential)
+}
+
+func (h *HTTPHandler) handleRevokeBackupToken(w http.ResponseWriter, r *http.Request) {
+	if !h.allowUnsafeRequest(w, r) {
+		return
+	}
+	account, ok := IdentityFromContext(r.Context())
+	if !ok {
+		writeAuthError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	if err := h.backupTokens.Revoke(r.Context(), account.ID, r.PathValue("id")); err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid backup token")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// AuthenticateBackupToken resolves a scoped automation token without granting general API access.
+func (h *HTTPHandler) AuthenticateBackupToken(ctx context.Context, token string, scope BackupScope) (Account, error) {
+	return h.backupTokens.Authenticate(ctx, token, scope)
 }
 
 func (h *HTTPHandler) allowUnsafeRequest(w http.ResponseWriter, r *http.Request) bool {

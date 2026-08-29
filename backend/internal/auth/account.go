@@ -200,6 +200,25 @@ func (s *AccountService) Authenticate(ctx context.Context, rawUsername, password
 	return account, nil
 }
 
+// VerifyPassword reauthenticates one active account without changing credentials or sessions.
+func (s *AccountService) VerifyPassword(ctx context.Context, userID readerstore.UserID, password string) error {
+	if _, err := readerstore.ParseUserID(string(userID)); err != nil {
+		return err
+	}
+	account, passwordHash, err := s.accountByIDWithPassword(ctx, userID)
+	if err != nil {
+		return err
+	}
+	valid, err := s.passwords.Verify(ctx, password, passwordHash)
+	if err != nil {
+		return err
+	}
+	if !valid || account.Status != StatusActive {
+		return ErrInvalidCredentials
+	}
+	return nil
+}
+
 // ChangePassword verifies the current credential and atomically replaces it while revoking every session.
 func (s *AccountService) ChangePassword(ctx context.Context, userID readerstore.UserID, currentPassword, newPassword string, now int64) error {
 	if _, err := readerstore.ParseUserID(string(userID)); err != nil {
