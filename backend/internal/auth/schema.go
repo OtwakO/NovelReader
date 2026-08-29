@@ -23,6 +23,22 @@ CREATE TABLE auth_sessions (
 );
 CREATE INDEX auth_sessions_user_id_idx ON auth_sessions(user_id);
 
+CREATE TABLE backup_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    token_hash BLOB NOT NULL UNIQUE CHECK (typeof(token_hash) = 'blob' AND length(token_hash) = 32),
+    can_export INTEGER NOT NULL CHECK (can_export IN (0, 1)),
+    can_restore INTEGER NOT NULL CHECK (can_restore IN (0, 1)),
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER,
+    last_used_at INTEGER,
+    CHECK (can_export = 1 OR can_restore = 1),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX backup_tokens_user_id_idx ON backup_tokens(user_id, created_at DESC);
+CREATE INDEX backup_tokens_expires_at_idx ON backup_tokens(expires_at);
+
 CREATE TABLE password_reset_tokens (
     token_hash BLOB PRIMARY KEY,
     user_id TEXT NOT NULL,

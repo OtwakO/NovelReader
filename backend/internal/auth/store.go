@@ -14,7 +14,7 @@ import (
 
 const (
 	SystemDatabaseName         = "system.db"
-	CurrentSystemSchemaVersion = 4
+	CurrentSystemSchemaVersion = 5
 	systemDatabaseStagingName  = ".system.db.staging"
 )
 
