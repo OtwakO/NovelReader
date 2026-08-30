@@ -155,10 +155,13 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 				transport = fingerprintTransport
 			}
 		}
+		var browser sourceexec.Transport
 		if webViewClient != nil {
-			transport = sourceexec.NewRoutingTransport(transport, webViewClient.ForSession(session))
+			browser = webViewClient.ForSession(session)
 		}
+		transport = sourceexec.NewRoutingTransport(transport, browser)
 		executor := sourceexec.NewExecutorWithSession(jsVM, transport, session)
+		executor.SetURLContext(&analyzer.URLContext{JSLib: src.JSLib})
 		spec, buildErr := executor.BuildContext(sourceCtx, src.SearchURL, query, 1, src.BookSourceURL)
 		if buildErr != nil {
 			record.Classification = "js_or_request_build_failure"
@@ -180,6 +183,9 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 			continue
 		}
 		response, requestErr := transport.Do(sourceCtx, spec)
+		if requestErr == nil {
+			response, requestErr = executor.TransformResponse(sourceCtx, spec, response)
+		}
 		cancel()
 		if requestErr != nil {
 			record.Classification = classifyTransportError(requestErr)

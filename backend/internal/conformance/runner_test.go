@@ -11,6 +11,46 @@ import (
 	"time"
 )
 
+func TestRunSearchExecutesTypedDataThroughRoutingTransport(t *testing.T) {
+	raw, _ := json.Marshal([]map[string]interface{}{{
+		"bookSourceUrl": "fixture", "bookSourceName": "typed fixture", "bookSourceType": 0,
+		"searchUrl":  `data:;base64,PGEgY2xhc3M9ImJvb2siIGhyZWY9Ii9ib29rIj5GaXh0dXJlPC9hPg==,{"type":"fixture","bodyJs":"java.hexDecodeToString(result)"}`,
+		"ruleSearch": map[string]string{"bookList": ".book", "name": "text", "bookUrl": "href"},
+	}})
+	records, err := RunSearch(t.Context(), raw, []int{0}, "fixture", 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || records[0].Classification != "success" || records[0].Response == nil || records[0].Response.Transport != "data" {
+		t.Fatalf("records=%+v", records)
+	}
+}
+
+func TestRunSearchBuildsURLWithSourceJSLib(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("q") != "fixture" {
+			http.Error(w, "missing jsLib query", http.StatusBadRequest)
+			return
+		}
+		_, _ = w.Write([]byte(`<a class="book" href="/book">Fixture</a>`))
+	}))
+	defer server.Close()
+
+	raw, _ := json.Marshal([]map[string]interface{}{{
+		"bookSourceUrl": server.URL, "bookSourceName": "jsLib fixture", "bookSourceType": 0,
+		"jsLib":      `function makeSearch(value) { return baseUrl + '/search?q=' + value; }`,
+		"searchUrl":  `<js>makeSearch(key)</js>`,
+		"ruleSearch": map[string]string{"bookList": ".book", "name": "text", "bookUrl": "href"},
+	}})
+	records, err := RunSearch(t.Context(), raw, []int{0}, "fixture", 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || records[0].Classification != "success" {
+		t.Fatalf("records=%+v", records)
+	}
+}
+
 func TestRunSearchRecordsExpandedRequestAndExtraction(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.FormValue("q") != "凡人修仙传" {
