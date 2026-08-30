@@ -126,6 +126,9 @@ export default defineComponent({
         <p class="intro">{{ $t("sources.interaction.description") }}</p>
         <p v-if="loading" aria-busy="true">{{ $t("sources.interaction.loading") }}</p>
         <p v-if="error" class="message error" role="alert">{{ error }}</p>
+        <div v-if="effects.length" class="effects" role="status" aria-live="polite">
+          <p v-for="(effect, index) in effects" :key="`${effect.type}-${index}`" :class="{ warning: effect.type === 'browser_required' }">{{ effectText(effect) }}</p>
+        </div>
         <template v-if="view">
           <form class="controls" @submit.prevent>
             <template v-for="control in view.controls" :key="control.id">
@@ -143,9 +146,6 @@ export default defineComponent({
               <button v-else-if="control.type === 'unsupported'" class="unsupported" type="button" disabled>{{ control.label }} — {{ $t("sources.interaction.unsupported", { type: control.unsupported }) }}</button>
             </template>
           </form>
-          <div v-if="effects.length" class="effects" role="status">
-            <p v-for="(effect, index) in effects" :key="`${effect.type}-${index}`" :class="{ warning: effect.type === 'browser_required' }">{{ effectText(effect) }}</p>
-          </div>
           <section class="maintenance">
             <h3>{{ $t("sources.interaction.maintenance.title") }}</h3>
             <p>{{ $t("sources.interaction.maintenance.description") }}</p>

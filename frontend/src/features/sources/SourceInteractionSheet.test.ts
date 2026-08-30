@@ -36,6 +36,16 @@ describe('SourceInteractionSheet', () => {
     expect(runSourceInteractionAction).toHaveBeenLastCalledWith('source-a', 'revision', 'action-2', expect.objectContaining({ Enabled: '1' }));
     wrapper.unmount();
   });
+  it('shows action feedback before the long control list', async () => {
+    runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'notice', message: 'Saved' }] });
+    const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('select').exists()).toBe(true));
+    await wrapper.get('select').setValue('B');
+    const body = wrapper.get('.sheet-body').element;
+    const effects = body.querySelector('.effects'); const controls = body.querySelector('.controls');
+    expect(effects && controls && effects.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(wrapper.get('.effects').text()).toContain('Saved');
+    wrapper.unmount();
+  });
   it('emits Explore refresh effects for the parent state boundary', async () => {
     runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'refresh_explore' }] });
     const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('select').exists()).toBe(true));
