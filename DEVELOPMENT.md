@@ -565,3 +565,9 @@
 - **Change**: JavaScript evaluation now binds temporary `getVariable` / `putVariable` methods to existing book/chapter context maps, applies chapter-before-book key-presence precedence for `java.get`, writes `java.put` to the active chapter or book, and synchronizes mutated book variables through the existing `Book.variableMap` field after TOC parsing.
 - **Reason**: The previous JSVM-global cache gave state the wrong owner and could leak values across unrelated contexts. Keeping mutations on the already-shared crawl maps preserves workflow continuity without exposing stores to the analyzer or adding a second state layer.
 - **Verified**: Analyzer, source execution, book workflow, conformance, and API package tests pass; focused tests cover empty-value precedence, temporary-method cleanup, URL-rule variables, and TOC field-to-field persistence.
+
+### [2026-08-30] Aggregate workflow proven without provider-specific production code
+- **Context**: Validate that typed data execution and contextual variables compose through the real Search → Book Info → TOC → Content orchestration before adding durable settings or login.
+- **Change**: Added a deterministic local-gateway regression whose source creates typed synthetic URLs at every stage, uses `java.ajax` for gateway calls, carries a book ID through `java.put` / `book.getVariable`, and resolves readable chapter content.
+- **Reason**: A complete workflow test distinguishes missing shared compatibility primitives from isolated unit behavior while avoiding dependence on the live aggregate gateway or its provider-specific scripts.
+- **Verified**: The focused aggregate workflow and analyzer/sourceexec/book/conformance/API package tests pass. During fixture construction, an unencoded chapter title correctly failed at the gateway boundary and was fixed in the source fixture with the existing `java.encodeURI` bridge rather than a production special case.
