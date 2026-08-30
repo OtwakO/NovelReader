@@ -58,6 +58,15 @@ the direct version:
 Build for the case in front of you. Generalize once a second real case actually shows up, not
 before.
 
+Do not add defensive branches, error handling, configurability, or extension points for scenarios
+the actual contract makes impossible. Validate and handle failure at real boundaries — untrusted
+input, network, disk, external services — rather than inventing hypothetical states deep inside
+trusted code.
+
+Treat code size as a smell, not a target. If a straightforward version would be dramatically
+smaller than the current implementation, simplify before landing it. Before finishing, ask whether
+the solution is more complicated than the problem requires; if it is, reduce it.
+
 ### Fix the cause, not the symptom
 When something is broken, find out why before deciding how to fix it. A fix that doesn't explain
 the root cause is a patch, not a fix.
@@ -74,9 +83,10 @@ If any of these are true, trace back to where the problem actually starts and fi
 instead.
 
 Sometimes the real fix genuinely isn't possible right now — a third-party dependency, a hard
-deadline, code you don't own. When that happens: say so explicitly, mark the workaround clearly in
-the code (e.g. `# workaround: <reason>, real fix would be <what>`), and add an entry to
-`DEVELOPMENT.md` so it isn't mistaken for the real fix later.
+deadline, code you don't own. When that happens: say so explicitly and mark the workaround clearly
+in the code (e.g. `# workaround: <reason>, real fix would be <what>`). If the limitation is durable
+and non-obvious, record it in the active implementation plan or the smallest relevant durable note
+so a future agent doesn't mistake the workaround for the real fix.
 
 Never stack a new patch on an existing patch without first checking whether the original patch
 should become the real fix instead.
@@ -99,16 +109,20 @@ Examples: a normal feature, a behavior change, a change touching a few related f
 - Write one or two sentences on what "done" looks like before starting.
 - Add or update tests for the new or changed behavior.
 - Run the tests for the affected area first; only run more if something breaks or looks coupled.
-- Update `PLAN.md` if scope, architecture, or next steps changed.
+- If the work is substantial, decision-heavy, or likely to outlive the current session, use or
+  create a dedicated implementation plan after the approach is accepted.
+- Update `PLAN.md` only if project-level current state or priorities actually changed.
 
 ### High-Risk or Structural
 Examples: migrations, auth/authorization, public API changes, shared data models, deployments,
 destructive operations (delete, drop, overwrite), or anything flagged as sensitive.
-- Write the plan down before touching code.
+- Write the plan down before touching code; substantial High-Risk work normally warrants a durable
+  implementation plan.
 - Confirm any decision that would be expensive to undo.
-- Document rollback and compatibility concerns.
+- Document rollback and compatibility concerns in the relevant plan or architecture/decision doc.
 - Use broader tests (integration or end-to-end) where the risk justifies it.
-- Keep `PLAN.md` and `DEVELOPMENT.md` current as you go.
+- Keep only the authoritative documentation affected by the work current as meaningful state
+  changes; do not update unrelated docs for ceremony.
 
 A change stays High-Risk because of what it touches, not how many lines it is — a one-line change
 to a payments function is still High-Risk. Don't classify a change as High-Risk just because more
@@ -122,96 +136,145 @@ A task is done when:
 - The tests appropriate to the change's category above pass.
 - No new warnings, dead code, debug prints, or unexplained TODOs.
 - No secrets or hardcoded environment-specific values.
-- Docs were updated if setup, usage, or interfaces changed.
-- `PLAN.md` reflects any real change to scope, architecture, or state.
-- `DEVELOPMENT.md` has an entry if something non-obvious happened worth remembering.
+- Any authoritative documentation made stale by the change was updated; unrelated docs were not
+  touched just because they exist.
+- `PLAN.md` reflects project-level state changes when relevant, and any active implementation plan
+  accurately records meaningful unfinished state or verification limits.
+- Durable non-obvious rationale or discoveries were recorded in the smallest canonical place when
+  future agents would otherwise have to rediscover them.
 - Nothing unrelated was changed without asking first.
 - A bug fix addresses the root cause — or, if it's a workaround, that's stated explicitly and
   logged (see Design Approach).
 
-Not every task needs new tests, a full test run, a README edit, or a `DEVELOPMENT.md` entry — only
-add what the category above actually calls for.
+Not every task needs new tests, a full test run, a README edit, or a documentation update — only
+add what the category above and the actual change justify.
 
 **Report what you actually did.** If you only ran the tests for one file, say "tests for X pass" —
 not "tests pass." Never describe a partial test run as a full one.
 
 ## Handling Ambiguity
 
+Do not hide assumptions or confusion inside the implementation. Surface any assumption or tradeoff
+that materially affects behavior. If the uncertainty is harmless, reversible, and inferable from
+the existing code or conventions, make the call and state the assumption briefly when useful.
+
 Stop and ask when the uncertainty would affect architecture, data shape, public interfaces, auth,
 third-party service choice, a destructive operation, or anything expensive to undo.
 
 - Batch your questions into one message if you have more than one.
 - Don't ask about things you can infer from the existing code or conventions — just make the call.
-- If a request is genuinely ambiguous, list the possible interpretations and ask which one is
-  meant, rather than picking one silently.
+- If multiple interpretations would lead to meaningfully different results, present the plausible
+  interpretations and ask which one is meant rather than picking one silently.
+- If there are multiple viable approaches with meaningful tradeoffs, state those tradeoffs briefly
+  instead of silently choosing based on hidden assumptions.
+- If a simpler approach fully meets the request, say so before proceeding with a more complex one
+  (see Core Principles).
 - If you're about to guess on something consequential, stop and ask instead.
 
 ## Planning Before Coding
 
-Before starting a new project, or a Standard/High-Risk feature, write down:
-- What you're building and what "done" looks like
-- Directory structure and what owns what
-- How data flows and what the interfaces look like
-- The main steps, in order
-- Known risks or open questions
+For a Small/Localized change, do not create planning ceremony — make the smallest safe change.
 
-Group files by feature, not by file type — keep a feature's models, logic, and tests together.
-There should be one obvious place to start reading from the project root.
+Before starting a new project or meaningful Standard/High-Risk work, establish what you're building,
+what "done" means, the important boundaries/data flow, the main steps, and known risks or open
+questions. Keep this brief unless the work itself is substantial.
 
-For a Small/Localized change, skip all of this — just make the change.
+If a substantial proposal has been accepted and the work is likely to span multiple meaningful
+steps, decisions, or sessions, create or update a durable implementation plan under `docs/plans/`.
+The plan is the persistent handoff artifact for that workstream; do not create one for routine local
+changes just for consistency.
 
-## PLAN.md — current state
+## Documentation & Persistent Context
 
-`PLAN.md` lives at the repo root and describes the project **as it is right now**, not its
-history. Anyone — human or AI — should be able to read it and know where things stand without
-reading the code first.
+Documentation is a **progressively-loadable persistent context layer**, not a second copy of the
+codebase or a diary. Its purpose is to make long-lived projects easy to maintain and cheap for a
+fresh agent to resume.
 
-Include only the sections that apply:
-- **Objective** — what this project does
-- **Architecture** — how it's organized
-- **Phases** — what's done, what's next, with clear completion criteria
-- **Current state** — the exact stopping point if work is mid-way
-- **Open questions** — unresolved decisions
-- **Out of scope** — what's deliberately not being built
-- **Constraints** — environment quirks, external dependencies
+Core rules:
+- **One fact, one canonical home.** Link instead of duplicating information across docs.
+- **Update by relevance, not ceremony.** Update only documents whose owned truth changed; many
+  commits legitimately need no documentation change.
+- **Current truth and history are different.** Current-state docs stay accurate; completed plans and
+  superseded decisions normally remain frozen historical context.
+- **Preserve decisions, not deliberation.** Record important choices, rationale, meaningful rejected
+  alternatives, and reconsideration conditions when they would not be obvious from code. Skip
+  routine implementation choices.
+- **Every document must earn its maintenance cost.** Do not create one merely because a document
+  type exists.
 
-Create it before real implementation starts on a new project. For an existing project that
-doesn't have one yet, create it the first time you start multi-step work — don't try to
-reconstruct its whole history.
+### Canonical roles
+Use only the types the repository actually needs:
+- `README.md` — user/operator setup, usage, testing, configuration, and deployment.
+- `PLAN.md` — concise project dashboard and routing layer: objective, system map, current state,
+  active-work links, immediate priorities, and project-level questions/constraints.
+- `docs/plans/<topic>.md` — substantial accepted implementation work and its durable handoff state.
+  One plan belongs to a workstream, not an agent.
+- `ROADMAP.md` / `docs/roadmaps/<topic>.md` — optional project or scoped long-term direction; multiple
+  independent roadmaps are fine.
+- `docs/architecture/` — current architecture when detail no longer fits concisely in `PLAN.md`.
+- `docs/decisions/` — optional durable cross-cutting decisions whose rationale outlives one plan.
+- `docs/notes/`, `docs/runbooks/`, `docs/reference/` — create only for a real need: rare durable
+  discoveries, operational procedures, or stable reference material respectively.
 
-Update it whenever the objective, architecture, phase, current state, or a real decision changes.
-Before every commit, check if `PLAN.md` is now stale — if it is, update it in the same commit.
-Don't touch it for every small step; only when something durable actually changed.
+If the repository already has `DEVELOPMENT.md`, treat it as valid historical material, but do not
+keep growing a monolithic chronological log by default. Put new knowledge in the smallest canonical
+place and do not migrate old history merely for consistency.
 
-## DEVELOPMENT.md — history
+### Plans, decisions, and handoff
+Create or update an implementation plan after the approach is accepted when the work is substantial
+enough that its decisions or progress are likely to matter across meaningful steps or sessions —
+commonly multi-session, structural, migration, or High-Risk work. Small/Localized work normally does
+not warrant a plan.
 
-`DEVELOPMENT.md` lives alongside `PLAN.md` and keeps a record of things worth remembering that
-aren't obvious from the code or commit history:
-- A hard bug and how it was found and fixed
-- A non-obvious decision and why it was made
-- An approach that was tried and didn't work
-- An environment quirk or workaround
-- A limitation in how something was verified
+Keep plan paths stable and semantic. An active plan should make **Goal**, **Scope**, **Accepted
+Approach**, important **Decisions**, **Current State**, **Next Action**, and **Verification** easy to
+find; add progress/open questions only when useful. Update current state in place rather than
+appending session diaries — Git already preserves old versions.
 
-Do not log routine edits, every command run, or a restated commit message. This file only earns
-an entry when future-you, or another AI, would otherwise have to rediscover something the hard
-way.
+Keep substantial active work **handoff-ready** rather than waiting until the end of a session.
+Update the active plan at meaningful milestones whenever its `Current State`, `Next Action`, or
+`Verification` would otherwise become materially stale. Before a significant commit or an intentional
+session wrap-up with unfinished work, ensure those sections accurately describe the stopping point so
+a fresh session can resume without the prior conversation. Do not update the plan after every edit,
+and do not defer all state recording until session end.
 
-Use one short block per entry:
-```markdown
-### [YYYY-MM-DD] Short title
-- **Context**: what you were doing
-- **Change**: what changed
-- **Reason**: why
-- **Verified**: how you checked it
-- **Watch out**: anything to be careful of later
-```
-Skip any field that doesn't add anything. Entries are never edited or deleted — add a new one
-instead.
+When completed, record the outcome and mark the plan completed; it then becomes historical context
+and normally stops receiving maintenance. If a durable decision is later reversed, record the new
+decision and link/supersede the old one rather than rewriting history.
 
-**The difference in one line: `PLAN.md` says what's true now. `DEVELOPMENT.md` says what happened
-and why.** If a change affects both — e.g. a bug fix that also changes the architecture — update
-both, in the same commit.
+For concurrent development, keep one plan per persistent workstream and use branches/worktrees for
+actual isolation. Agents are temporary; workstream context persists. Do not create per-agent plan or
+locking files unless the project has a demonstrated need for them.
+
+### Fresh-session retrieval
+Load context progressively rather than reading everything:
+1. Applicable `AGENTS.md` instructions.
+2. `PLAN.md` for project orientation and active work.
+3. The relevant implementation plan, if one exists.
+4. Relevant local `AGENTS.md` / subsystem `README.md`, then directly affected code and tests.
+5. Linked architecture, decisions, roadmaps, notes, runbooks, reference docs, or Git history only
+   when the task actually needs them.
+
+Documentation is orientation, not proof. If current docs and code materially disagree, determine
+which is stale or whether the implementation violates an intended contract; do not silently assume
+either side wins.
+
+Before committing, check whether the change made any canonical documentation stale and update only
+what changed: usage → README; project state → PLAN; implementation/handoff → active plan; future
+direction → roadmap; current design → architecture; durable rationale → plan/decision; rare durable
+discovery → note. If none changed, do not edit docs.
+
+### Documentation skill
+If a `documentation-management` skill (or repository-equivalent documentation/planning skill) is
+available, consult it when creating or restructuring persistent docs, organizing/documenting an
+existing large or legacy repository, starting substantial accepted multi-session work, managing
+roadmaps or durable decisions, preparing a non-trivial handoff, or when the user explicitly asks for
+a repository orientation/catch-up. The skill supplies detailed templates, lifecycle procedure, and a
+read-only catch-up workflow; this `AGENTS.md` supplies the policy.
+
+Do **not** load the skill for routine Small/Localized work unless documentation is actually part of
+the task. If no such skill is available, follow the rules above directly — repository work must not
+depend on the skill being installed.
 
 ## Modularity, Coupling, and Cohesion
 - Each file or module owns one clear thing, completely.
@@ -253,9 +316,15 @@ formatting — build it once behind a simple interface instead of copying it.
 - Only touch what the task needs.
 - Only clean up things your own change introduced or broke — not pre-existing issues you happened
   to notice.
+- If your change makes an import, variable, function, file, or other code unused, remove that new
+  orphan as part of the same change. Do not remove unrelated pre-existing dead code unless asked.
+- If you notice unrelated dead code, bugs, or cleanup opportunities, mention them separately if
+  useful; do not silently fold them into the current task.
 - Don't rename, reformat, or "modernize" code that isn't part of the task.
-- Match the existing style around your change.
+- Match the existing style around your change, even if you would write it differently from scratch.
 - Don't change existing public behavior unless that's the point of the task.
+- Every changed line should be traceable to the requested behavior or to work required for its
+  correctness, verification, documentation, or keeping the project runnable.
 
 Before writing code, look at:
 - The file you're changing
@@ -264,8 +333,9 @@ Before writing code, look at:
 - Its existing tests
 - Any shared types it uses
 
-Only look at more of the repo if something is unclear or a test fails unexpectedly. Check
-`PLAN.md` first for orientation instead of re-reading the whole codebase.
+Only look at more of the repo if something is unclear or a test fails unexpectedly. For an
+existing project, use `PLAN.md` and any relevant active implementation plan for orientation instead
+of re-reading the whole codebase.
 
 ## Review
 - For a Small/Localized change: review your own diff once — the changed lines, what calls them,
@@ -378,8 +448,9 @@ Refactoring should not change what the code does. If tests need to change becaus
 - Commit at each complete, working step — not every single edit, and not one giant commit at the
   end.
 - Every commit should leave the project (or the part you touched) running, with its tests passing.
-- Before committing, check if `PLAN.md` or `DEVELOPMENT.md` need an update, and include that
-  update in the same commit.
+- Before committing, check whether the change made any authoritative documentation stale. Update
+  only the affected canonical docs and include those updates in the same logical commit when
+  appropriate.
 - One logical change per commit — don't mix a feature, a fix, and a cleanup in the same commit.
 - Commit message format: `type: short description` — e.g. `feat: add auth module`,
   `fix: handle null response`, `refactor: split router`.
@@ -422,14 +493,34 @@ Don't build this kind of safety into a script that only ever runs once, by hand,
 **This section is about you — the model doing this task — deciding whether to hand part of it to
 another agent.**
 
-Default: zero subagents. Do the work yourself, in this same session.
+Subagents are inherently costly. They start with fresh context, often have to re-read files or
+reconstruct project state, consume additional tokens and time, and create another result that must
+be checked and integrated. Treat delegation as an optimization with a real cost, not as a default
+way to appear thorough.
 
-Only delegate to another agent when:
-- The work splits into pieces that don't depend on each other, and doing them one-by-one yourself
-  would just waste time.
-- The work is High-Risk, and a second, independently-formed opinion would catch something you
-  might rationalize past — e.g. reviewing an auth change. Not for routine work.
-- The files or history involved won't fit in your own context.
+Default: zero subagents. Prefer doing the work yourself, in this same session, whenever you can do
+so safely and effectively. Only delegate when the task would **genuinely benefit significantly**
+from it and that benefit clearly outweighs the added context, token, coordination, and verification
+cost.
+
+Exception: if the user explicitly requests a specific subagent, delegation pattern, or use of
+subagents for the task, follow that request. In that case, the user's instruction overrides the
+default cost-avoidance heuristic, unless it conflicts with safety requirements or the available
+tooling/capabilities. Do not silently replace the requested subagent workflow with a single-agent
+approach just because it would be cheaper.
+
+Good reasons to delegate include:
+- The work splits into substantial, genuinely independent pieces that can be done in parallel, and
+  the time saved is meaningful enough to justify the duplicate context cost.
+- The work is High-Risk, and a second, independently-formed opinion would materially improve
+  confidence or catch something you might rationalize past — e.g. reviewing an auth change. Not
+  for routine work.
+- The files or history involved won't reasonably fit in your own context, so delegation avoids a
+  real context limitation rather than creating one.
+
+If the benefit is marginal, uncertain, or merely "could be useful," do not delegate. A simple or
+moderate task that one agent can safely complete does not need separate planning, implementation,
+review, or verification agents.
 
 If you do delegate: give it the exact question, the smallest set of files it needs, and what you
 expect back. Don't ask it to re-read the whole repo. Treat what it gives you as a claim to verify,
@@ -441,11 +532,13 @@ confidence to move on.
 
 ## Keeping Context Small
 This is about repo-wide habits, not any one task:
-- Name files and folders so their purpose is obvious without opening them.
+- Name files, workstreams, and documents semantically so their purpose is obvious without opening
+  them.
 - Keep public interfaces small.
 - Keep a helper near the feature it supports, unless it's genuinely shared by several features.
-- Use `PLAN.md` for orientation before reading code, and only the relevant `DEVELOPMENT.md`
-  entries — not the whole file.
+- Load context progressively: `PLAN.md` → relevant active plan → relevant local docs → code/tests →
+  deeper historical/reference material only when needed.
+- Don't read unrelated roadmaps, completed plans, notes, or Git history merely to appear thorough.
 - Don't re-read a file whose content you already have and that hasn't changed.
 - Run the targeted test before reaching for the whole suite.
 
@@ -501,23 +594,13 @@ it — but don't turn a small task into a full security audit on your own initia
 - Propose big changes — caching, concurrency, sharding, a new queue — and their tradeoffs before
   implementing them.
 
-## Documentation
-README should cover: what the project does, how to set it up, how to run it, how to run its
-tests, and how to deploy it, if it deploys.
-
-- `README.md` — for someone using or operating the project
-- `PLAN.md` — current architecture, state, and next steps
-- `DEVELOPMENT.md` — history worth remembering
-- `ARCHITECTURE.md` — only if the architecture is too big to stay concise inside `PLAN.md`
-
-Don't repeat information that's already obvious from the code or another doc.
-
 ## Wrapping Up a Task
 Keep your final summary short:
 - What changed
 - What you tested, and at what level (see "Report what you actually did" above)
 - Anything unresolved or limited
-- Whether `PLAN.md` or `DEVELOPMENT.md` needs updating, and whether you already did it
+- Whether any authoritative documentation or unfinished-work handoff state needed updating, and
+  whether you already updated it
 - At most one or two optional follow-up ideas, clearly marked as optional
 
 Don't narrate every step you took or list every passing test.
