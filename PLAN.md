@@ -274,11 +274,13 @@ A deterministic synthetic aggregate fixture proves Search → Book Info → TOC 
 
 The backup/restore and startup-performance work previously listed here is integrated on `main`.
 
+Active implementation plan: [`docs/plans/2026-08-30-source-interaction.md`](docs/plans/2026-08-30-source-interaction.md) — reader-owned Source Profiles, login/settings interaction, Explore state, deterministic cleanup, and controlled browser sessions.
+
 ## Roadmap
 
-### 1. Add durable reader-owned source settings
+### 1. Implement reader-owned source interaction
 
-Core aggregate text-workflow compatibility is proven by deterministic and unmodified live-source evidence through shared execution seams. The next aggregate-adjacent slice is durable non-secret source settings keyed by reader and immutable Source ID, separate from imported definitions and credential/login storage.
+Follow the active [source interaction plan](docs/plans/2026-08-30-source-interaction.md): durable portable settings and backup-excluded authentication state keyed by immutable Source ID, deterministic cleanup for removed sources, normalized source-defined controls/actions, Explore integration, and bounded controlled browser sessions.
 
 ### 2. Continue shared Legado compatibility convergence
 
