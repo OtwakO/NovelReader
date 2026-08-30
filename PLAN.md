@@ -266,9 +266,10 @@ The current `feat/aggregated-booksources` branch is extending shared Legado comp
 - `java.hexDecodeToString` provides the matching JavaScript bridge operation;
 - typed payloads are bounded and malformed payloads fail explicitly without network access;
 - `java.get` / `java.put` and entity `getVariable` / `putVariable` use the active chapter then book context, with book variable mutations serialized through the existing `Book.variableMap` field;
+- each JavaScript evaluation uses global scope on a fresh runtime, preserving Legado `jsLib` sibling-helper calls through `this` without declaration leakage between evaluations;
 - aggregate labels such as provider-specific `type` values remain opaque imported data and never select NovelReader production behavior.
 
-A deterministic synthetic aggregate fixture now proves Search → Book Info → TOC → Content through typed data requests, local gateway calls, synthetic stage URLs, and book-variable continuity. The next coherent slice is compatibility evidence from the unmodified real aggregate source and an inventory of any remaining shared bridge gaps. Durable reader-owned source settings and source login remain separate storage/security slices and must not be folded into transient workflow state.
+A deterministic synthetic aggregate fixture now proves Search → Book Info → TOC → Content through typed data requests, local gateway calls, synthetic stage URLs, and book-variable continuity. The unmodified 光遇 source also succeeds through live Search and returns typed `gydetail` results. The next coherent slice is live Book Info → TOC → Content evidence from one exact returned result and closure of only the shared bridge gaps demonstrated there. Durable reader-owned source settings and source login remain separate storage/security slices and must not be folded into transient workflow state.
 
 The backup/restore and startup-performance work previously listed here is integrated on `main`.
 

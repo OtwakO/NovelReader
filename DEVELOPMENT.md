@@ -571,3 +571,9 @@
 - **Change**: Added a deterministic local-gateway regression whose source creates typed synthetic URLs at every stage, uses `java.ajax` for gateway calls, carries a book ID through `java.put` / `book.getVariable`, and resolves readable chapter content.
 - **Reason**: A complete workflow test distinguishes missing shared compatibility primitives from isolated unit behavior while avoiding dependence on the live aggregate gateway or its provider-specific scripts.
 - **Verified**: The focused aggregate workflow and analyzer/sourceexec/book/conformance/API package tests pass. During fixture construction, an unencoded chapter title correctly failed at the gateway boundary and was fixed in the source fixture with the existing `java.encodeURI` bridge rather than a production special case.
+
+### [2026-08-30] Fresh JS runtimes preserve Legado global helper scope
+- **Context**: The unmodified 光遇 aggregate source built typed Search data successfully but its `jsLib` helper `request()` could not call sibling `BaseUrl()` through `this`.
+- **Change**: Removed the legacy block wrapper around declaration-containing JavaScript and now execute each source program at global scope; repeated evaluations remain isolated because `EvalContext` already replaces the borrowed goja runtime with a newly-created runtime after every evaluation.
+- **Reason**: The wrapper solved declaration collisions when runtimes were reused, but after fresh-runtime replacement it was redundant and broke Legado's shared `jsLib` global-object semantics.
+- **Verified**: Repeated `let` declarations still pass, a focused sibling-helper-through-`this` regression passes, affected backend packages pass, and the unmodified aggregate source Search succeeds live with 20 results and typed `gydetail` URLs.

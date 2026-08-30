@@ -293,17 +293,10 @@ Map = function(a) {
 	// decode — used by some sources for base64-encoded content.
 	_ = rt.Set("decode", h.Decode)
 
-	// Declarations must be block-scoped because pooled runtimes retain global
-	// lexical bindings across source evaluations.
-	// Simple scripts without declarations preserve the final expression value.
-	wrapped := script
-	trimmedScript := strings.TrimSpace(script)
-	if strings.Contains(script, "\nvar ") || strings.Contains(script, "\nlet ") || strings.Contains(script, "\nconst ") ||
-		strings.HasPrefix(trimmedScript, "var ") || strings.HasPrefix(trimmedScript, "let ") || strings.HasPrefix(trimmedScript, "const ") {
-		wrapped = "{ " + script + " }"
-	}
-
-	val, err := rt.RunString(wrapped)
+	// Each evaluation returns a newly-created runtime to the pool, so declarations
+	// cannot leak into later evaluations. Running the source program at global scope
+	// preserves Legado jsLib helpers that call sibling functions through `this`.
+	val, err := rt.RunString(script)
 	if err != nil {
 		if ctx.Err() != nil {
 			return "", fmt.Errorf("js eval: %w", ctx.Err())
