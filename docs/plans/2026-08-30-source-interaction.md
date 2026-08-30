@@ -139,14 +139,13 @@ The existing BookSource management page now progressively discloses a dedicated 
 
 Each reader runtime now injects one Source Profile hydrator into its reader-scoped `book.Searcher`. Search, Book Info, TOC, Content, and Explore call the same preparation seam before evaluating source headers or scripts. A `SourceSession` hydrates at most once after a successful load, so multi-stage workflows retain cookie/variable mutations instead of overwriting them with stale durable state; hydration failures remain retryable. Explore reports a typed `source_setup_required` error when its profile cannot be loaded.
 
+A deterministic production-runtime regression now loads the unmodified 光遇 aggregate fixture, injects only generic reader-owned source settings through the runtime hydrator, and verifies that changing `发现页来源` from 番茄 to 七猫 changes the generated Explore catalog after normal Source ID invalidation. The fixture remains unchanged and production code contains no aggregate/provider-specific branch.
+
 A live candidate-resolution diagnostic on the current branch verified one real aggregate Search result through Book Info, a 106-chapter TOC, and readable content under the production 15-second stage policy. The reported bookshelf failure therefore still needs the exact title/stage/reason before changing candidate logic.
 
 ## Next Action
 
-Finish the normalized source-management workflow:
-
-1. verify the unmodified aggregate fixture's settings change real Explore behavior without source-specific branches;
-2. implement remote browser sessions only after the normalized non-browser workflow is complete.
+The normalized non-browser source-management workflow is complete. The next milestone is the separately scoped authenticated remote browser-session design and implementation.
 
 ## Verification
 
@@ -159,7 +158,7 @@ Verified:
 
 Still needed:
 
-- live aggregate-fixture verification that changing durable settings changes Explore behavior;
+- remote browser-session contract tests and authenticated end-to-end verification;
 - remote browser authorization, expiry, cleanup, and cookie synchronization tests;
 - exact evidence for the user-observed bookshelf failure if it persists on current code.
 
