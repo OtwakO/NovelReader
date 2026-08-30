@@ -57,7 +57,7 @@ Rendered controls, action descriptors, Source Sessions, and browser sessions are
 
 A definition replacement that preserves Source ID keeps durable state but invalidates transient state. A removed Source ID makes all owned state inaccessible immediately and schedules idempotent physical deletion. A newly installed source receives a new Source ID and empty state.
 
-Cross-database deletion uses a narrowly scoped pending-deletion marker in `credentials.db`: mark intended IDs, commit source/profile removal in `reader.db`, then delete authentication rows and markers. Startup and restore reconcile both profile tables against installed Source IDs so interrupted operations and old remnants cannot persist indefinitely.
+Normal deletion removes source/profile Reader Data and authentication state immediately. Because the databases cannot share a transaction, startup and restore reconcile both profile stores against the authoritative installed Source IDs; this deterministically removes remnants after a crash between the two database commits without introducing a second deletion state machine.
 
 ### Source interaction
 
@@ -112,7 +112,7 @@ The initial implementation does not add application-level encryption or a key-ma
 - [x] Core aggregate Search → Book Info → TOC → Content compatibility through shared execution seams.
 - [x] Long Source Group selector is contained within its responsive layout.
 - [x] Product/security decisions accepted for generic controls, remote browser sessions, portable state, cleanup, and credential storage.
-- [ ] Implement Source Profile/authentication storage and deterministic lifecycle reconciliation.
+- [x] Implement Source Profile/authentication storage and startup lifecycle reconciliation.
 - [ ] Integrate source deletion, collection synchronization, restore, runtime invalidation, and reset actions.
 - [ ] Implement normalized source controls/actions and management UI.
 - [ ] Hydrate Explore and normal execution from durable source state.
@@ -120,19 +120,21 @@ The initial implementation does not add application-level encryption or a key-ma
 
 ## Current State
 
-The unmodified 光遇 aggregate source completes the core text workflow on `feat/aggregated-booksources`. Its Explore currently fails at the first missing interaction bridge (`java.longToast`) and also expects durable source settings. The current Patchright WebView transport is request-oriented and cannot display an interactive browser. Source credentials are not yet persisted; `credentials.db` is currently an empty backup-excluded database.
+The unmodified 光遇 aggregate source completes the core text workflow on `feat/aggregated-booksources`. Its Explore currently fails at the first missing interaction bridge (`java.longToast`) and also expects durable source settings. The current Patchright WebView transport is request-oriented and cannot display an interactive browser.
+
+The Source Profile foundation now contributes one bounded `source_profiles` document in `reader.db` and one bounded `source_auth_state` document in the backup-excluded `credentials.db`, keyed by installed immutable Source ID. The Reader runtime reconciles both stores against installed IDs when it opens. Reader and credential schema validation remain authoritative, and portable snapshots create an empty credential store while retaining non-secret settings.
 
 A live candidate-resolution diagnostic on the current branch verified one real aggregate Search result through Book Info, a 106-chapter TOC, and readable content under the production 15-second stage policy. The reported bookshelf failure therefore still needs the exact title/stage/reason before changing candidate logic.
 
 ## Next Action
 
-Implement the storage foundation as one cohesive slice:
+Integrate deterministic lifecycle cleanup at the source mutation seams:
 
-1. let Reader schema modules contribute both Reader Data and credential-store DDL;
-2. add one bounded Source Profile record and one bounded authentication record per Source ID;
-3. add pending deletion plus idempotent reconciliation against installed Source IDs;
-4. expose the module through the per-reader runtime without integrating UI or browser behavior yet;
-5. verify fresh-home schema, bounded documents, source isolation, removal recovery, and backup exclusion at the smallest relevant boundaries.
+1. make single-source deletion and collection deletion return/capture the exact removed immutable Source IDs;
+2. remove profile/authentication state and invalidate Source Sessions immediately after successful definition removal;
+3. reconcile after collection replacement and Reader restore so interrupted cross-database cleanup cannot leave permanent remnants;
+4. preserve profile/authentication state when definition replacement keeps Source ID;
+5. expose clear-login and reset-source-data operations only after lifecycle ownership is complete.
 
 ## Verification
 
@@ -145,7 +147,6 @@ Verified:
 
 Still needed:
 
-- Source Profile/authentication schema and lifecycle tests;
 - source removal/collection synchronization/restore reconciliation tests;
 - normalized interaction and Explore tests;
 - remote browser authorization, expiry, cleanup, and cookie synchronization tests;

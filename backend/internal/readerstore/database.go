@@ -11,27 +11,48 @@ import (
 const (
 	// CurrentReaderSchemaVersion is one epoch for the complete current reader schema.
 	// Versions 1-4 belonged to the removed development migration history.
-	CurrentReaderSchemaVersion      = 5
-	CurrentCredentialsSchemaVersion = 1
+	CurrentReaderSchemaVersion      = 6
+	CurrentCredentialsSchemaVersion = 2
 )
 
 var ErrReaderSchemaMismatch = errors.New("readerstore: reader database schema mismatch")
 
 // ReaderSchema contributes one feature's authoritative current DDL.
 type ReaderSchema struct {
-	Initialize func(*sql.Tx) error
+	Initialize            func(*sql.Tx) error
+	InitializeCredentials func(*sql.Tx) error
 }
 
-func initializeCredentialsDatabase(path string) error {
+func initializeCredentialsDatabase(path string, schemas []ReaderSchema) (err error) {
 	db, err := sql.Open("sqlite", sqliteFileURI(path))
 	if err != nil {
 		return err
 	}
-	if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, CurrentCredentialsSchemaVersion)); err != nil {
-		_ = db.Close()
-		return err
+	defer func() {
+		if closeErr := db.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("readerstore: close initialized credentials database: %w", closeErr)
+		}
+	}()
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("readerstore: begin credentials schema initialization: %w", err)
 	}
-	return db.Close()
+	for _, schema := range schemas {
+		if schema.InitializeCredentials != nil {
+			if err := schema.InitializeCredentials(tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("readerstore: initialize credentials schema: %w", err)
+			}
+		}
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, CurrentCredentialsSchemaVersion)); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("readerstore: stamp credentials schema: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("readerstore: commit credentials schema: %w", err)
+	}
+	return nil
 }
 
 func initializeReaderDatabase(path string, schemas []ReaderSchema) (err error) {
@@ -85,7 +106,7 @@ func openHomeDatabase(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-func validateCredentialsDatabase(path string) error {
+func validateCredentialsDatabase(path string, schemas []ReaderSchema) error {
 	db, err := sql.Open("sqlite", sqliteFileURI(path)+"?mode=ro")
 	if err != nil {
 		return err
@@ -97,6 +118,42 @@ func validateCredentialsDatabase(path string) error {
 	}
 	if version != CurrentCredentialsSchemaVersion {
 		return fmt.Errorf("readerstore: credentials database schema version mismatch: found %d, expected %d", version, CurrentCredentialsSchemaVersion)
+	}
+	reference, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		return err
+	}
+	defer reference.Close()
+	tx, err := reference.Begin()
+	if err != nil {
+		return err
+	}
+	for _, schema := range schemas {
+		if schema.InitializeCredentials != nil {
+			if err := schema.InitializeCredentials(tx); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	expected, err := declaredReaderSchema(reference)
+	if err != nil {
+		return err
+	}
+	actual, err := declaredReaderSchema(db)
+	if err != nil {
+		return err
+	}
+	if len(actual) != len(expected) {
+		return fmt.Errorf("readerstore: credentials database schema mismatch")
+	}
+	for index := range expected {
+		if actual[index] != expected[index] {
+			return fmt.Errorf("readerstore: credentials database schema mismatch")
+		}
 	}
 	return nil
 }

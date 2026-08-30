@@ -12,6 +12,7 @@ import (
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/readerstore"
+	"github.com/otwako/novelreader/internal/sourceprofile"
 )
 
 var (
@@ -20,13 +21,14 @@ var (
 )
 
 type readerRuntime struct {
-	home        *readerstore.Home
-	sourceStore *booksource.Store
-	bookStore   *book.Store
-	searcher    *book.Searcher
-	fontStore   *fontstore.Store
-	lastUsed    time.Time
-	references  int
+	home           *readerstore.Home
+	sourceStore    *booksource.Store
+	bookStore      *book.Store
+	searcher       *book.Searcher
+	fontStore      *fontstore.Store
+	sourceProfiles *sourceprofile.Store
+	lastUsed       time.Time
+	references     int
 }
 
 type readerRuntimeManager struct {
@@ -85,8 +87,13 @@ func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.U
 	sourceStore := booksource.NewStore(home.DB())
 	bookStore := book.NewStore(home.DB())
 	fontStore := fontstore.NewStore(home.DB(), home.Files())
+	sourceProfiles := sourceprofile.NewStore(home.DB(), home.CredentialsDB())
+	if err := sourceProfiles.Reconcile(ctx); err != nil {
+		_ = home.Close()
+		return nil, nil, fmt.Errorf("api: reconcile source profiles: %w", err)
+	}
 	runtime := &readerRuntime{
-		home: home, sourceStore: sourceStore, bookStore: bookStore, fontStore: fontStore,
+		home: home, sourceStore: sourceStore, bookStore: bookStore, fontStore: fontStore, sourceProfiles: sourceProfiles,
 		searcher: m.searcher.ForkReader(m.jsVM.ForkState(), analyzer.NewCacheManager(), sourceStore, bookStore, m.limits),
 		lastUsed: now, references: 1,
 	}

@@ -8,14 +8,16 @@ import (
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/book"
+	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/readerstore"
+	"github.com/otwako/novelreader/internal/sourceprofile"
 )
 
 const runtimeTestUser readerstore.UserID = "11111111-1111-4111-8111-111111111111"
 
 func TestReaderRuntimeQuiesceDrainsWorkPurgesStateAndRejectsNewAcquisitions(t *testing.T) {
-	readers, err := readerstore.NewManager(t.TempDir(), 2)
+	readers, err := readerstore.NewManager(t.TempDir(), 2, booksource.ReaderSchema(), sourceprofile.ReaderSchema())
 	if err != nil {
 		t.Fatal(err)
 	}

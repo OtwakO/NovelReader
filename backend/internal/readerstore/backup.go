@@ -43,7 +43,7 @@ func (m *Manager) SnapshotHome(ctx context.Context, userID UserID, destination s
 	if err := backupDatabase(ctx, home.DB(), filepath.Join(destination, ReaderDatabaseName)); err != nil {
 		return cleanup(fmt.Errorf("readerstore: snapshot reader database: %w", err))
 	}
-	if err := initializeCredentialsDatabase(filepath.Join(destination, CredentialsDatabaseName)); err != nil {
+	if err := initializeCredentialsDatabase(filepath.Join(destination, CredentialsDatabaseName), m.schemas); err != nil {
 		return cleanup(fmt.Errorf("readerstore: initialize snapshot credentials: %w", err))
 	}
 	if err := copyDurableFiles(home.Files().root, filepath.Join(destination, FilesDirectory)); err != nil {
@@ -96,7 +96,7 @@ func (m *Manager) PrepareReplacement(ctx context.Context, userID UserID, readerD
 	if err := copyRegularFile(readerDatabase, filepath.Join(stagingPath, ReaderDatabaseName), 0o600); err != nil {
 		return cleanup(fmt.Errorf("readerstore: stage reader database: %w", err))
 	}
-	if err := initializeCredentialsDatabase(filepath.Join(stagingPath, CredentialsDatabaseName)); err != nil {
+	if err := initializeCredentialsDatabase(filepath.Join(stagingPath, CredentialsDatabaseName), m.schemas); err != nil {
 		return cleanup(fmt.Errorf("readerstore: stage credentials database: %w", err))
 	}
 	if err := copyDurableFiles(filesRoot, filepath.Join(stagingPath, FilesDirectory)); err != nil {

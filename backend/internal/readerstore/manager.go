@@ -323,8 +323,9 @@ func (m *Manager) Close() error {
 	return closeErr
 }
 
-func (h *Home) ID() UserID  { return h.entry.id }
-func (h *Home) DB() *sql.DB { return h.entry.readerDB }
+func (h *Home) ID() UserID             { return h.entry.id }
+func (h *Home) DB() *sql.DB            { return h.entry.readerDB }
+func (h *Home) CredentialsDB() *sql.DB { return h.entry.credentialsDB }
 func (h *Home) Files() FileStore {
 	return FileStore{
 		dataRoot: h.manager.root,

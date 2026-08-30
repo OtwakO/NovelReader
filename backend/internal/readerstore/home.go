@@ -154,7 +154,7 @@ func createStagedHome(path string, schemas []ReaderSchema) error {
 	if err := initializeReaderDatabase(filepath.Join(path, ReaderDatabaseName), schemas); err != nil {
 		return fmt.Errorf("readerstore: initialize %s: %w", ReaderDatabaseName, err)
 	}
-	if err := initializeCredentialsDatabase(filepath.Join(path, CredentialsDatabaseName)); err != nil {
+	if err := initializeCredentialsDatabase(filepath.Join(path, CredentialsDatabaseName), schemas); err != nil {
 		return fmt.Errorf("readerstore: initialize %s: %w", CredentialsDatabaseName, err)
 	}
 	return validateHome(path, schemas)
@@ -196,7 +196,7 @@ func validateHome(path string, schemas []ReaderSchema) error {
 	if err != nil || !credentialsInfo.Mode().IsRegular() || credentialsInfo.Mode()&os.ModeSymlink != 0 {
 		return ErrInvalidHome
 	}
-	if err := validateCredentialsDatabase(credentialsPath); err != nil {
+	if err := validateCredentialsDatabase(credentialsPath, schemas); err != nil {
 		return ErrInvalidHome
 	}
 	return nil
