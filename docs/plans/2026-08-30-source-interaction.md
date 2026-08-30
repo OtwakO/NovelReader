@@ -115,7 +115,8 @@ The initial implementation does not add application-level encryption or a key-ma
 - [x] Implement Source Profile/authentication storage and startup lifecycle reconciliation.
 - [x] Integrate source deletion, collection synchronization, restore reconciliation, and runtime invalidation.
 - [ ] Add explicit clear-login and reset-source-data operations with normalized interaction APIs.
-- [ ] Implement normalized source controls/actions and management UI.
+- [x] Implement normalized read-only source controls and authenticated description API.
+- [ ] Implement source action execution and management UI.
 - [ ] Hydrate Explore and normal execution from durable source state.
 - [ ] Implement authenticated remote browser sessions and cookie synchronization.
 
@@ -125,19 +126,21 @@ The unmodified 光遇 aggregate source completes the core text workflow on `feat
 
 The Source Profile foundation contributes one bounded `source_profiles` document in `reader.db` and one bounded `source_auth_state` document in the backup-excluded `credentials.db`, keyed by installed immutable Source ID. The Reader runtime reconciles both stores against installed IDs when it opens. Reader and credential schema validation remain authoritative, and portable snapshots create an empty credential store while retaining non-secret settings.
 
-Single-source deletion, collection replacement/deletion, and scheduled collection sync now coordinate Source Profile cleanup and source-session invalidation at the Reader API/runtime seam. Surviving immutable Source IDs retain durable settings/authentication; removed IDs are reconciled away. Source definition edits invalidate transient sessions without resetting durable state. Restore is covered by runtime-open reconciliation after the replacement runtime is recreated.
+Single-source deletion, collection replacement/deletion, and scheduled collection sync coordinate Source Profile cleanup and source-session invalidation at the Reader API/runtime seam. Surviving immutable Source IDs retain durable settings/authentication; removed IDs are reconciled away. Source definition edits invalidate transient sessions without resetting durable state. Restore is covered by runtime-open reconciliation after the replacement runtime is recreated.
+
+The backend now evaluates strict JSON, JavaScript object-literal, and dynamic `@js:` `loginUi` definitions into a bounded typed interaction view. The authenticated `GET /api/sources/{id}/interaction` endpoint returns labels, input/select/toggle values, positional action IDs, unsupported-control diagnostics, and a definition/settings revision; it never returns authentication documents or raw action JavaScript. The unmodified aggregate fixture normalizes all 34 controls.
 
 A live candidate-resolution diagnostic on the current branch verified one real aggregate Search result through Book Info, a 106-chapter TOC, and readable content under the production 15-second stage policy. The reported bookshelf failure therefore still needs the exact title/stage/reason before changing candidate logic.
 
 ## Next Action
 
-Implement the normalized Source Interaction description seam without action execution yet:
+Implement source action execution without a persistent action registry:
 
-1. parse static `loginUi` JSON and JavaScript-generated `loginUi` into a bounded backend model;
-2. normalize informational text, text/password/input, button, toggle, and select controls with stable per-description action IDs;
-3. load the current non-secret Source Profile for initial values while never returning authentication documents;
-4. report unsupported controls/actions explicitly;
-5. expose an authenticated read endpoint and a source-management entry point before implementing mutations.
+1. accept source ID, description revision, positional action ID, and submitted control values;
+2. re-evaluate the current description and reject stale revisions or mismatched action positions;
+3. execute the current source action in a hydrated Source Session while capturing only typed notices, refresh requests, browser requests, and explicit settings/authentication mutations;
+4. save one replacement Source Profile/authentication document and invalidate transient source sessions after successful durable mutation;
+5. add clear-login and reset-source-data operations, then expose the first source-management UI.
 
 ## Verification
 
@@ -150,7 +153,7 @@ Verified:
 
 Still needed:
 
-- normalized interaction and Explore tests;
+- action execution, management UI, and Explore integration tests;
 - remote browser authorization, expiry, cleanup, and cookie synchronization tests;
 - exact evidence for the user-observed bookshelf failure if it persists on current code.
 

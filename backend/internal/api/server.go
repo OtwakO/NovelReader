@@ -28,6 +28,7 @@ import (
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
+	"github.com/otwako/novelreader/internal/sourceinteraction"
 	"github.com/otwako/novelreader/internal/sourceprofile"
 )
 
@@ -39,6 +40,7 @@ type Server struct {
 	searcher            *book.Searcher
 	fontStore           *fontstore.Store
 	sourceProfiles      *sourceprofile.Store
+	sourceInteractions  *sourceinteraction.Describer
 	fetcher             *fetcher.Client
 	jsVM                *analyzer.JSVM
 	cache               *analyzer.CacheManager
@@ -155,6 +157,7 @@ func (s *Server) registerRoutesWithoutHealth() {
 	s.mux.HandleFunc("DELETE /api/source-collections/{id}", s.handleDeleteSourceCollection)
 	s.mux.HandleFunc("DELETE /api/sources", s.handleDeleteSource)
 	s.mux.HandleFunc("PUT /api/sources", s.handleUpdateSource)
+	s.mux.HandleFunc("GET /api/sources/{id}/interaction", s.handleSourceInteraction)
 
 	// Books
 	s.mux.HandleFunc("GET /api/books", s.handleListBooks)
@@ -258,6 +261,7 @@ func (s *Server) registerAuthenticatedRoutes() {
 		requestServer.searcher = runtime.searcher
 		requestServer.fontStore = runtime.fontStore
 		requestServer.sourceProfiles = runtime.sourceProfiles
+		requestServer.sourceInteractions = runtime.sourceInteractions
 		requestServer.registerRoutesWithoutHealth()
 		requestServer.mux.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), readerHomeContextKey{}, runtime.home)))
 	})))
@@ -327,6 +331,23 @@ func (s *Server) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (s *Server) handleSourceInteraction(w http.ResponseWriter, r *http.Request) {
+	if s.sourceInteractions == nil {
+		writeError(w, http.StatusNotImplemented, "source interaction is unavailable")
+		return
+	}
+	view, err := s.sourceInteractions.Describe(r.Context(), r.PathValue("id"))
+	if err != nil {
+		if errors.Is(err, sourceprofile.ErrSourceNotInstalled) {
+			writeError(w, http.StatusNotFound, "book source not found")
+			return
+		}
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
