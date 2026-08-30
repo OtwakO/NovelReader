@@ -68,6 +68,18 @@ func TestJavaChapterAndToastHelpers(t *testing.T) {
 	}
 }
 
+func TestJavaHexDecodeToString(t *testing.T) {
+	vm := NewJSVM()
+
+	value, err := vm.Eval(`java.hexDecodeToString('7b226b6579223a22e58991e69da5227d')`, "", "https://example.test/")
+	if err != nil || ToString(value) != `{"key":"剑来"}` {
+		t.Fatalf("hex decode=%q err=%v", ToString(value), err)
+	}
+	if _, err := vm.Eval(`java.hexDecodeToString('not-hex')`, "", "https://example.test/"); err == nil {
+		t.Fatal("invalid hex did not return an evaluation error")
+	}
+}
+
 func TestJavaSymmetricCryptoAndByteArrayBridge(t *testing.T) {
 	vm := NewJSVM()
 	script := `

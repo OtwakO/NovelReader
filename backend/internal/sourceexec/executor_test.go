@@ -30,6 +30,19 @@ func TestExecutorAppliesBodyJSAfterTransport(t *testing.T) {
 	}
 }
 
+func TestExecutorRunsAggregateStyleTypedDataRequest(t *testing.T) {
+	executor := NewExecutor(analyzer.NewJSVM(), NewRoutingTransport(nil, nil))
+	template := `@js:"data:;base64,"+java.base64Encode(JSON.stringify({key:key,page:page}))+","+JSON.stringify({type:"aggregate-search",bodyJs:"java.hexDecodeToString(result)"})`
+
+	response, err := executor.Execute(t.Context(), template, "剑来", 2, "https://example.test/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Body != `{"key":"剑来","page":2}` || response.Transport != "data" {
+		t.Fatalf("unexpected aggregate response: %+v", response)
+	}
+}
+
 func TestExecutorBuildsAndExecutesOneLegadoRequest(t *testing.T) {
 	transport := &captureTransport{}
 	executor := NewExecutor(analyzer.NewJSVM(), transport)

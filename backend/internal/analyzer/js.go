@@ -229,6 +229,7 @@ Map = function(a) {
 		"base64Encode":            h.Base64Encode,
 		"base64Decode":            h.Base64Decode,
 		"base64DecodeToByteArray": h.Base64DecodeToByteArray,
+		"hexDecodeToString":       h.HexDecodeToString,
 		"createSymmetricCrypto":   h.CreateSymmetricCrypto,
 		"encodeURI":               h.EncodeURI,
 		"randomUUID":              h.RandomUUID,
@@ -1017,6 +1018,15 @@ func (h *jsHelpers) Base64Decode(str string) string {
 		return ""
 	}
 	return string(b)
+}
+
+// HexDecodeToString decodes the hexadecimal response body used by typed data requests.
+func (h *jsHelpers) HexDecodeToString(str string) (string, error) {
+	value, err := hex.DecodeString(strings.TrimSpace(str))
+	if err != nil {
+		return "", fmt.Errorf("hex decode to string: %w", err)
+	}
+	return string(value), nil
 }
 
 // Base64DecodeToByteArray exposes Legado's nullable byte-array decoder.

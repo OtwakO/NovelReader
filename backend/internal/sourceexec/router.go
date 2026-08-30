@@ -9,7 +9,7 @@ import (
 
 var ErrWebViewTransportUnavailable = errors.New("sourceexec: WebView transport unavailable")
 
-// RoutingTransport sends WebView requests to the browser transport and all others to HTTP.
+// RoutingTransport realizes typed in-memory data before selecting browser or normal network execution.
 type RoutingTransport struct {
 	normal  Transport
 	webView Transport
@@ -28,6 +28,9 @@ func (t *RoutingTransport) CloseIdleConnections() {
 }
 
 func (t *RoutingTransport) Do(ctx context.Context, spec RequestSpec) (Response, error) {
+	if isTypedDataRequest(spec) {
+		return (dataTransport{}).Do(ctx, spec)
+	}
 	if spec.WebView {
 		if t.webView == nil {
 			return Response{}, ErrWebViewTransportUnavailable

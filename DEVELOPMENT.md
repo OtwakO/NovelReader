@@ -553,3 +553,9 @@
 - **Change**: The backup service now expires registered operations with a bounded janitor and removes only its fixed top-level workspaces at startup. Readerstore separately reconciles its per-reader replacement staging and rollback paths, recovering an interrupted cutover when necessary instead of blindly deleting rollback data.
 - **Reason**: Archive-operation lifecycle and atomic Reader-home publication have different safety owners. Keeping cleanup at those boundaries avoids broad path sweeps and preserves the only valid rollback after a crash.
 - **Verified**: Deterministic injected-tick coverage exercises inactive expiry; readerstore tests cover abandoned staging and rollback recovery; the full backend suite passes.
+
+### [2026-08-30] Typed aggregate data requests precede network routing
+- **Context**: Adding shared compatibility for aggregate BookSources that encode an intermediate request as a Base64 `data:` URI plus a non-empty URL-option `type`.
+- **Change**: Added a bounded in-memory `sourceexec` data transport and `java.hexDecodeToString`; typed data is realized before WebView/HTTP selection and returns hexadecimal body text for the source's normal `bodyJs` transformation.
+- **Reason**: Legado-E checks typed data before ordinary request execution. Treating the URI as HTTP, or routing WebView first, breaks generic aggregate sources; dispatching on provider-specific type labels would overfit production code.
+- **Verified**: Focused `internal/sourceexec`, `internal/analyzer`, and downstream `internal/book` tests pass, including an aggregate-style URL script → typed data → hex bridge flow and malformed/oversized rejection.

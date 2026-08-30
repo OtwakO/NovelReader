@@ -259,40 +259,30 @@ Detailed compatibility backlog: `docs/LEGADO_COMPATIBILITY_TASKS.md`.
 
 ### Work in progress
 
-The current `feat/reader-backup-restore` branch adds credential-free, cross-account Reader Data backup and replacement restore:
+The current `feat/aggregated-booksources` branch is extending shared Legado compatibility for programmable aggregate BookSources without introducing an aggregate-specific domain model:
 
-- exports stream a versioned `.tar.gz` physical snapshot with a source-username and system-timezone timestamp in the download filename;
-- the payload contains `reader.db` and ordinary Reader Data files, while account credentials, Application Sessions, API tokens, source credentials, locks, and SQLite sidecars remain owned by the target account;
-- same-schema archives remain manually restorable by copying the documented payload into a stopped target Reader Directory;
-- web restore validates into same-root staging, briefly quiesces only the target reader, atomically publishes with rollback, and leaves other readers online;
-- archive format compatibility stays separate from Reader schema compatibility so future staged `N → N+1` migration steps can be added without changing HTTP, UI, or cutover behavior;
-- reader-owned hash-only API tokens use separate `backup:export` and `backup:restore` scopes, with export-only recommended for scheduled automation;
-- a dedicated Backup & Restore page owns download, upload/validation/confirmation, operation progress, and token management.
+- typed Base64 `data:` requests with a non-empty URL-option `type` are realized in memory through the existing `sourceexec.Transport` interface;
+- typed data execution precedes HTTP/WebView selection, matching Legado's execution order, and returns hexadecimal response text for source-defined `bodyJs` processing;
+- `java.hexDecodeToString` provides the matching JavaScript bridge operation;
+- typed payloads are bounded and malformed payloads fail explicitly without network access;
+- aggregate labels such as provider-specific `type` values remain opaque imported data and never select NovelReader production behavior.
 
-Completion requires safe bounded archive handling, consistent SQLite snapshots, target-identity rewriting, current-schema validation, rollback-protected runtime cutover, scoped token authentication, frontend integration in all locales, and focused backend/frontend verification.
+The next coherent slice is contextual variable parity required to carry source-defined book/chapter state through Detail, TOC, and Content. Durable reader-owned source settings and source login remain separate storage/security slices and must not be folded into transient workflow state.
 
-The previously documented `perf/reader-startup` slice remains integrated separately:
-
-- fingerprinted static assets receive immutable long-term caching while the app shell remains revalidated;
-- Vue feature routes load lazily;
-- Reader metadata and TOC requests start concurrently;
-- custom-font inventory loads only when required;
-- registration policy and account bootstrap requests run concurrently after setup closes;
-- startup loads only the selected locale.
-
-Focused backend tests, frontend typecheck/lint, all 112 frontend tests, production build, layout checks, and desktop/mobile Playwright verification are green. The next action is to integrate this isolated performance change without mixing unrelated work.
+The backup/restore and startup-performance work previously listed here is integrated on `main`.
 
 ## Roadmap
 
-### 1. Integrate the current performance slice
+### 1. Complete core aggregate text-workflow compatibility
 
-Integration criteria:
+Use a deterministic synthetic aggregate fixture to prove Search → Book Info → TOC → Content through shared execution seams.
 
-- preserve all Reader failure and source-recovery behavior;
-- preserve session/setup routing semantics;
-- retain reproducible builds without dependency drift;
-- pass focused backend tests, full frontend tests/build, and real desktop/mobile browser verification;
-- preserve its isolated commit and integrate cleanly.
+Next steps:
+
+1. implement contextual `java.get` / `java.put` behavior and `book.getVariable` through the existing active book/chapter context;
+2. prove variable continuity across the text workflow without provider-specific dispatch;
+3. run the unmodified aggregate source as live compatibility evidence, classifying external gateway failures separately;
+4. add durable reader-owned source settings keyed by immutable Source ID only when the transient workflow is correct.
 
 ### 2. Continue shared Legado compatibility convergence
 
@@ -310,12 +300,11 @@ Do not implement a source-specific adapter when a reusable Legado behavior expla
 
 ### 3. User-visible source login
 
-Interactive per-BookSource login remains deferred until its architecture is explicitly approved. A complete design must account for heterogeneous `loginUi`, script-based `loginUrl`, `loginCheckJs` during normal requests, credentials, cookies, WebView, captcha/user interaction, and source-scoped durable login state. It is not merely a standalone credential form.
+Interactive per-BookSource login is a separate capability from aggregate request execution. Its approved direction is backend-normalized source interaction with reader-owned state keyed by immutable Source ID, non-secret settings in Reader Data, and credentials/cookies in credential storage. Implementation still requires an explicit staged design for heterogeneous `loginUi`, source actions, `loginCheckJs`, durable cookies, optional browser handoff, and user interaction; it is not merely a standalone credential form.
 
 ### 4. Operational and diagnostic refinement
 
 Add diagnostics only for demonstrated needs. Likely future work includes redacted request/rule tracing and clearer source-execution evidence. Do not introduce continuous BookSource health monitoring; failures should surface when a user-triggered operation actually fails.
-
 ## Durable Decisions
 
 | Area | Decision |
