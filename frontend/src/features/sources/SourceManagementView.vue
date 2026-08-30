@@ -758,6 +758,9 @@ export default defineComponent({
 }
 .filters input,
 .filters select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 2.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
