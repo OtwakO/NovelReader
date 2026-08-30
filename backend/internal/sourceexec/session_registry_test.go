@@ -89,3 +89,25 @@ func TestSessionRegistryCreatesIsolatedBookSessions(t *testing.T) {
 		t.Fatal("different books share a session")
 	}
 }
+
+func TestSessionRegistryDeletesOnlyOneSource(t *testing.T) {
+	registry := NewSessionRegistry()
+	removed := registry.GetOrCreateBook("source-a", "book")
+	registry.AssociateChapter("source-a", "book", "chapter")
+	retained := registry.GetOrCreateBook("source-b", "book")
+
+	registry.DeleteSource("source-a")
+
+	if registry.GetBook("source-a", "book") != nil || registry.GetChapter("source-a", "chapter") != nil {
+		t.Fatal("deleted source sessions remain")
+	}
+	if registry.GetBook("source-b", "book") != retained {
+		t.Fatal("other source session was removed")
+	}
+	registry.mu.Lock()
+	_, remains := registry.lastUsed[removed]
+	registry.mu.Unlock()
+	if remains {
+		t.Fatal("deleted source session remains in eviction index")
+	}
+}

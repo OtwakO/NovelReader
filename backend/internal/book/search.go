@@ -254,6 +254,14 @@ func (s *Searcher) newTransport(client *fetcher.Client, session *sourceexec.Sour
 }
 
 // CapacityStats returns a point-in-time view of search pressure.
+// DeleteSourceSession invalidates all transient execution state for one installed Source ID.
+func (s *Searcher) DeleteSourceSession(sourceID string) {
+	if s == nil || s.sessions == nil {
+		return
+	}
+	s.sessions.DeleteSource(sourceID)
+}
+
 func (s *Searcher) CapacityStats() CapacityStats {
 	return CapacityStats{
 		ActiveSearches: s.capacity.activeSearches.Load(), ActiveSourceFetches: s.capacity.activeSourceFetches.Load(),

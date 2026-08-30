@@ -113,7 +113,8 @@ The initial implementation does not add application-level encryption or a key-ma
 - [x] Long Source Group selector is contained within its responsive layout.
 - [x] Product/security decisions accepted for generic controls, remote browser sessions, portable state, cleanup, and credential storage.
 - [x] Implement Source Profile/authentication storage and startup lifecycle reconciliation.
-- [ ] Integrate source deletion, collection synchronization, restore, runtime invalidation, and reset actions.
+- [x] Integrate source deletion, collection synchronization, restore reconciliation, and runtime invalidation.
+- [ ] Add explicit clear-login and reset-source-data operations with normalized interaction APIs.
 - [ ] Implement normalized source controls/actions and management UI.
 - [ ] Hydrate Explore and normal execution from durable source state.
 - [ ] Implement authenticated remote browser sessions and cookie synchronization.
@@ -122,19 +123,21 @@ The initial implementation does not add application-level encryption or a key-ma
 
 The unmodified 光遇 aggregate source completes the core text workflow on `feat/aggregated-booksources`. Its Explore currently fails at the first missing interaction bridge (`java.longToast`) and also expects durable source settings. The current Patchright WebView transport is request-oriented and cannot display an interactive browser.
 
-The Source Profile foundation now contributes one bounded `source_profiles` document in `reader.db` and one bounded `source_auth_state` document in the backup-excluded `credentials.db`, keyed by installed immutable Source ID. The Reader runtime reconciles both stores against installed IDs when it opens. Reader and credential schema validation remain authoritative, and portable snapshots create an empty credential store while retaining non-secret settings.
+The Source Profile foundation contributes one bounded `source_profiles` document in `reader.db` and one bounded `source_auth_state` document in the backup-excluded `credentials.db`, keyed by installed immutable Source ID. The Reader runtime reconciles both stores against installed IDs when it opens. Reader and credential schema validation remain authoritative, and portable snapshots create an empty credential store while retaining non-secret settings.
+
+Single-source deletion, collection replacement/deletion, and scheduled collection sync now coordinate Source Profile cleanup and source-session invalidation at the Reader API/runtime seam. Surviving immutable Source IDs retain durable settings/authentication; removed IDs are reconciled away. Source definition edits invalidate transient sessions without resetting durable state. Restore is covered by runtime-open reconciliation after the replacement runtime is recreated.
 
 A live candidate-resolution diagnostic on the current branch verified one real aggregate Search result through Book Info, a 106-chapter TOC, and readable content under the production 15-second stage policy. The reported bookshelf failure therefore still needs the exact title/stage/reason before changing candidate logic.
 
 ## Next Action
 
-Integrate deterministic lifecycle cleanup at the source mutation seams:
+Implement the normalized Source Interaction description seam without action execution yet:
 
-1. make single-source deletion and collection deletion return/capture the exact removed immutable Source IDs;
-2. remove profile/authentication state and invalidate Source Sessions immediately after successful definition removal;
-3. reconcile after collection replacement and Reader restore so interrupted cross-database cleanup cannot leave permanent remnants;
-4. preserve profile/authentication state when definition replacement keeps Source ID;
-5. expose clear-login and reset-source-data operations only after lifecycle ownership is complete.
+1. parse static `loginUi` JSON and JavaScript-generated `loginUi` into a bounded backend model;
+2. normalize informational text, text/password/input, button, toggle, and select controls with stable per-description action IDs;
+3. load the current non-secret Source Profile for initial values while never returning authentication documents;
+4. report unsupported controls/actions explicitly;
+5. expose an authenticated read endpoint and a source-management entry point before implementing mutations.
 
 ## Verification
 
@@ -147,7 +150,6 @@ Verified:
 
 Still needed:
 
-- source removal/collection synchronization/restore reconciliation tests;
 - normalized interaction and Explore tests;
 - remote browser authorization, expiry, cleanup, and cookie synchronization tests;
 - exact evidence for the user-observed bookshelf failure if it persists on current code.

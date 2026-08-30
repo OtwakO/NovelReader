@@ -65,14 +65,15 @@ func (s *sourceCollectionScheduler) syncDue(ctx context.Context) {
 		collections, err := runtime.sourceStore.ListDueCollections(time.Now())
 		if err == nil {
 			for _, collection := range collections {
-				s.syncCollection(ctx, runtime.sourceStore, collection)
+				s.syncCollection(ctx, runtime, collection)
 			}
 		}
 		release()
 	}
 }
 
-func (s *sourceCollectionScheduler) syncCollection(ctx context.Context, store *booksource.Store, collection booksource.Collection) {
+func (s *sourceCollectionScheduler) syncCollection(ctx context.Context, runtime *readerRuntime, collection booksource.Collection) {
+	store := runtime.sourceStore
 	now := time.Now()
 	document, err := s.loader.Load(ctx, collection.OriginURL, collection.ETag, collection.LastModified)
 	if err != nil {
@@ -92,7 +93,7 @@ func (s *sourceCollectionScheduler) syncCollection(ctx context.Context, store *b
 		_ = store.RecordCollectionFailure(ctx, collection.ID, "scheduled sync refused an unexpectedly empty collection", now)
 		return
 	}
-	if _, err := store.ReplaceCollection(ctx, collection.ID, sources, "", document.ETag, document.LastModified, now); err != nil {
+	if _, err := replaceSourceCollection(ctx, store, runtime.sourceProfiles, runtime.searcher.DeleteSourceSession, collection.ID, sources, "", document.ETag, document.LastModified, now); err != nil {
 		_ = store.RecordCollectionFailure(ctx, collection.ID, err.Error(), now)
 	}
 }

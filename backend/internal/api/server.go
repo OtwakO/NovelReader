@@ -28,6 +28,7 @@ import (
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
+	"github.com/otwako/novelreader/internal/sourceprofile"
 )
 
 // Server holds API dependencies.
@@ -37,6 +38,7 @@ type Server struct {
 	bookStore           *book.Store
 	searcher            *book.Searcher
 	fontStore           *fontstore.Store
+	sourceProfiles      *sourceprofile.Store
 	fetcher             *fetcher.Client
 	jsVM                *analyzer.JSVM
 	cache               *analyzer.CacheManager
@@ -45,6 +47,7 @@ type Server struct {
 	mux                 *http.ServeMux
 	auth                *auth.HTTPHandler
 	runtimes            *readerRuntimeManager
+	runtime             *readerRuntime
 	health              interface{ PingContext(context.Context) error }
 	webViewProbe        interface{ Probe(context.Context) error }
 	chineseConversion   chineseconv.Service
@@ -248,17 +251,25 @@ func (s *Server) registerAuthenticatedRoutes() {
 		defer release()
 		requestServer := *s
 		requestServer.mux = http.NewServeMux()
+		requestServer.runtime = runtime
 		requestServer.db = runtime.home.DB()
 		requestServer.sourceStore = runtime.sourceStore
 		requestServer.bookStore = runtime.bookStore
 		requestServer.searcher = runtime.searcher
 		requestServer.fontStore = runtime.fontStore
+		requestServer.sourceProfiles = runtime.sourceProfiles
 		requestServer.registerRoutesWithoutHealth()
 		requestServer.mux.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), readerHomeContextKey{}, runtime.home)))
 	})))
 }
 
 type readerHomeContextKey struct{}
+
+func (s *Server) deleteSourceSession(sourceID string) {
+	if s.searcher != nil {
+		s.searcher.DeleteSourceSession(sourceID)
+	}
+}
 
 // --- Book Sources ---
 
@@ -311,7 +322,7 @@ func (s *Server) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing query param id")
 		return
 	}
-	if err := s.sourceStore.Delete(sourceID); err != nil {
+	if err := deleteSourceDefinition(r.Context(), s.sourceStore, s.sourceProfiles, s.deleteSourceSession, sourceID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -341,6 +352,7 @@ func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.deleteSourceSession(sourceID)
 	writeJSON(w, http.StatusOK, src)
 }
 

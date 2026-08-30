@@ -2,6 +2,7 @@
 package sourceexec
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
@@ -122,6 +123,29 @@ func (r *SessionRegistry) GetChapter(sourceURL, chapterURL string) *SourceSessio
 }
 
 // IsChapter reports whether a URL belongs to a collected chapter list.
+// DeleteSource removes every session and alias owned by one immutable Source ID.
+func (r *SessionRegistry) DeleteSource(sourceID string) {
+	prefix := sourceID + "\x00"
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	removed := make(map[*SourceSession]struct{})
+	for key, session := range r.books {
+		if strings.HasPrefix(key, prefix) {
+			delete(r.books, key)
+			removed[session] = struct{}{}
+		}
+	}
+	for key, session := range r.chapters {
+		if strings.HasPrefix(key, prefix) {
+			delete(r.chapters, key)
+			removed[session] = struct{}{}
+		}
+	}
+	for session := range removed {
+		delete(r.lastUsed, session)
+	}
+}
+
 func (r *SessionRegistry) IsChapter(sourceURL, chapterURL string) bool {
 	if r == nil {
 		return false
