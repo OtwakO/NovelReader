@@ -158,6 +158,7 @@ func (s *Server) registerRoutesWithoutHealth() {
 	s.mux.HandleFunc("DELETE /api/sources", s.handleDeleteSource)
 	s.mux.HandleFunc("PUT /api/sources", s.handleUpdateSource)
 	s.mux.HandleFunc("GET /api/sources/{id}/interaction", s.handleSourceInteraction)
+	s.mux.HandleFunc("POST /api/sources/{id}/interaction/actions", s.handleSourceInteractionAction)
 
 	// Books
 	s.mux.HandleFunc("GET /api/books", s.handleListBooks)
@@ -348,6 +349,34 @@ func (s *Server) handleSourceInteraction(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, view)
+}
+
+func (s *Server) handleSourceInteractionAction(w http.ResponseWriter, r *http.Request) {
+	if s.sourceInteractions == nil {
+		writeError(w, http.StatusNotImplemented, "source interaction is unavailable")
+		return
+	}
+	var request sourceinteraction.ActionRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 256*1024)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid action request")
+		return
+	}
+	result, err := s.sourceInteractions.Act(r.Context(), r.PathValue("id"), request)
+	if err != nil {
+		switch {
+		case errors.Is(err, sourceprofile.ErrSourceNotInstalled):
+			writeError(w, http.StatusNotFound, "book source not found")
+		case errors.Is(err, sourceinteraction.ErrStaleRevision):
+			writeError(w, http.StatusConflict, err.Error())
+		case errors.Is(err, sourceinteraction.ErrActionNotFound):
+			writeError(w, http.StatusBadRequest, err.Error())
+		default:
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+		}
+		return
+	}
+	s.deleteSourceSession(r.PathValue("id"))
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {

@@ -19,7 +19,7 @@ func TestSourceInteractionHTTPReturnsNormalizedControlsWithoutAuthentication(t *
 	source := &booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", BookSourceName: "Fixture",
 		LoginUI: `[{"name":"账号","type":"text"},{"name":"登录","type":"button","action":"login()"}]`}
 	server := NewServer(nil, nil, nil, nil, nil, analyzer.NewJSVM(), nil, processor.DefaultConfig(), "", nil)
-	server.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, apiInteractionProfileStore{sourceprofile.Profile{
+	server.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, &apiInteractionProfileStore{profile: sourceprofile.Profile{
 		SourceID: source.ID, Settings: json.RawMessage(`{}`), Authentication: json.RawMessage(`{"token":"secret"}`),
 	}}, analyzer.NewJSVM())
 	request := httptest.NewRequest(http.MethodGet, "/api/sources/source-a/interaction", nil)
@@ -43,8 +43,32 @@ func (s apiInteractionSourceStore) GetByID(id string) (*booksource.BookSource, e
 	return &copy, nil
 }
 
+func TestSourceInteractionActionHTTPRejectsStaleRevision(t *testing.T) {
+	source := &booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", BookSourceName: "Fixture",
+		LoginUI: `[{"name":"Save","type":"button","action":"save()"}]`, LoginURL: `function save(){}`}
+	profiles := &apiInteractionProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: json.RawMessage(`{}`), Authentication: json.RawMessage(`{}`)}}
+	server := NewServer(nil, nil, nil, nil, nil, analyzer.NewJSVM(), nil, processor.DefaultConfig(), "", nil)
+	server.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, profiles, analyzer.NewJSVM())
+	request := httptest.NewRequest(http.MethodPost, "/api/sources/source-a/interaction/actions", strings.NewReader(`{"revision":"stale","actionId":"action-0","values":{}}`))
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+	if response.Code != http.StatusConflict {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
 type apiInteractionProfileStore struct{ profile sourceprofile.Profile }
 
-func (s apiInteractionProfileStore) Load(context.Context, string) (sourceprofile.Profile, error) {
+func (s *apiInteractionProfileStore) Load(context.Context, string) (sourceprofile.Profile, error) {
 	return s.profile, nil
+}
+
+func (s *apiInteractionProfileStore) SaveSettings(_ context.Context, _ string, value json.RawMessage) error {
+	s.profile.Settings = append(json.RawMessage(nil), value...)
+	return nil
+}
+
+func (s *apiInteractionProfileStore) SaveAuthentication(_ context.Context, _ string, value json.RawMessage) error {
+	s.profile.Authentication = append(json.RawMessage(nil), value...)
+	return nil
 }

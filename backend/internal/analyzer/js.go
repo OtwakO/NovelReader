@@ -44,8 +44,18 @@ type jsExecutor struct {
 
 // JSBridge exposes workflow-scoped JavaScript helpers without coupling analyzer to callers.
 type JSBridge struct {
-	RefreshTocURL func()
-	ReGetBook     func()
+	RefreshTocURL   func()
+	ReGetBook       func()
+	Toast           func(interface{})
+	LongToast       func(interface{})
+	RefreshExplore  func()
+	StartBrowser    func(string, string, bool)
+	Open            func(string)
+	SearchBook      func(string)
+	GetLoginInfo    func() string
+	GetLoginInfoMap func() map[string]string
+	PutLoginInfo    func(string) bool
+	RemoveLoginInfo func()
 }
 
 // NewJSVM creates a JSVM with the compatibility pool size of 16 runtimes.
@@ -225,6 +235,8 @@ Map = function(a) {
 	_ = rt.Set("result", content)
 	_ = rt.Set("src", content) // alias matching legado's `src` variable
 	_ = rt.Set("baseUrl", baseURL)
+	toast := h.Toast
+	refreshExplore := h.RefreshExplore
 	java := map[string]interface{}{
 		"get":                     h.Get,
 		"put":                     h.Put,
@@ -244,7 +256,7 @@ Map = function(a) {
 		"timeFormat":              h.TimeFormat,
 		"toNumChapter":            h.ToNumChapter,
 		"t2s":                     h.T2S,
-		"toast":                   h.Toast,
+		"toast":                   toast,
 		"androidId":               h.AndroidId,
 		"log":                     h.Log,
 		"getString":               h.GetString,
@@ -254,9 +266,32 @@ Map = function(a) {
 		"HMacHex":                 h.HMacHex,
 		"decode":                  h.Decode,
 		"login":                   h.Login,
-		"refreshExplore":          h.RefreshExplore,
+		"refreshExplore":          refreshExplore,
 	}
 	if bridge != nil {
+		if bridge.Toast != nil {
+			java["toast"] = bridge.Toast
+		}
+		if bridge.LongToast != nil {
+			java["longToast"] = bridge.LongToast
+		}
+		if bridge.RefreshExplore != nil {
+			java["refreshExplore"] = bridge.RefreshExplore
+		}
+		if bridge.Open != nil {
+			java["open"] = bridge.Open
+		}
+		if bridge.SearchBook != nil {
+			java["searchBook"] = bridge.SearchBook
+		}
+		if bridge.StartBrowser != nil {
+			java["startBrowser"] = func(url string, title ...string) {
+				bridge.StartBrowser(url, firstString(title), false)
+			}
+			java["startBrowserAwait"] = func(url string, title ...string) {
+				bridge.StartBrowser(url, firstString(title), true)
+			}
+		}
 		if bridge.RefreshTocURL != nil {
 			java["refreshTocUrl"] = bridge.RefreshTocURL
 		}
@@ -275,6 +310,20 @@ Map = function(a) {
 	}
 	for key, value := range vm.makeSourceObj(baseURL, sourceState) {
 		sourceObj[key] = value
+	}
+	if bridge != nil {
+		if bridge.GetLoginInfo != nil {
+			sourceObj["getLoginInfo"] = bridge.GetLoginInfo
+		}
+		if bridge.GetLoginInfoMap != nil {
+			sourceObj["getLoginInfoMap"] = bridge.GetLoginInfoMap
+		}
+		if bridge.PutLoginInfo != nil {
+			sourceObj["putLoginInfo"] = bridge.PutLoginInfo
+		}
+		if bridge.RemoveLoginInfo != nil {
+			sourceObj["removeLoginInfo"] = bridge.RemoveLoginInfo
+		}
 	}
 	_ = rt.Set("source", sourceObj)
 	_ = rt.Set("cookie", vm.makeCookieObj(sourceState))
@@ -713,6 +762,13 @@ func (h *jsHelpers) ToNumChapter(value interface{}) interface{} {
 		return title
 	}
 	return fmt.Sprintf("第%d章", chapterNumber(match[1]))
+}
+
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 func (h *jsHelpers) Toast(msg interface{}) {

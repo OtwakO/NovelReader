@@ -17,7 +17,11 @@ import (
 
 const maxControls = 200
 
-var ErrUnsupportedControl = errors.New("sourceinteraction: unsupported control type")
+var (
+	ErrUnsupportedControl = errors.New("sourceinteraction: unsupported control type")
+	ErrStaleRevision      = errors.New("sourceinteraction: stale description revision")
+	ErrActionNotFound     = errors.New("sourceinteraction: action not found")
+)
 
 type SourceStore interface {
 	GetByID(string) (*booksource.BookSource, error)
@@ -44,6 +48,13 @@ type View struct {
 	Controls []Control `json:"controls"`
 }
 
+type description struct {
+	view        View
+	source      *booksource.BookSource
+	profile     sourceprofile.Profile
+	rawControls []interface{}
+}
+
 type Describer struct {
 	sources  SourceStore
 	profiles ProfileStore
@@ -55,27 +66,35 @@ func NewDescriber(sources SourceStore, profiles ProfileStore, jsVM *analyzer.JSV
 }
 
 func (d *Describer) Describe(ctx context.Context, sourceID string) (View, error) {
-	source, err := d.sources.GetByID(sourceID)
+	current, err := d.describe(ctx, sourceID)
 	if err != nil {
 		return View{}, err
 	}
+	return current.view, nil
+}
+
+func (d *Describer) describe(ctx context.Context, sourceID string) (description, error) {
+	source, err := d.sources.GetByID(sourceID)
+	if err != nil {
+		return description{}, err
+	}
 	if source == nil {
-		return View{}, sourceprofile.ErrSourceNotInstalled
+		return description{}, sourceprofile.ErrSourceNotInstalled
 	}
 	profile, err := d.profiles.Load(ctx, sourceID)
 	if err != nil {
-		return View{}, err
+		return description{}, err
 	}
 	settings := sourceprofile.DecodeSettings(profile.Settings)
 	session := sourceexec.NewSourceSession()
 	sourceprofile.ApplySettings(session, source.BookSourceURL, settings)
 	rawControls, err := d.evaluate(ctx, *source, session)
 	if err != nil {
-		return View{}, err
+		return description{}, err
 	}
 	controls, err := normalizeControls(rawControls)
 	if err != nil {
-		return View{}, err
+		return description{}, err
 	}
 	revisionInput, err := json.Marshal(struct {
 		SourceID  string
@@ -84,10 +103,11 @@ func (d *Describer) Describe(ctx context.Context, sourceID string) (View, error)
 		UI        string
 	}{source.ID, source.UpdatedAt, profile.Settings, source.LoginUI})
 	if err != nil {
-		return View{}, err
+		return description{}, err
 	}
 	digest := sha256.Sum256(revisionInput)
-	return View{SourceID: source.ID, Title: source.BookSourceName, Revision: hex.EncodeToString(digest[:12]), Controls: controls}, nil
+	view := View{SourceID: source.ID, Title: source.BookSourceName, Revision: hex.EncodeToString(digest[:12]), Controls: controls}
+	return description{view: view, source: source, profile: profile, rawControls: rawControls}, nil
 }
 
 func (d *Describer) evaluate(ctx context.Context, source booksource.BookSource, session *sourceexec.SourceSession) ([]interface{}, error) {
@@ -149,6 +169,7 @@ func normalizeControls(values []interface{}) ([]Control, error) {
 			control.ActionID = fmt.Sprintf("action-%d", index)
 		case "toggle":
 			control.ActionID = fmt.Sprintf("action-%d", index)
+			control.Options = stringList(row["chars"])
 			control.Value = analyzer.ToString(row["value"])
 		case "select":
 			control.ActionID = fmt.Sprintf("action-%d", index)

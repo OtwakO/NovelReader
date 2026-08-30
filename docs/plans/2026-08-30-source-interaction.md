@@ -116,7 +116,8 @@ The initial implementation does not add application-level encryption or a key-ma
 - [x] Integrate source deletion, collection synchronization, restore reconciliation, and runtime invalidation.
 - [ ] Add explicit clear-login and reset-source-data operations with normalized interaction APIs.
 - [x] Implement normalized read-only source controls and authenticated description API.
-- [ ] Implement source action execution and management UI.
+- [x] Implement revision-checked source action execution and typed effects.
+- [ ] Implement the source management UI.
 - [ ] Hydrate Explore and normal execution from durable source state.
 - [ ] Implement authenticated remote browser sessions and cookie synchronization.
 
@@ -128,19 +129,21 @@ The Source Profile foundation contributes one bounded `source_profiles` document
 
 Single-source deletion, collection replacement/deletion, and scheduled collection sync coordinate Source Profile cleanup and source-session invalidation at the Reader API/runtime seam. Surviving immutable Source IDs retain durable settings/authentication; removed IDs are reconciled away. Source definition edits invalidate transient sessions without resetting durable state. Restore is covered by runtime-open reconciliation after the replacement runtime is recreated.
 
-The backend now evaluates strict JSON, JavaScript object-literal, and dynamic `@js:` `loginUi` definitions into a bounded typed interaction view. The authenticated `GET /api/sources/{id}/interaction` endpoint returns labels, input/select/toggle values, positional action IDs, unsupported-control diagnostics, and a definition/settings revision; it never returns authentication documents or raw action JavaScript. The unmodified aggregate fixture normalizes all 34 controls.
+The backend evaluates strict JSON, JavaScript object-literal, and dynamic `@js:` `loginUi` definitions into a bounded typed interaction view. The authenticated `GET /api/sources/{id}/interaction` endpoint returns labels, input/select/toggle values, positional action IDs, unsupported-control diagnostics, and a definition/settings revision; it never returns authentication documents or raw action JavaScript. The unmodified aggregate fixture normalizes all 34 controls.
+
+The authenticated action endpoint re-evaluates the current definition, verifies the revision and exposed positional action, supplies Legado's current control-name → string-value map as `result`, and runs `loginUrl` before the selected action. Durable settings/login state and session cookies are hydrated and captured around execution. JavaScript UI side effects are returned as typed notices, Explore refresh requests, external links, or `browser_required`; raw action programs never cross the API. Successful mutations invalidate transient source sessions.
 
 A live candidate-resolution diagnostic on the current branch verified one real aggregate Search result through Book Info, a 106-chapter TOC, and readable content under the production 15-second stage policy. The reported bookshelf failure therefore still needs the exact title/stage/reason before changing candidate logic.
 
 ## Next Action
 
-Implement source action execution without a persistent action registry:
+Finish the normalized source-management workflow:
 
-1. accept source ID, description revision, positional action ID, and submitted control values;
-2. re-evaluate the current description and reject stale revisions or mismatched action positions;
-3. execute the current source action in a hydrated Source Session while capturing only typed notices, refresh requests, browser requests, and explicit settings/authentication mutations;
-4. save one replacement Source Profile/authentication document and invalidate transient source sessions after successful durable mutation;
-5. add clear-login and reset-source-data operations, then expose the first source-management UI.
+1. add explicit clear-login and reset-source-data operations at the Source Profile boundary;
+2. add the first source-management UI using the existing description/action endpoints;
+3. render notices, external links, Explore refresh effects, and browser-required states without executing source-defined code in the frontend;
+4. add focused UI/API integration tests for values, password handling, stale revisions, and unsupported controls;
+5. hydrate Explore and normal source execution from the same durable Source Profile before implementing remote browser sessions.
 
 ## Verification
 

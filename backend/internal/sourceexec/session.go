@@ -19,6 +19,7 @@ type SourceSession struct {
 	mu              sync.RWMutex
 	vars            map[string]string
 	memory          map[string]interface{}
+	cookieURLs      map[string]struct{}
 	headers         map[string]string
 	loginHeader     string
 	loginCookie     string
@@ -30,7 +31,7 @@ type SourceSession struct {
 func NewSourceSession() *SourceSession {
 	jar, _ := cookiejar.New(nil)
 	return &SourceSession{
-		jar: jar, vars: make(map[string]string), memory: make(map[string]interface{}), headers: make(map[string]string),
+		jar: jar, vars: make(map[string]string), memory: make(map[string]interface{}), cookieURLs: make(map[string]struct{}), headers: make(map[string]string),
 		responseCookies: true,
 	}
 }
@@ -60,6 +61,7 @@ func (s *SourceSession) SetCookie(rawURL, name, value string) error {
 		return fmt.Errorf("sourceexec: empty cookie name")
 	}
 	s.jar.SetCookies(u, []*http.Cookie{{Name: name, Value: value, Path: "/"}})
+	s.trackCookieURL(rawURL)
 	return nil
 }
 
@@ -97,6 +99,20 @@ func (s *SourceSession) CookieHeader(rawURL string) string {
 	return strings.Join(values, "; ")
 }
 
+// JarCookieHeader returns only cookies stored in the session jar.
+func (s *SourceSession) JarCookieHeader(rawURL string) string {
+	u, err := parseSessionURL(rawURL)
+	if err != nil {
+		return ""
+	}
+	cookies := s.jar.Cookies(u)
+	values := make([]string, 0, len(cookies))
+	for _, cookie := range cookies {
+		values = append(values, cookie.Name+"="+cookie.Value)
+	}
+	return strings.Join(values, "; ")
+}
+
 // Cookies exposes a copy of the cookies applicable to a URL for transport sync.
 func (s *SourceSession) Cookies(rawURL string) []*http.Cookie {
 	u, err := parseSessionURL(rawURL)
@@ -104,6 +120,17 @@ func (s *SourceSession) Cookies(rawURL string) []*http.Cookie {
 		return nil
 	}
 	return append([]*http.Cookie(nil), s.jar.Cookies(u)...)
+}
+
+// CookieURLs returns the source URLs whose cookies were hydrated or changed.
+func (s *SourceSession) CookieURLs() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	urls := make([]string, 0, len(s.cookieURLs))
+	for rawURL := range s.cookieURLs {
+		urls = append(urls, rawURL)
+	}
+	return urls
 }
 
 // RemoveCookies clears cookies applicable to a source URL.
@@ -118,6 +145,7 @@ func (s *SourceSession) RemoveCookies(rawURL string) error {
 		cookie.Expires = time.Unix(1, 0)
 	}
 	s.jar.SetCookies(u, cookies)
+	s.trackCookieURL(rawURL)
 	return nil
 }
 
@@ -128,6 +156,7 @@ func (s *SourceSession) SetCookies(rawURL string, cookies []*http.Cookie) error 
 		return err
 	}
 	s.jar.SetCookies(u, cookies)
+	s.trackCookieURL(rawURL)
 	return nil
 }
 
@@ -242,6 +271,25 @@ func (s *SourceSession) GetMemory(key string) interface{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.memory[key]
+}
+
+// StringMemory returns the persistent string-valued source state.
+func (s *SourceSession) StringMemory() map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	values := make(map[string]string)
+	for key, value := range s.memory {
+		if text, ok := value.(string); ok {
+			values[key] = text
+		}
+	}
+	return values
+}
+
+func (s *SourceSession) trackCookieURL(rawURL string) {
+	s.mu.Lock()
+	s.cookieURLs[rawURL] = struct{}{}
+	s.mu.Unlock()
 }
 
 func parseSessionURL(rawURL string) (*url.URL, error) {
