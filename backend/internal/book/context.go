@@ -47,6 +47,11 @@ func syncBookFromContext(b *Book, values map[string]interface{}) {
 	if b == nil {
 		return
 	}
+	if variableMap, ok := values["variableMap"]; ok {
+		if raw, err := json.Marshal(variableMap); err == nil && string(raw) != "null" {
+			b.VariableMap = string(raw)
+		}
+	}
 	stringValue := func(key string) string {
 		value, _ := values[key].(string)
 		return value

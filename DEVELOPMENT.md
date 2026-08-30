@@ -559,3 +559,9 @@
 - **Change**: Added a bounded in-memory `sourceexec` data transport and `java.hexDecodeToString`; typed data is realized before WebView/HTTP selection and returns hexadecimal body text for the source's normal `bodyJs` transformation.
 - **Reason**: Legado-E checks typed data before ordinary request execution. Treating the URI as HTTP, or routing WebView first, breaks generic aggregate sources; dispatching on provider-specific type labels would overfit production code.
 - **Verified**: Focused `internal/sourceexec`, `internal/analyzer`, and downstream `internal/book` tests pass, including an aggregate-style URL script → typed data → hex bridge flow and malformed/oversized rejection.
+
+### [2026-08-30] Context variables belong to active crawl entities
+- **Context**: Aggregate BookSources carry opaque routing state between Detail, TOC, and Content through Legado's `java.get` / `java.put` and entity `variableMap` methods.
+- **Change**: JavaScript evaluation now binds temporary `getVariable` / `putVariable` methods to existing book/chapter context maps, applies chapter-before-book key-presence precedence for `java.get`, writes `java.put` to the active chapter or book, and synchronizes mutated book variables through the existing `Book.variableMap` field after TOC parsing.
+- **Reason**: The previous JSVM-global cache gave state the wrong owner and could leak values across unrelated contexts. Keeping mutations on the already-shared crawl maps preserves workflow continuity without exposing stores to the analyzer or adding a second state layer.
+- **Verified**: Analyzer, source execution, book workflow, conformance, and API package tests pass; focused tests cover empty-value precedence, temporary-method cleanup, URL-rule variables, and TOC field-to-field persistence.

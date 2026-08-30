@@ -25,6 +25,34 @@ func TestEvalContextInterruptsCPULoopAndReusesRuntime(t *testing.T) {
 	}
 }
 
+func TestEvalContextUsesLegadoVariablePrecedence(t *testing.T) {
+	vm := NewJSVM()
+	book := map[string]interface{}{"name": "Fixture", "variableMap": map[string]string{"shared": "book", "bookOnly": "book-value", "empty": "book-fallback"}}
+	chapter := map[string]interface{}{"title": "Chapter One", "variableMap": map[string]string{"shared": "chapter", "empty": ""}}
+
+	value, err := vm.EvalContext(t.Context(), `
+java.put('written', 'chapter-value');
+[
+  java.get('bookName'), java.get('title'), java.get('shared'), java.get('bookOnly'), java.get('empty'),
+  chapter.getVariable('written'), book.getVariable('bookOnly')
+].join('|')`, "", "https://fixture.test", map[string]interface{}{
+		"book": book, "chapter": chapter, "analyzer": &Analyzer{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ToString(value) != "Fixture|Chapter One|chapter|book-value||chapter-value|book-value" {
+		t.Fatalf("value=%q", ToString(value))
+	}
+	variables, _ := chapter["variableMap"].(map[string]string)
+	if variables["written"] != "chapter-value" {
+		t.Fatalf("chapter variables=%v", variables)
+	}
+	if _, exists := chapter["getVariable"]; exists {
+		t.Fatal("temporary entity methods leaked into chapter context")
+	}
+}
+
 func TestEvalContextCancelsJavaAjax(t *testing.T) {
 	requestCanceled := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

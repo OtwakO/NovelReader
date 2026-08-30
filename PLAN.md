@@ -265,9 +265,10 @@ The current `feat/aggregated-booksources` branch is extending shared Legado comp
 - typed data execution precedes HTTP/WebView selection, matching Legado's execution order, and returns hexadecimal response text for source-defined `bodyJs` processing;
 - `java.hexDecodeToString` provides the matching JavaScript bridge operation;
 - typed payloads are bounded and malformed payloads fail explicitly without network access;
+- `java.get` / `java.put` and entity `getVariable` / `putVariable` use the active chapter then book context, with book variable mutations serialized through the existing `Book.variableMap` field;
 - aggregate labels such as provider-specific `type` values remain opaque imported data and never select NovelReader production behavior.
 
-The next coherent slice is contextual variable parity required to carry source-defined book/chapter state through Detail, TOC, and Content. Durable reader-owned source settings and source login remain separate storage/security slices and must not be folded into transient workflow state.
+The next coherent slice is a deterministic synthetic aggregate fixture proving the complete text workflow and identifying any remaining shared bridge gaps. Durable reader-owned source settings and source login remain separate storage/security slices and must not be folded into transient workflow state.
 
 The backup/restore and startup-performance work previously listed here is integrated on `main`.
 
@@ -279,10 +280,9 @@ Use a deterministic synthetic aggregate fixture to prove Search â†’ Book Info â†
 
 Next steps:
 
-1. implement contextual `java.get` / `java.put` behavior and `book.getVariable` through the existing active book/chapter context;
-2. prove variable continuity across the text workflow without provider-specific dispatch;
-3. run the unmodified aggregate source as live compatibility evidence, classifying external gateway failures separately;
-4. add durable reader-owned source settings keyed by immutable Source ID only when the transient workflow is correct.
+1. prove variable continuity across the complete synthetic text workflow without provider-specific dispatch;
+2. run the unmodified aggregate source as live compatibility evidence, classifying external gateway failures separately;
+3. add durable reader-owned source settings keyed by immutable Source ID only when the transient workflow is correct.
 
 ### 2. Continue shared Legado compatibility convergence
 

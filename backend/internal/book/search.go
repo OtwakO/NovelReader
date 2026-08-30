@@ -807,6 +807,7 @@ func (s *Searcher) GetChapterListForBookContext(ctx context.Context, src booksou
 	if err != nil {
 		return nil, fmt.Errorf("chapter list: %w", err)
 	}
+	syncBookFromContext(b, bookData)
 	for _, chapter := range chapters {
 		if chapter.URL != "" {
 			s.sessions.AssociateChapter(src.ID, b.BookURL, chapter.URL)

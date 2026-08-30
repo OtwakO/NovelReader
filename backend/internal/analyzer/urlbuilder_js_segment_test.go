@@ -32,6 +32,28 @@ func TestBuildURLDoesNotTreatLiteralAtJSAsSegment(t *testing.T) {
 	}
 }
 
+func TestBuildURLUsesChapterThenBookVariables(t *testing.T) {
+	data := &URLContext{
+		Book: map[string]interface{}{
+			"variableMap": map[string]string{"token": "book-token", "bookOnly": "book-value"},
+		},
+		Chapter: map[string]interface{}{
+			"variableMap": map[string]string{"token": "chapter-token"},
+		},
+	}
+	meta, err := BuildURLWithContextData(t.Context(), `@js:java.put('written','chapter-write'); 'https://example.test/'+java.get('token')+'/'+java.get('bookOnly')+'/'+chapter.getVariable('written')`, "", 1, "https://example.test", NewJSVM(), nil, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.URL != "https://example.test/chapter-token/book-value/chapter-write" {
+		t.Fatalf("url=%q", meta.URL)
+	}
+	variables, _ := data.Chapter["variableMap"].(map[string]string)
+	if variables["written"] != "chapter-write" {
+		t.Fatalf("chapter variables=%v", variables)
+	}
+}
+
 func TestBuildURLEvaluatesJavaScriptURLSegment(t *testing.T) {
 	meta, err := BuildURL("/search\n@js:result + ',' + JSON.stringify({method:'POST',body:'kw='+key})", "剑来", 1, "https://example.test", NewJSVM())
 	if err != nil {

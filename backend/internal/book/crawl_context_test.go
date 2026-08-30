@@ -69,6 +69,32 @@ func TestTOCFormatJSRunsAfterFinalOrderingWithPersistentBindings(t *testing.T) {
 	}
 }
 
+func TestTOCRulesPersistBookVariablesAcrossFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">ignored</a>`))
+	}))
+	defer server.Close()
+
+	s := NewSearcher(fetcher.NewInsecure(3*time.Second), analyzer.NewJSVM(), nil, nil, nil)
+	src := booksource.BookSource{BookSourceURL: server.URL, BookSourceName: "Fixture", RuleToc: `{
+		"chapterList":"@css:.chapter",
+		"chapterName":"<js>book.putVariable('token','persisted'); 'Chapter'</js>",
+		"chapterUrl":"<js>book.getVariable('token') + '.html'</js>"
+	}`}
+	b := &Book{BookURL: server.URL + "/book"}
+
+	chapters, err := s.GetChapterListForBook(src, b, server.URL+"/toc")
+	if err != nil || len(chapters) != 1 {
+		t.Fatalf("chapters=%+v err=%v", chapters, err)
+	}
+	if chapters[0].URL != server.URL+"/persisted.html" {
+		t.Fatalf("chapter URL=%q", chapters[0].URL)
+	}
+	if b.VariableMap != `{"token":"persisted"}` {
+		t.Fatalf("book variableMap=%q", b.VariableMap)
+	}
+}
+
 func TestTOCFormatJSSupportsActiveSuffixRemovalContract(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">第一章【123456】</a><a class="chapter" href="/chapter/2">第二章</a>`))

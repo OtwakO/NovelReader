@@ -210,7 +210,14 @@ Map = function(a) {
 			sourceState.PutMemory(clientMemoryKey, hc)
 		}
 	}
-	h := &jsHelpers{vm: vm, rt: rt, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState, baseURL: baseURL}
+	var bookData, chapterData map[string]interface{}
+	if len(extra) > 0 {
+		bookData, _ = extra[0]["book"].(map[string]interface{})
+		chapterData, _ = extra[0]["chapter"].(map[string]interface{})
+	}
+	variables := newEvaluationVariables(bookData, chapterData, activeAnalyzer, sourceState)
+	defer variables.Close()
+	h := &jsHelpers{vm: vm, rt: rt, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState, baseURL: baseURL, variables: variables}
 	var bridge *JSBridge
 	if len(extra) > 0 {
 		bridge, _ = extra[0]["jsBridge"].(*JSBridge)
@@ -426,13 +433,14 @@ func (vm *JSVM) makeCacheObj(state SourceState) map[string]interface{} {
 // --- java.* bridge implementation ---
 
 type jsHelpers struct {
-	vm       *JSVM
-	rt       *goja.Runtime
-	hc       fetcher.HTTPClient
-	ctx      context.Context
-	analyzer *Analyzer
-	state    SourceState
-	baseURL  string
+	vm        *JSVM
+	rt        *goja.Runtime
+	hc        fetcher.HTTPClient
+	ctx       context.Context
+	analyzer  *Analyzer
+	state     SourceState
+	baseURL   string
+	variables *evaluationVariables
 }
 
 type responseCookieState interface {
@@ -605,12 +613,7 @@ func (h *jsHelpers) responseObject(body string, status int, headers http.Header,
 func (h *jsHelpers) Get(arg1 string, args ...interface{}) interface{} {
 	// Variable getter
 	if len(args) == 0 && !strings.HasPrefix(arg1, "http") {
-		h.vm.mu.Lock()
-		defer h.vm.mu.Unlock()
-		if h.vm.cacheData == nil {
-			return ""
-		}
-		return h.vm.cacheData[arg1]
+		return h.variables.Get(arg1)
 	}
 	headers := make(map[string]string)
 	if len(args) > 0 {
@@ -981,16 +984,9 @@ func resolveAjaxURL(rawURL, baseURL string) (string, error) {
 	return base.ResolveReference(reference).String(), nil
 }
 
-// put stores a value: java.put(key, value)
+// Put stores a value in the active chapter, book, rule-data, or source context.
 func (h *jsHelpers) Put(key, value string) string {
-	// Store in a simple map on the JSVM
-	h.vm.mu.Lock()
-	if h.vm.cacheData == nil {
-		h.vm.cacheData = make(map[string]string)
-	}
-	h.vm.cacheData[key] = value
-	h.vm.mu.Unlock()
-	return value
+	return h.variables.Put(key, value)
 }
 
 // md5Encode computes MD5 hex: java.md5Encode(str)
