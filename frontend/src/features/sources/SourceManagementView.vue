@@ -19,6 +19,7 @@ import {
   type SyncInterval,
 } from "../../api/source-collections";
 import AppButton from "../../ui/components/AppButton.vue";
+import { useExploreStore } from "../explore/explore-store";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
 import SourceCollectionDialog from "./SourceCollectionDialog.vue";
 import SourceEditorDialog from "./SourceEditorDialog.vue";
@@ -77,6 +78,7 @@ export default defineComponent({
       busyUrl: "",
       page: 1,
       pageSize: 25,
+      explore: useExploreStore(),
     };
   },
   computed: {
@@ -174,6 +176,9 @@ export default defineComponent({
     await this.load();
   },
   methods: {
+    refreshExplore(sourceId: string) {
+      this.explore.refreshSource(sourceId);
+    },
     async load() {
       this.loading = true;
       this.error = "";
@@ -564,7 +569,7 @@ export default defineComponent({
         </div>
       </nav>
     </div>
-    <SourceInteractionSheet v-if="interacting" :source="interacting" @close="interacting = null" />
+    <SourceInteractionSheet v-if="interacting" :source="interacting" @close="interacting = null" @refresh-explore="refreshExplore(interacting.sourceId!)" />
     <SourceCollectionDialog v-if="collectionDialog" :collection="editingCollection" :busy="collectionBusy" :error="collectionError" @submit="saveCollection" @close="collectionDialog = false; editingCollection = null" />
     <SourceImportDialog
       v-if="importItems.length"

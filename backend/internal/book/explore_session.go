@@ -101,6 +101,20 @@ func exploreCategories(kinds []exploreKind, generation uint64) (map[string]explo
 	return categories, entryIDs
 }
 
+func (r *exploreRegistry) deleteSource(sourceID string) {
+	if r == nil || sourceID == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for id, session := range r.sessions {
+		if session.source.ID == sourceID {
+			delete(r.sessions, id)
+			delete(r.lastUsed, id)
+		}
+	}
+}
+
 func (r *exploreRegistry) acquire(id string) (*exploreSession, func()) {
 	if r == nil || id == "" {
 		return nil, func() {}

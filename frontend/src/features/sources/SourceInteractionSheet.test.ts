@@ -36,6 +36,13 @@ describe('SourceInteractionSheet', () => {
     expect(runSourceInteractionAction).toHaveBeenLastCalledWith('source-a', 'revision', 'action-2', expect.objectContaining({ Enabled: '1' }));
     wrapper.unmount();
   });
+  it('emits Explore refresh effects for the parent state boundary', async () => {
+    runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'refresh_explore' }] });
+    const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('select').exists()).toBe(true));
+    await wrapper.get('select').setValue('B');
+    expect(wrapper.emitted('refresh-explore')).toHaveLength(1);
+    wrapper.unmount();
+  });
   it('takes focus, locks background scroll, and closes on Escape', async () => {
     const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('aside').exists()).toBe(true));
     expect(document.activeElement).toBe(wrapper.get('.close').element);

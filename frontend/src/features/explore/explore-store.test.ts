@@ -18,6 +18,13 @@ describe('Explore store', () => {
     const store = useExploreStore(); await store.loadSources(); await store.openSource('source-a'); store.selectCategory(catalog.entries[0]!); await vi.waitFor(() => expect(store.results).toHaveLength(1)); await store.loadPage(store.nextPage, false);
     expect(api.getExplorePage.mock.calls.map(call => call.slice(1, 3))).toEqual([['category', 1], ['category', 2]]); expect(store.results.map(item => item.name)).toEqual(['One', 'Two']); expect(store.cache.category?.exhausted).toBe(true);
   });
+  it('refreshes only the selected source after an external source action', async () => {
+    sessionStorage.setItem('novelreader.explore-session.v1', JSON.stringify({ sourceId: 'source-a', catalog, categoryId: 'category', results: [result('Old')], nextPage: 2, exhausted: false, diagnostics: [], cache: {} }));
+    const store = useExploreStore();
+    store.refreshSource('source-b'); expect(api.openExplore).not.toHaveBeenCalled();
+    store.refreshSource('source-a'); await vi.waitFor(() => expect(api.openExplore).toHaveBeenCalledWith('source-a', expect.any(AbortSignal)));
+    expect(store.catalog?.sessionId).toBe('session-a'); expect(store.categoryId).toBe(''); expect(store.results).toEqual([]);
+  });
   it('reopens an expired opaque session for the selected source', async () => {
     api.getExplorePage.mockRejectedValue(new ExploreApiError({ code: 'session_not_found', stage: 'session', severity: 'error', message: 'expired' }));
     const store = useExploreStore(); store.sourceId = 'source-a'; store.catalog = catalog; store.categoryId = 'category'; await store.loadPage(1, true); await vi.waitFor(() => expect(api.openExplore).toHaveBeenCalledWith('source-a', expect.any(AbortSignal)));

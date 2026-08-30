@@ -131,7 +131,7 @@ Single-source deletion, collection replacement/deletion, and scheduled collectio
 
 The backend evaluates strict JSON, JavaScript object-literal, and dynamic `@js:` `loginUi` definitions into a bounded typed interaction view. The authenticated `GET /api/sources/{id}/interaction` endpoint returns labels, input/select/toggle values, positional action IDs, unsupported-control diagnostics, and a definition/settings revision; it never returns authentication documents or raw action JavaScript. The unmodified aggregate fixture normalizes all 34 controls.
 
-The authenticated action endpoint re-evaluates the current definition, verifies the revision and exposed positional action, supplies Legado's current control-name → string-value map as `result`, and runs `loginUrl` before the selected action. Durable settings/login state and session cookies are hydrated and captured around execution. JavaScript UI side effects are returned as typed notices, search requests, Explore refresh requests, external links, or `browser_required`; raw action programs never cross the API. Successful mutations invalidate transient source sessions.
+The authenticated action endpoint re-evaluates the current definition, verifies the revision and exposed positional action, supplies Legado's current control-name → string-value map as `result`, and runs `loginUrl` before the selected action. Durable settings/login state and session cookies are hydrated and captured around execution. JavaScript UI side effects are returned as typed notices, search requests, Explore refresh requests, external links, or `browser_required`; raw action programs never cross the API. Successful mutations invalidate transient Search/Book/TOC/Content and opaque Explore sessions for that Source ID. A `refresh_explore` effect reopens the selected catalog only when it belongs to the changed source, including after route restoration from tab-scoped Explore state.
 
 Three explicit destructive operations preserve the installed Source Definition while clearing owned state: clear login removes authentication/cookies only, reset settings removes portable settings only, and full reset removes both. Each operation is idempotent, returns a freshly evaluated interaction view, and invalidates transient sessions after durable cleanup succeeds.
 
@@ -145,9 +145,8 @@ A live candidate-resolution diagnostic on the current branch verified one real a
 
 Finish the normalized source-management workflow:
 
-1. route Explore refresh effects through the existing Explore state boundary;
-2. verify the unmodified aggregate fixture's settings change real Explore behavior without source-specific branches;
-3. implement remote browser sessions only after the normalized non-browser workflow is complete.
+1. verify the unmodified aggregate fixture's settings change real Explore behavior without source-specific branches;
+2. implement remote browser sessions only after the normalized non-browser workflow is complete.
 
 ## Verification
 
