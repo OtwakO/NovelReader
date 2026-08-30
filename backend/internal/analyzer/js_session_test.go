@@ -83,6 +83,10 @@ func TestJSVMBindsLegadoObjectsToSourceState(t *testing.T) {
 	if err != nil || value != "fixture" {
 		t.Fatalf("cookie binding = %v, err=%v", value, err)
 	}
+	value, err = vm.Eval("java.getCookie('https://example.test', 'sid') + '|' + java.getCookie('https://example.test')", "", "https://example.test/", bindings)
+	if err != nil || value != "fixture|sid=fixture" {
+		t.Fatalf("java cookie binding = %v, err=%v", value, err)
+	}
 	state.memory["__legado_login_header"] = map[string]string{"login_token": "token", "account": "reader"}
 	value, err = vm.Eval("source.putVariable('value'); source.put('saved', 'yes'); cache.putMemory('x', 'memory'); cache.put('legacy', 'cached'); source.getLoginHeaderMap().get('login_token') + '|' + cache.get('legacy')", "", "https://example.test/", bindings)
 	if err != nil {

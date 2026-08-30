@@ -267,23 +267,18 @@ The current `feat/aggregated-booksources` branch is extending shared Legado comp
 - typed payloads are bounded and malformed payloads fail explicitly without network access;
 - `java.get` / `java.put` and entity `getVariable` / `putVariable` use the active chapter then book context, with book variable mutations serialized through the existing `Book.variableMap` field;
 - each JavaScript evaluation uses global scope on a fresh runtime, preserving Legado `jsLib` sibling-helper calls through `this` without declaration leakage between evaluations;
+- structured JavaScript TOC elements remain structured while chapter field rules run, and `java.getCookie(url, key?)` reads the existing source-scoped session;
 - aggregate labels such as provider-specific `type` values remain opaque imported data and never select NovelReader production behavior.
 
-A deterministic synthetic aggregate fixture now proves Search → Book Info → TOC → Content through typed data requests, local gateway calls, synthetic stage URLs, and book-variable continuity. The unmodified 光遇 source also succeeds through live Search and returns typed `gydetail` results. The next coherent slice is live Book Info → TOC → Content evidence from one exact returned result and closure of only the shared bridge gaps demonstrated there. Durable reader-owned source settings and source login remain separate storage/security slices and must not be folded into transient workflow state.
+A deterministic synthetic aggregate fixture proves Search → Book Info → TOC → Content through typed data requests, local gateway calls, synthetic stage URLs, and book-variable continuity. The unmodified 光遇 source also completes that live workflow: Search returns results, Book Info resolves a typed `gycatalog` URL, TOC returns 106 chapters while persisting `book_id`, and first/middle/last chapter content is readable through typed `gycontent` requests. Durable reader-owned source settings and source login remain separate storage/security slices and must not be folded into transient workflow state.
 
 The backup/restore and startup-performance work previously listed here is integrated on `main`.
 
 ## Roadmap
 
-### 1. Complete core aggregate text-workflow compatibility
+### 1. Add durable reader-owned source settings
 
-Use a deterministic synthetic aggregate fixture to prove Search → Book Info → TOC → Content through shared execution seams.
-
-Next steps:
-
-1. run the unmodified aggregate source as live compatibility evidence, classifying external gateway failures separately;
-2. close only generic bridge gaps demonstrated by that source's core text/server workflow;
-3. add durable reader-owned source settings keyed by immutable Source ID only when the transient workflow is correct.
+Core aggregate text-workflow compatibility is proven by deterministic and unmodified live-source evidence through shared execution seams. The next aggregate-adjacent slice is durable non-secret source settings keyed by reader and immutable Source ID, separate from imported definitions and credential/login storage.
 
 ### 2. Continue shared Legado compatibility convergence
 

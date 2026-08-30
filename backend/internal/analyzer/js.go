@@ -231,6 +231,7 @@ Map = function(a) {
 		"post":                    h.Post,
 		"ajax":                    h.Ajax,
 		"connect":                 h.Connect,
+		"getCookie":               h.GetCookie,
 		"md5Encode":               h.Md5Encode,
 		"md5Encode16":             h.Md5Encode16,
 		"base64Encode":            h.Base64Encode,
@@ -532,6 +533,16 @@ func jsDuration(value interface{}) time.Duration {
 		return 0
 	}
 	return time.Duration(seconds) * time.Millisecond
+}
+
+func (h *jsHelpers) GetCookie(rawURL string, keys ...string) string {
+	if h.state == nil {
+		return ""
+	}
+	if len(keys) > 0 {
+		return h.state.GetCookie(rawURL, keys[0])
+	}
+	return h.state.CookieHeader(rawURL)
 }
 
 func (h *jsHelpers) syncResponseCookies(rawURL string, headers http.Header) {

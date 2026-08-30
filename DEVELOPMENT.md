@@ -577,3 +577,10 @@
 - **Change**: Removed the legacy block wrapper around declaration-containing JavaScript and now execute each source program at global scope; repeated evaluations remain isolated because `EvalContext` already replaces the borrowed goja runtime with a newly-created runtime after every evaluation.
 - **Reason**: The wrapper solved declaration collisions when runtimes were reused, but after fresh-runtime replacement it was redundant and broke Legado's shared `jsLib` global-object semantics.
 - **Verified**: Repeated `let` declarations still pass, a focused sibling-helper-through-`this` regression passes, affected backend packages pass, and the unmodified aggregate source Search succeeds live with 20 results and typed `gydetail` URLs.
+
+### [2026-08-30] Aggregate sources fit the existing BookSource workflow
+- **Context**: The unmodified 光遇 aggregate source initially failed at several stages, raising the question of whether NovelReader needed a separate aggregate-source domain or pipeline.
+- **Change**: Kept the ordinary BookSource model and closed generic compatibility gaps at existing seams: bounded typed `data:` execution in `sourceexec`, shared entity variables, global `jsLib` scope on fresh runtimes, structured TOC element context, and `java.getCookie` over the source session. The conformance runner was also aligned with production JavaScript library and HTTP-client wiring.
+- **Reason**: The source is one programmable Legado BookSource whose synthetic stage URLs and remote gateway calls already fit RequestSpec, SourceSession, analyzer, and book workflows. Provider-specific labels remain opaque and never select behavior.
+- **Verified**: A deterministic local Search → Detail → TOC → Content regression passes. The exact first live Search result from the unmodified source then completed Book Info, produced 106 chapters with persisted `book_id`, and returned readable first/middle/last content.
+- **Watch out**: Interactive login and durable reader-owned source settings are separate storage/security features. Do not store them in imported BookSource definitions or key them by `bookSourceUrl`.
