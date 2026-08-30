@@ -316,8 +316,8 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 	var chapters []Chapter
 	for elementIndex, el := range elements {
 		current := &Chapter{}
-		elHTML := analyzer.ToString(el)
-		elAn := analyzer.New(elHTML, pageURL, p.jsVM, p.cache)
+		elAn := analyzer.New(analyzer.ToString(el), pageURL, p.jsVM, p.cache)
+		elAn.SetContent(el)
 		elAn.SetContext(p.ctx)
 		chapterData := chapterContext(p.book, current, pageURL)
 		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)

@@ -32,3 +32,22 @@ func TestChapterListPreservesJavaScriptChapterObjects(t *testing.T) {
 		t.Fatalf("second chapter=%+v", chapters[1])
 	}
 }
+
+func TestChapterListJavaScriptFieldRulesReceiveStructuredElement(t *testing.T) {
+	parser := &ChapterListParser{
+		src: booksource.BookSource{
+			BookSourceName: "structured js toc fixture",
+			RuleToc:        `{"chapterList":"@js:[{title:'First',item_id:'chapter-1'}]","chapterName":"$.title","chapterUrl":"<js>'/chapter/' + result.item_id</js>"}`,
+		},
+		jsVM:  analyzer.NewJSVM(),
+		fetch: func(string) (string, string, error) { return "<html></html>", "https://example.test/book", nil },
+	}
+
+	chapters, err := parser.ParseChapterList("https://example.test/book", "https://example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chapters) != 1 || chapters[0].Title != "First" || chapters[0].URL != "https://example.test/chapter/chapter-1" {
+		t.Fatalf("chapters=%+v", chapters)
+	}
+}
