@@ -216,8 +216,10 @@ func chapterCheckIndexes(chapters []book.Chapter) []chapterCheckIndex {
 }
 
 func newWorkflowSearcher(timeout time.Duration, options Options) (*book.Searcher, error) {
+	httpClient := fetcher.NewInsecureStateless(timeout)
 	jsVM := analyzer.NewJSVM()
-	searcher := book.NewSearcher(fetcher.NewInsecureStateless(timeout), jsVM, nil, nil, nil)
+	jsVM.SetFetcher(httpClient)
+	searcher := book.NewSearcher(httpClient, jsVM, nil, nil, nil)
 	searcher.SetWorkflowTimeout(timeout)
 	searcher.SetTransportFactory(func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport {
 		normal := sourceexec.NewHTTPTransportForSession(client, session)

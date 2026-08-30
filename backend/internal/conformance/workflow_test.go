@@ -12,6 +12,33 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 )
 
+func TestRunBookInfoConfiguresJavaScriptHTTPBridge(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/book":
+			_, _ = w.Write([]byte(`{"id":"fixture"}`))
+		case "/detail":
+			_, _ = w.Write([]byte(`{"data":{"name":"JS Detail"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	raw, _ := json.Marshal([]map[string]interface{}{{
+		"bookSourceUrl": server.URL, "bookSourceName": "fixture", "bookSourceType": 0,
+		"ruleBookInfo": map[string]string{
+			"init": `<js>JSON.parse(java.ajax(source.bookSourceUrl + '/detail')).data</js>`, "name": "$.name",
+		},
+	}})
+	record, err := RunBookInfoWithOptions(t.Context(), raw, 0, book.SearchResult{BookURL: server.URL + "/book"}, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.Classification != "success" || record.Detail == nil || record.Detail.Name != "JS Detail" {
+		t.Fatalf("record=%+v", record)
+	}
+}
+
 func TestRunBookInfoUsesSearchResultContextAndStopsAtDetail(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
