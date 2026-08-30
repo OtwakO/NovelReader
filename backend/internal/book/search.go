@@ -78,11 +78,13 @@ type sourceLister interface {
 // Searcher orchestrates search, book info, TOC, and content fetching.
 type TransportFactory func(client *fetcher.Client, session *sourceexec.SourceSession) sourceexec.Transport
 type WebViewTransportFactory func(session *sourceexec.SourceSession) sourceexec.Transport
+type SourceSessionHydrator func(context.Context, booksource.BookSource, *sourceexec.SourceSession) error
 
 type Searcher struct {
 	fetcher                 *fetcher.Client
 	transportFactory        TransportFactory
 	webViewTransportFactory WebViewTransportFactory
+	sessionHydrator         SourceSessionHydrator
 	jsVM                    *analyzer.JSVM
 	cache                   *analyzer.CacheManager
 	sourceStore             sourceLister
@@ -234,6 +236,27 @@ func (s *Searcher) workflowClientWithTimeout(timeout time.Duration) *fetcher.Cli
 	return fetcher.NewInsecureStateless(timeout)
 }
 
+// SetSourceSessionHydrator injects reader-owned durable state without coupling workflows to storage.
+func (s *Searcher) SetSourceSessionHydrator(hydrator SourceSessionHydrator) {
+	s.sessionHydrator = hydrator
+}
+
+func (s *Searcher) prepareSourceSession(ctx context.Context, src booksource.BookSource, session *sourceexec.SourceSession) error {
+	if session == nil {
+		return nil
+	}
+	if err := session.HydrateOnce(func() error {
+		if s.sessionHydrator == nil {
+			return nil
+		}
+		return s.sessionHydrator(ctx, src, session)
+	}); err != nil {
+		return err
+	}
+	configureSourceSession(src, session)
+	return nil
+}
+
 func configureSourceSession(src booksource.BookSource, session *sourceexec.SourceSession) {
 	if session == nil {
 		return
@@ -377,7 +400,9 @@ func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src book
 	defer cancel()
 
 	// Search owns one session/client pair unless a multi-stage workflow supplies one.
-	configureSourceSession(src, session)
+	if err := s.prepareSourceSession(srcCtx, src, session); err != nil {
+		return nil, fmt.Errorf("source profile: %w", err)
+	}
 	sourceHeaders, err := evaluateSourceHeaders(srcCtx, s.jsVM, src, session)
 	if err != nil {
 		return nil, fmt.Errorf("source headers: %w", err)
@@ -637,7 +662,9 @@ func (s *Searcher) GetBookInfoForBookContext(ctx context.Context, src booksource
 }
 
 func (s *Searcher) getBookInfoForBookWithSession(ctx context.Context, src booksource.BookSource, b *Book, bookURL string, session *sourceexec.SourceSession) (*Book, error) {
-	configureSourceSession(src, session)
+	if err := s.prepareSourceSession(ctx, src, session); err != nil {
+		return nil, fmt.Errorf("book info: source profile: %w", err)
+	}
 	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
 	if err != nil {
 		return nil, fmt.Errorf("book info: source headers: %w", err)
@@ -724,7 +751,9 @@ func (s *Searcher) GetChapterListForBookContext(ctx context.Context, src booksou
 	}
 
 	session := s.sessions.GetOrCreateBook(src.ID, bookURL)
-	configureSourceSession(src, session)
+	if err := s.prepareSourceSession(ctx, src, session); err != nil {
+		return nil, fmt.Errorf("chapter list: source profile: %w", err)
+	}
 	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
 	if err != nil {
 		return nil, fmt.Errorf("chapter list: source headers: %w", err)
@@ -854,7 +883,9 @@ func (s *Searcher) GetChapterContentForBookContext(ctx context.Context, src book
 	if session == nil {
 		session = sourceexec.NewSourceSession()
 	}
-	configureSourceSession(src, session)
+	if err := s.prepareSourceSession(ctx, src, session); err != nil {
+		return "", "", fmt.Errorf("content: source profile: %w", err)
+	}
 	sourceHeaders, err := evaluateSourceHeaders(ctx, s.jsVM, src, session)
 	if err != nil {
 		return "", "", fmt.Errorf("content: source headers: %w", err)

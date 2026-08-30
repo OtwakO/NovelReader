@@ -118,7 +118,9 @@ func (s *Searcher) OpenExplore(ctx context.Context, sourceID string) (ExploreCat
 	}
 	raw := strings.TrimSpace(source.ExploreURL)
 	state := sourceexec.NewSourceSession()
-	configureSourceSession(*source, state)
+	if err := s.prepareSourceSession(ctx, *source, state); err != nil {
+		return ExploreCatalog{}, newExploreError("source_setup_required", "source", "Explore source setup is required", false, err)
+	}
 	if strings.HasPrefix(strings.ToLower(raw), "@js:") || strings.HasPrefix(strings.ToLower(raw), "<js>") {
 		raw, err = s.evaluateExploreScript(ctx, *source, state, raw)
 		if err != nil {

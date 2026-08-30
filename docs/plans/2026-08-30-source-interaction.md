@@ -118,7 +118,7 @@ The initial implementation does not add application-level encryption or a key-ma
 - [x] Implement normalized read-only source controls and authenticated description API.
 - [x] Implement revision-checked source action execution and typed effects.
 - [x] Implement the responsive source management interaction UI.
-- [ ] Hydrate Explore and normal execution from durable source state.
+- [x] Hydrate Explore and normal execution from durable source state.
 - [ ] Implement authenticated remote browser sessions and cookie synchronization.
 
 ## Current State
@@ -137,17 +137,17 @@ Three explicit destructive operations preserve the installed Source Definition w
 
 The existing BookSource management page now progressively discloses a dedicated interaction sheet. It renders normalized info, text/password/input, select, toggle, button, and unsupported controls without receiving source JavaScript or raw authentication documents. The sheet is an anchored side panel on desktop and a bounded bottom sheet on mobile, with loading/error/effect feedback, keyboard Escape/initial focus, background scroll locking, and separate confirmations for the three reset scopes. Typed search effects open the existing Search surface with the requested query; browser effects remain explicit unavailable states.
 
+Each reader runtime now injects one Source Profile hydrator into its reader-scoped `book.Searcher`. Search, Book Info, TOC, Content, and Explore call the same preparation seam before evaluating source headers or scripts. A `SourceSession` hydrates at most once after a successful load, so multi-stage workflows retain cookie/variable mutations instead of overwriting them with stale durable state; hydration failures remain retryable. Explore reports a typed `source_setup_required` error when its profile cannot be loaded.
+
 A live candidate-resolution diagnostic on the current branch verified one real aggregate Search result through Book Info, a 106-chapter TOC, and readable content under the production 15-second stage policy. The reported bookshelf failure therefore still needs the exact title/stage/reason before changing candidate logic.
 
 ## Next Action
 
 Finish the normalized source-management workflow:
 
-1. hydrate Explore from the durable Source Profile and return typed setup-required diagnostics instead of silent empty results;
-2. hydrate normal Search/Book Info/TOC/content execution from the same durable profile without duplicating session construction;
-3. route Explore refresh effects through the existing Explore state boundary;
-4. verify the unmodified aggregate fixture's settings change real Explore behavior without source-specific branches;
-5. implement remote browser sessions only after the normalized non-browser workflow is complete.
+1. route Explore refresh effects through the existing Explore state boundary;
+2. verify the unmodified aggregate fixture's settings change real Explore behavior without source-specific branches;
+3. implement remote browser sessions only after the normalized non-browser workflow is complete.
 
 ## Verification
 
@@ -160,7 +160,7 @@ Verified:
 
 Still needed:
 
-- Explore and normal execution profile-hydration integration tests;
+- live aggregate-fixture verification that changing durable settings changes Explore behavior;
 - remote browser authorization, expiry, cleanup, and cookie synchronization tests;
 - exact evidence for the user-observed bookshelf failure if it persists on current code.
 

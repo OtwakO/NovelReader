@@ -16,6 +16,7 @@ import (
 // SourceSession isolates mutable source state from other sources and users.
 type SourceSession struct {
 	jar             http.CookieJar
+	hydrationMu     sync.Mutex
 	mu              sync.RWMutex
 	vars            map[string]string
 	memory          map[string]interface{}
@@ -25,6 +26,7 @@ type SourceSession struct {
 	loginCookie     string
 	lastURL         string
 	responseCookies bool
+	hydrated        bool
 }
 
 // NewSourceSession creates an isolated cookie and variable scope.
@@ -34,6 +36,29 @@ func NewSourceSession() *SourceSession {
 		jar: jar, vars: make(map[string]string), memory: make(map[string]interface{}), cookieURLs: make(map[string]struct{}), headers: make(map[string]string),
 		responseCookies: true,
 	}
+}
+
+// HydrateOnce applies durable state before first use while preserving later workflow mutations.
+// Failed hydration remains retryable.
+func (s *SourceSession) HydrateOnce(hydrate func() error) error {
+	if s == nil || hydrate == nil {
+		return nil
+	}
+	s.hydrationMu.Lock()
+	defer s.hydrationMu.Unlock()
+	s.mu.RLock()
+	hydrated := s.hydrated
+	s.mu.RUnlock()
+	if hydrated {
+		return nil
+	}
+	if err := hydrate(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.hydrated = true
+	s.mu.Unlock()
+	return nil
 }
 
 // SetResponseCookiesEnabled controls automatic persistence of cookies received from source responses.
