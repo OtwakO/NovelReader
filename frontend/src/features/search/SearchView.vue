@@ -13,7 +13,11 @@ export default defineComponent({
   name: 'SearchView',
   components: { FeatureScaffold, AppButton, SearchControls, SearchResultCard, SearchStatus },
   data() { return { search: useSearchStore() }; },
-  mounted() { this.search.initialize(); },
+  mounted() {
+    this.search.initialize();
+    const query = typeof this.$route.query.q === 'string' ? this.$route.query.q.trim() : '';
+    if (query) this.search.query = query;
+  },
   beforeUnmount() { this.search.stop(); },
   methods: {
     key(result: SearchResult) { return `${result.sourceId}\u0000${result.bookUrl}`; },

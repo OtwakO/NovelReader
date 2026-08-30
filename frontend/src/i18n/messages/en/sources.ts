@@ -88,6 +88,29 @@ export default {
     failed: "The selected BookSources could not be imported.",
     success: "Imported or updated {imported} of {total} selected BookSources.",
   },
+  interaction: {
+    action: "Login / settings",
+    description: "These controls are defined by this installed source. NovelReader runs their actions on the backend without exposing source JavaScript or saved credentials.",
+    loading: "Loading source controls…",
+    loadFailed: "Source controls could not be loaded.",
+    actionFailed: "The source action could not be completed.",
+    resetFailed: "The source state could not be reset.",
+    unsupported: "Unsupported control: {type}",
+    effects: {
+      browserRequired: "This action requires the interactive browser session, which is not available yet.",
+      exploreRefreshed: "Explore should be refreshed to use the updated source state.",
+      search: "Opening Search for “{query}”.",
+    },
+    maintenance: {
+      title: "Source-owned state",
+      description: "These operations keep the installed BookSource definition and only remove state owned by this source.",
+    },
+    reset: {
+      login: { action: "Clear login", description: "Remove saved login values, cookies, and active source sessions.", title: "Clear this source login?", confirm: "Portable source settings will be kept, but this source may require you to sign in again.", done: "Source login state cleared." },
+      settings: { action: "Reset settings", description: "Remove portable source variables and settings while keeping login state.", title: "Reset this source’s settings?", confirm: "Login state will be kept, but source-specific preferences and variables will return to defaults.", done: "Source settings reset." },
+      all: { action: "Full reset", description: "Remove settings, login state, cookies, and active sessions.", title: "Fully reset this source?", confirm: "This returns the installed source to a fresh state without deleting its definition.", done: "All source-owned state reset." },
+    },
+  },
   editor: {
     eyebrow: "Advanced definition",
     title: "Edit BookSource JSON",

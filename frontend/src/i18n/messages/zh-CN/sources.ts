@@ -87,6 +87,29 @@ export default {
     failed: "无法导入所选书源。",
     success: "所选书源中已导入或更新 {imported}/{total} 个。",
   },
+  interaction: {
+    action: "登录 / 设置",
+    description: "这些控件由当前安装的书源定义。NovelReader 会在后端执行操作，不会向前端暴露书源 JavaScript 或已保存的凭据。",
+    loading: "正在加载书源控件…",
+    loadFailed: "无法加载书源控件。",
+    actionFailed: "无法完成书源操作。",
+    resetFailed: "无法重置书源状态。",
+    unsupported: "暂不支持的控件：{type}",
+    effects: {
+      browserRequired: "此操作需要交互式浏览器会话，该功能尚未开放。",
+      exploreRefreshed: "请刷新“发现”以使用更新后的书源状态。",
+      search: "正在打开搜索：“{query}”。",
+    },
+    maintenance: {
+      title: "书源自有状态",
+      description: "以下操作会保留已安装的书源定义，只移除属于此书源的状态。",
+    },
+    reset: {
+      login: { action: "清除登录", description: "移除已保存的登录值、Cookie 和活动书源会话。", title: "清除此书源的登录状态？", confirm: "可携带的书源设置会保留，但此书源可能要求重新登录。", done: "已清除书源登录状态。" },
+      settings: { action: "重置设置", description: "移除可携带的书源变量和设置，同时保留登录状态。", title: "重置此书源的设置？", confirm: "登录状态会保留，但书源偏好和变量会恢复默认。", done: "已重置书源设置。" },
+      all: { action: "完整重置", description: "移除设置、登录状态、Cookie 和活动会话。", title: "完整重置此书源？", confirm: "此操作不会删除书源定义，只会将已安装书源恢复为全新状态。", done: "已重置全部书源自有状态。" },
+    },
+  },
   editor: {
     eyebrow: "高级定义",
     title: "编辑书源 JSON",

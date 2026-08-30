@@ -23,6 +23,7 @@ import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
 import SourceCollectionDialog from "./SourceCollectionDialog.vue";
 import SourceEditorDialog from "./SourceEditorDialog.vue";
 import SourceImportDialog from "./SourceImportDialog.vue";
+import SourceInteractionSheet from "./SourceInteractionSheet.vue";
 import {
   clampPage,
   pageCount,
@@ -46,6 +47,7 @@ export default defineComponent({
     SourceCollectionDialog,
     SourceEditorDialog,
     SourceImportDialog,
+    SourceInteractionSheet,
   },
   data() {
     return {
@@ -68,6 +70,7 @@ export default defineComponent({
       importing: false,
       importError: "",
       editing: null as BookSource | null,
+      interacting: null as BookSource | null,
       editorBusy: false,
       editorError: "",
       pendingDelete: null as BookSource | null,
@@ -504,13 +507,19 @@ export default defineComponent({
               ><span>{{ $t("sources.exploreEnabled") }}</span></label>
           </div>
           <div class="actions">
-            <AppButton
-              variant="secondary"
-              :disabled="busyUrl === source.sourceId"
-              @click="editing = source"
-              >
-{{ $t("sources.edit") }}
-</AppButton><AppButton
+             <AppButton
+               variant="secondary"
+               :disabled="busyUrl === source.sourceId"
+               @click="interacting = source"
+               >
+ {{ $t("sources.interaction.action") }}
+ </AppButton><AppButton
+               variant="secondary"
+               :disabled="busyUrl === source.sourceId"
+               @click="editing = source"
+               >
+ {{ $t("sources.edit") }}
+ </AppButton><AppButton
               variant="danger"
               :disabled="busyUrl === source.sourceId"
               @click="pendingDelete = source"
@@ -555,6 +564,7 @@ export default defineComponent({
         </div>
       </nav>
     </div>
+    <SourceInteractionSheet v-if="interacting" :source="interacting" @close="interacting = null" />
     <SourceCollectionDialog v-if="collectionDialog" :collection="editingCollection" :busy="collectionBusy" :error="collectionError" @submit="saveCollection" @close="collectionDialog = false; editingCollection = null" />
     <SourceImportDialog
       v-if="importItems.length"

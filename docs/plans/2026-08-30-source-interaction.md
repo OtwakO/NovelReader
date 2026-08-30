@@ -117,7 +117,7 @@ The initial implementation does not add application-level encryption or a key-ma
 - [x] Add separate clear-login, reset-settings, and full-reset interaction operations.
 - [x] Implement normalized read-only source controls and authenticated description API.
 - [x] Implement revision-checked source action execution and typed effects.
-- [ ] Implement the source management UI.
+- [x] Implement the responsive source management interaction UI.
 - [ ] Hydrate Explore and normal execution from durable source state.
 - [ ] Implement authenticated remote browser sessions and cookie synchronization.
 
@@ -135,16 +135,18 @@ The authenticated action endpoint re-evaluates the current definition, verifies 
 
 Three explicit destructive operations preserve the installed Source Definition while clearing owned state: clear login removes authentication/cookies only, reset settings removes portable settings only, and full reset removes both. Each operation is idempotent, returns a freshly evaluated interaction view, and invalidates transient sessions after durable cleanup succeeds.
 
+The existing BookSource management page now progressively discloses a dedicated interaction sheet. It renders normalized info, text/password/input, select, toggle, button, and unsupported controls without receiving source JavaScript or raw authentication documents. The sheet is an anchored side panel on desktop and a bounded bottom sheet on mobile, with loading/error/effect feedback, keyboard Escape/initial focus, background scroll locking, and separate confirmations for the three reset scopes. Typed search effects open the existing Search surface with the requested query; browser effects remain explicit unavailable states.
+
 A live candidate-resolution diagnostic on the current branch verified one real aggregate Search result through Book Info, a 106-chapter TOC, and readable content under the production 15-second stage policy. The reported bookshelf failure therefore still needs the exact title/stage/reason before changing candidate logic.
 
 ## Next Action
 
 Finish the normalized source-management workflow:
 
-1. add the first source-management UI using the existing description/action/reset endpoints;
-2. render notices, search/external links, Explore refresh effects, and browser-required states without executing source-defined code in the frontend;
-3. add focused UI/API integration tests for values, password handling, stale revisions, unsupported controls, and the three reset scopes;
-4. hydrate Explore and normal source execution from the same durable Source Profile;
+1. hydrate Explore from the durable Source Profile and return typed setup-required diagnostics instead of silent empty results;
+2. hydrate normal Search/Book Info/TOC/content execution from the same durable profile without duplicating session construction;
+3. route Explore refresh effects through the existing Explore state boundary;
+4. verify the unmodified aggregate fixture's settings change real Explore behavior without source-specific branches;
 5. implement remote browser sessions only after the normalized non-browser workflow is complete.
 
 ## Verification
@@ -158,7 +160,7 @@ Verified:
 
 Still needed:
 
-- action execution, management UI, and Explore integration tests;
+- Explore and normal execution profile-hydration integration tests;
 - remote browser authorization, expiry, cleanup, and cookie synchronization tests;
 - exact evidence for the user-observed bookshelf failure if it persists on current code.
 

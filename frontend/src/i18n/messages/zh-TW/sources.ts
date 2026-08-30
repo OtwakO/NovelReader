@@ -87,6 +87,29 @@ export default {
     failed: "無法匯入所選書源。",
     success: "所選書源中已匯入或更新 {imported}/{total} 個。",
   },
+  interaction: {
+    action: "登入 / 設定",
+    description: "這些控制項由目前安裝的書源定義。NovelReader 會在後端執行操作，不會向前端公開書源 JavaScript 或已儲存的憑證。",
+    loading: "正在載入書源控制項…",
+    loadFailed: "無法載入書源控制項。",
+    actionFailed: "無法完成書源操作。",
+    resetFailed: "無法重設書源狀態。",
+    unsupported: "暫不支援的控制項：{type}",
+    effects: {
+      browserRequired: "此操作需要互動式瀏覽器工作階段，此功能尚未開放。",
+      exploreRefreshed: "請重新整理「發現」以使用更新後的書源狀態。",
+      search: "正在開啟搜尋：「{query}」。",
+    },
+    maintenance: {
+      title: "書源自有狀態",
+      description: "以下操作會保留已安裝的書源定義，只移除屬於此書源的狀態。",
+    },
+    reset: {
+      login: { action: "清除登入", description: "移除已儲存的登入值、Cookie 和作用中的書源工作階段。", title: "清除此書源的登入狀態？", confirm: "可攜式書源設定會保留，但此書源可能要求重新登入。", done: "已清除書源登入狀態。" },
+      settings: { action: "重設設定", description: "移除可攜式書源變數和設定，同時保留登入狀態。", title: "重設此書源的設定？", confirm: "登入狀態會保留，但書源偏好和變數會恢復預設。", done: "已重設書源設定。" },
+      all: { action: "完整重設", description: "移除設定、登入狀態、Cookie 和作用中的工作階段。", title: "完整重設此書源？", confirm: "此操作不會刪除書源定義，只會將已安裝書源恢復為全新狀態。", done: "已重設全部書源自有狀態。" },
+    },
+  },
   editor: {
     eyebrow: "進階定義",
     title: "編輯書源 JSON",
