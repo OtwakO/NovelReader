@@ -88,8 +88,26 @@ func (s *Store) SaveAuthentication(ctx context.Context, sourceID string, authent
 }
 
 func (s *Store) ClearAuthentication(ctx context.Context, sourceID string) error {
+	if err := s.requireInstalled(ctx, sourceID); err != nil {
+		return err
+	}
 	_, err := s.credentialsDB.ExecContext(ctx, `DELETE FROM source_auth_state WHERE source_id = ?`, sourceID)
 	return err
+}
+
+func (s *Store) ResetSettings(ctx context.Context, sourceID string) error {
+	if err := s.requireInstalled(ctx, sourceID); err != nil {
+		return err
+	}
+	_, err := s.readerDB.ExecContext(ctx, `DELETE FROM source_profiles WHERE source_id = ?`, sourceID)
+	return err
+}
+
+func (s *Store) Reset(ctx context.Context, sourceID string) error {
+	if err := s.ResetSettings(ctx, sourceID); err != nil {
+		return err
+	}
+	return s.ClearAuthentication(ctx, sourceID)
 }
 
 func (s *Store) Delete(ctx context.Context, sourceIDs ...string) error {

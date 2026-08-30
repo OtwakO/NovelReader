@@ -17,6 +17,9 @@ type MutableProfileStore interface {
 	ProfileStore
 	SaveSettings(context.Context, string, json.RawMessage) error
 	SaveAuthentication(context.Context, string, json.RawMessage) error
+	ClearAuthentication(context.Context, string) error
+	ResetSettings(context.Context, string) error
+	Reset(context.Context, string) error
 }
 
 type Effect struct {
@@ -37,6 +40,39 @@ type ActionRequest struct {
 type ActionResult struct {
 	View    View     `json:"view"`
 	Effects []Effect `json:"effects"`
+}
+
+type ResetScope string
+
+const (
+	ResetLogin    ResetScope = "login"
+	ResetSettings ResetScope = "settings"
+	ResetAll      ResetScope = "all"
+)
+
+func (d *Describer) Reset(ctx context.Context, sourceID string, scope ResetScope) (View, error) {
+	profiles, ok := d.profiles.(MutableProfileStore)
+	if !ok {
+		return View{}, fmt.Errorf("sourceinteraction: profile store is read-only")
+	}
+	if _, err := d.describe(ctx, sourceID); err != nil {
+		return View{}, err
+	}
+	var err error
+	switch scope {
+	case ResetLogin:
+		err = profiles.ClearAuthentication(ctx, sourceID)
+	case ResetSettings:
+		err = profiles.ResetSettings(ctx, sourceID)
+	case ResetAll:
+		err = profiles.Reset(ctx, sourceID)
+	default:
+		return View{}, fmt.Errorf("sourceinteraction: invalid reset scope")
+	}
+	if err != nil {
+		return View{}, err
+	}
+	return d.Describe(ctx, sourceID)
 }
 
 func (d *Describer) Act(ctx context.Context, sourceID string, request ActionRequest) (ActionResult, error) {

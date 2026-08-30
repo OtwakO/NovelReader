@@ -159,6 +159,9 @@ func (s *Server) registerRoutesWithoutHealth() {
 	s.mux.HandleFunc("PUT /api/sources", s.handleUpdateSource)
 	s.mux.HandleFunc("GET /api/sources/{id}/interaction", s.handleSourceInteraction)
 	s.mux.HandleFunc("POST /api/sources/{id}/interaction/actions", s.handleSourceInteractionAction)
+	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction/login", s.handleSourceInteractionResetLogin)
+	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction/settings", s.handleSourceInteractionResetSettings)
+	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction", s.handleSourceInteractionResetAll)
 
 	// Books
 	s.mux.HandleFunc("GET /api/books", s.handleListBooks)
@@ -377,6 +380,36 @@ func (s *Server) handleSourceInteractionAction(w http.ResponseWriter, r *http.Re
 	}
 	s.deleteSourceSession(r.PathValue("id"))
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleSourceInteractionResetLogin(w http.ResponseWriter, r *http.Request) {
+	s.handleSourceInteractionReset(w, r, sourceinteraction.ResetLogin)
+}
+
+func (s *Server) handleSourceInteractionResetSettings(w http.ResponseWriter, r *http.Request) {
+	s.handleSourceInteractionReset(w, r, sourceinteraction.ResetSettings)
+}
+
+func (s *Server) handleSourceInteractionResetAll(w http.ResponseWriter, r *http.Request) {
+	s.handleSourceInteractionReset(w, r, sourceinteraction.ResetAll)
+}
+
+func (s *Server) handleSourceInteractionReset(w http.ResponseWriter, r *http.Request, scope sourceinteraction.ResetScope) {
+	if s.sourceInteractions == nil {
+		writeError(w, http.StatusNotImplemented, "source interaction is unavailable")
+		return
+	}
+	view, err := s.sourceInteractions.Reset(r.Context(), r.PathValue("id"), scope)
+	if err != nil {
+		if errors.Is(err, sourceprofile.ErrSourceNotInstalled) {
+			writeError(w, http.StatusNotFound, "book source not found")
+			return
+		}
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	s.deleteSourceSession(r.PathValue("id"))
+	writeJSON(w, http.StatusOK, view)
 }
 
 func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {

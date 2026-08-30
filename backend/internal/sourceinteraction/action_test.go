@@ -33,6 +33,49 @@ func (s *mutableProfileStore) SaveAuthentication(_ context.Context, _ string, va
 	return nil
 }
 
+func (s *mutableProfileStore) ClearAuthentication(context.Context, string) error {
+	s.profile.Authentication = json.RawMessage(`{}`)
+	return nil
+}
+
+func (s *mutableProfileStore) ResetSettings(context.Context, string) error {
+	s.profile.Settings = json.RawMessage(`{}`)
+	return nil
+}
+
+func (s *mutableProfileStore) Reset(context.Context, string) error {
+	s.profile.Settings = json.RawMessage(`{}`)
+	s.profile.Authentication = json.RawMessage(`{}`)
+	return nil
+}
+
+func TestResetScopesKeepSourceDefinitionAndClearOnlyRequestedState(t *testing.T) {
+	tests := []struct {
+		name         string
+		scope        ResetScope
+		wantSettings string
+		wantAuth     string
+	}{
+		{name: "login", scope: ResetLogin, wantSettings: `{"variable":"kept"}`, wantAuth: `{}`},
+		{name: "settings", scope: ResetSettings, wantSettings: `{}`, wantAuth: `{"loginInfo":{"user":"kept"}}`},
+		{name: "all", scope: ResetAll, wantSettings: `{}`, wantAuth: `{}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			source := &booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", LoginUI: `[]`}
+			profiles := &mutableProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: json.RawMessage(`{"variable":"kept"}`), Authentication: json.RawMessage(`{"loginInfo":{"user":"kept"}}`)}}
+			service := NewDescriber(describerSourceStore{source}, profiles, analyzer.NewJSVM())
+			view, err := service.Reset(t.Context(), source.ID, test.scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if view.SourceID != source.ID || string(profiles.profile.Settings) != test.wantSettings || string(profiles.profile.Authentication) != test.wantAuth {
+				t.Fatalf("view=%+v profile=%+v", view, profiles.profile)
+			}
+		})
+	}
+}
+
 func TestActPersistsCurrentValuesVariablesAndTypedEffects(t *testing.T) {
 	source := &booksource.BookSource{
 		ID: "source-a", BookSourceURL: "https://source.test", BookSourceName: "Fixture", UpdatedAt: 1,

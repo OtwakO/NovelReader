@@ -46,6 +46,43 @@ func TestStoreKeepsOneBoundedProfilePerInstalledSource(t *testing.T) {
 	}
 }
 
+func TestResetScopesPreserveInstalledSourceDefinition(t *testing.T) {
+	store, _, closeHome := newTestStore(t)
+	defer closeHome()
+	ctx := context.Background()
+	installSource(t, store.readerDB, "source-a")
+	if err := store.SaveSettings(ctx, "source-a", json.RawMessage(`{"variable":"kept"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveAuthentication(ctx, "source-a", json.RawMessage(`{"loginInfo":{"user":"kept"}}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ClearAuthentication(ctx, "source-a"); err != nil {
+		t.Fatal(err)
+	}
+	profile, err := store.Load(ctx, "source-a")
+	if err != nil || string(profile.Settings) != `{"variable":"kept"}` || string(profile.Authentication) != `{}` {
+		t.Fatalf("profile=%+v err=%v", profile, err)
+	}
+	if err := store.SaveAuthentication(ctx, "source-a", json.RawMessage(`{"loginInfo":{"user":"kept"}}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ResetSettings(ctx, "source-a"); err != nil {
+		t.Fatal(err)
+	}
+	profile, err = store.Load(ctx, "source-a")
+	if err != nil || string(profile.Settings) != `{}` || string(profile.Authentication) == `{}` {
+		t.Fatalf("profile=%+v err=%v", profile, err)
+	}
+	if err := store.Reset(ctx, "source-a"); err != nil {
+		t.Fatal(err)
+	}
+	profile, err = store.Load(ctx, "source-a")
+	if err != nil || string(profile.Settings) != `{}` || string(profile.Authentication) != `{}` {
+		t.Fatalf("profile=%+v err=%v", profile, err)
+	}
+}
+
 func TestReconcileDeletesRemovedSourceState(t *testing.T) {
 	store, _, closeHome := newTestStore(t)
 	defer closeHome()
