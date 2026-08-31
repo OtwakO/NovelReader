@@ -20,6 +20,7 @@ if not defined WEBVIEW_WORKER_PORT set "WEBVIEW_WORKER_PORT=8787"
 echo [4/4] Starting the WebView worker at http://%WEBVIEW_WORKER_HOST%:%WEBVIEW_WORKER_PORT%
 uv run --frozen --no-sync python worker.py
 set "EXIT_CODE=%ERRORLEVEL%"
+pause
 exit /b %EXIT_CODE%
 
 :failed
