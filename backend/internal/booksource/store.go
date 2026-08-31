@@ -78,9 +78,9 @@ func (s *Store) ListEnabled() ([]BookSource, error) {
 	return scanSources(rows)
 }
 
-// ListExploreEnabled returns independently enabled sources with Explore definitions.
+// ListExploreEnabled returns globally enabled sources with enabled Explore definitions.
 func (s *Store) ListExploreEnabled() ([]BookSource, error) {
-	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources WHERE enabled_explore = 1 AND explore_url != '' ORDER BY custom_order ASC, name ASC, id ASC`)
+	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources WHERE enabled = 1 AND enabled_explore = 1 AND explore_url != '' ORDER BY custom_order ASC, name ASC, id ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("booksource: list explore enabled: %w", err)
 	}

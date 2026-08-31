@@ -27,7 +27,7 @@ func TestExploreAPIRoundTripKeepsRulesPrivate(t *testing.T) {
 	server, sourceStore, closeDB := newExploreAPIServer(t)
 	defer closeDB()
 	source := &booksource.BookSource{
-		BookSourceURL: upstream.URL, BookSourceName: "Explore API", EnabledExplore: true,
+		BookSourceURL: upstream.URL, BookSourceName: "Explore API", Enabled: true, EnabledExplore: true,
 		ExploreURL:  `@js:JSON.stringify([{title:'Mode',type:'select',chars:['A','B'],default:'A',action:'java.refreshExplore()'},{title:String(infoMap['Mode']||'A'),url:'` + upstream.URL + `/explore?page={{page}}'}])`,
 		RuleExplore: `{"bookList":".book","name":".name@text","author":".author@text","bookUrl":".name@href"}`,
 	}

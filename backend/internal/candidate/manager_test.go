@@ -264,6 +264,25 @@ func TestStartMarksAutomaticShelfIntentInEverySnapshot(t *testing.T) {
 	}
 }
 
+func TestStageTimeoutStopsLargeTOCParsing(t *testing.T) {
+	fixture := newBindingFixture(t, credibleText("timeout"), 0)
+	fixture.source.RuleToc = `{"chapterList":"<js>while(true){result.push({text:'Chapter',href:'/chapter'})}</js>","chapterName":"text","chapterUrl":"href"}`
+	manager := NewManager(Policy{Concurrency: 1, StageTimeout: 20 * time.Millisecond, OperationTimeout: time.Second, Retention: time.Minute})
+	defer manager.Close()
+	input := Input{Name: "Book", Author: "Author", SourceID: fixture.source.ID, SourceURL: fixture.source.BookSourceURL, BookURL: fixture.server.URL + "/book"}
+	started := time.Now()
+	sources := sourceMap{fixture.source.ID: fixture.source}
+	searcher := book.NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), analyzer.NewCacheManager(), sources, nil)
+	snapshot, err := manager.Start("reader", input, Runtime{Sources: sources, Books: &memoryBooks{}, Searcher: searcher})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot = waitForState(t, manager, "reader", snapshot.ID, StateExhausted)
+	if time.Since(started) > 500*time.Millisecond || snapshot.Attempts[0].Stage != StageTOC {
+		t.Fatalf("elapsed=%s snapshot=%+v", time.Since(started), snapshot)
+	}
+}
+
 func TestDefaultPolicyStartsFiveSourcesImmediately(t *testing.T) {
 	inputs := make([]bindingFixture, 0, 6)
 	sources := sourceMap{}

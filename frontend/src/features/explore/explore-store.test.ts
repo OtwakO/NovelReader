@@ -18,6 +18,11 @@ describe('Explore store', () => {
     const store = useExploreStore(); await store.loadSources(); await store.openSource('source-a'); store.selectCategory(catalog.entries[0]!); await vi.waitFor(() => expect(store.results).toHaveLength(1)); await store.loadPage(store.nextPage, false);
     expect(api.getExplorePage.mock.calls.map(call => call.slice(1, 3))).toEqual([['category', 1], ['category', 2]]); expect(store.results.map(item => item.name)).toEqual(['One', 'Two']); expect(store.cache.category?.exhausted).toBe(true);
   });
+  it('clears a cached selection when the source is disabled', async () => {
+    const store = useExploreStore(); store.sourceId = 'source-a'; store.catalog = catalog; store.results = [result('Old')]; api.listExploreSources.mockResolvedValueOnce([]);
+    await store.loadSources();
+    expect(store.sources).toEqual([]); expect(store.sourceId).toBe(''); expect(store.catalog).toBeNull(); expect(store.results).toEqual([]);
+  });
   it('refreshes only the selected source after an external source action', async () => {
     sessionStorage.setItem('novelreader.explore-session.v1', JSON.stringify({ sourceId: 'source-a', catalog, categoryId: 'category', results: [result('Old')], nextPage: 2, exhausted: false, diagnostics: [], cache: {} }));
     const store = useExploreStore();

@@ -80,6 +80,9 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 	if err != nil {
 		return nil, fmt.Errorf("toc: fetch: %w", err)
 	}
+	if err := contextError(p.ctx); err != nil {
+		return nil, err
+	}
 
 	var allChapters []Chapter
 	scheduledRequests := make(map[string]bool)
@@ -93,10 +96,16 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 	// Handle pagination via nextTocUrl.
 	nextRule := rules["nextTocUrl"]
 	for {
+		if err := contextError(p.ctx); err != nil {
+			return nil, err
+		}
 		pageCount++
 		chapters, _, err := p.parsePage(body, resolvedURL, listRule, rules)
 		if err != nil {
 			return nil, newTOCPaginationError("parse page", resolvedURL, resolvedURL, pageCount, allChapters, err)
+		}
+		if err := contextError(p.ctx); err != nil {
+			return nil, err
 		}
 		allChapters = append(allChapters, chapters...)
 
@@ -173,7 +182,12 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 	}
 	seen := make(map[string]bool, len(allChapters))
 	unique := make([]Chapter, 0, len(allChapters))
-	for _, chapter := range allChapters {
+	for index, chapter := range allChapters {
+		if index%256 == 0 {
+			if err := contextError(p.ctx); err != nil {
+				return nil, err
+			}
+		}
 		if seen[chapter.URL] {
 			continue
 		}
@@ -187,14 +201,16 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 	for i := range allChapters {
 		allChapters[i].Index = i
 	}
-	p.formatChapterTitles(allChapters, rules["formatJs"], tocURL)
+	if err := p.formatChapterTitles(allChapters, rules["formatJs"], tocURL); err != nil {
+		return nil, err
+	}
 
 	return allChapters, nil
 }
 
-func (p *ChapterListParser) formatChapterTitles(chapters []Chapter, formatJS, baseURL string) {
+func (p *ChapterListParser) formatChapterTitles(chapters []Chapter, formatJS, baseURL string) error {
 	if strings.TrimSpace(formatJS) == "" || len(chapters) == 0 || p.jsVM == nil {
-		return
+		return contextError(p.ctx)
 	}
 	chapterValues := make([]map[string]interface{}, len(chapters))
 	for i := range chapters {
@@ -229,12 +245,15 @@ for (var __chapterIndex = 0; __chapterIndex < chapters.length; __chapterIndex++)
 	}
 	value, err := analyzer.EvalURLScript(ctx, p.jsVM, script, "", baseURL, data, bindings)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
 		slog.Warn("toc: formatJs batch failed", "source", p.src.BookSourceName, "err", err)
-		return
+		return nil
 	}
 	result, ok := value.(map[string]interface{})
 	if !ok {
-		return
+		return nil
 	}
 	if formatted, ok := result["chapters"]; ok {
 		raw, marshalErr := json.Marshal(formatted)
@@ -259,6 +278,19 @@ for (var __chapterIndex = 0; __chapterIndex < chapters.length; __chapterIndex++)
 				slog.Warn("toc: formatJs chapter failed", "source", p.src.BookSourceName, "chapterIndex", entry.Index, "err", entry.Message)
 			}
 		}
+	}
+	return contextError(p.ctx)
+}
+
+func contextError(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
 	}
 }
 
@@ -305,6 +337,9 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 	if err != nil {
 		return nil, "", fmt.Errorf("toc: get elements: %w", err)
 	}
+	if err := contextError(p.ctx); err != nil {
+		return nil, "", err
+	}
 
 	nameRule := rules["chapterName"]
 	urlRule := rules["chapterUrl"]
@@ -315,6 +350,9 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 
 	var chapters []Chapter
 	for elementIndex, el := range elements {
+		if err := contextError(p.ctx); err != nil {
+			return nil, "", err
+		}
 		current := &Chapter{}
 		elAn := analyzer.New(analyzer.ToString(el), pageURL, p.jsVM, p.cache)
 		elAn.SetContent(el)

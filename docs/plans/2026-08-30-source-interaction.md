@@ -159,6 +159,9 @@ The lean interactive-browser slice is implemented on the existing WebView worker
 
 ## Verification
 
+Candidate resolution stage deadlines are enforced inside TOC parsing as well as HTTP/JavaScript calls: cancellation is checked after fetches, between pages, during per-chapter extraction, deduplication, and batch title formatting so large source-specific catalogs cannot remain visibly active after their 15-second stage deadline. Explore source selection requires both global source enablement and Explore enablement; direct session execution retains its existing explicit-ID contract, while the frontend removes a cached selection on the next source-list refresh.
+
+
 For `startBrowserAwait`, verify one generic action regression (initial execution stops before post-await mutations; Finish resumes once and persists the returned HTML-derived setting; Cancel persists nothing), one unmodified 光遇 aggregate fixture regression changing the endpoint away from its default, worker final-HTML bounds, and the existing targeted browser/API/frontend tests. Do not add a generalized workflow engine or retain Goja runtimes/goroutines across browser lifetime.
 
 
