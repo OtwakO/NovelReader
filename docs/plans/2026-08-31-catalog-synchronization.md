@@ -140,7 +140,7 @@ Render the values on the shared Search/Explore result card, candidate preview, a
 - [x] Accept metadata-first shelf admission.
 - [x] Change candidate resolution and commit interfaces to metadata-first behavior.
 - [x] Implement catalog synchronization and typed HTTP state.
-- [ ] Adapt Book Detail and candidate preview to the new catalog lifecycle.
+- [x] Adapt Book Detail and candidate preview to the new catalog lifecycle.
 - [ ] Render latest chapter and source update time consistently.
 - [ ] Profile the real large catalog after decoupling; optimize only demonstrated parser/persistence hotspots.
 
