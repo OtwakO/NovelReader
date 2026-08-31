@@ -34,12 +34,13 @@ type InteractiveViewport struct {
 }
 
 type interactiveRequest struct {
-	URL       string              `json:"url"`
-	Headers   map[string]string   `json:"headers,omitempty"`
-	Cookies   []protocolCookie    `json:"cookies,omitempty"`
-	Viewport  InteractiveViewport `json:"viewport,omitempty"`
-	TimeoutMS int                 `json:"timeoutMs,omitempty"`
-	Save      bool                `json:"save,omitempty"`
+	URL        string              `json:"url"`
+	Headers    map[string]string   `json:"headers,omitempty"`
+	Cookies    []protocolCookie    `json:"cookies,omitempty"`
+	Viewport   InteractiveViewport `json:"viewport,omitempty"`
+	TimeoutMS  int                 `json:"timeoutMs,omitempty"`
+	Save       bool                `json:"save,omitempty"`
+	ReturnHTML bool                `json:"returnHtml,omitempty"`
 }
 
 type InteractiveInput struct {
@@ -48,6 +49,10 @@ type InteractiveInput struct {
 	Y    float64 `json:"y,omitempty"`
 	Text string  `json:"text,omitempty"`
 	Key  string  `json:"key,omitempty"`
+}
+
+type InteractiveCloseResult struct {
+	HTML string
 }
 
 type InteractiveFrame struct {
@@ -66,6 +71,7 @@ type interactiveResult struct {
 	Closed   bool             `json:"closed,omitempty"`
 	Cookies  []protocolCookie `json:"cookies,omitempty"`
 	FinalURL string           `json:"finalUrl,omitempty"`
+	HTML     string           `json:"html,omitempty"`
 	Error    string           `json:"error,omitempty"`
 }
 

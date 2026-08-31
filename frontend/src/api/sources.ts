@@ -79,5 +79,5 @@ export function sendSourceBrowserInput(sourceId: string, sessionId: string, inpu
   return request<SourceBrowserFrame>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser/${encodeURIComponent(sessionId)}/input`, { method: 'POST', body: JSON.stringify(input) });
 }
 export function closeSourceBrowser(sourceId: string, sessionId: string, save: boolean) {
-  return request<{ closed: boolean }>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser/${encodeURIComponent(sessionId)}?save=${save}`, { method: 'DELETE' });
+  return request<{ closed: boolean; resumed?: SourceInteractionActionResult }>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser/${encodeURIComponent(sessionId)}?save=${save}`, { method: 'DELETE' });
 }

@@ -120,18 +120,23 @@ class InteractiveSessions:
                 raise ValueError("unsupported browser input type")
         return await self.frame(session_id)
 
-    async def close(self, session_id: str, save: bool = False) -> dict:
+    async def close(self, session_id: str, save: bool = False, return_html: bool = False) -> dict:
         async with self._lock:
             session = self._sessions.pop(session_id, None)
         if session is None:
             return {"closed": True, "cookies": []}
         cookies = []
+        html = ""
         browser = session.context.browser
         browser_failed = False
         try:
             async with session.lock:
                 if save:
                     cookies = await session.context.cookies()
+                if return_html:
+                    html = await session.page.content()
+                    if len(html.encode("utf-8")) > 512 * 1024:
+                        raise ValueError("interactive browser HTML result is too large")
                 final_url = session.page.url
         except Exception:
             browser_failed = not browser.is_connected()
@@ -139,7 +144,7 @@ class InteractiveSessions:
         finally:
             await self._close_context(session.context)
             await self._release(browser, browser_failed or not browser.is_connected())
-        return {"closed": True, "cookies": cookies, "finalUrl": final_url}
+        return {"closed": True, "cookies": cookies, "finalUrl": final_url, "html": html}
 
     async def close_all(self) -> None:
         self._closing = True

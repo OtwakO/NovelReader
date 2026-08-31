@@ -46,8 +46,12 @@ func (s *Searcher) ExecuteExploreAction(ctx context.Context, request ExploreActi
 		LongToast: func(value interface{}) {
 			effects = append(effects, ExploreActionEffect{Type: "notice", Message: analyzer.ToString(value)})
 		},
-		StartBrowser: func(rawURL, title string, await bool) {
-			effects = append(effects, ExploreActionEffect{Type: "browser_required", URL: rawURL, Title: title, Await: await})
+		StartBrowser: func(rawURL, title string) {
+			effects = append(effects, ExploreActionEffect{Type: "browser_required", URL: rawURL, Title: title})
+		},
+		StartBrowserAwait: func(rawURL, title string) (string, bool) {
+			effects = append(effects, ExploreActionEffect{Type: "browser_required", URL: rawURL, Title: title, Await: true})
+			return "", true
 		},
 		RefreshExplore: func() { effects = append(effects, ExploreActionEffect{Type: "refresh_explore"}) },
 	}

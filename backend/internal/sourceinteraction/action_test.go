@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -104,6 +105,42 @@ func TestActPersistsCurrentValuesVariablesAndTypedEffects(t *testing.T) {
 	}
 	if result.View.Revision == view.Revision {
 		t.Fatal("revision did not change after settings mutation")
+	}
+}
+
+func TestStartBrowserAwaitPersistsOnlyAfterResume(t *testing.T) {
+	source := &booksource.BookSource{
+		ID: "source-a", BookSourceURL: "https://source.test", UpdatedAt: 1,
+		LoginUI:  `[{"name":"Settings","type":"button","action":"settings()"}]`,
+		LoginURL: `function settings(){let body=java.startBrowserAwait('data:text/html;base64,PGh0bWw+PC9odG1sPg==','Settings').body(); source.putVariable(body);}`,
+	}
+	profiles := &mutableProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: json.RawMessage(`{}`), Authentication: json.RawMessage(`{}`)}}
+	service := NewDescriber(describerSourceStore{source}, profiles, analyzer.NewJSVM())
+	view, err := service.Describe(t.Context(), source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.Act(t.Context(), source.ID, ActionRequest{Revision: view.Revision, ActionID: "action-0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profiles.settingsSaves != 0 || len(result.Effects) != 1 || result.Effects[0].continuation == nil {
+		t.Fatalf("settings saves=%d effects=%+v", profiles.settingsSaves, result.Effects)
+	}
+	resumed, err := service.Resume(t.Context(), source.ID, *result.Effects[0].continuation, "<html>changed</html>")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sourceprofile.DecodeSettings(profiles.profile.Settings).Variable != "<html>changed</html>" || profiles.settingsSaves != 1 || len(resumed.Effects) != 0 {
+		t.Fatalf("profile=%s saves=%d effects=%+v", profiles.profile.Settings, profiles.settingsSaves, resumed.Effects)
+	}
+}
+
+func TestStartBrowserAwaitRejectsExcessiveContinuationState(t *testing.T) {
+	service := &Describer{}
+	continuation := ActionContinuation{Bodies: []string{strings.Repeat("x", maxBrowserAwaitBytes)}}
+	if _, err := service.Resume(t.Context(), "source-a", continuation, "x"); !errors.Is(err, ErrBrowserContinuationLimit) {
+		t.Fatalf("error=%v", err)
 	}
 }
 

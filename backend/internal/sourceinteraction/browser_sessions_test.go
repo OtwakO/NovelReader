@@ -10,8 +10,9 @@ import (
 )
 
 type browserFixture struct {
-	mu     sync.Mutex
-	closed int
+	mu         sync.Mutex
+	closed     int
+	returnHTML bool
 }
 
 func (b *browserFixture) StartInteractive(context.Context, string, string, webview.InteractiveViewport, *sourceexec.SourceSession) (webview.InteractiveFrame, error) {
@@ -23,11 +24,12 @@ func (b *browserFixture) InteractiveFrame(context.Context, string) (webview.Inte
 func (b *browserFixture) SendInteractiveInput(context.Context, string, webview.InteractiveInput) (webview.InteractiveFrame, error) {
 	return webview.InteractiveFrame{SessionID: "worker-session"}, nil
 }
-func (b *browserFixture) CloseInteractive(context.Context, string, string, bool, *sourceexec.SourceSession) error {
+func (b *browserFixture) CloseInteractive(_ context.Context, _, _ string, _ bool, returnHTML bool, _ *sourceexec.SourceSession) (webview.InteractiveCloseResult, error) {
 	b.mu.Lock()
 	b.closed++
+	b.returnHTML = returnHTML
 	b.mu.Unlock()
-	return nil
+	return webview.InteractiveCloseResult{HTML: "<html></html>"}, nil
 }
 
 func TestBrowserSessionsConsumeOpaqueRequestAndCloseOnSourceInvalidation(t *testing.T) {
@@ -44,6 +46,21 @@ func TestBrowserSessionsConsumeOpaqueRequestAndCloseOnSourceInvalidation(t *test
 	sessions.CloseSource(t.Context(), "source-a")
 	if browser.closed != 1 {
 		t.Fatalf("closed=%d", browser.closed)
+	}
+}
+
+func TestBrowserSessionsRequestsHTMLOnlyForAwaitContinuation(t *testing.T) {
+	browser := &browserFixture{}
+	sessions := NewBrowserSessions(browser)
+	continuation := &ActionContinuation{Request: ActionRequest{Revision: "revision", ActionID: "action-0"}}
+	requestID := sessions.Register(BrowserRequest{URL: "https://example.test/settings", Continuation: continuation})
+	frame, err := sessions.Start(t.Context(), "source-a", requestID, webview.InteractiveViewport{}, sourceexec.NewSourceSession())
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed, err := sessions.Close(t.Context(), "source-a", frame.SessionID, true)
+	if err != nil || !browser.returnHTML || closed.HTML == "" || closed.Continuation == nil {
+		t.Fatalf("closed=%+v returnHTML=%v error=%v", closed, browser.returnHTML, err)
 	}
 }
 

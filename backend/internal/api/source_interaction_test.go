@@ -122,7 +122,7 @@ func TestSourceInteractionAwaitBrowserActionReturnsLaunchReference(t *testing.T)
 	}
 }
 
-type apiBrowserFixture struct{}
+type apiBrowserFixture struct{ html string }
 
 func (*apiBrowserFixture) StartInteractive(context.Context, string, string, webview.InteractiveViewport, *sourceexec.SourceSession) (webview.InteractiveFrame, error) {
 	return webview.InteractiveFrame{SessionID: "browser"}, nil
@@ -133,6 +133,6 @@ func (*apiBrowserFixture) InteractiveFrame(context.Context, string) (webview.Int
 func (*apiBrowserFixture) SendInteractiveInput(context.Context, string, webview.InteractiveInput) (webview.InteractiveFrame, error) {
 	return webview.InteractiveFrame{}, nil
 }
-func (*apiBrowserFixture) CloseInteractive(context.Context, string, string, bool, *sourceexec.SourceSession) error {
-	return nil
+func (b *apiBrowserFixture) CloseInteractive(context.Context, string, string, bool, bool, *sourceexec.SourceSession) (webview.InteractiveCloseResult, error) {
+	return webview.InteractiveCloseResult{HTML: b.html}, nil
 }

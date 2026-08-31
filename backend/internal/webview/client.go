@@ -12,7 +12,7 @@ import (
 	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
-const protocolVersion = 3
+const protocolVersion = 4
 
 // Config controls the Patchright worker endpoint and response limit.
 type Config struct {

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { closeSourceBrowser, getSourceBrowserFrame, sendSourceBrowserInput, startSourceBrowser, type SourceBrowserFrame } from '../../api/sources';
+import { closeSourceBrowser, getSourceBrowserFrame, sendSourceBrowserInput, startSourceBrowser, type SourceBrowserFrame, type SourceInteractionActionResult } from '../../api/sources';
 import AppButton from '../../ui/components/AppButton.vue';
 import { isInternalSourceBrowserLocation, sourceBrowserViewport } from './source-browser-display';
 import { i18n } from '../../i18n';
 
 const props = defineProps<{ sourceId: string; browserRequestId: string; title?: string }>();
 const t = i18n.global.t;
-const emit = defineEmits<{ close: [saved: boolean] }>();
+const emit = defineEmits<{ close: [saved: boolean, resumed?: SourceInteractionActionResult] }>();
 const frame = ref<SourceBrowserFrame>();
 const error = ref('');
 const busy = ref(true);
@@ -125,12 +125,13 @@ async function finish(save: boolean) {
   closed = true;
   frameRequest++;
   window.clearTimeout(timer);
+  let resumed: SourceInteractionActionResult | undefined;
   if (frame.value) {
     busy.value = true;
-    try { await closeSourceBrowser(props.sourceId, frame.value.sessionId, save); }
+    try { ({ resumed } = await closeSourceBrowser(props.sourceId, frame.value.sessionId, save)); }
     catch (cause) { error.value = cause instanceof Error ? cause.message : t('sources.interaction.browser.closeFailed'); closed = false; busy.value = false; return; }
   }
-  emit('close', save);
+  emit('close', save, resumed);
 }
 
 onBeforeUnmount(() => {

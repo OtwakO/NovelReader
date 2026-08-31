@@ -119,6 +119,7 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
         self.page.viewport_size = {"width": 390, "height": 720}
         self.page.screenshot = AsyncMock(return_value=b"frame")
         self.page.title = AsyncMock(return_value="Account")
+        self.page.content = AsyncMock(return_value="<html><body>Account</body></html>")
         self.page.mouse.wheel = AsyncMock()
         self.acquire = AsyncMock(return_value=(self.browser, self.context, self.page))
         self.release = AsyncMock()
@@ -162,11 +163,24 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
         self.page.mouse.wheel.assert_awaited_once_with(0, 900)
         await self.sessions.close(created["sessionId"])
 
+    async def test_close_without_continuation_does_not_capture_html(self) -> None:
+        created = await self.sessions.create({"url": "https://example.test"})
+        await self.sessions.close(created["sessionId"], save=True, return_html=False)
+        self.page.content.assert_not_awaited()
+
+    async def test_close_rejects_oversized_html_and_releases(self) -> None:
+        created = await self.sessions.create({"url": "https://example.test"})
+        self.page.content = AsyncMock(return_value="x" * (512 * 1024 + 1))
+        with self.assertRaisesRegex(ValueError, "HTML result is too large"):
+            await self.sessions.close(created["sessionId"], save=True, return_html=True)
+        self.context.close.assert_awaited_once()
+        self.release.assert_awaited_once()
+
     async def test_close_is_idempotent_and_releases_once(self) -> None:
         created = await self.sessions.create({"url": "https://example.test"})
 
-        result = await self.sessions.close(created["sessionId"], save=True)
-        await self.sessions.close(created["sessionId"], save=True)
+        result = await self.sessions.close(created["sessionId"], save=True, return_html=True)
+        await self.sessions.close(created["sessionId"], save=True, return_html=True)
 
         self.assertEqual(result["cookies"][0]["name"], "login")
         self.context.close.assert_awaited_once()

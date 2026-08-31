@@ -63,6 +63,19 @@ describe('SourceInteractionSheet', () => {
     await vi.waitFor(() => expect(startSourceBrowser).toHaveBeenCalledWith('source-a', 'await-1', expect.any(Number), expect.any(Number), expect.any(Number)));
     wrapper.unmount();
   });
+  it('applies a resumed await result without reloading stale settings', async () => {
+    runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'browser_required', browserRequestId: 'await-1', title: 'Settings', await: true }] });
+    const resumedView = { ...view, revision: 'resumed', controls: view.controls.map((control) => control.label === 'Server' ? { ...control, value: 'B' } : control) };
+    const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('select').exists()).toBe(true));
+    await wrapper.get('select').setValue('B');
+    await vi.waitFor(() => expect(startSourceBrowser).toHaveBeenCalled());
+    getSourceInteraction.mockClear();
+    wrapper.findComponent({ name: 'SourceBrowserSession' }).vm.$emit('close', true, { view: resumedView, effects: [{ type: 'refresh_explore' }] });
+    await vi.waitFor(() => expect((wrapper.get('select').element as HTMLSelectElement).value).toBe('B'));
+    expect(getSourceInteraction).not.toHaveBeenCalled();
+    expect(wrapper.emitted('refresh-explore')).toHaveLength(1);
+    wrapper.unmount();
+  });
   it('emits Explore refresh effects for the parent state boundary', async () => {
     runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'refresh_explore' }] });
     const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('select').exists()).toBe(true));

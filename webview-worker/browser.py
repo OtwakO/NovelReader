@@ -13,7 +13,7 @@ from patchright.async_api import async_playwright
 
 from interactive import InteractiveSessions
 
-PROTOCOL_VERSION = 3
+PROTOCOL_VERSION = 4
 DEFAULT_TIMEOUT_MS = 30_000
 
 

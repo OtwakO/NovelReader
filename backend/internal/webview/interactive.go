@@ -51,10 +51,10 @@ func (c *Client) SendInteractiveInput(ctx context.Context, sessionID string, inp
 }
 
 // CloseInteractive idempotently closes the worker context and optionally imports its cookies.
-func (c *Client) CloseInteractive(ctx context.Context, sessionID, rawURL string, save bool, session *sourceexec.SourceSession) error {
+func (c *Client) CloseInteractive(ctx context.Context, sessionID, rawURL string, save, returnHTML bool, session *sourceexec.SourceSession) (InteractiveCloseResult, error) {
 	var result interactiveResult
-	if err := c.interactiveWorker(ctx, http.MethodDelete, "/sessions/"+sessionID, interactiveRequest{Save: save}, &result); err != nil {
-		return err
+	if err := c.interactiveWorker(ctx, http.MethodDelete, "/sessions/"+sessionID, interactiveRequest{Save: save, ReturnHTML: returnHTML}, &result); err != nil {
+		return InteractiveCloseResult{}, err
 	}
 	if save && session != nil && len(result.Cookies) > 0 {
 		cookieURL := result.FinalURL
@@ -62,13 +62,13 @@ func (c *Client) CloseInteractive(ctx context.Context, sessionID, rawURL string,
 			cookieURL = rawURL
 		}
 		if !isNetworkBrowserURL(cookieURL) {
-			return nil
+			return InteractiveCloseResult{HTML: result.HTML}, nil
 		}
 		if err := session.SetCookies(cookieURL, fromProtocolCookies(result.Cookies)); err != nil {
-			return fmt.Errorf("webview: sync interactive cookies: %w", err)
+			return InteractiveCloseResult{}, fmt.Errorf("webview: sync interactive cookies: %w", err)
 		}
 	}
-	return nil
+	return InteractiveCloseResult{HTML: result.HTML}, nil
 }
 
 func isNetworkBrowserURL(rawURL string) bool {

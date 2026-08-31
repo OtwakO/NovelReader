@@ -21,19 +21,21 @@ type Browser interface {
 	StartInteractive(context.Context, string, string, webview.InteractiveViewport, *sourceexec.SourceSession) (webview.InteractiveFrame, error)
 	InteractiveFrame(context.Context, string) (webview.InteractiveFrame, error)
 	SendInteractiveInput(context.Context, string, webview.InteractiveInput) (webview.InteractiveFrame, error)
-	CloseInteractive(context.Context, string, string, bool, *sourceexec.SourceSession) error
+	CloseInteractive(context.Context, string, string, bool, bool, *sourceexec.SourceSession) (webview.InteractiveCloseResult, error)
 }
 
 type BrowserRequest struct {
-	URL   string
-	Title string
+	URL          string
+	Title        string
+	Continuation *ActionContinuation
 }
 
 type browserSession struct {
-	workerID string
-	sourceID string
-	startURL string
-	session  *sourceexec.SourceSession
+	workerID     string
+	sourceID     string
+	startURL     string
+	session      *sourceexec.SourceSession
+	continuation *ActionContinuation
 }
 
 // BrowserSessions owns all interactive contexts for one Reader runtime.
@@ -84,11 +86,11 @@ func (s *BrowserSessions) Start(ctx context.Context, sourceID, requestID string,
 	if err != nil {
 		return webview.InteractiveFrame{}, err
 	}
-	owned := &browserSession{workerID: frame.SessionID, sourceID: sourceID, startURL: request.URL, session: session}
+	owned := &browserSession{workerID: frame.SessionID, sourceID: sourceID, startURL: request.URL, session: session, continuation: request.Continuation}
 	s.mu.Lock()
 	if s.session != nil {
 		s.mu.Unlock()
-		_ = s.browser.CloseInteractive(context.WithoutCancel(ctx), frame.SessionID, request.URL, false, session)
+		_, _ = s.browser.CloseInteractive(context.WithoutCancel(ctx), frame.SessionID, request.URL, false, false, session)
 		return webview.InteractiveFrame{}, fmt.Errorf("sourceinteraction: browser session already active")
 	}
 	s.session = owned
@@ -120,13 +122,28 @@ func (s *BrowserSessions) Input(ctx context.Context, sourceID, sessionID string,
 	return frame, err
 }
 
-func (s *BrowserSessions) Close(ctx context.Context, sourceID, sessionID string, save bool) (*sourceexec.SourceSession, error) {
+type BrowserClose struct {
+	Session      *sourceexec.SourceSession
+	HTML         string
+	Continuation *ActionContinuation
+}
+
+func (s *BrowserSessions) Close(ctx context.Context, sourceID, sessionID string, save bool) (BrowserClose, error) {
 	owned, err := s.owned(sourceID, sessionID)
 	if err != nil {
-		return nil, err
+		return BrowserClose{}, err
 	}
 	s.forget(owned)
-	return owned.session, s.browser.CloseInteractive(ctx, owned.workerID, owned.startURL, save, owned.session)
+	result, err := s.browser.CloseInteractive(ctx, owned.workerID, owned.startURL, save, save && owned.continuation != nil, owned.session)
+	if err != nil {
+		return BrowserClose{}, err
+	}
+	closed := BrowserClose{Session: owned.session}
+	if save && owned.continuation != nil {
+		closed.HTML = result.HTML
+		closed.Continuation = owned.continuation
+	}
+	return closed, nil
 }
 
 // CloseSource closes the active session when sourceID matches; an empty ID closes any session.
@@ -143,7 +160,7 @@ func (s *BrowserSessions) CloseSource(ctx context.Context, sourceID string) {
 	s.session = nil
 	s.pending = make(map[string]BrowserRequest)
 	s.mu.Unlock()
-	_ = s.browser.CloseInteractive(ctx, owned.workerID, owned.startURL, false, owned.session)
+	_, _ = s.browser.CloseInteractive(ctx, owned.workerID, owned.startURL, false, false, owned.session)
 }
 
 func (s *BrowserSessions) owned(sourceID, sessionID string) (*browserSession, error) {

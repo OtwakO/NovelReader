@@ -182,7 +182,7 @@ func TestInteractiveClientStartsInputsAndClosesSession(t *testing.T) {
 	if _, err := client.SendInteractiveInput(t.Context(), frame.SessionID, InteractiveInput{Type: "click", X: 10, Y: 20}); err != nil {
 		t.Fatal(err)
 	}
-	if err := client.CloseInteractive(t.Context(), frame.SessionID, "https://example.test/login", true, session); err != nil {
+	if _, err := client.CloseInteractive(t.Context(), frame.SessionID, "https://example.test/login", true, false, session); err != nil {
 		t.Fatal(err)
 	}
 	if session.GetCookie("https://example.test/account", "login") != "ready" {

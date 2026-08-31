@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,6 +13,13 @@ import (
 	"github.com/otwako/novelreader/internal/sourceexec"
 	"github.com/otwako/novelreader/internal/sourceprofile"
 )
+
+const (
+	maxBrowserAwaitSteps = 4
+	maxBrowserAwaitBytes = 2 * 1024 * 1024
+)
+
+var ErrBrowserContinuationLimit = errors.New("sourceinteraction: browser continuation limit exceeded")
 
 type MutableProfileStore interface {
 	ProfileStore
@@ -29,6 +37,13 @@ type Effect struct {
 	Title            string `json:"title,omitempty"`
 	Await            bool   `json:"await,omitempty"`
 	BrowserRequestID string `json:"browserRequestId,omitempty"`
+	continuation     *ActionContinuation
+}
+
+// ActionContinuation is a bounded replay recipe for one startBrowserAwait action.
+type ActionContinuation struct {
+	Request ActionRequest
+	Bodies  []string
 }
 
 type ActionRequest struct {
@@ -77,6 +92,19 @@ func (d *Describer) Reset(ctx context.Context, sourceID string, scope ResetScope
 }
 
 func (d *Describer) Act(ctx context.Context, sourceID string, request ActionRequest) (ActionResult, error) {
+	return d.act(ctx, sourceID, request, nil)
+}
+
+// Resume replays an interrupted action with one additional completed browser body.
+func (d *Describer) Resume(ctx context.Context, sourceID string, continuation ActionContinuation, body string) (ActionResult, error) {
+	if len(continuation.Bodies) >= maxBrowserAwaitSteps || continuationBytes(continuation.Bodies)+len(body) > maxBrowserAwaitBytes {
+		return ActionResult{}, ErrBrowserContinuationLimit
+	}
+	continuation.Bodies = append(append([]string(nil), continuation.Bodies...), body)
+	return d.act(ctx, sourceID, continuation.Request, continuation.Bodies)
+}
+
+func (d *Describer) act(ctx context.Context, sourceID string, request ActionRequest, browserBodies []string) (ActionResult, error) {
 	profiles, ok := d.profiles.(MutableProfileStore)
 	if !ok {
 		return ActionResult{}, fmt.Errorf("sourceinteraction: profile store is read-only")
@@ -107,7 +135,7 @@ func (d *Describer) Act(ctx context.Context, sourceID string, request ActionRequ
 		if d.jsVM == nil {
 			return ActionResult{}, fmt.Errorf("sourceinteraction: JavaScript engine unavailable")
 		}
-		bridge := interactionBridge(&authentication, originalLoginInfo, &effects)
+		bridge := interactionBridge(&authentication, originalLoginInfo, &effects, browserBodies)
 		bindings := analyzer.URLBindings(&analyzer.URLContext{JSLib: current.source.JSLib}, current.source.BookSourceURL, session)
 		bindings["source"] = map[string]interface{}{
 			"bookSourceUrl":  current.source.BookSourceURL,
@@ -117,6 +145,14 @@ func (d *Describer) Act(ctx context.Context, sourceID string, request ActionRequ
 		bindings["isLongClick"] = request.IsLongClick
 		script := current.source.JSLib + "\n" + current.source.LoginURL + "\n" + action
 		if _, err := d.jsVM.EvalContext(ctx, script, request.Values, current.source.BookSourceURL, bindings); err != nil {
+			if errors.Is(err, analyzer.ErrBrowserAwait) {
+				for index := range effects {
+					if effects[index].Type == "browser_required" && effects[index].Await {
+						effects[index].continuation = &ActionContinuation{Request: cloneActionRequest(request), Bodies: append([]string(nil), browserBodies...)}
+						return ActionResult{View: current.view, Effects: effects}, nil
+					}
+				}
+			}
 			return ActionResult{}, fmt.Errorf("sourceinteraction: execute action: %w", err)
 		}
 	}
@@ -162,7 +198,7 @@ func RegisterBrowserRequests(effects []Effect, sessions *BrowserSessions) []Effe
 		if effects[index].Type != "browser_required" || effects[index].URL == "" {
 			continue
 		}
-		effects[index].BrowserRequestID = sessions.Register(BrowserRequest{URL: effects[index].URL, Title: effects[index].Title})
+		effects[index].BrowserRequestID = sessions.Register(BrowserRequest{URL: effects[index].URL, Title: effects[index].Title, Continuation: effects[index].continuation})
 		effects[index].URL = ""
 	}
 	return effects
@@ -204,6 +240,19 @@ func sameDocument(left, right json.RawMessage) bool {
 	return bytes.Equal(leftJSON, rightJSON)
 }
 
+func cloneActionRequest(request ActionRequest) ActionRequest {
+	request.Values = cloneValues(request.Values)
+	return request
+}
+
+func continuationBytes(bodies []string) int {
+	total := 0
+	for _, body := range bodies {
+		total += len(body)
+	}
+	return total
+}
+
 func cloneValues(values map[string]string) map[string]string {
 	if len(values) == 0 {
 		return nil
@@ -227,22 +276,31 @@ func sameValues(left, right map[string]string) bool {
 	return true
 }
 
-func interactionBridge(authentication *sourceprofile.Authentication, originalLoginInfo map[string]string, effects *[]Effect) *analyzer.JSBridge {
+func interactionBridge(authentication *sourceprofile.Authentication, originalLoginInfo map[string]string, effects *[]Effect, browserBodies []string) *analyzer.JSBridge {
+	awaitIndex := 0
+	emit := func(effect Effect) {
+		if awaitIndex >= len(browserBodies) {
+			*effects = append(*effects, effect)
+		}
+	}
 	return &analyzer.JSBridge{
-		Toast:     func(message interface{}) { appendNotice(effects, message) },
-		LongToast: func(message interface{}) { appendNotice(effects, message) },
-		RefreshExplore: func() {
-			*effects = append(*effects, Effect{Type: "refresh_explore"})
+		Toast:          func(message interface{}) { emit(Effect{Type: "notice", Message: fmt.Sprint(message)}) },
+		LongToast:      func(message interface{}) { emit(Effect{Type: "notice", Message: fmt.Sprint(message)}) },
+		RefreshExplore: func() { emit(Effect{Type: "refresh_explore"}) },
+		StartBrowser: func(url, title string) {
+			emit(Effect{Type: "browser_required", URL: url, Title: title})
 		},
-		StartBrowser: func(url, title string, await bool) {
-			*effects = append(*effects, Effect{Type: "browser_required", URL: url, Title: title, Await: await})
+		StartBrowserAwait: func(url, title string) (string, bool) {
+			if awaitIndex < len(browserBodies) {
+				body := browserBodies[awaitIndex]
+				awaitIndex++
+				return body, true
+			}
+			*effects = append(*effects, Effect{Type: "browser_required", URL: url, Title: title, Await: true})
+			return "", false
 		},
-		Open: func(url string) {
-			*effects = append(*effects, Effect{Type: "open_external", URL: url})
-		},
-		SearchBook: func(keyword string) {
-			*effects = append(*effects, Effect{Type: "search", Message: keyword})
-		},
+		Open:       func(url string) { emit(Effect{Type: "open_external", URL: url}) },
+		SearchBook: func(keyword string) { emit(Effect{Type: "search", Message: keyword}) },
 		GetLoginInfo: func() string {
 			if originalLoginInfo == nil {
 				return ""

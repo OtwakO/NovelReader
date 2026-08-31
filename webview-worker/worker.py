@@ -69,7 +69,7 @@ async def serve_connection(
             elif method == "POST" and len(parts) == 4 and parts[3] == "input":
                 result = await worker.interactive.input(session_id, payload)
             elif method == "DELETE" and len(parts) == 3:
-                result = await worker.interactive.close(session_id, save=bool(payload.get("save")))
+                result = await worker.interactive.close(session_id, save=bool(payload.get("save")), return_html=bool(payload.get("returnHtml")))
             else:
                 await write_response(writer, 404, {"error": "not found"})
                 return

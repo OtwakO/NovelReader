@@ -87,18 +87,19 @@ func (s *Server) handleCloseSourceBrowser(w http.ResponseWriter, r *http.Request
 		return
 	}
 	sourceID := r.PathValue("id")
-	session, err := s.browserSessions.Close(r.Context(), sourceID, r.PathValue("sessionID"), r.URL.Query().Get("save") == "true")
+	save := r.URL.Query().Get("save") == "true"
+	closed, err := s.browserSessions.Close(r.Context(), sourceID, r.PathValue("sessionID"), save)
 	if err != nil {
 		writeSourceBrowserError(w, err)
 		return
 	}
-	if r.URL.Query().Get("save") == "true" {
+	if save {
 		profile, err := s.sourceProfiles.Load(r.Context(), sourceID)
 		if err != nil {
 			writeSourceBrowserError(w, err)
 			return
 		}
-		authentication := sourceprofile.CaptureAuthentication(session, sourceprofile.DecodeAuthentication(profile.Authentication))
+		authentication := sourceprofile.CaptureAuthentication(closed.Session, sourceprofile.DecodeAuthentication(profile.Authentication))
 		document, err := json.Marshal(authentication)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "encode browser authentication")
@@ -110,7 +111,25 @@ func (s *Server) handleCloseSourceBrowser(w http.ResponseWriter, r *http.Request
 		}
 		s.deleteSourceSession(sourceID)
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"closed": true})
+	response := struct {
+		Closed  bool                            `json:"closed"`
+		Resumed *sourceinteraction.ActionResult `json:"resumed,omitempty"`
+	}{Closed: true}
+	if save && closed.Continuation != nil {
+		if closed.HTML == "" {
+			writeError(w, http.StatusUnprocessableEntity, "browser did not return HTML")
+			return
+		}
+		resumed, err := s.sourceInteractions.Resume(r.Context(), sourceID, *closed.Continuation, closed.HTML)
+		if err != nil {
+			writeError(w, http.StatusUnprocessableEntity, "resume source action: "+err.Error())
+			return
+		}
+		s.deleteSourceSession(sourceID)
+		resumed.Effects = sourceinteraction.RegisterBrowserRequests(resumed.Effects, s.browserSessions)
+		response.Resumed = &resumed
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func writeSourceBrowserError(w http.ResponseWriter, err error) {

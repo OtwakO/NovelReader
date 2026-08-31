@@ -44,18 +44,19 @@ type jsExecutor struct {
 
 // JSBridge exposes workflow-scoped JavaScript helpers without coupling analyzer to callers.
 type JSBridge struct {
-	RefreshTocURL   func()
-	ReGetBook       func()
-	Toast           func(interface{})
-	LongToast       func(interface{})
-	RefreshExplore  func()
-	StartBrowser    func(string, string, bool)
-	Open            func(string)
-	SearchBook      func(string)
-	GetLoginInfo    func() string
-	GetLoginInfoMap func() map[string]string
-	PutLoginInfo    func(string) bool
-	RemoveLoginInfo func()
+	RefreshTocURL     func()
+	ReGetBook         func()
+	Toast             func(interface{})
+	LongToast         func(interface{})
+	RefreshExplore    func()
+	StartBrowser      func(string, string)
+	StartBrowserAwait func(string, string) (string, bool)
+	Open              func(string)
+	SearchBook        func(string)
+	GetLoginInfo      func() string
+	GetLoginInfoMap   func() map[string]string
+	PutLoginInfo      func(string) bool
+	RemoveLoginInfo   func()
 }
 
 // NewJSVM creates a JSVM with the compatibility pool size of 16 runtimes.
@@ -75,6 +76,8 @@ func NewJSVMWithPoolSize(poolSize int) *JSVM {
 
 // SourceState is the session surface exposed to Legado JavaScript bindings.
 // It is intentionally defined here so analyzer does not depend on sourceexec.
+var ErrBrowserAwait = errors.New("analyzer: browser await required")
+
 const RefreshExploreMemoryKey = "__novelreader_refresh_explore"
 
 type SourceState interface {
@@ -286,10 +289,17 @@ Map = function(a) {
 		}
 		if bridge.StartBrowser != nil {
 			java["startBrowser"] = func(url string, title ...string) {
-				bridge.StartBrowser(url, firstString(title), false)
+				bridge.StartBrowser(url, firstString(title))
 			}
-			java["startBrowserAwait"] = func(url string, title ...string) {
-				bridge.StartBrowser(url, firstString(title), true)
+		}
+		if bridge.StartBrowserAwait != nil {
+			java["startBrowserAwait"] = func(url string, title ...string) interface{} {
+				body, available := bridge.StartBrowserAwait(url, firstString(title))
+				if !available {
+					rt.Interrupt(ErrBrowserAwait)
+					return nil
+				}
+				return h.responseObject(body, http.StatusOK, nil, url, "")
 			}
 		}
 		if bridge.RefreshTocURL != nil {
@@ -350,6 +360,12 @@ Map = function(a) {
 	if err != nil {
 		if ctx.Err() != nil {
 			return "", fmt.Errorf("js eval: %w", ctx.Err())
+		}
+		var interrupted *goja.InterruptedError
+		if errors.As(err, &interrupted) {
+			if interruptErr, ok := interrupted.Value().(error); ok {
+				return "", interruptErr
+			}
 		}
 		return "", fmt.Errorf("js eval: %w", err)
 	}

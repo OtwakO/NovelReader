@@ -5,6 +5,7 @@ import {
   resetSourceInteraction,
   runSourceInteractionAction,
   type BookSource,
+  type SourceInteractionActionResult,
   type SourceInteractionEffect,
   type SourceInteractionResetScope,
   type SourceInteractionView,
@@ -108,13 +109,18 @@ export default defineComponent({
     toggleChecked(label: string, options: string[] | undefined) {
       return this.values[label] === (options?.[1] ?? "1");
     },
-    async browserClosed(saved: boolean) {
+    async browserClosed(saved: boolean, resumed?: SourceInteractionActionResult) {
       this.browserEffect = null;
-      if (saved) {
+      if (!saved) return;
+      if (resumed) {
+        this.applyView(resumed.view);
+        this.effects = resumed.effects;
+        this.applyEffects(resumed.effects);
+      } else {
         await this.load();
         this.effects = [{ type: "notice", message: this.$t("sources.interaction.effects.loginSaved") }];
-        this.$emit("refresh-explore");
       }
+      if (!resumed?.effects.some((effect) => effect.type === "refresh_explore")) this.$emit("refresh-explore");
     },
     effectText(effect: SourceInteractionEffect) {
       if (effect.type === "browser_required") return this.$t("sources.interaction.effects.browserRequired");
