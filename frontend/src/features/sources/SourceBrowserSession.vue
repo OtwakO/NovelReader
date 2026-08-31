@@ -16,13 +16,15 @@ const viewport = ref<HTMLElement>();
 let timer: number | undefined;
 let closed = false;
 let touchY: number | undefined;
+let frameRequest = 0;
+let pendingScrollY = 0;
 
 void start();
 
 async function start() {
   try {
     const bounds = viewport.value?.getBoundingClientRect();
-    const browserViewport = sourceBrowserViewport(bounds?.width || window.innerWidth - 32, window.devicePixelRatio);
+    const browserViewport = sourceBrowserViewport(bounds?.width || window.innerWidth - 32, bounds?.height || window.innerHeight - 260, window.devicePixelRatio);
     frame.value = await startSourceBrowser(props.sourceId, props.browserRequestId, browserViewport.width, browserViewport.height, browserViewport.deviceScaleFactor);
     schedule();
   } catch (cause) {
@@ -38,32 +40,50 @@ function schedule() {
 }
 
 async function refresh() {
-  if (!frame.value || closed) return;
-  try { frame.value = await getSourceBrowserFrame(props.sourceId, frame.value.sessionId); schedule(); }
-  catch (cause) { error.value = cause instanceof Error ? cause.message : t('sources.interaction.browser.ended'); }
+  if (!frame.value || closed || busy.value) return schedule();
+  const request = ++frameRequest;
+  try {
+    const refreshed = await getSourceBrowserFrame(props.sourceId, frame.value.sessionId);
+    if (request === frameRequest && !closed) frame.value = refreshed;
+    schedule();
+  } catch (cause) {
+    if (request === frameRequest) error.value = cause instanceof Error ? cause.message : t('sources.interaction.browser.ended');
+  }
 }
 
 async function click(event: MouseEvent) {
   if (!frame.value || busy.value) return;
   const image = event.currentTarget as HTMLImageElement;
   const bounds = image.getBoundingClientRect();
+  const request = ++frameRequest;
   busy.value = true;
+  window.clearTimeout(timer);
   try {
-    frame.value = await sendSourceBrowserInput(props.sourceId, frame.value.sessionId, {
+    const updated = await sendSourceBrowserInput(props.sourceId, frame.value.sessionId, {
       type: 'click',
       x: (event.clientX - bounds.left) * frame.value.width / bounds.width,
       y: (event.clientY - bounds.top) * frame.value.height / bounds.height,
     });
+    if (request === frameRequest && !closed) frame.value = updated;
     schedule();
   } catch (cause) { error.value = cause instanceof Error ? cause.message : t('sources.interaction.browser.inputFailed'); }
   finally { busy.value = false; }
 }
 
 async function scrollRemote(deltaY: number) {
-  if (!frame.value || busy.value || !deltaY) return;
+  if (!frame.value || !deltaY) return;
+  pendingScrollY = Math.max(-1800, Math.min(1800, pendingScrollY + deltaY));
+  if (busy.value) return;
   busy.value = true;
+  window.clearTimeout(timer);
   try {
-    frame.value = await sendSourceBrowserInput(props.sourceId, frame.value.sessionId, { type: 'scroll', y: deltaY });
+    while (pendingScrollY && frame.value && !closed) {
+      const currentDelta = pendingScrollY;
+      pendingScrollY = 0;
+      const request = ++frameRequest;
+      const updated = await sendSourceBrowserInput(props.sourceId, frame.value.sessionId, { type: 'scroll', y: currentDelta });
+      if (request === frameRequest && !closed) frame.value = updated;
+    }
     schedule();
   } catch (cause) { error.value = cause instanceof Error ? cause.message : t('sources.interaction.browser.scrollFailed'); }
   finally { busy.value = false; }
@@ -86,9 +106,12 @@ function touchEnd(event: TouchEvent) {
 
 async function typeText() {
   if (!frame.value || !typedText.value || busy.value) return;
+  const request = ++frameRequest;
   busy.value = true;
+  window.clearTimeout(timer);
   try {
-    frame.value = await sendSourceBrowserInput(props.sourceId, frame.value.sessionId, { type: 'type', text: typedText.value });
+    const updated = await sendSourceBrowserInput(props.sourceId, frame.value.sessionId, { type: 'type', text: typedText.value });
+    if (request === frameRequest && !closed) frame.value = updated;
     typedText.value = '';
     schedule();
   } catch (cause) { error.value = cause instanceof Error ? cause.message : t('sources.interaction.browser.inputFailed'); }
@@ -98,6 +121,7 @@ async function typeText() {
 async function finish(save: boolean) {
   if (closed) return;
   closed = true;
+  frameRequest++;
   window.clearTimeout(timer);
   if (frame.value) {
     busy.value = true;
@@ -121,7 +145,7 @@ onBeforeUnmount(() => {
       <p v-if="error" class="error" role="alert">{{ error }}</p>
     </div>
     <div ref="viewport" class="viewport" :aria-busy="busy" @wheel.prevent="wheel">
-      <img v-if="frame" :src="`data:${frame.mediaType};base64,${frame.image}`" :alt="t('sources.interaction.browser.imageAlt')" draggable="false" @click="click" @touchstart.passive="touchStart" @touchend="touchEnd">
+      <img v-if="frame" :src="`data:${frame.mediaType};base64,${frame.image}`" :alt="t('sources.interaction.browser.imageAlt')" :style="{ width: `${frame.width}px` }" draggable="false" @click="click" @touchstart.passive="touchStart" @touchend="touchEnd">
       <p v-else-if="busy">{{ t('sources.interaction.browser.opening') }}</p>
     </div>
     <form class="typing" @submit.prevent="typeText"><input v-model="typedText" autocomplete="off" :placeholder="t('sources.interaction.browser.typePlaceholder')"><AppButton :disabled="!typedText" :busy="busy" type="submit">{{ t('sources.interaction.browser.type') }}</AppButton></form>
@@ -132,6 +156,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .browser { position: fixed; z-index: 120; inset: 1rem; margin: auto; width: min(34rem, calc(100% - 2rem)); height: min(60rem, calc(100dvh - 2rem)); display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: .625rem; padding: .875rem; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); box-shadow: 0 18px 48px rgb(38 34 29 / .28); }
 header, footer, .typing { display: flex; align-items: center; gap: .625rem; } header, footer { justify-content: space-between; } h2, p { margin: 0; } small { color: var(--color-ink-muted); overflow-wrap: anywhere; } header button { min-height: 2.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: transparent; color: var(--color-ink); padding: .4rem .7rem; } .messages { display: grid; gap: .4rem; } .privacy { color: var(--color-ink-muted); } .error { padding: .6rem; border-radius: var(--radius-md); background: #f8e4df; color: var(--color-danger); }
-.viewport { min-width: 0; min-height: 0; display: grid; place-items: center; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: #1e1c1a; } .viewport img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; cursor: crosshair; image-rendering: auto; } .typing { min-width: 0; flex-wrap: nowrap; } .typing input { min-width: 0; flex: 1; min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .6rem .7rem; } footer { flex: none; justify-content: flex-end; }
+.viewport { min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: #1e1c1a; } .viewport img { display: block; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; cursor: crosshair; image-rendering: auto; touch-action: none; } .typing { min-width: 0; flex-wrap: nowrap; } .typing input { min-width: 0; flex: 1; min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .6rem .7rem; } footer { flex: none; justify-content: flex-end; }
 @media (max-width: 38rem) { .browser { inset: 0; width: 100%; height: 100dvh; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: .5rem; padding: .625rem; border: 0; border-radius: 0; } .typing { align-items: stretch; } footer :deep(.app-button) { flex: 1; } }
 </style>

@@ -3,11 +3,11 @@ import { isInternalSourceBrowserLocation, sourceBrowserViewport } from './source
 
 describe('sourceBrowserViewport', () => {
   it('uses a portrait mobile viewport on desktop displays', () => {
-    expect(sourceBrowserViewport(1180, 2)).toEqual({ width: 430, height: 817, deviceScaleFactor: 2 });
+    expect(sourceBrowserViewport(1180, 780, 2)).toEqual({ width: 430, height: 780, deviceScaleFactor: 2 });
   });
 
   it('keeps narrow clients portrait and bounds density', () => {
-    expect(sourceBrowserViewport(360, 4)).toEqual({ width: 390, height: 741, deviceScaleFactor: 3 });
+    expect(sourceBrowserViewport(360, 620, 4)).toEqual({ width: 390, height: 620, deviceScaleFactor: 3 });
   });
 });
 
