@@ -74,7 +74,7 @@ class InteractiveSessions:
         session = await self._get(session_id)
         async with session.lock:
             self._touch(session)
-            image = await session.page.screenshot(type="jpeg", quality=75)
+            image = await session.page.screenshot(type="jpeg", quality=90)
             viewport = session.page.viewport_size or {"width": 390, "height": 720}
             return {
                 "sessionId": session_id,

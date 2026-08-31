@@ -27,13 +27,18 @@ type protocolCookie struct {
 	Secure   bool    `json:"secure,omitempty"`
 }
 
+type InteractiveViewport struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
 type interactiveRequest struct {
-	URL       string            `json:"url"`
-	Headers   map[string]string `json:"headers,omitempty"`
-	Cookies   []protocolCookie  `json:"cookies,omitempty"`
-	Viewport  map[string]int    `json:"viewport,omitempty"`
-	TimeoutMS int               `json:"timeoutMs,omitempty"`
-	Save      bool              `json:"save,omitempty"`
+	URL       string              `json:"url"`
+	Headers   map[string]string   `json:"headers,omitempty"`
+	Cookies   []protocolCookie    `json:"cookies,omitempty"`
+	Viewport  InteractiveViewport `json:"viewport,omitempty"`
+	TimeoutMS int                 `json:"timeoutMs,omitempty"`
+	Save      bool                `json:"save,omitempty"`
 }
 
 type InteractiveInput struct {

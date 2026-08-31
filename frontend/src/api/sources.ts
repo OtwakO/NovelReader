@@ -69,8 +69,8 @@ export function resetSourceInteraction(sourceId: string, scope: SourceInteractio
   const suffix = scope === 'all' ? '' : `/${scope}`;
   return request<SourceInteractionView>(`/sources/${encodeURIComponent(sourceId)}/interaction${suffix}`, { method: 'DELETE' });
 }
-export function startSourceBrowser(sourceId: string, browserRequestId: string) {
-  return request<SourceBrowserFrame>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser`, { method: 'POST', body: JSON.stringify({ browserRequestId }) });
+export function startSourceBrowser(sourceId: string, browserRequestId: string, width: number, height: number) {
+  return request<SourceBrowserFrame>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser`, { method: 'POST', body: JSON.stringify({ browserRequestId, width, height }) });
 }
 export function getSourceBrowserFrame(sourceId: string, sessionId: string) {
   return request<SourceBrowserFrame>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser/${encodeURIComponent(sessionId)}`);

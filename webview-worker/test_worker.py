@@ -127,6 +127,11 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         await self.sessions.close_all()
 
+    async def test_frame_uses_high_quality_jpeg(self) -> None:
+        created = await self.sessions.create({"url": "https://example.test"})
+        self.page.screenshot.assert_awaited_with(type="jpeg", quality=90)
+        await self.sessions.close(created["sessionId"])
+
     async def test_close_is_idempotent_and_releases_once(self) -> None:
         created = await self.sessions.create({"url": "https://example.test"})
 

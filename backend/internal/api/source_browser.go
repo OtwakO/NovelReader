@@ -14,6 +14,8 @@ import (
 
 type startSourceBrowserRequest struct {
 	BrowserRequestID string `json:"browserRequestId"`
+	Width            int    `json:"width"`
+	Height           int    `json:"height"`
 }
 
 func (s *Server) handleStartSourceBrowser(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +41,7 @@ func (s *Server) handleStartSourceBrowser(w http.ResponseWriter, r *http.Request
 	}
 	session := sourceexec.NewSourceSession()
 	sourceprofile.ApplyAuthentication(session, sourceprofile.DecodeAuthentication(profile.Authentication))
-	frame, err := s.browserSessions.Start(r.Context(), sourceID, request.BrowserRequestID, session)
+	frame, err := s.browserSessions.Start(r.Context(), sourceID, request.BrowserRequestID, webview.InteractiveViewport{Width: request.Width, Height: request.Height}, session)
 	if err != nil {
 		writeSourceBrowserError(w, err)
 		return

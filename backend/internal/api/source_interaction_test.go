@@ -124,7 +124,7 @@ func TestSourceInteractionAwaitBrowserActionReturnsLaunchReference(t *testing.T)
 
 type apiBrowserFixture struct{}
 
-func (*apiBrowserFixture) StartInteractive(context.Context, string, string, *sourceexec.SourceSession) (webview.InteractiveFrame, error) {
+func (*apiBrowserFixture) StartInteractive(context.Context, string, string, webview.InteractiveViewport, *sourceexec.SourceSession) (webview.InteractiveFrame, error) {
 	return webview.InteractiveFrame{SessionID: "browser"}, nil
 }
 func (*apiBrowserFixture) InteractiveFrame(context.Context, string) (webview.InteractiveFrame, error) {

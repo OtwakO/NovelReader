@@ -11,11 +11,13 @@ import (
 )
 
 // StartInteractive opens a short-lived browser context hydrated from one source session.
-func (c *Client) StartInteractive(ctx context.Context, rawURL, title string, session *sourceexec.SourceSession) (InteractiveFrame, error) {
+func (c *Client) StartInteractive(ctx context.Context, rawURL, title string, viewport InteractiveViewport, session *sourceexec.SourceSession) (InteractiveFrame, error) {
 	if c == nil {
 		return InteractiveFrame{}, fmt.Errorf("webview: nil client")
 	}
-	request := interactiveRequest{URL: rawURL, Viewport: map[string]int{"width": 390, "height": 720}, TimeoutMS: int(c.timeout.Milliseconds())}
+	viewport.Width = min(1440, max(390, viewport.Width))
+	viewport.Height = min(1200, max(480, viewport.Height))
+	request := interactiveRequest{URL: rawURL, Viewport: viewport, TimeoutMS: int(c.timeout.Milliseconds())}
 	if session != nil && isNetworkBrowserURL(rawURL) {
 		request.Headers = session.RequestHeaders()
 		for _, cookie := range session.Cookies(rawURL) {

@@ -18,7 +18,7 @@ var ErrBrowserSessionNotFound = errors.New("sourceinteraction: browser session n
 
 // Browser opens and controls worker-owned interactive contexts.
 type Browser interface {
-	StartInteractive(context.Context, string, string, *sourceexec.SourceSession) (webview.InteractiveFrame, error)
+	StartInteractive(context.Context, string, string, webview.InteractiveViewport, *sourceexec.SourceSession) (webview.InteractiveFrame, error)
 	InteractiveFrame(context.Context, string) (webview.InteractiveFrame, error)
 	SendInteractiveInput(context.Context, string, webview.InteractiveInput) (webview.InteractiveFrame, error)
 	CloseInteractive(context.Context, string, string, bool, *sourceexec.SourceSession) error
@@ -65,7 +65,7 @@ func (s *BrowserSessions) Register(request BrowserRequest) string {
 }
 
 // Start consumes a registered browser request and replaces any prior Reader browser session.
-func (s *BrowserSessions) Start(ctx context.Context, sourceID, requestID string, session *sourceexec.SourceSession) (webview.InteractiveFrame, error) {
+func (s *BrowserSessions) Start(ctx context.Context, sourceID, requestID string, viewport webview.InteractiveViewport, session *sourceexec.SourceSession) (webview.InteractiveFrame, error) {
 	if s == nil || s.browser == nil {
 		return webview.InteractiveFrame{}, fmt.Errorf("sourceinteraction: interactive browser is unavailable")
 	}
@@ -80,7 +80,7 @@ func (s *BrowserSessions) Start(ctx context.Context, sourceID, requestID string,
 		return webview.InteractiveFrame{}, err
 	}
 	s.CloseSource(ctx, "")
-	frame, err := s.browser.StartInteractive(ctx, request.URL, request.Title, session)
+	frame, err := s.browser.StartInteractive(ctx, request.URL, request.Title, viewport, session)
 	if err != nil {
 		return webview.InteractiveFrame{}, err
 	}

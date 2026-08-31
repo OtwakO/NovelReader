@@ -153,7 +153,7 @@ func TestInteractiveClientStartsInputsAndClosesSession(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 				t.Fatal(err)
 			}
-			if request.URL != "https://example.test/login" || len(request.Cookies) != 1 {
+			if request.URL != "https://example.test/login" || len(request.Cookies) != 1 || request.Viewport.Width != 1200 || request.Viewport.Height != 800 {
 				t.Fatalf("request=%+v", request)
 			}
 			_ = json.NewEncoder(w).Encode(interactiveResult{Version: protocolVersion, InteractiveFrame: InteractiveFrame{SessionID: "session-1", Image: "frame", Width: 390, Height: 720}})
@@ -175,7 +175,7 @@ func TestInteractiveClientStartsInputsAndClosesSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	frame, err := client.StartInteractive(t.Context(), "https://example.test/login", "Login", session)
+	frame, err := client.StartInteractive(t.Context(), "https://example.test/login", "Login", InteractiveViewport{Width: 1200, Height: 800}, session)
 	if err != nil {
 		t.Fatal(err)
 	}
