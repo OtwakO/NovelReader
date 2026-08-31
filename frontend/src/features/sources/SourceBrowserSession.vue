@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { closeSourceBrowser, getSourceBrowserFrame, sendSourceBrowserInput, startSourceBrowser, type SourceBrowserFrame } from '../../api/sources';
 import AppButton from '../../ui/components/AppButton.vue';
 import { isInternalSourceBrowserLocation, sourceBrowserViewport } from './source-browser-display';
@@ -20,10 +20,11 @@ let frameRequest = 0;
 let pendingScrollY = 0;
 let scrolling = false;
 
-void start();
+onMounted(() => { void start(); });
 
 async function start() {
   try {
+    await nextTick();
     const bounds = viewport.value?.getBoundingClientRect();
     const browserViewport = sourceBrowserViewport(bounds?.width || window.innerWidth - 32, bounds?.height || window.innerHeight - 260, window.devicePixelRatio);
     frame.value = await startSourceBrowser(props.sourceId, props.browserRequestId, browserViewport.width, browserViewport.height, browserViewport.deviceScaleFactor);
