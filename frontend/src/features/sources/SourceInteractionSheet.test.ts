@@ -52,7 +52,7 @@ describe('SourceInteractionSheet', () => {
     runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'browser_required', browserRequestId: 'request-1', title: 'Login' }] });
     const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('select').exists()).toBe(true));
     await wrapper.get('select').setValue('B');
-    await vi.waitFor(() => expect(startSourceBrowser).toHaveBeenCalledWith('source-a', 'request-1'));
+    await vi.waitFor(() => expect(startSourceBrowser).toHaveBeenCalledWith('source-a', 'request-1', expect.any(Number), expect.any(Number), expect.any(Number)));
     wrapper.unmount();
     await vi.waitFor(() => expect(closeSourceBrowser).toHaveBeenCalledWith('source-a', 'browser-1', false));
   });
@@ -60,7 +60,7 @@ describe('SourceInteractionSheet', () => {
     runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'browser_required', browserRequestId: 'await-1', title: 'Register', await: true }] });
     const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('select').exists()).toBe(true));
     await wrapper.get('select').setValue('B');
-    await vi.waitFor(() => expect(startSourceBrowser).toHaveBeenCalledWith('source-a', 'await-1'));
+    await vi.waitFor(() => expect(startSourceBrowser).toHaveBeenCalledWith('source-a', 'await-1', expect.any(Number), expect.any(Number), expect.any(Number)));
     wrapper.unmount();
   });
   it('emits Explore refresh effects for the parent state boundary', async () => {

@@ -28,8 +28,9 @@ type protocolCookie struct {
 }
 
 type InteractiveViewport struct {
-	Width  int `json:"width"`
-	Height int `json:"height"`
+	Width             int     `json:"width"`
+	Height            int     `json:"height"`
+	DeviceScaleFactor float64 `json:"deviceScaleFactor,omitempty"`
 }
 
 type interactiveRequest struct {

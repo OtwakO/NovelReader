@@ -218,7 +218,8 @@ class InteractiveDataURLTest(unittest.IsolatedAsyncioTestCase):
         await worker.start()
         try:
             target = "data:text/html;base64,PGgxPlNldHRpbmdzPC9oMT4="
-            _, opened_context, _ = await worker._open_interactive_context({"url": target})
+            _, opened_context, _ = await worker._open_interactive_context({"url": target, "viewport": {"width": 1200, "height": 800, "deviceScaleFactor": 2}})
+            browser.new_context.assert_awaited_once_with(extra_http_headers={}, device_scale_factor=2)
             page.set_content.assert_awaited_once_with("<h1>Settings</h1>", wait_until="domcontentloaded", timeout=30000)
             page.goto.assert_not_awaited()
             await opened_context.close()

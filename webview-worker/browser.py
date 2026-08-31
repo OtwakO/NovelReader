@@ -181,12 +181,16 @@ class BrowserWorker:
             async with self.state_lock:
                 self.active += 1
             acquired = True
-            context = await browser.new_context(extra_http_headers=request.get("headers") or {})
+            viewport = request.get("viewport") or {}
+            device_scale_factor = min(2.0, max(1.0, float(viewport.get("deviceScaleFactor") or 1)))
+            context = await browser.new_context(
+                extra_http_headers=request.get("headers") or {},
+                device_scale_factor=device_scale_factor,
+            )
             cookies = browser_cookies(request.get("cookies") or [], target)
             if cookies:
                 await context.add_cookies(cookies)
             page = await context.new_page()
-            viewport = request.get("viewport") or {}
             await page.set_viewport_size({
                 "width": min(1920, max(320, int(viewport.get("width") or 390))),
                 "height": min(1440, max(320, int(viewport.get("height") or 720))),

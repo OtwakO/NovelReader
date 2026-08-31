@@ -13,8 +13,8 @@ describe('source transport', () => {
   });
   it('starts browser sessions at the client surface dimensions', async () => {
     request.mockResolvedValue({});
-    await startSourceBrowser('source/id', 'request-1', 1180, 760);
-    expect(request).toHaveBeenCalledWith('/sources/source%2Fid/interaction/browser', { method: 'POST', body: JSON.stringify({ browserRequestId: 'request-1', width: 1180, height: 760 }) });
+    await startSourceBrowser('source/id', 'request-1', 1180, 760, 2);
+    expect(request).toHaveBeenCalledWith('/sources/source%2Fid/interaction/browser', { method: 'POST', body: JSON.stringify({ browserRequestId: 'request-1', width: 1180, height: 760, deviceScaleFactor: 2 }) });
   });
   it('executes and resets interaction state by immutable Source ID', async () => {
     request.mockResolvedValue({});
