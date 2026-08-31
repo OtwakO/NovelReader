@@ -8,7 +8,7 @@ import {
   type Book,
 } from "../../api/books";
 import type { AltSource, Chapter } from "../../api/models";
-import { getChapters, switchBookSource } from "../../api/reader";
+import { switchBookSource, waitForCatalog } from "../../api/reader";
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
 import SourceRecoveryPanel from "../source-recovery/SourceRecoveryPanel.vue";
@@ -37,6 +37,9 @@ export default defineComponent({
       loading: true,
       bookError: "",
       tocError: "",
+      catalogSyncing: false,
+      catalogRetrying: false,
+      loadGeneration: 0,
       sourceError: "",
       sourceMessage: "",
       switching: false,
@@ -76,28 +79,47 @@ export default defineComponent({
   },
   methods: {
     async load() {
+      const request = ++this.loadGeneration;
       this.loading = true;
       this.bookError = "";
       this.tocError = "";
       try {
-        this.book = await getBook(this.bookId);
+        const book = await getBook(this.bookId);
+        if (request !== this.loadGeneration) return;
+        this.book = book;
+        this.loading = false;
+        await this.loadCatalog(false, request);
       } catch (cause) {
+        if (request !== this.loadGeneration) return;
         this.bookError =
           cause instanceof Error
             ? cause.message
             : this.$t("bookDetail.loadFailed");
         this.loading = false;
-        return;
       }
+    },
+    async loadCatalog(retry = false, request?: number) {
+      request ??= this.loadGeneration;
+      this.catalogSyncing = true;
+      this.catalogRetrying = retry;
+      this.tocError = "";
       try {
-        this.chapters = await getChapters(this.bookId);
+        const chapters = await waitForCatalog(this.bookId, {
+          retry,
+          isCurrent: () => request === this.loadGeneration,
+        });
+        if (request === this.loadGeneration) this.chapters = chapters;
       } catch (cause) {
+        if (request !== this.loadGeneration) return;
         this.tocError =
           cause instanceof Error
             ? cause.message
             : this.$t("bookDetail.tocFailed");
       } finally {
-        this.loading = false;
+        if (request === this.loadGeneration) {
+          this.catalogSyncing = false;
+          this.catalogRetrying = false;
+        }
       }
     },
     persistMatches(sources: AltSource[]) {
@@ -143,20 +165,14 @@ export default defineComponent({
           source.bookUrl,
         );
         this.book = result.book;
+        this.loadGeneration += 1;
         this.chapters = [];
         this.tocError = "";
         this.sourceMessage =
           result.mapping === "title"
             ? this.$t("sourceRecovery.switchedTitle")
             : this.$t("sourceRecovery.switchedIndex");
-        try {
-          this.chapters = await getChapters(this.book.id);
-        } catch (cause) {
-          this.tocError =
-            cause instanceof Error
-              ? cause.message
-              : this.$t("bookDetail.tocFailed");
-        }
+        await this.loadCatalog();
       } catch (cause) {
         this.sourceError =
           cause instanceof Error
@@ -265,7 +281,15 @@ export default defineComponent({
           <p class="intro">{{ book.intro }}</p>
         </template>
       </BookDetailSection>
-      <WebViewFailureHint v-if="tocError" />
+      <p v-if="catalogSyncing" class="catalog-status" role="status" aria-busy="true">
+        {{ $t("bookDetail.tocSyncing") }}
+      </p>
+      <div v-else-if="tocError" class="catalog-failure">
+        <WebViewFailureHint />
+        <AppButton variant="secondary" :busy="catalogRetrying" @click="loadCatalog(true)">
+          {{ $t("bookDetail.retryToc") }}
+        </AppButton>
+      </div>
       <BookDetailToc
         :book-id="book.id"
         :chapters="chapters"
@@ -289,11 +313,22 @@ export default defineComponent({
 
 <style scoped>
 .state,
-.confirmation {
+.confirmation,
+.catalog-status,
+.catalog-failure {
   padding: 1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-paper-raised);
+}
+.catalog-status {
+  color: var(--color-ink-muted);
+}
+.catalog-failure {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
 }
 .hero {
   display: grid;

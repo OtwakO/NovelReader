@@ -154,7 +154,7 @@ Each reader runtime now owns a concrete `book.Catalogs` coordinator. Cached chap
 
 ## Next Action
 
-Adapt the frontend to the typed catalog lifecycle without changing the global transport helper. Add a feature-specific result parser in `api/reader.ts`; Book Detail should render metadata immediately, poll `202` with bounded backoff, and offer explicit retry after failure. Reader should wait for synchronization before resolving the first readable chapter, with cancellation through its existing generation guard. Keep source switching behavior consistent with the same catalog result path.
+Run one real `光遇聚合` large-catalog verification from the UI: shelf admission must complete after Book Info without waiting for the TOC, Book Detail must remain usable while catalog synchronization reports `202`, and the catalog must eventually publish atomically or show a truthful retryable failure. Record source/title/timing evidence and any compatibility failure before deciding whether this workstream is complete.
 
 ## Verification
 
@@ -191,7 +191,15 @@ Completed verification for catalog synchronization:
 - catalog publication rejects a changed source ID/state version transactionally, so cancellation races cannot publish stale chapters;
 - GET/POST endpoint success, `202`, retry, not-found, storage, and typed pagination failures pass.
 
+Completed verification for frontend catalog lifecycle:
+
+- the feature-specific reader API distinguishes `200` chapter arrays from `202 syncing` without changing the global transport helper;
+- explicit retry starts with `POST /chapters/sync` and then polls the normal GET endpoint with bounded backoff;
+- Book Detail renders metadata while catalog synchronization is still pending and updates when chapters become ready;
+- Reader and source switching wait for the same catalog path and use the existing generation guard to ignore stale results;
+- all 46 frontend test files pass;
+- locale key symmetry, Vue/TypeScript typecheck, and the production Vite build pass.
+
 Still needed:
 
-- frontend candidate/detail/result-card tests, locale key symmetry, typecheck, and production build;
 - one real `光遇聚合` large-catalog verification showing immediate shelf admission followed by successful or truthfully failed catalog synchronization.

@@ -5,8 +5,32 @@ export type ChapterContentBlock = { type: 'text'; text: string } | { type: 'imag
 export interface ChapterContent { title: string; paragraphs: string[]; blocks: ChapterContentBlock[]; offlineCopy: boolean }
 export interface Bookmark { id: string; bookId: string; chapterIndex: number; chapterTitle: string; position: number; note: string; orphaned: boolean; createdAt: number }
 export interface Font { id: string; name: string; fileName: string; fileSize: number }
+export type CatalogResult = { state: 'ready'; chapters: Chapter[] } | { state: 'syncing' };
+export interface CatalogPollingOptions { retry?: boolean; isCurrent?: () => boolean }
 
-export function getChapters(bookId: string) { return request<Chapter[]>(`/books/${encodeURIComponent(bookId)}/chapters`); }
+const catalogPollDelays = [500, 1000, 1500, 2000];
+
+export function getCatalog(bookId: string, retry = false): Promise<CatalogResult> {
+  return request<Chapter[] | { state?: unknown }>(`/books/${encodeURIComponent(bookId)}/chapters${retry ? '/sync' : ''}`, retry ? { method: 'POST' } : undefined).then((value) => {
+    if (Array.isArray(value)) return { state: 'ready', chapters: value };
+    if (value?.state === 'syncing') return { state: 'syncing' };
+    throw new Error('Invalid catalog response');
+  });
+}
+
+export async function waitForCatalog(bookId: string, options: CatalogPollingOptions = {}): Promise<Chapter[]> {
+  let attempt = 0;
+  let result = await getCatalog(bookId, Boolean(options.retry));
+  while (result.state === 'syncing') {
+    if (options.isCurrent && !options.isCurrent()) throw new Error('Catalog request superseded');
+    const delay = catalogPollDelays[Math.min(attempt, catalogPollDelays.length - 1)];
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    if (options.isCurrent && !options.isCurrent()) throw new Error('Catalog request superseded');
+    result = await getCatalog(bookId);
+    attempt += 1;
+  }
+  return result.chapters;
+}
 export function getChapterContent(bookId: string, chapterIdx: number) {
   return request<Record<string, unknown>>(`/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content`).then((data) => ({
     title: String(data.title || data.Title || ''),
