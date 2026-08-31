@@ -204,6 +204,7 @@ class InteractiveDataURLTest(unittest.IsolatedAsyncioTestCase):
         page = MagicMock()
         page.set_viewport_size = AsyncMock()
         page.goto = AsyncMock()
+        page.set_content = AsyncMock()
         context.new_page = AsyncMock(return_value=page)
         browser.new_context = AsyncMock(return_value=context)
         playwright = MagicMock()
@@ -213,7 +214,8 @@ class InteractiveDataURLTest(unittest.IsolatedAsyncioTestCase):
         try:
             target = "data:text/html;base64,PGgxPlNldHRpbmdzPC9oMT4="
             _, opened_context, _ = await worker._open_interactive_context({"url": target})
-            page.goto.assert_awaited_once_with(target, wait_until="domcontentloaded", timeout=30000)
+            page.set_content.assert_awaited_once_with("<h1>Settings</h1>", wait_until="domcontentloaded", timeout=30000)
+            page.goto.assert_not_awaited()
             await opened_context.close()
             await worker._release_browser(browser, False)
         finally:

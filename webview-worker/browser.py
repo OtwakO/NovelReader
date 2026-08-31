@@ -160,15 +160,17 @@ class BrowserWorker:
         scheme = urlparse(target).scheme
         if scheme not in {"http", "https", "data"}:
             raise ValueError("only HTTP(S) and HTML data URLs are supported")
+        document = None
         if scheme == "data":
             prefix = "data:text/html;base64,"
             if not target.startswith(prefix):
                 raise ValueError("only base64 HTML data URLs are supported")
             try:
-                document = base64.b64decode(target[len(prefix):], validate=True)
-            except (binascii.Error, ValueError) as error:
+                document_bytes = base64.b64decode(target[len(prefix):], validate=True)
+                document = document_bytes.decode("utf-8")
+            except (binascii.Error, UnicodeDecodeError, ValueError) as error:
                 raise ValueError("invalid base64 HTML data URL") from error
-            if not document or len(document) > 512 * 1024:
+            if not document_bytes or len(document_bytes) > 512 * 1024:
                 raise ValueError("HTML data document is empty or too large")
         await self.capacity.acquire()
         browser = None
@@ -189,7 +191,11 @@ class BrowserWorker:
                 "width": min(1920, max(320, int(viewport.get("width") or 390))),
                 "height": min(1440, max(320, int(viewport.get("height") or 720))),
             })
-            await page.goto(target, wait_until="domcontentloaded", timeout=int(request.get("timeoutMs") or DEFAULT_TIMEOUT_MS))
+            timeout_ms = int(request.get("timeoutMs") or DEFAULT_TIMEOUT_MS)
+            if document is not None:
+                await page.set_content(document, wait_until="domcontentloaded", timeout=timeout_ms)
+            else:
+                await page.goto(target, wait_until="domcontentloaded", timeout=timeout_ms)
             return browser, context, page
         except BaseException:
             if context is not None:

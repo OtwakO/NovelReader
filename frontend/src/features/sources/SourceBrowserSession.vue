@@ -2,6 +2,7 @@
 import { onBeforeUnmount, ref } from 'vue';
 import { closeSourceBrowser, getSourceBrowserFrame, sendSourceBrowserInput, startSourceBrowser, type SourceBrowserFrame } from '../../api/sources';
 import AppButton from '../../ui/components/AppButton.vue';
+import { sourceBrowserLocation } from './source-browser-display';
 
 const props = defineProps<{ sourceId: string; browserRequestId: string; title?: string }>();
 const emit = defineEmits<{ close: [saved: boolean] }>();
@@ -83,7 +84,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="browser" role="dialog" aria-modal="true" :aria-label="title || 'Source login'">
-    <header><div><h2>{{ frame?.title || title || 'Source login' }}</h2><small>{{ frame?.url }}</small></div><button type="button" @click="finish(false)">Close</button></header>
+    <header><div><h2>{{ frame?.title || title || 'Source login' }}</h2><small>{{ sourceBrowserLocation(frame?.url) }}</small></div><button type="button" @click="finish(false)">Close</button></header>
     <p class="privacy">This page is provided by the source website. The session expires automatically when inactive.</p>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <div class="viewport" :aria-busy="busy">
