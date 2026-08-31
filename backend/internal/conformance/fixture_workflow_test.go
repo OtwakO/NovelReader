@@ -120,12 +120,12 @@ func TestFixtureWebViewUsesConfiguredBrowserTransport(t *testing.T) {
 		var request struct {
 			Version int `json:"version"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.Version != 2 {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.Version != 4 {
 			t.Fatalf("worker request=%+v err=%v", request, err)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"version": 2, "statusCode": 200, "finalUrl": "https://fixture.test/rendered",
+			"version": 4, "statusCode": 200, "finalUrl": "https://fixture.test/rendered",
 			"body": `<div class="book"><a class="name" href="/book">browser fixture</a></div>`,
 		})
 	}))

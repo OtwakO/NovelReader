@@ -1,6 +1,6 @@
 ---
-status: active
-updated: 2026-08-30
+status: completed
+updated: 2026-08-31
 ---
 
 # Reader-owned BookSource interaction
@@ -133,53 +133,27 @@ The initial implementation does not add application-level encryption or a key-ma
 
 ## Current State
 
-The unmodified 光遇 aggregate source completes the core text workflow on `feat/aggregated-booksources`. Its Explore currently fails at the first missing interaction bridge (`java.longToast`) and also expects durable source settings. The current Patchright WebView transport is request-oriented and cannot display an interactive browser.
+Reader-owned BookSource interaction is implemented. Each immutable Source ID owns bounded portable settings and backup-excluded authentication state; runtime hydration feeds Search, Book Info, TOC, Content, Explore, and source actions through the shared SourceSession seam. Source deletion, collection replacement, restore reconciliation, definition edits, explicit reset operations, and runtime eviction preserve or remove state according to Source ID ownership and invalidate transient sessions where required.
 
-The Source Profile foundation contributes one bounded `source_profiles` document in `reader.db` and one bounded `source_auth_state` document in the backup-excluded `credentials.db`, keyed by installed immutable Source ID. The Reader runtime reconciles both stores against installed IDs when it opens. Reader and credential schema validation remain authoritative, and portable snapshots create an empty credential store while retaining non-secret settings.
+The backend normalizes source-defined controls and actions into typed authenticated interfaces. The frontend renders controls and effects without receiving raw action programs or authentication documents. Explore refreshes only the affected selected source after settings or login changes.
 
-Single-source deletion, collection replacement/deletion, and scheduled collection sync coordinate Source Profile cleanup and source-session invalidation at the Reader API/runtime seam. Surviving immutable Source IDs retain durable settings/authentication; removed IDs are reconciled away. Source definition edits invalidate transient sessions without resetting durable state. Restore is covered by runtime-open reconciliation after the replacement runtime is recreated.
+Bounded interactive browser sessions run through the shared WebView worker protocol v4. Source-emitted URLs and JavaScript remain backend-only behind opaque one-use request IDs. Browser contexts are reader/source owned, share worker capacity, expire independently of frontend traffic, release capacity on every terminal path, render source-provided bounded HTML documents, support remote wheel/swipe input, and persist cookies only on explicit Finish. `startBrowserAwait` continuations resume once with bounded returned HTML; Cancel persists no returned state.
 
-The backend evaluates strict JSON, JavaScript object-literal, and dynamic `@js:` `loginUi` definitions into a bounded typed interaction view. The authenticated `GET /api/sources/{id}/interaction` endpoint returns labels, input/select/toggle values, positional action IDs, unsupported-control diagnostics, and a definition/settings revision; it never returns authentication documents or raw action JavaScript. The unmodified aggregate fixture normalizes all 34 controls.
-
-The authenticated action endpoint re-evaluates the current definition, verifies the revision and exposed positional action, supplies Legado's current control-name → string-value map as `result`, and runs `loginUrl` before the selected action. Durable settings/login state and session cookies are hydrated and captured around execution. JavaScript UI side effects are returned as typed notices, search requests, Explore refresh requests, external links, or `browser_required`; raw action programs never cross the API. Successful mutations invalidate transient Search/Book/TOC/Content and opaque Explore sessions for that Source ID. A `refresh_explore` effect reopens the selected catalog only when it belongs to the changed source, including after route restoration from tab-scoped Explore state.
-
-Three explicit destructive operations preserve the installed Source Definition while clearing owned state: clear login removes authentication/cookies only, reset settings removes portable settings only, and full reset removes both. Each operation is idempotent, returns a freshly evaluated interaction view, and invalidates transient sessions after durable cleanup succeeds.
-
-The existing BookSource management page now progressively discloses a dedicated interaction sheet. It renders normalized info, text/password/input, select, toggle, button, and unsupported controls without receiving source JavaScript or raw authentication documents. The sheet is an anchored side panel on desktop and a bounded bottom sheet on mobile, with loading/error/effect feedback, keyboard Escape/initial focus, background scroll locking, and separate confirmations for the three reset scopes. Typed search effects open the existing Search surface with the requested query; browser effects remain explicit unavailable states.
-
-Each reader runtime now injects one Source Profile hydrator into its reader-scoped `book.Searcher`. Search, Book Info, TOC, Content, and Explore call the same preparation seam before evaluating source headers or scripts. A `SourceSession` hydrates at most once after a successful load, so multi-stage workflows retain cookie/variable mutations instead of overwriting them with stale durable state; hydration failures remain retryable. Explore reports a typed `source_setup_required` error when its profile cannot be loaded.
-
-A deterministic production-runtime regression now loads the unmodified 光遇 aggregate fixture, injects only generic reader-owned source settings through the runtime hydrator, and verifies that changing `发现页来源` from 番茄 to 七猫 changes the generated Explore catalog after normal Source ID invalidation. The fixture remains unchanged and production code contains no aggregate/provider-specific branch.
-
-A live candidate-resolution diagnostic on the current branch verified one real aggregate Search result through Book Info, a 106-chapter TOC, and readable content under the production 15-second stage policy. The reported bookshelf failure therefore still needs the exact title/stage/reason before changing candidate logic.
+Candidate TOC parsing now respects stage cancellation throughout fetch, page parsing, extraction, deduplication, and title formatting. Explore source selection requires both global source enablement and Explore enablement; cached frontend selection clears when the refreshed source list no longer contains it.
 
 ## Next Action
 
-The lean interactive-browser slice is implemented on the existing WebView worker. Interactive source pages render in a portrait mobile-width viewport on every client (CSS width 390–430); after the dialog is mounted, its height is measured from the actual visible screenshot panel and bounded to 470–900, avoiding both browser-side raster scaling and clipping of the lower part of the returned remote viewport while preserving the phone-WebView layout most Legado sources target. The frontend also supplies a bounded client device-pixel ratio (1–3) for sharp capture. Patchright screenshots explicitly use device-pixel scale and JPEG quality 95, retrying through lower bounded qualities only when a frame would exceed the response budget; this prioritizes polling latency while retaining full client-density resolution. Mouse-wheel and touch-swipe input scroll the remote Patchright page rather than the static screenshot container; document scrolling uses deterministic `window.scrollBy({ behavior: 'instant' })` with a mouse-wheel fallback only when the main document cannot move (nested custom scrollers); forcing instant completion prevents source-page `scroll-behavior: smooth` animations from being repeatedly restarted before each returned screenshot. The frontend removes local screenshot scrolling, coalesces wheel deltas, sequences polling/input frames so stale polls cannot overwrite newer interaction results, and keeps scroll activity separate from the overlay controls' disabled/loading state. Source-emitted URLs are replaced with one-use opaque browser-request references before reaching the frontend; one active browser context is owned per Reader runtime; worker-side idle/absolute expiry and shutdown cleanup remain independent of client behavior; source reset/removal/update, Reader runtime eviction/quiesce, and UI cancellation request cleanup. Cookies synchronize into the Source Profile only on explicit Finish login. Both `startBrowser` and `startBrowserAwait` now open the browser, including bounded `data:text/html;base64,...` documents used by source-owned in-memory settings pages; arbitrary data schemes remain rejected. Observable await semantics are implemented without retaining a suspended VM: the initial action stops at `startBrowserAwait`, the opaque browser request owns a bounded source/action/value recipe, Finish returns bounded `page.content()` only for await sessions and replays that action with a one-use StrResponse-compatible body, and the existing Source Profile capture persists resulting settings. Cancel, expiry, source invalidation, and runtime shutdown discard the recipe; normal non-await login sessions synchronize cookies without serializing page HTML. Action-only Explore URL templates (`{{java.startBrowser(...)}}`) route through the same typed action/browser seam instead of being treated as fetch categories.
+This workstream is complete. Further candidate/catalog lifecycle work belongs to [`2026-08-31-catalog-synchronization.md`](2026-08-31-catalog-synchronization.md), not this historical plan. Future Source Interaction compatibility should begin from a demonstrated shared Legado gap and use a new focused workstream when substantial.
 
 ## Verification
 
-Candidate resolution stage deadlines are enforced inside TOC parsing as well as HTTP/JavaScript calls: cancellation is checked after fetches, between pages, during per-chapter extraction, deduplication, and batch title formatting so large source-specific catalogs cannot remain visibly active after their 15-second stage deadline. Explore source selection requires both global source enablement and Explore enablement; direct session execution retains its existing explicit-ID contract, while the frontend removes a cached selection on the next source-list refresh.
+Verified at completion:
 
-
-For `startBrowserAwait`, verify one generic action regression (initial execution stops before post-await mutations; Finish resumes once and persists the returned HTML-derived setting; Cancel persists nothing), one unmodified 光遇 aggregate fixture regression changing the endpoint away from its default, worker final-HTML bounds, and the existing targeted browser/API/frontend tests. Do not add a generalized workflow engine or retain Goja runtimes/goroutines across browser lifetime.
-
-
-Verified:
-
-- deterministic aggregate workflow test passes;
-- unmodified aggregate source live Search → Detail → 106-chapter TOC → first/middle/last Content succeeds;
-- current production candidate validation succeeds for one real aggregate result;
-- frontend typecheck passes after group-selector containment.
-
-Still needed:
-
-- worker: 23 lifecycle/protocol tests pass, covering inactivity expiry, idempotent close, shutdown cleanup, launch-failure and partial-context capacity release, continuation-only bounded HTML return, and existing one-shot behavior;
-- backend: targeted analyzer/sourceinteraction/webview/api/book tests pass, including generic replay persistence, unmodified 光遇 settings replay, opaque request ownership, continuation bounds, cookie sync, and source/runtime cleanup seams;
-- frontend: targeted interaction/browser/i18n tests pass (16/16), `vue-tsc --noEmit` passes, and the production Vite build succeeds; resumed views/effects apply without a stale reload;
-- `aft_inspect` reports no diagnostics in the affected scope; Go LSP was unavailable, so the targeted Go test run is the authoritative compile gate;
-- exact evidence for the user-observed bookshelf failure if it persists on current code.
-
-## Open Questions
-
-- Which exact aggregate result failed bookshelf validation, at which stage, and with what displayed attempt reason?
+- complete backend suite passes: `go test ./...`;
+- complete frontend suite passes: 44 files / 143 tests;
+- frontend `vue-tsc --noEmit` passes;
+- frontend production Vite build succeeds;
+- WebView worker suite passes: 23 tests;
+- deterministic conformance fixtures use the authoritative WebView protocol v4;
+- aggregate workflow, Source Profile lifecycle, action normalization, settings replay, browser ownership/expiry/capacity, continuation, cookie synchronization, Explore refresh, and source/runtime cleanup regressions pass;
+- scoped diagnostics report no errors or warnings; Go LSP was unavailable, so the complete Go test run is the authoritative compile gate.

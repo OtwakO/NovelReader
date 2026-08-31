@@ -275,16 +275,15 @@ A deterministic synthetic aggregate fixture proves Search → Book Info → TOC 
 
 The backup/restore and startup-performance work previously listed here is integrated on `main`.
 
-Active implementation plans:
+Reader-owned Source Profiles, normalized source interaction, Explore state hydration, deterministic cleanup, and bounded controlled browser sessions are complete; the historical implementation plan is [`docs/plans/2026-08-30-source-interaction.md`](docs/plans/2026-08-30-source-interaction.md).
 
-- [`docs/plans/2026-08-30-source-interaction.md`](docs/plans/2026-08-30-source-interaction.md) — reader-owned Source Profiles, login/settings interaction, Explore state, deterministic cleanup, and controlled browser sessions.
-- [`docs/plans/2026-08-31-catalog-synchronization.md`](docs/plans/2026-08-31-catalog-synchronization.md) — metadata-first shelf admission, separately synchronized complete catalogs, and latest-chapter/update-time presentation.
+Active implementation plan: [`docs/plans/2026-08-31-catalog-synchronization.md`](docs/plans/2026-08-31-catalog-synchronization.md) — metadata-first shelf admission, separately synchronized complete catalogs, and latest-chapter/update-time presentation.
 
 ## Roadmap
 
-### 1. Implement reader-owned source interaction
+### 1. Decouple shelf admission from catalog synchronization
 
-Follow the active [source interaction plan](docs/plans/2026-08-30-source-interaction.md): durable portable settings and backup-excluded authentication state keyed by immutable Source ID, deterministic cleanup for removed sources, normalized source-defined controls/actions, Explore integration, and bounded controlled browser sessions.
+Follow the active [catalog synchronization plan](docs/plans/2026-08-31-catalog-synchronization.md): validate and persist bounded Book Info metadata independently of chapter count, synchronize complete catalogs through one cohesive single-flight module, publish catalogs atomically, and expose source-provided latest-chapter/update-time metadata without requiring a TOC crawl.
 
 ### 2. Continue shared Legado compatibility convergence
 
@@ -300,13 +299,10 @@ Current priority families:
 
 Do not implement a source-specific adapter when a reusable Legado behavior explains the source.
 
-### 3. User-visible source login
-
-Interactive per-BookSource login is a separate capability from aggregate request execution. Its approved direction is backend-normalized source interaction with reader-owned state keyed by immutable Source ID, non-secret settings in Reader Data, and credentials/cookies in credential storage. Implementation still requires an explicit staged design for heterogeneous `loginUi`, source actions, `loginCheckJs`, durable cookies, optional browser handoff, and user interaction; it is not merely a standalone credential form.
-
-### 4. Operational and diagnostic refinement
+### 3. Operational and diagnostic refinement
 
 Add diagnostics only for demonstrated needs. Likely future work includes redacted request/rule tracing and clearer source-execution evidence. Do not introduce continuous BookSource health monitoring; failures should surface when a user-triggered operation actually fails.
+
 ## Durable Decisions
 
 | Area | Decision |

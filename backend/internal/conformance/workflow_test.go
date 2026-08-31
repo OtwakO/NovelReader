@@ -89,7 +89,7 @@ func TestWorkflowChecksFirstMiddleLastChapters(t *testing.T) {
 		chapter := request.URL[strings.LastIndex(request.URL, "/")+1:]
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"version": 2, "statusCode": 200, "finalUrl": request.URL,
+			"version": 4, "statusCode": 200, "finalUrl": request.URL,
 			"body": `<div id="BookText">content ` + chapter + `</div>`,
 		})
 	}))
@@ -181,7 +181,7 @@ func TestWorkflowReplaysSource779WebViewContent(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"version": 2, "statusCode": 200, "finalUrl": request.URL,
+			"version": 4, "statusCode": 200, "finalUrl": request.URL,
 			"body": body, "cookies": cookies,
 		})
 	}))
