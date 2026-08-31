@@ -23,6 +23,10 @@ func (s *Searcher) evaluateExploreScript(ctx context.Context, source booksource.
 }
 
 func (s *Searcher) evaluateExploreJavaScript(ctx context.Context, source booksource.BookSource, state *sourceexec.SourceSession, script string) (value interface{}, err error) {
+	return s.evaluateExploreJavaScriptWithBridge(ctx, source, state, script, nil)
+}
+
+func (s *Searcher) evaluateExploreJavaScriptWithBridge(ctx context.Context, source booksource.BookSource, state *sourceexec.SourceSession, script string, bridge *analyzer.JSBridge) (value interface{}, err error) {
 	if s.jsVM == nil {
 		return nil, fmt.Errorf("JavaScript engine unavailable")
 	}
@@ -54,6 +58,9 @@ func (s *Searcher) evaluateExploreJavaScript(ctx context.Context, source booksou
 	bindings := analyzer.URLBindings(urlContext, source.BookSourceURL, state)
 	bindings["source"] = sourceContext(source)
 	bindings["infoMap"] = exploreInfoMap(state)
+	if bridge != nil {
+		bindings["jsBridge"] = bridge
+	}
 	return analyzer.EvalURLScript(scriptCtx, s.jsVM, script, "", source.BookSourceURL, urlContext, bindings)
 }
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/otwako/novelreader/internal/book"
+	"github.com/otwako/novelreader/internal/sourceinteraction"
 )
 
 const maxExploreRequestBytes = 32 * 1024
@@ -66,6 +67,28 @@ func (s *Server) handleExploreControl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, catalog)
+}
+
+func (s *Server) handleExploreAction(w http.ResponseWriter, r *http.Request) {
+	var request book.ExploreActionRequest
+	if !decodeExploreJSON(w, r, &request) {
+		return
+	}
+	if strings.TrimSpace(request.SessionID) == "" || strings.TrimSpace(request.EntryID) == "" {
+		writeError(w, http.StatusBadRequest, "sessionId and entryId are required")
+		return
+	}
+	result, err := s.searcher.ExecuteExploreAction(r.Context(), request)
+	if err != nil {
+		writeExploreError(w, err)
+		return
+	}
+	effects := make([]sourceinteraction.Effect, len(result.Effects))
+	for index, effect := range result.Effects {
+		effects[index] = sourceinteraction.Effect{Type: effect.Type, Message: effect.Message, URL: effect.URL, Title: effect.Title, Await: effect.Await}
+	}
+	effects = sourceinteraction.RegisterBrowserRequests(effects, s.browserSessions)
+	writeJSON(w, http.StatusOK, map[string]interface{}{"sourceId": result.SourceID, "effects": effects})
 }
 
 func (s *Server) handleExplorePage(w http.ResponseWriter, r *http.Request) {
@@ -125,7 +148,7 @@ func writeExploreError(w http.ResponseWriter, err error) {
 
 func exploreHTTPStatus(code string) int {
 	switch code {
-	case "source_unavailable", "session_not_found", "invalid_session", "control_not_found", "invalid_category":
+	case "source_unavailable", "session_not_found", "invalid_session", "control_not_found", "invalid_category", "action_not_found":
 		return http.StatusNotFound
 	case "page_conflict", "page_exhausted":
 		return http.StatusConflict
@@ -139,7 +162,7 @@ func exploreHTTPStatus(code string) int {
 		return http.StatusServiceUnavailable
 	case "category_cancelled", "rate_limit_cancelled", "capacity_cancelled":
 		return http.StatusGatewayTimeout
-	case "category_script_failed", "category_parse_failed", "control_action_failed", "request_build_failed",
+	case "category_script_failed", "category_parse_failed", "control_action_failed", "action_failed", "request_build_failed",
 		"transport_failed", "response_transform_failed", "http_status", "result_rule_failed":
 		return http.StatusBadGateway
 	default:

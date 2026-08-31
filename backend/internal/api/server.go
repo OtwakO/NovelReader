@@ -190,6 +190,7 @@ func (s *Server) registerRoutesWithoutHealth() {
 	s.mux.HandleFunc("POST /api/explore/catalog", s.handleExploreCatalog)
 	s.mux.HandleFunc("POST /api/explore/control", s.handleExploreControl)
 	s.mux.HandleFunc("POST /api/explore/page", s.handleExplorePage)
+	s.mux.HandleFunc("POST /api/explore/action", s.handleExploreAction)
 
 	// Chapters
 	s.mux.HandleFunc("GET /api/books/{id}/chapters", s.handleGetChapters)

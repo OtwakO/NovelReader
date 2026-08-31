@@ -226,3 +226,23 @@ func findExploreEntry(t *testing.T, catalog ExploreCatalog, title string) Explor
 	t.Fatalf("entry %q missing from %+v", title, catalog.Entries)
 	return ExploreEntry{}
 }
+
+func TestExploreScriptURLIsExposedAsActionNotCategory(t *testing.T) {
+	source := booksource.BookSource{BookSourceURL: "https://actions.test", EnabledExplore: true, ExploreURL: `[{title:'Login',url:'{{java.startBrowser("https://login.test","Login")}}'},{title:'Books',url:'/books'}]`}
+	searcher := NewSearcher(nil, analyzer.NewJSVM(), nil, exploreSourceFixtureStore{source: source}, nil)
+	catalog, err := searcher.OpenExplore(t.Context(), source.BookSourceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	login := findExploreEntry(t, catalog, "Login")
+	if !login.Actionable || login.Selectable {
+		t.Fatalf("login=%+v", login)
+	}
+	result, err := searcher.ExecuteExploreAction(t.Context(), ExploreActionRequest{SessionID: catalog.SessionID, EntryID: login.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Effects) != 1 || result.Effects[0].Type != "browser_required" || result.Effects[0].URL != "https://login.test" {
+		t.Fatalf("result=%+v", result)
+	}
+}

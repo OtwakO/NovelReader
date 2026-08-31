@@ -159,7 +159,7 @@ func RegisterBrowserRequests(effects []Effect, sessions *BrowserSessions) []Effe
 		return effects
 	}
 	for index := range effects {
-		if effects[index].Type != "browser_required" || effects[index].URL == "" || effects[index].Await {
+		if effects[index].Type != "browser_required" || effects[index].URL == "" {
 			continue
 		}
 		effects[index].BrowserRequestID = sessions.Register(BrowserRequest{URL: effects[index].URL, Title: effects[index].Title})

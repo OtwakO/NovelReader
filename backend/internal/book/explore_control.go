@@ -150,9 +150,11 @@ func exploreCatalog(sessionID string, session *exploreSession) ExploreCatalog {
 				options = append(options, *option)
 			}
 		}
+		actionable := kind.Type == exploreKindURL && isExploreScriptAction(kind.URL)
 		entry := ExploreEntry{
 			ID: id, Title: kind.Title, Type: kind.Type,
-			Selectable: kind.Type == exploreKindURL && kind.URL != "", Options: options,
+			Selectable: kind.Type == exploreKindURL && kind.URL != "" && !actionable,
+			Actionable: actionable, Options: options,
 		}
 		switch strings.ToLower(strings.TrimSpace(kind.Type)) {
 		case exploreKindText, exploreKindToggle, exploreKindSelect:

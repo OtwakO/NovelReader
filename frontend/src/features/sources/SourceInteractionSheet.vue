@@ -78,7 +78,7 @@ export default defineComponent({
         if (effect.type === "refresh_explore") this.$emit("refresh-explore");
         if (effect.type === "open_external" && effect.url) window.open(effect.url, "_blank", "noopener,noreferrer");
         if (effect.type === "search" && effect.message) void this.$router.push({ name: "search", query: { q: effect.message } });
-        if (effect.type === "browser_required" && effect.browserRequestId && !effect.await) this.browserEffect = effect;
+        if (effect.type === "browser_required" && effect.browserRequestId) this.browserEffect = effect;
       }
     },
     async confirmReset() {

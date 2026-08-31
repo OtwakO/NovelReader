@@ -54,3 +54,11 @@ func TestRegisterBrowserRequestsDoesNotExposeSourceURL(t *testing.T) {
 		t.Fatalf("effect=%+v", effects[0])
 	}
 }
+
+func TestRegisterBrowserRequestsRegistersAwaitLaunches(t *testing.T) {
+	sessions := NewBrowserSessions(&browserFixture{})
+	effects := RegisterBrowserRequests([]Effect{{Type: "browser_required", URL: "https://example.test/register", Await: true}}, sessions)
+	if effects[0].URL != "" || effects[0].BrowserRequestID == "" || !effects[0].Await {
+		t.Fatalf("effect=%+v", effects[0])
+	}
+}

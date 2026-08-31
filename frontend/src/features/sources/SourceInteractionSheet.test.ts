@@ -56,6 +56,13 @@ describe('SourceInteractionSheet', () => {
     wrapper.unmount();
     await vi.waitFor(() => expect(closeSourceBrowser).toHaveBeenCalledWith('source-a', 'browser-1', false));
   });
+  it('opens await browser actions instead of showing a dead instruction', async () => {
+    runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'browser_required', browserRequestId: 'await-1', title: 'Register', await: true }] });
+    const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('select').exists()).toBe(true));
+    await wrapper.get('select').setValue('B');
+    await vi.waitFor(() => expect(startSourceBrowser).toHaveBeenCalledWith('source-a', 'await-1'));
+    wrapper.unmount();
+  });
   it('emits Explore refresh effects for the parent state boundary', async () => {
     runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'refresh_explore' }] });
     const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('select').exists()).toBe(true));

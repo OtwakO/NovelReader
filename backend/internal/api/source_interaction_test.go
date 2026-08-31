@@ -11,8 +11,10 @@ import (
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/sourceexec"
 	"github.com/otwako/novelreader/internal/sourceinteraction"
 	"github.com/otwako/novelreader/internal/sourceprofile"
+	"github.com/otwako/novelreader/internal/webview"
 )
 
 func TestSourceInteractionHTTPReturnsNormalizedControlsWithoutAuthentication(t *testing.T) {
@@ -99,5 +101,38 @@ func (s *apiInteractionProfileStore) ResetSettings(context.Context, string) erro
 func (s *apiInteractionProfileStore) Reset(context.Context, string) error {
 	s.profile.Settings = json.RawMessage(`{}`)
 	s.profile.Authentication = json.RawMessage(`{}`)
+	return nil
+}
+
+func TestSourceInteractionAwaitBrowserActionReturnsLaunchReference(t *testing.T) {
+	source := &booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", LoginUI: `[{"name":"Register","type":"button","action":"register()"}]`, LoginURL: `function register(){java.startBrowserAwait('https://register.test','Register')}`}
+	profiles := &apiInteractionProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: json.RawMessage(`{}`), Authentication: json.RawMessage(`{}`)}}
+	server := NewServer(nil, nil, nil, nil, nil, analyzer.NewJSVM(), nil, processor.DefaultConfig(), "", nil)
+	server.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, profiles, analyzer.NewJSVM())
+	server.browserSessions = sourceinteraction.NewBrowserSessions(&apiBrowserFixture{})
+	view, err := server.sourceInteractions.Describe(t.Context(), source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/sources/source-a/interaction/actions", strings.NewReader(`{"revision":"`+view.Revision+`","actionId":"action-0","values":{}}`))
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"browserRequestId"`) {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+type apiBrowserFixture struct{}
+
+func (*apiBrowserFixture) StartInteractive(context.Context, string, string, *sourceexec.SourceSession) (webview.InteractiveFrame, error) {
+	return webview.InteractiveFrame{SessionID: "browser"}, nil
+}
+func (*apiBrowserFixture) InteractiveFrame(context.Context, string) (webview.InteractiveFrame, error) {
+	return webview.InteractiveFrame{}, nil
+}
+func (*apiBrowserFixture) SendInteractiveInput(context.Context, string, webview.InteractiveInput) (webview.InteractiveFrame, error) {
+	return webview.InteractiveFrame{}, nil
+}
+func (*apiBrowserFixture) CloseInteractive(context.Context, string, string, bool, *sourceexec.SourceSession) error {
 	return nil
 }

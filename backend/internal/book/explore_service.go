@@ -26,6 +26,7 @@ type ExploreEntry struct {
 	Title      string   `json:"title"`
 	Type       string   `json:"type"`
 	Selectable bool     `json:"selectable"`
+	Actionable bool     `json:"actionable,omitempty"`
 	Value      string   `json:"value,omitempty"`
 	Options    []string `json:"options,omitempty"`
 }

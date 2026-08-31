@@ -155,7 +155,7 @@ A live candidate-resolution diagnostic on the current branch verified one real a
 
 ## Next Action
 
-The lean `startBrowser` interactive-browser slice is implemented on the existing WebView worker. Source-emitted URLs are replaced with one-use opaque browser-request references before reaching the frontend; one active browser context is owned per Reader runtime; worker-side idle/absolute expiry and shutdown cleanup remain independent of client behavior; source reset/removal/update, Reader runtime eviction/quiesce, and UI cancellation request cleanup. Cookies synchronize into the Source Profile only on explicit Finish login. `startBrowserAwait` continuation semantics remain intentionally unsupported.
+The lean interactive-browser slice is implemented on the existing WebView worker. Source-emitted URLs are replaced with one-use opaque browser-request references before reaching the frontend; one active browser context is owned per Reader runtime; worker-side idle/absolute expiry and shutdown cleanup remain independent of client behavior; source reset/removal/update, Reader runtime eviction/quiesce, and UI cancellation request cleanup. Cookies synchronize into the Source Profile only on explicit Finish login. Both `startBrowser` and `startBrowserAwait` now open the browser; true await continuation/body-return semantics remain intentionally unsupported. Action-only Explore URL templates (`{{java.startBrowser(...)}}`) route through the same typed action/browser seam instead of being treated as fetch categories.
 
 ## Verification
 
