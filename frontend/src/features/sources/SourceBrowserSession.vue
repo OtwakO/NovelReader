@@ -18,6 +18,7 @@ let closed = false;
 let touchY: number | undefined;
 let frameRequest = 0;
 let pendingScrollY = 0;
+let scrolling = false;
 
 void start();
 
@@ -40,7 +41,7 @@ function schedule() {
 }
 
 async function refresh() {
-  if (!frame.value || closed || busy.value) return schedule();
+  if (!frame.value || closed || busy.value || scrolling) return schedule();
   const request = ++frameRequest;
   try {
     const refreshed = await getSourceBrowserFrame(props.sourceId, frame.value.sessionId);
@@ -71,10 +72,10 @@ async function click(event: MouseEvent) {
 }
 
 async function scrollRemote(deltaY: number) {
-  if (!frame.value || !deltaY) return;
+  if (!frame.value || !deltaY || closed) return;
   pendingScrollY = Math.max(-1800, Math.min(1800, pendingScrollY + deltaY));
-  if (busy.value) return;
-  busy.value = true;
+  if (scrolling) return;
+  scrolling = true;
   window.clearTimeout(timer);
   try {
     while (pendingScrollY && frame.value && !closed) {
@@ -86,7 +87,7 @@ async function scrollRemote(deltaY: number) {
     }
     schedule();
   } catch (cause) { error.value = cause instanceof Error ? cause.message : t('sources.interaction.browser.scrollFailed'); }
-  finally { busy.value = false; }
+  finally { scrolling = false; }
 }
 
 function wheel(event: WheelEvent) {

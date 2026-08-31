@@ -107,7 +107,15 @@ class InteractiveSessions:
             elif event_type == "key":
                 await session.page.keyboard.press(str(event["key"]))
             elif event_type == "scroll":
-                await session.page.mouse.wheel(float(event.get("x") or 0), float(event.get("y") or 0))
+                delta_x = float(event.get("x") or 0)
+                delta_y = float(event.get("y") or 0)
+                before = await session.page.evaluate("() => ({ x: window.scrollX, y: window.scrollY })")
+                after = await session.page.evaluate(
+                    "([x, y]) => { window.scrollBy(x, y); return { x: window.scrollX, y: window.scrollY }; }",
+                    [delta_x, delta_y],
+                )
+                if after == before:
+                    await session.page.mouse.wheel(delta_x, delta_y)
             else:
                 raise ValueError("unsupported browser input type")
         return await self.frame(session_id)

@@ -119,6 +119,7 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
         self.page.viewport_size = {"width": 390, "height": 720}
         self.page.screenshot = AsyncMock(return_value=b"frame")
         self.page.title = AsyncMock(return_value="Account")
+        self.page.mouse.wheel = AsyncMock()
         self.acquire = AsyncMock(return_value=(self.browser, self.context, self.page))
         self.release = AsyncMock()
         self.sessions = InteractiveSessions(self.acquire, self.release, 60, 600, sweep_interval_seconds=0.01)
@@ -144,6 +145,20 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
             await sessions.close(created["sessionId"])
         finally:
             await sessions.close_all()
+
+    async def test_scroll_moves_document_before_falling_back_to_mouse_wheel(self) -> None:
+        created = await self.sessions.create({"url": "https://example.test"})
+        self.page.evaluate = AsyncMock(side_effect=[{"x": 0, "y": 0}, {"x": 0, "y": 900}])
+        await self.sessions.input(created["sessionId"], {"type": "scroll", "y": 900})
+        self.page.mouse.wheel.assert_not_awaited()
+        await self.sessions.close(created["sessionId"])
+
+    async def test_scroll_falls_back_for_nested_scrollers(self) -> None:
+        created = await self.sessions.create({"url": "https://example.test"})
+        self.page.evaluate = AsyncMock(side_effect=[{"x": 0, "y": 0}, {"x": 0, "y": 0}])
+        await self.sessions.input(created["sessionId"], {"type": "scroll", "y": 900})
+        self.page.mouse.wheel.assert_awaited_once_with(0, 900)
+        await self.sessions.close(created["sessionId"])
 
     async def test_close_is_idempotent_and_releases_once(self) -> None:
         created = await self.sessions.create({"url": "https://example.test"})
