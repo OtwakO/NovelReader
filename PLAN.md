@@ -164,10 +164,11 @@ Direct Add and Candidate Book Detail share the account-scoped asynchronous candi
 
 - every discovered binding is queued in stable primary-first order;
 - up to five source pipelines run concurrently and freed slots refill immediately;
-- a candidate must produce Book Info, a usable TOC, a readable chapter URL, and credible chapter content;
+- the current implementation requires Book Info, a usable TOC, a readable chapter URL, and credible chapter content before shelf admission;
 - progress and per-source stages are exposed through reconnectable SSE snapshots;
 - the first verified source wins; untouched and winner-cancelled attempts are marked skipped, not failed;
 - server-held verified Book Info and TOC commit idempotently without recrawling;
+- active work is replacing this chapter-count-dependent admission contract with metadata-first shelf admission and separately synchronized catalogs;
 - direct card Add commits automatically, while Candidate Book Detail requires explicit Add;
 - cancellation is acknowledged immediately while active source work drains privately before runtime release;
 - operations expire, evict, cancel, commit, and shut down without leaking reader-runtime leases.
@@ -274,7 +275,10 @@ A deterministic synthetic aggregate fixture proves Search → Book Info → TOC 
 
 The backup/restore and startup-performance work previously listed here is integrated on `main`.
 
-Active implementation plan: [`docs/plans/2026-08-30-source-interaction.md`](docs/plans/2026-08-30-source-interaction.md) — reader-owned Source Profiles, login/settings interaction, Explore state, deterministic cleanup, and controlled browser sessions.
+Active implementation plans:
+
+- [`docs/plans/2026-08-30-source-interaction.md`](docs/plans/2026-08-30-source-interaction.md) — reader-owned Source Profiles, login/settings interaction, Explore state, deterministic cleanup, and controlled browser sessions.
+- [`docs/plans/2026-08-31-catalog-synchronization.md`](docs/plans/2026-08-31-catalog-synchronization.md) — metadata-first shelf admission, separately synchronized complete catalogs, and latest-chapter/update-time presentation.
 
 ## Roadmap
 
