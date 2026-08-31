@@ -2,7 +2,7 @@
 import { onBeforeUnmount, ref } from 'vue';
 import { closeSourceBrowser, getSourceBrowserFrame, sendSourceBrowserInput, startSourceBrowser, type SourceBrowserFrame } from '../../api/sources';
 import AppButton from '../../ui/components/AppButton.vue';
-import { sourceBrowserLocation } from './source-browser-display';
+import { sourceBrowserLocation, sourceBrowserViewport } from './source-browser-display';
 
 const props = defineProps<{ sourceId: string; browserRequestId: string; title?: string }>();
 const emit = defineEmits<{ close: [saved: boolean] }>();
@@ -13,16 +13,15 @@ const typedText = ref('');
 const viewport = ref<HTMLElement>();
 let timer: number | undefined;
 let closed = false;
+let touchY: number | undefined;
 
 void start();
 
 async function start() {
   try {
     const bounds = viewport.value?.getBoundingClientRect();
-    const width = Math.round(bounds?.width || Math.min(window.innerWidth - 64, 1200));
-    const height = Math.round(bounds?.height || Math.min(window.innerHeight - 280, 900));
-    const deviceScaleFactor = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-    frame.value = await startSourceBrowser(props.sourceId, props.browserRequestId, width, height, deviceScaleFactor);
+    const browserViewport = sourceBrowserViewport(bounds?.width || window.innerWidth - 32, window.devicePixelRatio);
+    frame.value = await startSourceBrowser(props.sourceId, props.browserRequestId, browserViewport.width, browserViewport.height, browserViewport.deviceScaleFactor);
     schedule();
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Unable to start browser session';
@@ -56,6 +55,31 @@ async function click(event: MouseEvent) {
     schedule();
   } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Browser input failed'; }
   finally { busy.value = false; }
+}
+
+async function scrollRemote(deltaY: number) {
+  if (!frame.value || busy.value || !deltaY) return;
+  busy.value = true;
+  try {
+    frame.value = await sendSourceBrowserInput(props.sourceId, frame.value.sessionId, { type: 'scroll', y: deltaY });
+    schedule();
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Browser scroll failed'; }
+  finally { busy.value = false; }
+}
+
+function wheel(event: WheelEvent) {
+  event.preventDefault();
+  void scrollRemote(Math.max(-900, Math.min(900, event.deltaY)));
+}
+
+function touchStart(event: TouchEvent) {
+  touchY = event.touches[0]?.clientY;
+}
+
+function touchEnd(event: TouchEvent) {
+  const endY = event.changedTouches[0]?.clientY;
+  if (touchY !== undefined && endY !== undefined) void scrollRemote(Math.max(-900, Math.min(900, touchY - endY)));
+  touchY = undefined;
 }
 
 async function typeText() {
@@ -94,8 +118,8 @@ onBeforeUnmount(() => {
       <p class="privacy">This page is provided by the source website. The session expires automatically when inactive.</p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
     </div>
-    <div ref="viewport" class="viewport" :aria-busy="busy">
-      <img v-if="frame" :src="`data:${frame.mediaType};base64,${frame.image}`" alt="Interactive source login page" @click="click">
+    <div ref="viewport" class="viewport" :aria-busy="busy" @wheel.prevent="wheel">
+      <img v-if="frame" :src="`data:${frame.mediaType};base64,${frame.image}`" alt="Interactive source login page" draggable="false" @click="click" @touchstart.passive="touchStart" @touchend="touchEnd">
       <p v-else-if="busy">Opening secure browser session…</p>
     </div>
     <form class="typing" @submit.prevent="typeText"><input v-model="typedText" autocomplete="off" placeholder="Type into the selected field"><AppButton :disabled="!typedText" :busy="busy" type="submit">Type</AppButton></form>

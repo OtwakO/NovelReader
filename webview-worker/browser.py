@@ -52,6 +52,7 @@ class BrowserWorker:
             self._release_browser,
             interactive_idle_seconds,
             interactive_absolute_seconds,
+            max_frame_bytes=min(8 * 1024 * 1024, max(1024 * 1024, max_body_bytes * 3 // 5)),
         )
 
     async def start(self) -> None:

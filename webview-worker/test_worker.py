@@ -3,7 +3,7 @@
 import asyncio
 import os
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from interactive import InteractiveSessions
 
@@ -121,16 +121,29 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
         self.page.title = AsyncMock(return_value="Account")
         self.acquire = AsyncMock(return_value=(self.browser, self.context, self.page))
         self.release = AsyncMock()
-        self.sessions = InteractiveSessions(self.acquire, self.release, 60, 600, 0.01)
+        self.sessions = InteractiveSessions(self.acquire, self.release, 60, 600, sweep_interval_seconds=0.01)
         await self.sessions.start()
 
     async def asyncTearDown(self) -> None:
         await self.sessions.close_all()
 
-    async def test_frame_uses_high_quality_jpeg(self) -> None:
+    async def test_frame_uses_lossless_png(self) -> None:
         created = await self.sessions.create({"url": "https://example.test"})
-        self.page.screenshot.assert_awaited_with(type="jpeg", quality=90)
+        self.page.screenshot.assert_awaited_with(type="png")
+        self.assertEqual(created["mediaType"], "image/png")
         await self.sessions.close(created["sessionId"])
+
+    async def test_large_png_falls_back_to_high_quality_jpeg(self) -> None:
+        sessions = InteractiveSessions(self.acquire, self.release, 60, 600, max_frame_bytes=4)
+        self.page.screenshot = AsyncMock(side_effect=[b"oversized", b"jpeg"])
+        await sessions.start()
+        try:
+            created = await sessions.create({"url": "https://example.test"})
+            self.assertEqual(created["mediaType"], "image/jpeg")
+            self.page.screenshot.assert_has_awaits([call(type="png"), call(type="jpeg", quality=95)])
+            await sessions.close(created["sessionId"])
+        finally:
+            await sessions.close_all()
 
     async def test_close_is_idempotent_and_releases_once(self) -> None:
         created = await self.sessions.create({"url": "https://example.test"})

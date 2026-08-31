@@ -28,6 +28,7 @@ class InteractiveSessions:
         release: Callable[[object, bool], Awaitable[None]],
         idle_ttl_seconds: float,
         absolute_ttl_seconds: float,
+        max_frame_bytes: int = 6 * 1024 * 1024,
         sweep_interval_seconds: float = 5,
     ):
         self._acquire = acquire
@@ -35,6 +36,7 @@ class InteractiveSessions:
         self._idle_ttl = idle_ttl_seconds
         self._absolute_ttl = absolute_ttl_seconds
         self._sweep_interval = sweep_interval_seconds
+        self._max_frame_bytes = max_frame_bytes
         self._sessions: dict[str, InteractiveSession] = {}
         self._lock = asyncio.Lock()
         self._sweeper: asyncio.Task | None = None
@@ -74,12 +76,21 @@ class InteractiveSessions:
         session = await self._get(session_id)
         async with session.lock:
             self._touch(session)
-            image = await session.page.screenshot(type="jpeg", quality=90)
+            image = await session.page.screenshot(type="png")
+            media_type = "image/png"
+            if len(image) > self._max_frame_bytes:
+                media_type = "image/jpeg"
+                for quality in (95, 85, 70):
+                    image = await session.page.screenshot(type="jpeg", quality=quality)
+                    if len(image) <= self._max_frame_bytes:
+                        break
+                if len(image) > self._max_frame_bytes:
+                    raise ValueError("interactive browser frame is too large")
             viewport = session.page.viewport_size or {"width": 390, "height": 720}
             return {
                 "sessionId": session_id,
                 "image": base64.b64encode(image).decode("ascii"),
-                "mediaType": "image/jpeg",
+                "mediaType": media_type,
                 "width": viewport["width"],
                 "height": viewport["height"],
                 "url": session.page.url,
