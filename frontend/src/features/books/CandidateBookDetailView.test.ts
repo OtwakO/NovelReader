@@ -49,12 +49,11 @@ function verifiedOperation() {
   return {
     ...operation('verified'), completed: 1, active: 0,
     attempts: [
-      { sourceName: 'Primary', sourceId: 'primary', sourceUrl: 'primary', bookUrl: '/book', state: 'failed', stage: 'content' },
-      { sourceName: 'Fallback', sourceId: 'fallback', sourceUrl: 'fallback', bookUrl: '/fallback', state: 'verified', stage: 'content' },
+      { sourceName: 'Primary', sourceId: 'primary', sourceUrl: 'primary', bookUrl: '/book', state: 'failed', stage: 'book_info' },
+      { sourceName: 'Fallback', sourceId: 'fallback', sourceUrl: 'fallback', bookUrl: '/fallback', state: 'verified', stage: 'book_info' },
     ],
     preview: {
         book: { ...selected, lastChapter: '/raw/path.html', sourceId: 'fallback', sourceUrl: 'fallback', bookUrl: '/fallback', origin: 'Fallback' },
-      chapters: [{ index: 0, title: 'Chapter 1', url: '/chapter' }],
       selection: { requestedSourceUrl: 'primary', selectedSourceUrl: 'fallback', selectedSourceName: 'Fallback', usedFallback: true },
     },
   };
@@ -91,8 +90,7 @@ describe('CandidateBookDetailView', () => {
     expect(wrapper.text()).toContain('Synopsis');
     expect(wrapper.text()).not.toContain('bookDetail.introduction');
     expect(wrapper.find('.book-detail-section__body').exists()).toBe(true);
-    expect(wrapper.text()).toContain('Contents');
-    expect(wrapper.text()).toContain('Chapter 1');
+    expect(wrapper.text()).not.toContain('Contents');
     expect(wrapper.text()).toContain('Using Fallback');
     expect(wrapper.text()).not.toContain('/raw/path.html');
     expect(wrapper.text()).not.toContain('Current');

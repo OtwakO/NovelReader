@@ -21,12 +21,11 @@ import {
 import { loadCandidateSelection } from '../search/candidate-selection';
 import BookCover from './BookCover.vue';
 import BookDetailSection from './BookDetailSection.vue';
-import BookDetailToc from './BookDetailToc.vue';
 import { readableChapterLabel } from './book-display';
 
 export default defineComponent({
   name: 'CandidateBookDetailView',
-    components: { AppButton, BookCover, BookDetailSection, BookDetailToc, CandidateProgressDetails, FeatureScaffold, WebViewFailureHint },
+    components: { AppButton, BookCover, BookDetailSection, CandidateProgressDetails, FeatureScaffold, WebViewFailureHint },
   data() {
     return {
       candidate: null as SearchResult | null,
@@ -197,7 +196,6 @@ export default defineComponent({
           <p class="intro">{{ preview.book.intro || $t('candidateBookDetail.noIntro') }}</p>
         </template>
       </BookDetailSection>
-      <BookDetailToc book-id="" :chapters="preview.chapters" :current-index="-1" :interactive="false" />
       <p v-if="shelfError" class="error" role="alert">{{ shelfError }}</p>
       <div class="bottom-actions">
         <AppButton :busy="shelving || automaticCommitPending" @click="addToShelf">{{ shelving || automaticCommitPending ? $t('candidateBookDetail.shelving') : $t('candidateBookDetail.shelve') }}</AppButton>

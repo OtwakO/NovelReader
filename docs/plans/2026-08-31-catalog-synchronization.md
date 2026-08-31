@@ -138,7 +138,7 @@ Render the values on the shared Search/Explore result card, candidate preview, a
 - [x] Diagnose full TOC materialization as the chapter-count-dependent admission bottleneck.
 - [x] Confirm existing models and parsers already carry `lastChapter` and `updateTime` across Search, Explore, Book Info, candidate preview, and shelf persistence.
 - [x] Accept metadata-first shelf admission.
-- [ ] Change candidate resolution and commit interfaces to metadata-first behavior.
+- [x] Change candidate resolution and commit interfaces to metadata-first behavior.
 - [ ] Implement catalog synchronization and typed HTTP state.
 - [ ] Adapt Book Detail and candidate preview to the new catalog lifecycle.
 - [ ] Render latest chapter and source update time consistently.
@@ -146,24 +146,15 @@ Render the values on the shared Search/Explore result card, candidate preview, a
 
 ## Current State
 
-The current candidate module (`backend/internal/candidate/operation.go`) validates each binding through Book Info, complete TOC, and first credible chapter content. Its `BookStore` interface only exposes `AddOrMergeBookWithChapters`, so `commit` atomically stores the winner and its full catalog. The 15-second stage deadline now correctly cancels long TOC parsing, but a valid large catalog therefore ends as unavailable.
+Candidate admission is now metadata-first. Each binding runs only bounded Book Info; concurrent checks preserve stable source priority by holding successful lower-priority results in an observable `ready` state until every preferred binding has completed or failed. Only the selected binding becomes `verified`. Candidate preview is metadata-only, and commit uses `book.Store.AddOrMergeBook`, so full TOC size and chapter content no longer affect shelf admission.
 
-The existing stored-book chapter endpoint (`backend/internal/api/server.go:handleGetChapters`) already lazily fetches a missing TOC and saves it, but it performs the entire crawl synchronously inside the request and has no single-flight or observable syncing state.
+The existing stored-book chapter endpoint (`backend/internal/api/server.go:handleGetChapters`) still lazily fetches a missing TOC and saves it, but it performs the entire crawl synchronously inside the request and has no single-flight or observable syncing state. This is now the next architectural bottleneck.
 
 `SearchResult`, `PreviewBook`, and `Book` already contain `LastChapter`/`UpdateTime`. Search/Explore parsing reads `lastChapter` and `updateTime`; Book Info refreshes both. The shared result card and detail views show latest chapter but not update time.
 
-No implementation files have been changed for this plan. The working tree was clean when the design was recorded.
-
 ## Next Action
 
-Write focused candidate regressions for the new contract, then make the smallest first milestone:
-
-1. change `candidate.BookStore` to commit metadata through `AddOrMergeBook`;
-2. stop candidate validation after Book Info and remove chapters from candidate `resolved`/`Preview`;
-3. preserve stable source selection, alternate bindings, automatic/manual commit, cancellation, retention, and idempotent merge behavior;
-4. run candidate and API tests before beginning catalog synchronization.
-
-Keep this as one complete working commit. Implement the catalog synchronization module in the following milestone rather than mixing both state-machine changes at once.
+Design and implement the focused catalog synchronization module at the stored-book chapter seam. Start with backend tests for: cached chapters return immediately; concurrent missing-catalog requests share one crawl; successful synchronization atomically saves one catalog; failure is observable and retryable; and bounded cancellation releases the in-flight entry. Do not change frontend polling until the backend state/HTTP contract is proven.
 
 ## Verification
 
@@ -177,9 +168,18 @@ Verified during design:
 - existing `AddOrMergeBook` persists metadata without replacing an existing logical book's active source, chapters, progress, bookmarks, or cache;
 - existing chapter endpoint lazily fetches missing catalogs, providing a concrete seam to deepen rather than inventing a parallel workflow.
 
+Completed verification for metadata-first admission:
+
+- complete candidate package passes;
+- targeted candidate API tests pass;
+- candidate frontend tests and locale-key symmetry pass;
+- frontend typecheck and production build pass;
+- a non-terminating TOC rule does not participate in admission;
+- stable-priority regression proves lower-priority metadata may become `ready` but is not selected before a preferred source completes;
+- no candidate preview or commit carries a chapter catalog.
+
 Still needed:
 
-- candidate regression and affected package/API tests;
 - catalog synchronization concurrency, atomicity, failure, retry, and endpoint tests;
 - frontend candidate/detail/result-card tests, locale key symmetry, typecheck, and production build;
 - one real `光遇聚合` large-catalog verification showing immediate shelf admission followed by successful or truthfully failed catalog synchronization.

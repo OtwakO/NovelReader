@@ -12,6 +12,7 @@ export default defineComponent({
     attempts(): CandidateOperationAttempt[] { return this.snapshot.attempts ?? []; },
     verifiedAttempt(): CandidateOperationAttempt | undefined { return this.attempts.find((attempt) => attempt.state === 'verified'); },
     activeAttempts(): CandidateOperationAttempt[] { return this.attempts.filter((attempt) => attempt.state === 'running'); },
+    readyAttempts(): CandidateOperationAttempt[] { return this.attempts.filter((attempt) => attempt.state === 'ready'); },
     failedAttempts(): CandidateOperationAttempt[] { return this.attempts.filter((attempt) => attempt.state === 'failed'); },
     recentFailures(): CandidateOperationAttempt[] { return this.failedAttempts.slice(-this.failureLimit); },
     queuedCount(): number { return this.attempts.filter((attempt) => attempt.state === 'queued').length; },
@@ -24,6 +25,7 @@ export default defineComponent({
     attemptStatus(attempt: CandidateOperationAttempt): string {
       if (attempt.state === 'failed') return this.$t('candidate.state.failed');
       if (attempt.state === 'verified') return this.$t('candidate.state.verified');
+      if (attempt.state === 'ready') return this.$t('candidate.state.ready');
       if (attempt.state === 'skipped') return this.$t('candidate.state.skipped');
       if (attempt.stage) return this.$t(`candidate.stage.${attempt.stage}`);
       return this.$t('candidate.state.running');
@@ -43,11 +45,16 @@ export default defineComponent({
       </template>
     </p>
 
-    <ul v-if="verifiedAttempt || activeAttempts.length || recentFailures.length" class="attempt-list">
+    <ul v-if="verifiedAttempt || readyAttempts.length || activeAttempts.length || recentFailures.length" class="attempt-list">
       <li v-if="verifiedAttempt" class="verified">
         <span class="state-mark" aria-hidden="true" />
         <strong>{{ attemptName(verifiedAttempt) }}</strong>
         <span>{{ attemptStatus(verifiedAttempt) }}</span>
+      </li>
+      <li v-for="attempt in readyAttempts" :key="`${attempt.sourceUrl}-ready`" class="ready">
+        <span class="state-mark" aria-hidden="true" />
+        <strong>{{ attemptName(attempt) }}</strong>
+        <span>{{ attemptStatus(attempt) }}</span>
       </li>
       <li v-for="attempt in activeAttempts" :key="`${attempt.sourceUrl}-active`" class="active">
         <span class="state-mark" aria-hidden="true" />
@@ -77,8 +84,8 @@ export default defineComponent({
 .attempt-list strong { min-width: 0; overflow: hidden; color: var(--color-ink); text-overflow: ellipsis; white-space: nowrap; }
 .state-mark { width: .55rem; height: .55rem; border: 2px solid currentColor; border-radius: 50%; }
 .active { color: var(--color-accent); }.active .state-mark { border-top-color: transparent; animation: spin .8s linear infinite; }
-.failed { color: var(--color-danger); }.failed .state-mark,.verified .state-mark { background: currentColor; }
-.verified { color: var(--color-success); }
+.failed { color: var(--color-danger); }.failed .state-mark,.verified .state-mark,.ready .state-mark { background: currentColor; }
+.verified { color: var(--color-success); }.ready { color: var(--color-accent-strong); }
 .summaries { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: var(--color-ink-muted); font-size: .78rem; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .active .state-mark { animation: none; } }

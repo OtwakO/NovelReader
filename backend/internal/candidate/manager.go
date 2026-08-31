@@ -1,4 +1,4 @@
-// Package candidate resolves transient book candidates into verified readable books.
+// Package candidate resolves transient search results into shelf-ready book metadata.
 package candidate
 
 import (
@@ -28,7 +28,7 @@ type SourceStore interface {
 	ListEnabled() ([]booksource.BookSource, error)
 }
 type BookStore interface {
-	AddOrMergeBookWithChapters(*book.Book, []book.Chapter) (*book.Book, bool, error)
+	AddOrMergeBook(*book.Book) (*book.Book, bool, error)
 }
 
 type Runtime struct {
@@ -70,11 +70,7 @@ const (
 
 type Stage string
 
-const (
-	StageBookInfo Stage = "book_info"
-	StageTOC      Stage = "toc"
-	StageContent  Stage = "content"
-)
+const StageBookInfo Stage = "book_info"
 
 type Attempt struct {
 	SourceName string `json:"sourceName,omitempty"`
@@ -97,7 +93,6 @@ type Selection struct {
 
 type Preview struct {
 	Book      book.PreviewBook `json:"book"`
-	Chapters  []book.Chapter   `json:"chapters"`
 	Selection Selection        `json:"selection"`
 }
 
@@ -167,7 +162,6 @@ type binding struct {
 }
 type resolved struct {
 	book      *book.Book
-	chapters  []book.Chapter
 	selection Selection
 }
 type attemptResult struct {

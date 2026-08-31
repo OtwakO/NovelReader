@@ -34,14 +34,13 @@ func (s sourceMap) ListEnabled() ([]booksource.BookSource, error) {
 }
 
 type memoryBooks struct {
-	mu       sync.Mutex
-	stored   *book.Book
-	chapters []book.Chapter
-	calls    int
-	err      error
+	mu     sync.Mutex
+	stored *book.Book
+	calls  int
+	err    error
 }
 
-func (s *memoryBooks) AddOrMergeBookWithChapters(value *book.Book, chapters []book.Chapter) (*book.Book, bool, error) {
+func (s *memoryBooks) AddOrMergeBook(value *book.Book) (*book.Book, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.calls++
@@ -53,19 +52,18 @@ func (s *memoryBooks) AddOrMergeBookWithChapters(value *book.Book, chapters []bo
 	}
 	copyBook := *value
 	s.stored = &copyBook
-	s.chapters = append([]book.Chapter(nil), chapters...)
 	return s.stored, true, nil
 }
 
-func TestOperationReachesSeventhBindingAndCommitsWithoutRecrawl(t *testing.T) {
+func TestOperationPrefersPrimaryMetadataAndCommitsWithoutRecrawl(t *testing.T) {
 	inputs := make([]bindingFixture, 0, 9)
 	sources := sourceMap{}
 	for index := 0; index < 9; index++ {
-		content := "compatibility notice"
-		if index == 6 {
-			content = credibleText("seventh")
+		delay := time.Duration(0)
+		if index == 0 {
+			delay = 80 * time.Millisecond
 		}
-		fixture := newBindingFixture(t, content, 0)
+		fixture := newBindingFixture(t, credibleText(fmt.Sprintf("source-%d", index)), delay)
 		inputs = append(inputs, fixture)
 		sources[fixture.server.URL] = fixture.source
 	}
@@ -81,20 +79,36 @@ func TestOperationReachesSeventhBindingAndCommitsWithoutRecrawl(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	deadline := time.Now().Add(time.Second)
+	sawWaitingMetadata := false
+	for time.Now().Before(deadline) {
+		current, _ := manager.Get("reader", snapshot.ID)
+		if current.Attempts[0].State == "running" && current.Attempts[1].State == "ready" {
+			if current.State != StateRunning || current.Preview != nil {
+				t.Fatalf("lower-priority metadata selected early: %+v", current)
+			}
+			sawWaitingMetadata = true
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !sawWaitingMetadata {
+		t.Fatal("lower-priority metadata did not finish before the preferred source")
+	}
 	final := waitForState(t, manager, "reader", snapshot.ID, StateCommitted)
-	if final.StoredBook == nil || final.StoredBook.SourceURL != inputs[6].server.URL {
+	if final.StoredBook == nil || final.StoredBook.SourceURL != inputs[0].server.URL {
 		t.Fatalf("final=%+v", final)
 	}
 	if final.Known != 9 {
 		t.Fatalf("known=%d", final.Known)
 	}
-	if final.Attempts[5].State == "queued" || final.Attempts[6].State != "verified" {
-		t.Fatalf("worker slots were not refilled in order: attempts=%+v", final.Attempts)
+	if final.Attempts[0].State != "verified" || final.Attempts[1].State != "skipped" {
+		t.Fatalf("primary metadata was not selected in stable order: attempts=%+v", final.Attempts)
 	}
 	if books.calls != 1 {
 		t.Fatalf("commit calls=%d", books.calls)
 	}
-	deadline := time.Now().Add(time.Second)
+	deadline = time.Now().Add(time.Second)
 	for released.Load() != 1 && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
@@ -264,10 +278,10 @@ func TestStartMarksAutomaticShelfIntentInEverySnapshot(t *testing.T) {
 	}
 }
 
-func TestStageTimeoutStopsLargeTOCParsing(t *testing.T) {
-	fixture := newBindingFixture(t, credibleText("timeout"), 0)
+func TestAdmissionDoesNotEvaluateLargeTOC(t *testing.T) {
+	fixture := newBindingFixture(t, credibleText("unused"), 0)
 	fixture.source.RuleToc = `{"chapterList":"<js>while(true){result.push({text:'Chapter',href:'/chapter'})}</js>","chapterName":"text","chapterUrl":"href"}`
-	manager := NewManager(Policy{Concurrency: 1, StageTimeout: 20 * time.Millisecond, OperationTimeout: time.Second, Retention: time.Minute})
+	manager := NewManager(Policy{Concurrency: 1, StageTimeout: 100 * time.Millisecond, OperationTimeout: time.Second, Retention: time.Minute})
 	defer manager.Close()
 	input := Input{Name: "Book", Author: "Author", SourceID: fixture.source.ID, SourceURL: fixture.source.BookSourceURL, BookURL: fixture.server.URL + "/book"}
 	started := time.Now()
@@ -277,8 +291,8 @@ func TestStageTimeoutStopsLargeTOCParsing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot = waitForState(t, manager, "reader", snapshot.ID, StateExhausted)
-	if time.Since(started) > 500*time.Millisecond || snapshot.Attempts[0].Stage != StageTOC {
+	snapshot = waitForState(t, manager, "reader", snapshot.ID, StateVerified)
+	if time.Since(started) > 500*time.Millisecond || snapshot.Attempts[0].Stage != StageBookInfo {
 		t.Fatalf("elapsed=%s snapshot=%+v", time.Since(started), snapshot)
 	}
 }
@@ -325,16 +339,16 @@ func TestFailedAttemptImmediatelyRefillsFifthWorkerSlot(t *testing.T) {
 		content := credibleText(fmt.Sprintf("slow-%d", index))
 		if index == 0 {
 			delay = 0
-			content = "compatibility notice"
 		}
 		fixture := newBindingFixture(t, content, delay)
 		inputs = append(inputs, fixture)
 		sources[fixture.server.URL] = fixture.source
 	}
+	delete(sources, inputs[0].server.URL)
 	searcher := book.NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), analyzer.NewCacheManager(), sources, nil)
-	input := Input{Name: "Fixture Novel", SourceURL: inputs[0].server.URL, BookURL: inputs[0].server.URL + "/book"}
+	input := Input{Name: "Fixture Novel", SourceID: inputs[0].server.URL, SourceURL: inputs[0].server.URL, BookURL: inputs[0].server.URL + "/book"}
 	for _, fixture := range inputs[1:] {
-		input.AlternateSources = append(input.AlternateSources, book.AltSource{SourceURL: fixture.server.URL, BookURL: fixture.server.URL + "/book"})
+		input.AlternateSources = append(input.AlternateSources, book.AltSource{SourceID: fixture.server.URL, SourceURL: fixture.server.URL, BookURL: fixture.server.URL + "/book"})
 	}
 	manager := NewManager(Policy{Concurrency: 5, StageTimeout: 2 * time.Second, OperationTimeout: 3 * time.Second, Retention: time.Minute})
 	started, err := manager.Start("reader", input, Runtime{Sources: sources, Books: &memoryBooks{}, Searcher: searcher})

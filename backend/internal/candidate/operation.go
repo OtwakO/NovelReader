@@ -5,8 +5,6 @@ import (
 	"errors"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
@@ -18,6 +16,8 @@ func (op *operation) run() {
 	results := make(chan attemptResult, op.policy.Concurrency)
 	next, active := 0, 0
 	var winner *resolved
+	completed := make([]bool, len(queue))
+	successes := make([]*resolved, len(queue))
 	var stoppingState State
 	var stoppingMessage string
 	ctxDone := op.ctx.Done()
@@ -48,6 +48,8 @@ func (op *operation) run() {
 			ctxDone = nil
 		case result := <-results:
 			active--
+			completed[result.index] = true
+			successes[result.index] = result.resolved
 			drainingAfterWinner := winner != nil
 			op.update(func(s *Snapshot) {
 				if s.Active > 0 {
@@ -63,23 +65,37 @@ func (op *operation) run() {
 					s.Attempts[result.index].Stage = result.stage
 					s.Attempts[result.index].Reason = result.reason
 				} else {
-					s.Attempts[result.index].State = "verified"
-					s.Attempts[result.index].Stage = StageContent
+					s.Attempts[result.index].State = "ready"
+					s.Attempts[result.index].Stage = StageBookInfo
 				}
 			})
-			if result.resolved != nil && winner == nil && stoppingState == "" {
-				winner = result.resolved
+			selected := -1
+			for index := range completed {
+				if !completed[index] {
+					break
+				}
+				if successes[index] != nil {
+					selected = index
+					break
+				}
+			}
+			if selected >= 0 && winner == nil && stoppingState == "" {
+				winner = successes[selected]
 				preview := previewFromResolved(winner)
 				op.update(func(s *Snapshot) {
 					op.resolved = winner
 					for i := range s.Attempts {
-						if s.Attempts[i].State == "queued" {
+						if i == selected {
+							s.Attempts[i].State = "verified"
+							continue
+						}
+						if s.Attempts[i].State == "queued" || s.Attempts[i].State == "ready" {
 							s.Attempts[i].State = "skipped"
 						}
 					}
 					s.State = StateVerified
 					s.Preview = &preview
-					s.Message = "readable source verified"
+					s.Message = "book metadata verified"
 				})
 				if op.commitID != "" {
 					if _, err := op.commit(op.commitID); err != nil {
@@ -117,7 +133,7 @@ func (op *operation) run() {
 		}
 	}
 	if op.current().State == StateRunning {
-		op.finish(StateExhausted, "no known source produced readable chapter content")
+		op.finish(StateExhausted, "no known source produced usable book metadata")
 	}
 	op.release()
 }
@@ -136,37 +152,12 @@ func (op *operation) validate(index int, b binding) attemptResult {
 		result.reason = err.Error()
 		return result
 	}
-	result.stage = StageTOC
-	chapters, err := op.toc(candidate, *src, index)
-	if err != nil {
-		result.reason = err.Error()
-		return result
-	}
-	readable, ok := firstReadable(chapters)
-	if !ok {
-		result.reason = "source has no readable chapters"
-		return result
-	}
-	result.stage = StageContent
-	var next *book.Chapter
-	if readable+1 < len(chapters) {
-		next = &chapters[readable+1]
-	}
-	content, err := op.content(candidate, *src, &chapters[readable], next, index)
-	if err != nil {
-		result.reason = err.Error()
-		return result
-	}
-	if reason := credible(content); reason != "" {
-		result.reason = reason
-		return result
-	}
 	candidate.Name = op.input.Name
 	if strings.TrimSpace(op.input.Author) != "" {
 		candidate.Author = op.input.Author
 	}
 	candidate.AlternateSources = alternates(bindings(op.input), b)
-	result.resolved = &resolved{candidate, chapters, Selection{op.input.SourceID, b.sourceID, op.input.SourceURL, b.sourceURL, candidate.Origin, b.sourceURL != op.input.SourceURL || b.bookURL != op.input.BookURL}}
+	result.resolved = &resolved{candidate, Selection{op.input.SourceID, b.sourceID, op.input.SourceURL, b.sourceURL, candidate.Origin, b.sourceURL != op.input.SourceURL || b.bookURL != op.input.BookURL}}
 	return result
 }
 
@@ -175,19 +166,6 @@ func (op *operation) bookInfo(candidate *book.Book, src booksource.BookSource, i
 	ctx, cancel := context.WithTimeout(op.ctx, op.policy.StageTimeout)
 	defer cancel()
 	return op.runtime.Searcher.GetBookInfoForBookContext(ctx, src, candidate, candidate.BookURL)
-}
-func (op *operation) toc(candidate *book.Book, src booksource.BookSource, index int) ([]book.Chapter, error) {
-	op.stage(index, StageTOC)
-	ctx, cancel := context.WithTimeout(op.ctx, op.policy.StageTimeout)
-	defer cancel()
-	return op.runtime.Searcher.GetChapterListForBookContext(ctx, src, candidate, candidate.TocURL)
-}
-func (op *operation) content(candidate *book.Book, src booksource.BookSource, current, next *book.Chapter, index int) (string, error) {
-	op.stage(index, StageContent)
-	ctx, cancel := context.WithTimeout(op.ctx, op.policy.StageTimeout)
-	defer cancel()
-	value, _, err := op.runtime.Searcher.GetChapterContentForBookContext(ctx, src, candidate, current, next)
-	return value, err
 }
 func (op *operation) stage(index int, stage Stage) {
 	op.update(func(s *Snapshot) { s.Attempts[index].Stage = stage })
@@ -212,7 +190,7 @@ func (op *operation) commit(bookID string) (Snapshot, error) {
 	}
 	candidate := *resolved.book
 	candidate.ID = bookID
-	stored, created, err := op.runtime.Books.AddOrMergeBookWithChapters(&candidate, resolved.chapters)
+	stored, created, err := op.runtime.Books.AddOrMergeBook(&candidate)
 	if err != nil {
 		return op.current(), err
 	}
@@ -307,7 +285,6 @@ func cloneSnapshot(value Snapshot) Snapshot {
 	value.Attempts = append([]Attempt(nil), value.Attempts...)
 	if value.Preview != nil {
 		p := *value.Preview
-		p.Chapters = append([]book.Chapter(nil), value.Preview.Chapters...)
 		p.Book.AlternateSources = append([]book.AltSource(nil), value.Preview.Book.AlternateSources...)
 		value.Preview = &p
 	}
@@ -319,12 +296,7 @@ func cloneSnapshot(value Snapshot) Snapshot {
 	return value
 }
 func previewFromResolved(value *resolved) Preview {
-	chapters := append([]book.Chapter(nil), value.chapters...)
-	for i := range chapters {
-		chapters[i].ID = ""
-		chapters[i].BookID = ""
-	}
-	return Preview{previewBook(value.book), chapters, value.selection}
+	return Preview{previewBook(value.book), value.selection}
 }
 func previewBook(value *book.Book) book.PreviewBook {
 	return book.PreviewBook{Name: value.Name, Author: value.Author, CoverURL: value.CoverURL, Intro: value.Intro, Kind: value.Kind, SourceID: value.SourceID, LastChapter: value.LastChapter, UpdateTime: value.UpdateTime, WordCount: value.WordCount, Origin: value.Origin, SourceURL: value.SourceURL, BookURL: value.BookURL, TocURL: value.TocURL, AlternateSources: value.AlternateSources}
@@ -366,34 +338,4 @@ func alternates(all []binding, winner binding) []book.AltSource {
 		result = append(result, book.AltSource{SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL, SourceName: b.sourceName, SourceGroup: b.sourceGroup, Capabilities: b.capabilities})
 	}
 	return result
-}
-func firstReadable(chapters []book.Chapter) (int, bool) {
-	for i, c := range chapters {
-		if strings.TrimSpace(c.URL) != "" && !c.IsVolume {
-			return i, true
-		}
-	}
-	return 0, false
-}
-func credible(content string) string {
-	text := strings.TrimSpace(content)
-	if text == "" {
-		return "content extraction was empty"
-	}
-	meaningful := 0
-	for _, r := range text {
-		if !unicode.IsSpace(r) && !unicode.IsPunct(r) {
-			meaningful++
-		}
-	}
-	if meaningful < 40 || utf8.RuneCountInString(text) < 60 {
-		return "content extraction was too short to verify"
-	}
-	lower := strings.ToLower(text)
-	for _, marker := range []string{"access denied", "verify you are human", "enable javascript", "captcha", "cloudflare ray id", "登录后阅读", "登入後閱讀", "请先登录", "請先登入", "验证码", "驗證碼", "浏览器的[设置]", "瀏覽器的[設定]"} {
-		if strings.Contains(lower, strings.ToLower(marker)) {
-			return "content resembles an access, login, or compatibility notice"
-		}
-	}
-	return ""
 }

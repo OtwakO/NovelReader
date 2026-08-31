@@ -1,4 +1,4 @@
-import type { AltSource, Book, Chapter } from '../../api/models';
+import type { AltSource, Book } from '../../api/models';
 import { request } from '../../api/transport';
 
 export interface BookCandidate {
@@ -16,7 +16,7 @@ export interface CandidateSelection {
 }
 
 export type CandidateOperationState = 'running' | 'verified' | 'committed' | 'exhausted' | 'cancelled' | 'failed';
-export type CandidateOperationStage = 'book_info' | 'toc' | 'content';
+export type CandidateOperationStage = 'book_info';
 
 export interface CandidateOperationAttempt {
   sourceName?: string;
@@ -24,13 +24,12 @@ export interface CandidateOperationAttempt {
   sourceUrl: string;
   bookUrl?: string;
   stage?: CandidateOperationStage;
-  state: 'queued' | 'running' | 'failed' | 'verified' | 'skipped';
+  state: 'queued' | 'running' | 'ready' | 'failed' | 'verified' | 'skipped';
   reason?: string;
 }
 
 export interface CandidateOperationPreview {
   book: Omit<Book, 'id' | 'durChapterIndex' | 'durChapterPos' | 'totalChapterNum' | 'stateVersion'>;
-  chapters: Chapter[];
   selection: CandidateSelection;
 }
 
