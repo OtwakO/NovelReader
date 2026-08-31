@@ -146,11 +146,13 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
         finally:
             await sessions.close_all()
 
-    async def test_scroll_moves_document_before_falling_back_to_mouse_wheel(self) -> None:
+    async def test_scroll_moves_document_instantly_before_falling_back_to_mouse_wheel(self) -> None:
         created = await self.sessions.create({"url": "https://example.test"})
         self.page.evaluate = AsyncMock(side_effect=[{"x": 0, "y": 0}, {"x": 0, "y": 900}])
         await self.sessions.input(created["sessionId"], {"type": "scroll", "y": 900})
         self.page.mouse.wheel.assert_not_awaited()
+        scroll_call = self.page.evaluate.await_args_list[1]
+        self.assertIn("behavior: 'instant'", scroll_call.args[0])
         await self.sessions.close(created["sessionId"])
 
     async def test_scroll_falls_back_for_nested_scrollers(self) -> None:

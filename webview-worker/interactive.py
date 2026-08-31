@@ -111,7 +111,7 @@ class InteractiveSessions:
                 delta_y = float(event.get("y") or 0)
                 before = await session.page.evaluate("() => ({ x: window.scrollX, y: window.scrollY })")
                 after = await session.page.evaluate(
-                    "([x, y]) => { window.scrollBy(x, y); return { x: window.scrollX, y: window.scrollY }; }",
+                    "([x, y]) => { window.scrollBy({ left: x, top: y, behavior: 'instant' }); return { x: window.scrollX, y: window.scrollY }; }",
                     [delta_x, delta_y],
                 )
                 if after == before:
