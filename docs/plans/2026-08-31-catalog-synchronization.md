@@ -154,7 +154,7 @@ Each reader runtime now owns a concrete `book.Catalogs` coordinator. Cached chap
 
 ## Next Action
 
-Run one real `光遇聚合` large-catalog verification from the UI: shelf admission must complete after Book Info without waiting for the TOC, Book Detail must remain usable while catalog synchronization reports `202`, and the catalog must eventually publish atomically or show a truthful retryable failure. Record source/title/timing evidence and any compatibility failure before deciding whether this workstream is complete.
+Complete the remaining metadata presentation work: render source update time consistently beside latest chapter on Search/Explore cards, candidate preview, and stored Book Detail. Keep catalog freshness independent from these non-authoritative source strings.
 
 ## Verification
 
@@ -200,6 +200,16 @@ Completed verification for frontend catalog lifecycle:
 - all 46 frontend test files pass;
 - locale key symmetry, Vue/TypeScript typecheck, and the production Vite build pass.
 
+Real-source verification (`光遇聚合`, `凡人修仙传`):
+
+- the metadata-only shelf record persisted its source ID, `bookUrl`, and `tocUrl` correctly with zero chapter rows;
+- running the exact stored book/source/profile against an isolated Reader Data snapshot reproduced the terminal catalog failure in 5.56 seconds;
+- all configured aggregate service routes (`v1` through `v7` plus the fallback host) failed, after which the source's own `processCatalogList` script dereferenced an undefined response;
+- nearby books using the same source had atomically published catalogs of 95–314 chapters, ruling out a globally broken aggregate-source integration;
+- NovelReader now renders the actual failure on Book Detail and Reader, with explicit catalog retry and source-recovery actions instead of an empty TOC/blank reading canvas;
+- the external aggregate routes were still unavailable during verification, so no chapters were fabricated or reported as recovered.
+
 Still needed:
 
-- one real `光遇聚合` large-catalog verification showing immediate shelf admission followed by successful or truthfully failed catalog synchronization.
+- latest chapter/update-time presentation completion;
+- optional parser/persistence profiling only if a successfully returned large catalog demonstrates a real hotspot.

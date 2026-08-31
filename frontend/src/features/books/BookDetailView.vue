@@ -15,7 +15,6 @@ import SourceRecoveryPanel from "../source-recovery/SourceRecoveryPanel.vue";
 import BookCover from "./BookCover.vue";
 import BookDetailSection from "./BookDetailSection.vue";
 import BookDetailToc from "./BookDetailToc.vue";
-import WebViewFailureHint from "../../ui/components/WebViewFailureHint.vue";
 import { clearCandidateCommittedBook } from "../candidates/candidate-operation";
 import { readableChapterLabel } from "./book-display";
 
@@ -28,7 +27,6 @@ export default defineComponent({
     BookDetailToc,
     FeatureScaffold,
     SourceRecoveryPanel,
-    WebViewFailureHint,
   },
   data() {
     return {
@@ -285,7 +283,7 @@ export default defineComponent({
         {{ $t("bookDetail.tocSyncing") }}
       </p>
       <div v-else-if="tocError" class="catalog-failure">
-        <WebViewFailureHint />
+        <p role="alert">{{ tocError }}</p>
         <AppButton variant="secondary" :busy="catalogRetrying" @click="loadCatalog(true)">
           {{ $t("bookDetail.retryToc") }}
         </AppButton>
