@@ -314,7 +314,7 @@ Map = function(a) {
 	if len(extra) > 0 {
 		if metadata, ok := extra[0]["source"].(map[string]interface{}); ok {
 			for key, value := range metadata {
-				sourceObj[key] = value
+				sourceObj[key] = copyJSBinding(value)
 			}
 		}
 	}
@@ -376,6 +376,25 @@ Map = function(a) {
 		}
 	}
 	return val.Export(), nil
+}
+
+func copyJSBinding(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		copy := make(map[string]interface{}, len(typed))
+		for key, nested := range typed {
+			copy[key] = copyJSBinding(nested)
+		}
+		return copy
+	case []interface{}:
+		copy := make([]interface{}, len(typed))
+		for index, nested := range typed {
+			copy[index] = copyJSBinding(nested)
+		}
+		return copy
+	default:
+		return value
+	}
 }
 
 // EvalList evaluates JS and returns a string array.

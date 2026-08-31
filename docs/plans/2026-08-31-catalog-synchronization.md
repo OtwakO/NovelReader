@@ -200,6 +200,16 @@ Completed verification for frontend catalog lifecycle:
 - all 46 frontend test files pass;
 - locale key symmetry, Vue/TypeScript typecheck, and the production Vite build pass.
 
+Root-cause benchmark (`光遇聚合`, `凡人修仙传`):
+
+- the source `jsLib` is 154,820 bytes and the direct QQ阅读 catalog endpoint returned 2,558 rows (235,321 bytes) in 0.81 seconds;
+- the first exact local conversion benchmark took 102.42 seconds, but CPU profiling corrected the initial JavaScript-lifecycle hypothesis: JavaScript execution contributed about 0.75 cumulative seconds while `setAnalyzerContextMaps -> sourceContext` contributed about 93 seconds;
+- `sourceContext` serialized and deserialized the complete `BookSource`, including the 155 KB `jsLib`, several times per chapter while refreshing mutable chapter bindings;
+- `ChapterListParser` now prepares the immutable source metadata map once and reuses it while mutable book/chapter maps continue to update normally;
+- the exact 2,558-row conversion benchmark now completes in 6.40 seconds and returns all chapters, about 16 times faster than the original path;
+- the existing two-minute deadline, cancellation checks, bounded catalog concurrency, and atomic publication semantics remain unchanged;
+- the API error `after 1 pages (0 chapters)` refers to the one virtual `data:` TOC page and fail-closed atomic publication, not necessarily to a completed network page with discarded chapters.
+
 Real-source verification (`光遇聚合`, `凡人修仙传`):
 
 - the metadata-only shelf record persisted its source ID, `bookUrl`, and `tocUrl` correctly with zero chapter rows;

@@ -45,14 +45,15 @@ func (e *TOCPaginationError) Unwrap() error {
 // ChapterListParser handles the full legado-compatible TOC parsing pipeline.
 // Mirrors legado's BookChapterList.analyzeChapterList.
 type ChapterListParser struct {
-	src      booksource.BookSource
-	jsVM     *analyzer.JSVM
-	cache    *analyzer.CacheManager
-	state    analyzer.SourceState
-	book     *Book
-	bookData map[string]interface{}
-	ctx      context.Context
-	fetch    func(urlStr string) (string, string, error) // returns (body, resolvedURL, error)
+	src        booksource.BookSource
+	jsVM       *analyzer.JSVM
+	cache      *analyzer.CacheManager
+	state      analyzer.SourceState
+	book       *Book
+	bookData   map[string]interface{}
+	ctx        context.Context
+	fetch      func(urlStr string) (string, string, error) // returns (body, resolvedURL, error)
+	sourceData map[string]interface{}
 }
 
 // ParseChapterList fetches and parses the complete chapter list, handling pagination.
@@ -60,6 +61,9 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 	rules := parseRuleJSON(p.src.RuleToc)
 	if p.bookData == nil {
 		p.bookData = bookContext(p.book, p.src)
+	}
+	if p.sourceData == nil {
+		p.sourceData = sourceContext(p.src)
 	}
 	if rules == nil {
 		return nil, fmt.Errorf("toc: no rules for %s", p.src.BookSourceName)
@@ -114,7 +118,7 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 			// normal terminal condition; rule evaluation failures are not.
 			an := analyzer.New(body, resolvedURL, p.jsVM, p.cache)
 			an.SetContext(p.ctx)
-			setAnalyzerContextMaps(an, p.src, p.state, p.bookData, nil, nil)
+			setAnalyzerContextData(an, p.src, p.state, p.sourceData, p.bookData, nil, nil)
 			nextURLs, err := an.GetStringList(nextRule)
 			if err != nil && !errors.Is(err, analyzer.ErrNoListValues) {
 				return nil, newTOCPaginationError("nextTocUrl", resolvedURL, resolvedURL, pageCount, allChapters, err)
@@ -330,9 +334,12 @@ func syncChapterFromContext(chapter *Chapter, values map[string]interface{}) {
 }
 
 func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[string]string) ([]Chapter, string, error) {
+	if p.sourceData == nil {
+		p.sourceData = sourceContext(p.src)
+	}
 	an := analyzer.New(body, pageURL, p.jsVM, p.cache)
 	an.SetContext(p.ctx)
-	setAnalyzerContextMaps(an, p.src, p.state, p.bookData, nil, nil)
+	setAnalyzerContextData(an, p.src, p.state, p.sourceData, p.bookData, nil, nil)
 	elements, err := an.GetElements(listRule)
 	if err != nil {
 		return nil, "", fmt.Errorf("toc: get elements: %w", err)
@@ -358,7 +365,7 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 		elAn.SetContent(el)
 		elAn.SetContext(p.ctx)
 		chapterData := chapterContext(p.book, current, pageURL)
-		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
+		setAnalyzerContextData(elAn, p.src, p.state, p.sourceData, p.bookData, chapterData, nil)
 
 		title, titleIsField := jsElementField(el, nameRule)
 		if !titleIsField {
@@ -371,7 +378,7 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 		// extracted immediately before them.
 		current.Title = title
 		chapterData["title"] = title
-		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
+		setAnalyzerContextData(elAn, p.src, p.state, p.sourceData, p.bookData, chapterData, nil)
 
 		chURL, urlIsField := jsElementField(el, urlRule)
 		if !urlIsField {
@@ -381,7 +388,7 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 		chURL = resolveURL(chURL, pageURL)
 		current.URL = chURL
 		chapterData["url"] = chURL
-		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
+		setAnalyzerContextData(elAn, p.src, p.state, p.sourceData, p.bookData, chapterData, nil)
 
 		// Match Legado's mutable chapter lifecycle: update info, volume, URL
 		// fallback, then VIP/pay flags.
@@ -407,7 +414,7 @@ func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[
 		chapterData["isVolume"] = current.IsVolume
 		chapterData["isVip"] = current.IsVip
 		chapterData["isPay"] = current.IsPay
-		setAnalyzerContextMaps(elAn, p.src, p.state, p.bookData, chapterData, nil)
+		setAnalyzerContextData(elAn, p.src, p.state, p.sourceData, p.bookData, chapterData, nil)
 		chapters = append(chapters, *current)
 	}
 
@@ -494,6 +501,6 @@ func elementRuleString(value interface{}, rule, pageURL string, parser *ChapterL
 	}
 	an := analyzer.New(analyzer.ToString(value), pageURL, parser.jsVM, parser.cache)
 	an.SetContext(parser.ctx)
-	setAnalyzerContextMaps(an, parser.src, parser.state, bookData, chapterData, nil)
+	setAnalyzerContextData(an, parser.src, parser.state, parser.sourceData, bookData, chapterData, nil)
 	return mustString(an, rule)
 }

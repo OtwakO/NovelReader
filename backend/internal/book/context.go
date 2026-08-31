@@ -31,9 +31,13 @@ func setAnalyzerContextWithBookData(an *analyzer.Analyzer, src booksource.BookSo
 }
 
 func setAnalyzerContextMaps(an *analyzer.Analyzer, src booksource.BookSource, state analyzer.SourceState, bookData, chapterData, nextData map[string]interface{}) {
+	setAnalyzerContextData(an, src, state, sourceContext(src), bookData, chapterData, nextData)
+}
+
+func setAnalyzerContextData(an *analyzer.Analyzer, src booksource.BookSource, state analyzer.SourceState, sourceData, bookData, chapterData, nextData map[string]interface{}) {
 	an.SetJSLib(src.JSLib)
 	an.SetSourceState(state)
-	an.SetSourceData(sourceContext(src))
+	an.SetSourceData(sourceData)
 	an.SetBookDataValues(bookData)
 	if chapterData != nil {
 		an.SetChapterDataValues(chapterData)
