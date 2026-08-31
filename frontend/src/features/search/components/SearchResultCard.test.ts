@@ -20,6 +20,14 @@ describe('SearchResultCard',()=>{
     expect(wrapper.find('.shelf-action').exists()).toBe(true);
   });
 
+  it('opens the existing shelf book for a matching logical result', async () => {
+    const wrapper=mount(SearchResultCard,{global:{plugins:[i18n],stubs:{CandidateShelfAction:true}},props:{result:{...result,shelfBookId:'shelf-book'}}});
+    await wrapper.get('.main').trigger('click');
+    await wrapper.get('.preview-action').trigger('click');
+    expect(wrapper.emitted('open-shelf')).toHaveLength(2);
+    expect(wrapper.emitted('open')).toBeUndefined();
+  });
+
   it('forwards Search batch recovery state to the candidate action', async () => {
     const wrapper=mount(SearchResultCard,{
       global:{plugins:[i18n],stubs:{CandidateShelfAction:{props:['canContinueSearch','continueSearchCount','searchScanning','searchRetryRequired','searchRestartRequired'],emits:['continue-search','retry-search','restart-search'],template:'<button class="continue" @click="$emit(\'continue-search\')">{{ continueSearchCount }}</button>'}}},

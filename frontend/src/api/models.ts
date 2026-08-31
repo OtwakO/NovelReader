@@ -24,6 +24,7 @@ export interface SearchResult {
   sourceGroup?: string;
   capabilities?: string[];
   score?: number;
+  shelfBookId?: string;
   alternateSources?: AltSource[];
 }
 

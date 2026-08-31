@@ -297,6 +297,7 @@ export default defineComponent({
       <SourceRecoveryPanel
         :book="{ name: book.name, author: book.author }"
         :current-source-id="book.sourceId"
+        :current-book-url="book.bookUrl"
         :stored-sources="book.alternateSources || []"
         :switching="switching"
         :action-error="sourceError"

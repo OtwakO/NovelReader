@@ -43,7 +43,7 @@ export default defineComponent({
       error: '',
       announcement: '',
       notice: '',
-      completed: false,
+      completed: Boolean(this.result.shelfBookId),
       continuingSearch: false,
       observedSearchStart: false,
     };
@@ -102,7 +102,7 @@ export default defineComponent({
     },
   },
   async mounted() {
-    if (candidateWasCommitted(this.result)) { this.completed = true; return; }
+    if (this.result.shelfBookId || candidateWasCommitted(this.result)) { this.completed = true; return; }
     const id = recalledCandidateOperation(this.result);
     if (!id) return;
     try {

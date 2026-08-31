@@ -58,6 +58,15 @@ beforeEach(() => {
 });
 
 describe('CandidateShelfAction', () => {
+  it('shows authoritative shelf membership without starting candidate resolution', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(CandidateShelfAction, { global: { plugins: [i18n] }, props: { result: { ...result, shelfBookId: 'shelf-book' } } });
+    expect(wrapper.text()).toContain('Added');
+    expect(wrapper.find('.app-button').exists()).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('shows a collapsible source checklist while streamed progress continues', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(snapshot()), {
       status: 202, headers: { 'Content-Type': 'application/json' },

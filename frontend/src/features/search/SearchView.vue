@@ -22,6 +22,9 @@ export default defineComponent({
   methods: {
     key(result: SearchResult) { return `${result.sourceId}\u0000${result.bookUrl}`; },
     submit() { this.search.search(); },
+    openShelf(result: SearchResult) {
+      if (result.shelfBookId) void this.$router.push(`/books/${encodeURIComponent(result.shelfBookId)}`);
+    },
     open(result: SearchResult) {
       const selectionKey = createCandidateSelectionKey();
       saveCandidateSelection(selectionKey, result);
@@ -56,6 +59,7 @@ export default defineComponent({
               :search-retry-required="search.retryRequired"
               :search-restart-required="search.restartRequired"
               @open="open(result)"
+              @open-shelf="openShelf(result)"
               @continue-search="search.more()"
               @retry-search="search.retry()"
               @restart-search="search.restart()"

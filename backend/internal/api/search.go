@@ -83,6 +83,7 @@ func (s *Server) handleSearchBatchStream(w http.ResponseWriter, r *http.Request)
 	batchChecked := 0
 	batchResults := 0
 	sourceFailures := 0
+	shelf := s.loadShelfMembership()
 	err = s.searcher.SearchBatch(r.Context(), query, plan, func(source booksource.BookSource, results []book.SearchResult, sourceErr error) {
 		batchChecked++
 		event := map[string]interface{}{
@@ -94,6 +95,7 @@ func (s *Server) handleSearchBatchStream(w http.ResponseWriter, r *http.Request)
 			event["type"] = "source_error"
 			event["message"] = sourceErr.Error()
 		} else {
+			shelf.annotate(results)
 			for index := range results {
 				s.addCoverDisplayURL(&results[index])
 			}

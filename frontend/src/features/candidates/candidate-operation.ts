@@ -1,5 +1,6 @@
 import type { AltSource, Book } from '../../api/models';
 import { request } from '../../api/transport';
+import { normalizedBookIdentity } from '../books/book-identity';
 
 export interface BookCandidate {
   name: string; author?: string; coverUrl?: string; coverDisplayUrl?: string; intro?: string; kind?: string; lastChapter?: string;
@@ -51,6 +52,7 @@ export interface CandidateOperationSnapshot {
 
 const storageKey = 'novelreader.candidate-operations.v1';
 const committedPrefix = 'committed:';
+const committedLogicalPrefix = 'committed-logical:';
 
 function payload(candidate: BookCandidate, shelveBookId?: string) {
   return {
@@ -137,12 +139,15 @@ export function rememberCandidateOperation(candidate: BookCandidate, id: string)
 
 export function rememberCandidateCommitted(candidate: BookCandidate, bookId: string) {
   const values = loadOperationRegistry();
-  values[candidateOperationKey(candidate)] = `${committedPrefix}${bookId}`;
+  const marker = `${committedPrefix}${bookId}`;
+  values[candidateOperationKey(candidate)] = marker;
+  values[logicalCommitKey(candidate)] = marker;
   saveOperationRegistry(values);
 }
 
 export function candidateWasCommitted(candidate: BookCandidate): boolean {
-  return (loadOperationRegistry()[candidateOperationKey(candidate)] || '').startsWith(committedPrefix);
+  const values = loadOperationRegistry();
+  return [values[candidateOperationKey(candidate)], values[logicalCommitKey(candidate)]].some(value => (value || '').startsWith(committedPrefix));
 }
 
 export function recalledCandidateOperation(candidate: BookCandidate): string {
@@ -163,6 +168,11 @@ export function forgetCandidateOperation(candidate: BookCandidate) {
   const values = loadOperationRegistry();
   delete values[candidateOperationKey(candidate)];
   saveOperationRegistry(values);
+}
+
+function logicalCommitKey(candidate: BookCandidate) {
+  const identity = normalizedBookIdentity(candidate.name, candidate.author || '');
+  return `${committedLogicalPrefix}${identity.name}\u0000${identity.author}`;
 }
 
 function candidateBindings(candidate: BookCandidate): string[] {

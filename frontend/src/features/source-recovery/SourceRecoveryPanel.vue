@@ -6,7 +6,7 @@ import AppButton from '../../ui/components/AppButton.vue';
 import SearchControls from '../search/components/SearchControls.vue';
 import SearchStatus from '../search/components/SearchStatus.vue';
 import { loadSearchPreferences, requestedConcurrency, saveSearchPreferences, type SearchIntensity } from '../search/search-preferences';
-import { matchesLogicalBook } from './book-identity';
+import { matchesLogicalBook } from '../books/book-identity';
 import { createSourceDiscovery, type SourceDiscoveryState } from './source-discovery';
 
 const emptyState: SourceDiscoveryState = { searching: false, checked: 0, eligible: 0, resultCount: 0, effectiveConcurrency: 0, sourceFailures: 0, errorCode: '', errorDetail: '', restartRequired: false, retryRequired: false, hasMore: false };
@@ -17,6 +17,7 @@ export default defineComponent({
   props: {
     book: { type: Object as PropType<{ name: string; author: string }>, required: true },
     currentSourceId: { type: String, required: true },
+    currentBookUrl: { type: String, required: true },
     storedSources: { type: Array as PropType<AltSource[]>, default: () => [] },
     switching: Boolean,
     actionError: { type: String, default: '' },
@@ -31,7 +32,7 @@ export default defineComponent({
   computed: {
     sources(): AltSource[] {
       const values = [...this.storedSources, ...this.matches];
-      return values.filter((source, index) => source.sourceId !== this.currentSourceId && values.findIndex((item) => item.sourceId === source.sourceId && item.bookUrl === source.bookUrl) === index);
+      return values.filter((source, index) => !this.isCurrentBinding(source) && values.findIndex((item) => item.sourceId === source.sourceId && item.bookUrl === source.bookUrl) === index);
     },
     knownSourceCount(): number { return this.sources.length + (this.currentSourceId.trim() ? 1 : 0); },
     visibleSources(): AltSource[] {
@@ -64,13 +65,14 @@ export default defineComponent({
   beforeUnmount() { this.controller?.destroy(); },
   methods: {
     key(source: AltSource) { return `${source.sourceId}\n${source.bookUrl}`; },
+    isCurrentBinding(source: Pick<AltSource, 'sourceId' | 'bookUrl'>) { return source.sourceId === this.currentSourceId && source.bookUrl === this.currentBookUrl; },
     seedStoredSources() { for (const source of this.storedSources) this.seen.add(this.key(source)); },
     acceptResults(items: SearchResult[]) {
       const found: AltSource[] = [];
       for (const item of items) {
         if (!matchesLogicalBook(this.book, item)) continue;
         for (const source of [{ sourceId: item.sourceId, sourceUrl: item.sourceUrl, bookUrl: item.bookUrl, sourceName: item.sourceName, sourceGroup: item.sourceGroup, capabilities: item.capabilities }, ...(item.alternateSources ?? [])]) {
-          if (source.sourceId === this.currentSourceId || this.seen.has(this.key(source))) continue;
+          if (this.isCurrentBinding(source) || this.seen.has(this.key(source))) continue;
           this.seen.add(this.key(source)); this.matches.push(source); found.push(source);
         }
       }

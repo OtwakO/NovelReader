@@ -105,6 +105,7 @@ func (s *Server) handleExplorePage(w http.ResponseWriter, r *http.Request) {
 		writeExploreError(w, err)
 		return
 	}
+	s.loadShelfMembership().annotate(page.Books)
 	s.addExploreCoverDisplayURLs(&page)
 	writeJSON(w, http.StatusOK, page)
 }

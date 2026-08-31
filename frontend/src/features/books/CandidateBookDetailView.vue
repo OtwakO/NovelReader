@@ -59,6 +59,10 @@ export default defineComponent({
       const key = typeof this.$route.query.candidate === 'string' ? this.$route.query.candidate : '';
       this.candidate = loadCandidateSelection(key);
       if (!this.candidate) { this.loading = false; this.error = this.$t('candidateBookDetail.missing'); return; }
+      if (this.candidate.shelfBookId) {
+        void this.$router.replace(`/books/${encodeURIComponent(this.candidate.shelfBookId)}`);
+        return;
+      }
       this.loading = true;
       this.error = '';
       const remembered = recalledCandidateOperation(this.candidate);

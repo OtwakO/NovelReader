@@ -67,6 +67,7 @@ export function mergeSearchResults(current: SearchResult[], incoming: SearchResu
     const promote = (item.score ?? 0) > matchScore || ((item.score ?? 0) === matchScore && item.coverUrl.length > match.coverUrl.length);
     if (promote) {
       const index = merged.indexOf(match);
+      item.shelfBookId ||= match.shelfBookId;
       item.alternateSources = alternatives([
         ...(match.alternateSources ?? []),
         { sourceId: match.sourceId, sourceUrl: match.sourceUrl, bookUrl: match.bookUrl, sourceName: match.sourceName, sourceGroup: match.sourceGroup, capabilities: match.capabilities },
@@ -74,6 +75,7 @@ export function mergeSearchResults(current: SearchResult[], incoming: SearchResu
       ], item);
       merged[index] = item;
     } else {
+      match.shelfBookId ||= item.shelfBookId;
       match.alternateSources = alternatives([
         ...(match.alternateSources ?? []),
         { sourceId: item.sourceId, sourceUrl: item.sourceUrl, bookUrl: item.bookUrl, sourceName: item.sourceName, sourceGroup: item.sourceGroup, capabilities: item.capabilities },

@@ -117,7 +117,15 @@ type SearchResult struct {
 	SourceGroup      string      `json:"sourceGroup,omitempty"`
 	Capabilities     []string    `json:"capabilities,omitempty"`
 	Score            int         `json:"score"`
+	ShelfBookID      string      `json:"shelfBookId,omitempty"`
 	AlternateSources []AltSource `json:"alternateSources,omitempty"`
+}
+
+// ShelfBookIdentity identifies one logical book already stored on the shelf.
+type ShelfBookIdentity struct {
+	ID     string
+	Name   string
+	Author string
 }
 
 // Store handles book persistence.
@@ -231,6 +239,25 @@ var chapterColumns = `id, book_id, idx, title, url, is_vip, is_volume, is_pay, b
 // NormalizeBookIdentity returns the logical shelf identity for a book.
 func NormalizeBookIdentity(name, author string) (string, string) {
 	return normalizeIdentityPart(name, false), normalizeIdentityPart(author, true)
+}
+
+// ListShelfBookIdentities returns the compact logical identity index used to
+// annotate discovery results without exposing full shelf records.
+func (s *Store) ListShelfBookIdentities() ([]ShelfBookIdentity, error) {
+	rows, err := s.db.Query(`SELECT id, identity_name, identity_author FROM books`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	identities := make([]ShelfBookIdentity, 0)
+	for rows.Next() {
+		var identity ShelfBookIdentity
+		if err := rows.Scan(&identity.ID, &identity.Name, &identity.Author); err != nil {
+			return nil, err
+		}
+		identities = append(identities, identity)
+	}
+	return identities, rows.Err()
 }
 
 func normalizeIdentityPart(value string, author bool) string {

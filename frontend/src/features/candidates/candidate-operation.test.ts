@@ -38,6 +38,11 @@ describe('candidate operation client', () => {
     expect(candidateOperationMatches(result, stale as never)).toBe(false);
   });
 
+  it('recognizes committed logical books across different source bindings', () => {
+    rememberCandidateCommitted(result, 'stored-book');
+    expect(candidateWasCommitted({ ...result, sourceId: 'second-source', sourceUrl: 'second-source', bookUrl: '/second' })).toBe(true);
+  });
+
   it('invalidates committed candidate markers when their stored book is deleted', () => {
     rememberCandidateCommitted(result, 'stored-book');
     expect(candidateWasCommitted(result)).toBe(true);

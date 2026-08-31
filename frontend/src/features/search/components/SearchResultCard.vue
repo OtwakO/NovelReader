@@ -16,18 +16,18 @@ export default defineComponent({
     searchRetryRequired: { type: Boolean, default: false },
     searchRestartRequired: { type: Boolean, default: false },
   },
-  emits: ['open', 'continue-search', 'retry-search', 'restart-search'],
+  emits: ['open', 'open-shelf', 'continue-search', 'retry-search', 'restart-search'],
   computed: { sourceCount(): number { return 1 + (this.result.alternateSources?.length ?? 0); } },
 });
 </script>
 
 <template>
   <article class="result-card">
-    <button type="button" class="main" :aria-label="$t('search.results.detailsFor', { name: result.name })" @click="$emit('open')">
+    <button type="button" class="main" :aria-label="$t('search.results.detailsFor', { name: result.name })" @click="$emit(result.shelfBookId ? 'open-shelf' : 'open')">
       <BookCover class="cover" :name="result.name" :url="result.coverDisplayUrl || ''" alt="" />
       <span class="info"><strong>{{ result.name }}</strong><span>{{ result.author || $t('app.common.unknownAuthor') }}</span><span v-if="result.lastChapter" class="chapter">{{ result.lastChapter }}</span><span class="source">{{ result.sourceName }} · {{ $t('search.results.sources', { count: sourceCount }) }}</span></span>
     </button>
-    <AppButton class="preview-action" variant="secondary" @click="$emit('open')">{{ $t('search.results.preview') }}</AppButton>
+    <AppButton class="preview-action" variant="secondary" @click="$emit(result.shelfBookId ? 'open-shelf' : 'open')">{{ $t('search.results.preview') }}</AppButton>
     <CandidateShelfAction
       :result="result"
       :can-continue-search="canContinueSearch"
