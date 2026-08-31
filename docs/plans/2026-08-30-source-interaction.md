@@ -71,7 +71,13 @@ Explore loads the same Source Profile and authentication state as Search/Book In
 
 ### Browser sessions
 
-Interactive browser actions are a separate module from request-oriented WebView transport. Sessions are authenticated, reader- and Source-ID-scoped, bounded, short-lived, process-local, closed on source reset/removal/runtime eviction/shutdown, and synchronize only resulting durable cookie/login state.
+Interactive browser actions extend the existing private Patchright WebView sidecar rather than introducing a second browser deployment. The existing one-shot `/execute` transport remains unchanged; a small interactive protocol keeps an isolated context alive only for screenshot, input, finish, or cancellation operations.
+
+A reader-runtime-owned browser-session module mediates every interactive session. The worker knows only opaque worker session IDs and browser state; the Go boundary owns Reader/Source authorization, durable authentication synchronization, source-session invalidation, and public session IDs.
+
+Lifecycle is a correctness invariant: every created browser context immediately receives one registry owner and one capacity slot; close removes ownership before awaiting browser cleanup; close is idempotent; inactivity and absolute deadlines are enforced by a worker-side sweeper independent of client behavior; worker shutdown closes the sweeper, all contexts, then Chromium; Reader runtime eviction, source reset/removal, and server shutdown also request closure. Sessions are process-local and never restored after a restart.
+
+The first transport deliberately uses bounded screenshot polling plus click, text, key, and scroll input. It does not add WebRTC/VNC, persistent workflows, multiple tabs, file transfer, or `startBrowserAwait` continuations.
 
 ### Credential security
 
@@ -119,7 +125,11 @@ The initial implementation does not add application-level encryption or a key-ma
 - [x] Implement revision-checked source action execution and typed effects.
 - [x] Implement the responsive source management interaction UI.
 - [x] Hydrate Explore and normal execution from durable source state.
-- [ ] Implement authenticated remote browser sessions and cookie synchronization.
+- [x] Implement authenticated remote browser sessions and cookie synchronization.
+  - [x] Extend the existing worker with bounded expiring interactive contexts and idempotent cleanup.
+  - [x] Add the Go reader/source ownership module and authenticated routes.
+  - [x] Add the screenshot/input/finish UI and synchronize cookies into Source Profile authentication.
+  - [x] Verify expiry, cancellation, runtime/source cleanup, capacity release, and worker shutdown.
 
 ## Current State
 
@@ -145,7 +155,7 @@ A live candidate-resolution diagnostic on the current branch verified one real a
 
 ## Next Action
 
-The normalized non-browser source-management workflow is complete. The next milestone is the separately scoped authenticated remote browser-session design and implementation.
+The lean `startBrowser` interactive-browser slice is implemented on the existing WebView worker. Source-emitted URLs are replaced with one-use opaque browser-request references before reaching the frontend; one active browser context is owned per Reader runtime; worker-side idle/absolute expiry and shutdown cleanup remain independent of client behavior; source reset/removal/update, Reader runtime eviction/quiesce, and UI cancellation request cleanup. Cookies synchronize into the Source Profile only on explicit Finish login. `startBrowserAwait` continuation semantics remain intentionally unsupported.
 
 ## Verification
 
@@ -158,8 +168,10 @@ Verified:
 
 Still needed:
 
-- remote browser-session contract tests and authenticated end-to-end verification;
-- remote browser authorization, expiry, cleanup, and cookie synchronization tests;
+- worker: 14 lifecycle/protocol tests pass, covering inactivity expiry, idempotent close, shutdown cleanup, launch-failure and partial-context capacity release, and existing one-shot behavior;
+- backend: `go test ./internal/webview ./internal/sourceinteraction ./internal/api ./cmd/server` passes, including opaque request, ownership, cookie sync, and source/runtime cleanup seams;
+- frontend: SourceInteractionSheet tests pass (5/5), `vue-tsc --noEmit` passes, and the production Vite build succeeds; browser unmount cancellation is pinned;
+- `aft_inspect` reports no diagnostics in the affected scope; Go LSP was unavailable, so the targeted Go test run is the authoritative compile gate;
 - exact evidence for the user-observed bookshelf failure if it persists on current code.
 
 ## Open Questions

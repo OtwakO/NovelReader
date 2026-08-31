@@ -1,0 +1,56 @@
+package sourceinteraction
+
+import (
+	"context"
+	"sync"
+	"testing"
+
+	"github.com/otwako/novelreader/internal/sourceexec"
+	"github.com/otwako/novelreader/internal/webview"
+)
+
+type browserFixture struct {
+	mu     sync.Mutex
+	closed int
+}
+
+func (b *browserFixture) StartInteractive(context.Context, string, string, *sourceexec.SourceSession) (webview.InteractiveFrame, error) {
+	return webview.InteractiveFrame{SessionID: "worker-session"}, nil
+}
+func (b *browserFixture) InteractiveFrame(context.Context, string) (webview.InteractiveFrame, error) {
+	return webview.InteractiveFrame{SessionID: "worker-session"}, nil
+}
+func (b *browserFixture) SendInteractiveInput(context.Context, string, webview.InteractiveInput) (webview.InteractiveFrame, error) {
+	return webview.InteractiveFrame{SessionID: "worker-session"}, nil
+}
+func (b *browserFixture) CloseInteractive(context.Context, string, string, bool, *sourceexec.SourceSession) error {
+	b.mu.Lock()
+	b.closed++
+	b.mu.Unlock()
+	return nil
+}
+
+func TestBrowserSessionsConsumeOpaqueRequestAndCloseOnSourceInvalidation(t *testing.T) {
+	browser := &browserFixture{}
+	sessions := NewBrowserSessions(browser)
+	requestID := sessions.Register(BrowserRequest{URL: "https://example.test/login", Title: "Login"})
+	frame, err := sessions.Start(t.Context(), "source-a", requestID, sourceexec.NewSourceSession())
+	if err != nil || frame.SessionID == "" {
+		t.Fatalf("frame=%+v error=%v", frame, err)
+	}
+	if _, err := sessions.Start(t.Context(), "source-a", requestID, sourceexec.NewSourceSession()); err == nil {
+		t.Fatal("browser request reference was reusable")
+	}
+	sessions.CloseSource(t.Context(), "source-a")
+	if browser.closed != 1 {
+		t.Fatalf("closed=%d", browser.closed)
+	}
+}
+
+func TestRegisterBrowserRequestsDoesNotExposeSourceURL(t *testing.T) {
+	sessions := NewBrowserSessions(&browserFixture{})
+	effects := RegisterBrowserRequests([]Effect{{Type: "browser_required", URL: "https://example.test/login", Title: "Login"}}, sessions)
+	if effects[0].URL != "" || effects[0].BrowserRequestID == "" {
+		t.Fatalf("effect=%+v", effects[0])
+	}
+}

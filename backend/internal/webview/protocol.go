@@ -27,6 +27,42 @@ type protocolCookie struct {
 	Secure   bool    `json:"secure,omitempty"`
 }
 
+type interactiveRequest struct {
+	URL       string            `json:"url"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	Cookies   []protocolCookie  `json:"cookies,omitempty"`
+	Viewport  map[string]int    `json:"viewport,omitempty"`
+	TimeoutMS int               `json:"timeoutMs,omitempty"`
+	Save      bool              `json:"save,omitempty"`
+}
+
+type InteractiveInput struct {
+	Type string  `json:"type"`
+	X    float64 `json:"x,omitempty"`
+	Y    float64 `json:"y,omitempty"`
+	Text string  `json:"text,omitempty"`
+	Key  string  `json:"key,omitempty"`
+}
+
+type InteractiveFrame struct {
+	SessionID string `json:"sessionId"`
+	Image     string `json:"image,omitempty"`
+	MediaType string `json:"mediaType,omitempty"`
+	Width     int    `json:"width,omitempty"`
+	Height    int    `json:"height,omitempty"`
+	URL       string `json:"url,omitempty"`
+	Title     string `json:"title,omitempty"`
+}
+
+type interactiveResult struct {
+	InteractiveFrame
+	Version  int              `json:"version"`
+	Closed   bool             `json:"closed,omitempty"`
+	Cookies  []protocolCookie `json:"cookies,omitempty"`
+	FinalURL string           `json:"finalUrl,omitempty"`
+	Error    string           `json:"error,omitempty"`
+}
+
 type protocolResponse struct {
 	Version       int                 `json:"version"`
 	StatusCode    int                 `json:"statusCode"`

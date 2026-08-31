@@ -23,11 +23,12 @@ type MutableProfileStore interface {
 }
 
 type Effect struct {
-	Type    string `json:"type"`
-	Message string `json:"message,omitempty"`
-	URL     string `json:"url,omitempty"`
-	Title   string `json:"title,omitempty"`
-	Await   bool   `json:"await,omitempty"`
+	Type             string `json:"type"`
+	Message          string `json:"message,omitempty"`
+	URL              string `json:"url,omitempty"`
+	Title            string `json:"title,omitempty"`
+	Await            bool   `json:"await,omitempty"`
+	BrowserRequestID string `json:"browserRequestId,omitempty"`
 }
 
 type ActionRequest struct {
@@ -150,6 +151,21 @@ func (d *Describer) Act(ctx context.Context, sourceID string, request ActionRequ
 		return ActionResult{}, err
 	}
 	return ActionResult{View: view, Effects: effects}, nil
+}
+
+// RegisterBrowserRequests replaces source URLs with one-use opaque Reader-runtime references.
+func RegisterBrowserRequests(effects []Effect, sessions *BrowserSessions) []Effect {
+	if sessions == nil {
+		return effects
+	}
+	for index := range effects {
+		if effects[index].Type != "browser_required" || effects[index].URL == "" || effects[index].Await {
+			continue
+		}
+		effects[index].BrowserRequestID = sessions.Register(BrowserRequest{URL: effects[index].URL, Title: effects[index].Title})
+		effects[index].URL = ""
+	}
+	return effects
 }
 
 func actionRow(values []interface{}, controls []Control, actionID string) (map[string]interface{}, error) {

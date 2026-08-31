@@ -96,7 +96,8 @@ export default {
     resetFailed: "无法重置书源状态。",
     unsupported: "暂不支持的控件：{type}",
     effects: {
-      browserRequired: "此操作需要交互式浏览器会话，该功能尚未开放。",
+      browserRequired: "请在安全书源浏览器中继续完成此操作。",
+      loginSaved: "书源登录状态已保存，活动会话已刷新。",
       exploreRefreshed: "请刷新“发现”以使用更新后的书源状态。",
       search: "正在打开搜索：“{query}”。",
     },

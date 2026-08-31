@@ -29,6 +29,7 @@ type readerRuntime struct {
 	fontStore          *fontstore.Store
 	sourceProfiles     *sourceprofile.Store
 	sourceInteractions *sourceinteraction.Describer
+	browserSessions    *sourceinteraction.BrowserSessions
 	lastUsed           time.Time
 	references         int
 }
@@ -37,6 +38,7 @@ type readerRuntimeManager struct {
 	readers  *readerstore.Manager
 	searcher *book.Searcher
 	jsVM     *analyzer.JSVM
+	browser  sourceinteraction.Browser
 	limits   book.SearcherLimits
 	capacity int
 	idleTTL  time.Duration
@@ -47,7 +49,7 @@ type readerRuntimeManager struct {
 	deleting map[readerstore.UserID]bool
 }
 
-func newReaderRuntimeManager(readers *readerstore.Manager, searcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, capacity int, idleTTL time.Duration) *readerRuntimeManager {
+func newReaderRuntimeManager(readers *readerstore.Manager, searcher *book.Searcher, jsVM *analyzer.JSVM, browser sourceinteraction.Browser, limits book.SearcherLimits, capacity int, idleTTL time.Duration) *readerRuntimeManager {
 	if capacity < 1 {
 		capacity = 32
 	}
@@ -56,7 +58,7 @@ func newReaderRuntimeManager(readers *readerstore.Manager, searcher *book.Search
 	}
 	limits.MaxSessions = max(1, limits.MaxSessions/capacity)
 	return &readerRuntimeManager{
-		readers: readers, searcher: searcher, jsVM: jsVM, limits: limits,
+		readers: readers, searcher: searcher, jsVM: jsVM, browser: browser, limits: limits,
 		capacity: capacity, idleTTL: idleTTL, now: time.Now, changed: make(chan struct{}),
 		runtimes: make(map[readerstore.UserID]*readerRuntime), deleting: make(map[readerstore.UserID]bool),
 	}
@@ -99,6 +101,7 @@ func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.U
 	runtime := &readerRuntime{
 		home: home, sourceStore: sourceStore, bookStore: bookStore, fontStore: fontStore, sourceProfiles: sourceProfiles,
 		sourceInteractions: sourceinteraction.NewDescriber(sourceStore, sourceProfiles, m.jsVM.ForkState()),
+		browserSessions:    sourceinteraction.NewBrowserSessions(m.browser),
 		searcher:           readerSearcher,
 		lastUsed:           now, references: 1,
 	}
@@ -151,7 +154,7 @@ func (m *readerRuntimeManager) evictOldestIdleLocked() bool {
 		return false
 	}
 	delete(m.runtimes, oldestID)
-	_ = oldest.home.Close()
+	oldest.close()
 	return true
 }
 
@@ -159,7 +162,7 @@ func (m *readerRuntimeManager) evictIdleLocked(now time.Time) {
 	for userID, runtime := range m.runtimes {
 		if runtime.references == 0 && now.Sub(runtime.lastUsed) >= m.idleTTL {
 			delete(m.runtimes, userID)
-			_ = runtime.home.Close()
+			runtime.close()
 		}
 	}
 }
@@ -188,7 +191,7 @@ func (m *readerRuntimeManager) quiesce(ctx context.Context, userID readerstore.U
 		}
 		m.mu.Unlock()
 		if runtime != nil {
-			return runtime.home.Close()
+			return runtime.close()
 		}
 		return nil
 	}
@@ -214,7 +217,17 @@ func (m *readerRuntimeManager) Close() error {
 	m.mu.Unlock()
 	var closeErr error
 	for _, runtime := range runtimes {
-		closeErr = errors.Join(closeErr, runtime.home.Close())
+		closeErr = errors.Join(closeErr, runtime.close())
 	}
 	return closeErr
+}
+
+func (r *readerRuntime) close() error {
+	if r == nil {
+		return nil
+	}
+	if r.browserSessions != nil {
+		r.browserSessions.CloseSource(context.Background(), "")
+	}
+	return r.home.Close()
 }

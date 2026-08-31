@@ -41,6 +41,7 @@ type Server struct {
 	fontStore           *fontstore.Store
 	sourceProfiles      *sourceprofile.Store
 	sourceInteractions  *sourceinteraction.Describer
+	browserSessions     *sourceinteraction.BrowserSessions
 	fetcher             *fetcher.Client
 	jsVM                *analyzer.JSVM
 	cache               *analyzer.CacheManager
@@ -159,6 +160,10 @@ func (s *Server) registerRoutesWithoutHealth() {
 	s.mux.HandleFunc("PUT /api/sources", s.handleUpdateSource)
 	s.mux.HandleFunc("GET /api/sources/{id}/interaction", s.handleSourceInteraction)
 	s.mux.HandleFunc("POST /api/sources/{id}/interaction/actions", s.handleSourceInteractionAction)
+	s.mux.HandleFunc("POST /api/sources/{id}/interaction/browser", s.handleStartSourceBrowser)
+	s.mux.HandleFunc("GET /api/sources/{id}/interaction/browser/{sessionID}", s.handleSourceBrowserFrame)
+	s.mux.HandleFunc("POST /api/sources/{id}/interaction/browser/{sessionID}/input", s.handleSourceBrowserInput)
+	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction/browser/{sessionID}", s.handleCloseSourceBrowser)
 	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction/login", s.handleSourceInteractionResetLogin)
 	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction/settings", s.handleSourceInteractionResetSettings)
 	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction", s.handleSourceInteractionResetAll)
@@ -211,7 +216,7 @@ func (s *Server) registerRoutesWithoutHealth() {
 }
 
 // NewAuthenticatedServer creates the production Reader Data boundary.
-func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, dataRoot string, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) (*Server, error) {
+func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, dataRoot string, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, browser sourceinteraction.Browser, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) (*Server, error) {
 	s := &Server{
 		fetcher: rootSearcherFetcher(rootSearcher), jsVM: jsVM, cache: analyzer.NewCacheManager(),
 		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health, webViewProbe: webViewProbe, chineseConversion: conversion,
@@ -219,7 +224,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		coverReferenceKey:   mustNewCoverReferenceKey(),
 		collectionLoader:    booksource.NewRemoteLoader(),
 	}
-	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, limits, 32, limits.SessionTTL)
+	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, 32, limits.SessionTTL)
 	backups, err := backupservice.NewService(readers, dataRoot, s.runtimes.quiesce, s.runtimes.resume)
 	if err != nil {
 		_ = s.runtimes.Close()
@@ -266,6 +271,7 @@ func (s *Server) registerAuthenticatedRoutes() {
 		requestServer.fontStore = runtime.fontStore
 		requestServer.sourceProfiles = runtime.sourceProfiles
 		requestServer.sourceInteractions = runtime.sourceInteractions
+		requestServer.browserSessions = runtime.browserSessions
 		requestServer.registerRoutesWithoutHealth()
 		requestServer.mux.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), readerHomeContextKey{}, runtime.home)))
 	})))
@@ -324,13 +330,20 @@ func (s *Server) handleImportSources(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) closeSourceRuntime(sourceID string) {
+	if s.browserSessions != nil {
+		s.browserSessions.CloseSource(context.Background(), sourceID)
+	}
+	s.deleteSourceSession(sourceID)
+}
+
 func (s *Server) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
 	sourceID := r.URL.Query().Get("id")
 	if sourceID == "" {
 		writeError(w, http.StatusBadRequest, "missing query param id")
 		return
 	}
-	if err := deleteSourceDefinition(r.Context(), s.sourceStore, s.sourceProfiles, s.deleteSourceSession, sourceID); err != nil {
+	if err := deleteSourceDefinition(r.Context(), s.sourceStore, s.sourceProfiles, s.closeSourceRuntime, sourceID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -379,6 +392,7 @@ func (s *Server) handleSourceInteractionAction(w http.ResponseWriter, r *http.Re
 		return
 	}
 	s.deleteSourceSession(r.PathValue("id"))
+	result.Effects = sourceinteraction.RegisterBrowserRequests(result.Effects, s.browserSessions)
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -408,7 +422,7 @@ func (s *Server) handleSourceInteractionReset(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	s.deleteSourceSession(r.PathValue("id"))
+	s.closeSourceRuntime(r.PathValue("id"))
 	writeJSON(w, http.StatusOK, view)
 }
 
@@ -435,7 +449,7 @@ func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	s.deleteSourceSession(sourceID)
+	s.closeSourceRuntime(sourceID)
 	writeJSON(w, http.StatusOK, src)
 }
 

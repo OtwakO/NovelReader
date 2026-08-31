@@ -30,4 +30,6 @@ are returned to the Go source session. Browser protocol v2 also accepts optional
 the worker full-matches loaded resource URLs and returns the first match as the response body.
 Backend and worker versions must be upgraded together when this protocol changes.
 
+The same private worker also supports short-lived interactive login contexts. `WEBVIEW_INTERACTIVE_IDLE_SECONDS` (default 120) and `WEBVIEW_INTERACTIVE_ABSOLUTE_SECONDS` (default 600) enforce cleanup even when a client disappears. Interactive contexts share `WEBVIEW_MAX_PAGES` capacity with one-shot requests, are never persisted, and are closed on expiry or worker shutdown.
+
 Do not expose this worker publicly: `POST /execute` accepts arbitrary navigation URLs by design.

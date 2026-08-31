@@ -97,7 +97,8 @@ export default {
     resetFailed: "The source state could not be reset.",
     unsupported: "Unsupported control: {type}",
     effects: {
-      browserRequired: "This action requires the interactive browser session, which is not available yet.",
+      browserRequired: "Continue in the secure source browser to complete this action.",
+      loginSaved: "Source login saved and active sessions refreshed.",
       exploreRefreshed: "Explore should be refreshed to use the updated source state.",
       search: "Opening Search for “{query}”.",
     },

@@ -91,7 +91,7 @@ func TestClientRetriesTransientWorkerBusyResponses(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		if attempts < 3 {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte(`{"version":2,"error":"browser worker is busy"}`))
+			_, _ = w.Write([]byte(`{"version":3,"error":"browser worker is busy"}`))
 			return
 		}
 		_ = json.NewEncoder(w).Encode(protocolResponse{Version: protocolVersion, StatusCode: http.StatusOK, Body: "ok"})
@@ -128,7 +128,7 @@ func TestClientRejectsOlderWorkerProtocol(t *testing.T) {
 func TestClientRejectsWorkerProtocolErrors(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":2,"error":"browser unavailable"}`))
+		_, _ = w.Write([]byte(`{"version":3,"error":"browser unavailable"}`))
 	}))
 	defer server.Close()
 
@@ -139,5 +139,56 @@ func TestClientRejectsWorkerProtocolErrors(t *testing.T) {
 	_, err = client.Do(t.Context(), sourceexec.RequestSpec{URL: "https://example.test"})
 	if err == nil || !strings.Contains(err.Error(), "browser unavailable") {
 		t.Fatalf("error=%v", err)
+	}
+}
+
+func TestInteractiveClientStartsInputsAndClosesSession(t *testing.T) {
+	requests := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.Method+" "+r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/sessions":
+			var request interactiveRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatal(err)
+			}
+			if request.URL != "https://example.test/login" || len(request.Cookies) != 1 {
+				t.Fatalf("request=%+v", request)
+			}
+			_ = json.NewEncoder(w).Encode(interactiveResult{Version: protocolVersion, InteractiveFrame: InteractiveFrame{SessionID: "session-1", Image: "frame", Width: 390, Height: 720}})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/input"):
+			_ = json.NewEncoder(w).Encode(interactiveResult{Version: protocolVersion, InteractiveFrame: InteractiveFrame{SessionID: "session-1", Image: "next"}})
+		case r.Method == http.MethodDelete:
+			_ = json.NewEncoder(w).Encode(interactiveResult{Version: protocolVersion, Closed: true, FinalURL: "https://example.test/account", Cookies: []protocolCookie{{Name: "login", Value: "ready", Domain: "example.test", Path: "/"}}})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	session := sourceexec.NewSourceSession()
+	if err := session.SetCookie("https://example.test/login", "before", "one"); err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(Config{Endpoint: server.URL, Timeout: 3 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame, err := client.StartInteractive(t.Context(), "https://example.test/login", "Login", session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.SendInteractiveInput(t.Context(), frame.SessionID, InteractiveInput{Type: "click", X: 10, Y: 20}); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.CloseInteractive(t.Context(), frame.SessionID, "https://example.test/login", true, session); err != nil {
+		t.Fatal(err)
+	}
+	if session.GetCookie("https://example.test/account", "login") != "ready" {
+		t.Fatal("interactive cookie was not synchronized")
+	}
+	if len(requests) != 3 {
+		t.Fatalf("requests=%v", requests)
 	}
 }

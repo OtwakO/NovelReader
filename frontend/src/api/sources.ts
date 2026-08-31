@@ -23,11 +23,30 @@ export interface SourceInteractionEffect {
   url?: string;
   title?: string;
   await?: boolean;
+  browserRequestId?: string;
 }
 
 export interface SourceInteractionActionResult {
   view: SourceInteractionView;
   effects: SourceInteractionEffect[];
+}
+
+export interface SourceBrowserFrame {
+  sessionId: string;
+  image: string;
+  mediaType: string;
+  width: number;
+  height: number;
+  url: string;
+  title: string;
+}
+
+export interface SourceBrowserInput {
+  type: 'click' | 'type' | 'key' | 'scroll';
+  x?: number;
+  y?: number;
+  text?: string;
+  key?: string;
 }
 
 export type SourceInteractionResetScope = 'login' | 'settings' | 'all';
@@ -49,4 +68,16 @@ export function runSourceInteractionAction(sourceId: string, revision: string, a
 export function resetSourceInteraction(sourceId: string, scope: SourceInteractionResetScope) {
   const suffix = scope === 'all' ? '' : `/${scope}`;
   return request<SourceInteractionView>(`/sources/${encodeURIComponent(sourceId)}/interaction${suffix}`, { method: 'DELETE' });
+}
+export function startSourceBrowser(sourceId: string, browserRequestId: string) {
+  return request<SourceBrowserFrame>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser`, { method: 'POST', body: JSON.stringify({ browserRequestId }) });
+}
+export function getSourceBrowserFrame(sourceId: string, sessionId: string) {
+  return request<SourceBrowserFrame>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser/${encodeURIComponent(sessionId)}`);
+}
+export function sendSourceBrowserInput(sourceId: string, sessionId: string, input: SourceBrowserInput) {
+  return request<SourceBrowserFrame>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser/${encodeURIComponent(sessionId)}/input`, { method: 'POST', body: JSON.stringify(input) });
+}
+export function closeSourceBrowser(sourceId: string, sessionId: string, save: boolean) {
+  return request<{ closed: boolean }>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser/${encodeURIComponent(sessionId)}?save=${save}`, { method: 'DELETE' });
 }

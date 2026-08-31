@@ -11,12 +11,13 @@ import {
 } from "../../api/sources";
 import { ApiError } from "../../api/transport";
 import AppButton from "../../ui/components/AppButton.vue";
+import SourceBrowserSession from "./SourceBrowserSession.vue";
 
 type PendingReset = SourceInteractionResetScope | null;
 
 export default defineComponent({
   name: "SourceInteractionSheet",
-  components: { AppButton },
+  components: { AppButton, SourceBrowserSession },
   props: { source: { type: Object as PropType<BookSource>, required: true } },
   emits: ["close", "refresh-explore"],
   data() {
@@ -28,6 +29,7 @@ export default defineComponent({
       busyAction: "",
       error: "",
       pendingReset: null as PendingReset,
+      browserEffect: null as SourceInteractionEffect | null,
     };
   },
   async mounted() {
@@ -76,6 +78,7 @@ export default defineComponent({
         if (effect.type === "refresh_explore") this.$emit("refresh-explore");
         if (effect.type === "open_external" && effect.url) window.open(effect.url, "_blank", "noopener,noreferrer");
         if (effect.type === "search" && effect.message) void this.$router.push({ name: "search", query: { q: effect.message } });
+        if (effect.type === "browser_required" && effect.browserRequestId && !effect.await) this.browserEffect = effect;
       }
     },
     async confirmReset() {
@@ -91,7 +94,7 @@ export default defineComponent({
       finally { this.busyAction = ""; }
     },
     onKeydown(event: KeyboardEvent) {
-      if (event.key === "Escape") this.$emit("close");
+      if (event.key === "Escape" && !this.browserEffect) this.$emit("close");
     },
     changeControl(actionId?: string) {
       if (actionId) void this.act(actionId);
@@ -104,6 +107,14 @@ export default defineComponent({
     },
     toggleChecked(label: string, options: string[] | undefined) {
       return this.values[label] === (options?.[1] ?? "1");
+    },
+    async browserClosed(saved: boolean) {
+      this.browserEffect = null;
+      if (saved) {
+        await this.load();
+        this.effects = [{ type: "notice", message: this.$t("sources.interaction.effects.loginSaved") }];
+        this.$emit("refresh-explore");
+      }
     },
     effectText(effect: SourceInteractionEffect) {
       if (effect.type === "browser_required") return this.$t("sources.interaction.effects.browserRequired");
@@ -156,6 +167,7 @@ export default defineComponent({
         </template>
       </div>
     </aside>
+    <SourceBrowserSession v-if="browserEffect?.browserRequestId" :source-id="source.sourceId!" :browser-request-id="browserEffect.browserRequestId" :title="browserEffect.title" @close="browserClosed" />
     <section v-if="pendingReset" class="reset-confirmation" role="alertdialog" :aria-label="$t(`sources.interaction.reset.${pendingReset}.title`)" @click.stop>
       <h2>{{ $t(`sources.interaction.reset.${pendingReset}.title`) }}</h2>
       <p>{{ $t(`sources.interaction.reset.${pendingReset}.confirm`) }}</p>

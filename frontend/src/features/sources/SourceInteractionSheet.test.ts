@@ -4,9 +4,11 @@ import SourceInteractionSheet from './SourceInteractionSheet.vue';
 
 const getSourceInteraction = vi.fn();
 const runSourceInteractionAction = vi.fn();
+const startSourceBrowser = vi.fn();
+const closeSourceBrowser = vi.fn();
 vi.mock('../../api/sources', async () => {
   const actual = await vi.importActual<typeof import('../../api/sources')>('../../api/sources');
-  return { ...actual, getSourceInteraction: (...args: unknown[]) => getSourceInteraction(...args), runSourceInteractionAction: (...args: unknown[]) => runSourceInteractionAction(...args), resetSourceInteraction: vi.fn() };
+  return { ...actual, getSourceInteraction: (...args: unknown[]) => getSourceInteraction(...args), runSourceInteractionAction: (...args: unknown[]) => runSourceInteractionAction(...args), resetSourceInteraction: vi.fn(), startSourceBrowser: (...args: unknown[]) => startSourceBrowser(...args), getSourceBrowserFrame: vi.fn(), sendSourceBrowserInput: vi.fn(), closeSourceBrowser: (...args: unknown[]) => closeSourceBrowser(...args) };
 });
 
 const view = {
@@ -26,7 +28,7 @@ function mountSheet() {
 }
 
 describe('SourceInteractionSheet', () => {
-  beforeEach(() => { getSourceInteraction.mockReset().mockResolvedValue(view); runSourceInteractionAction.mockReset().mockResolvedValue({ view, effects: [] }); });
+  beforeEach(() => { getSourceInteraction.mockReset().mockResolvedValue(view); runSourceInteractionAction.mockReset().mockResolvedValue({ view, effects: [] }); startSourceBrowser.mockReset().mockResolvedValue({ sessionId: 'browser-1', image: 'frame', mediaType: 'image/jpeg', width: 390, height: 720, url: 'https://login.test', title: 'Login' }); closeSourceBrowser.mockReset().mockResolvedValue({ closed: true }); });
   it('masks passwords and executes select and toggle actions with current values', async () => {
     const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('input[type="password"]').exists()).toBe(true));
     expect((wrapper.get('input[type="password"]').element as HTMLInputElement).value).toBe('secret');
@@ -45,6 +47,14 @@ describe('SourceInteractionSheet', () => {
     expect(effects && controls && effects.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(wrapper.get('.effects').text()).toContain('Saved');
     wrapper.unmount();
+  });
+  it('opens browser-required actions and cancels the worker session on unmount', async () => {
+    runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'browser_required', browserRequestId: 'request-1', title: 'Login' }] });
+    const wrapper = mountSheet(); await vi.waitFor(() => expect(wrapper.find('select').exists()).toBe(true));
+    await wrapper.get('select').setValue('B');
+    await vi.waitFor(() => expect(startSourceBrowser).toHaveBeenCalledWith('source-a', 'request-1'));
+    wrapper.unmount();
+    await vi.waitFor(() => expect(closeSourceBrowser).toHaveBeenCalledWith('source-a', 'browser-1', false));
   });
   it('emits Explore refresh effects for the parent state boundary', async () => {
     runSourceInteractionAction.mockResolvedValueOnce({ view, effects: [{ type: 'refresh_explore' }] });

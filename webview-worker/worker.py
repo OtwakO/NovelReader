@@ -34,6 +34,7 @@ async def read_request(reader: asyncio.StreamReader) -> tuple[str, dict, bytes]:
 
 
 async def write_response(writer: asyncio.StreamWriter, status: int, body: dict) -> None:
+    body.setdefault("version", PROTOCOL_VERSION)
     encoded = json.dumps(body, ensure_ascii=False).encode("utf-8")
     reason = {200: "OK", 400: "Bad Request", 404: "Not Found", 503: "Busy"}.get(status, "Error")
     header = (
@@ -54,10 +55,27 @@ async def serve_connection(
         if method == "GET" and request_meta["path"] == "/healthz":
             await write_response(writer, 200, await worker.health())
             return
-        if method != "POST" or request_meta["path"] != "/execute":
+        path = request_meta["path"]
+        payload = json.loads(body) if body else {}
+        if method == "POST" and path == "/execute":
+            result = await worker.submit(payload)
+        elif method == "POST" and path == "/sessions":
+            result = await worker.interactive.create(payload)
+        elif path.startswith("/sessions/"):
+            parts = path.split("/")
+            session_id = parts[2] if len(parts) > 2 else ""
+            if method == "GET" and len(parts) == 4 and parts[3] == "frame":
+                result = await worker.interactive.frame(session_id)
+            elif method == "POST" and len(parts) == 4 and parts[3] == "input":
+                result = await worker.interactive.input(session_id, payload)
+            elif method == "DELETE" and len(parts) == 3:
+                result = await worker.interactive.close(session_id, save=bool(payload.get("save")))
+            else:
+                await write_response(writer, 404, {"error": "not found"})
+                return
+        else:
             await write_response(writer, 404, {"error": "not found"})
             return
-        result = await worker.submit(json.loads(body))
         await write_response(writer, 503 if result.get("error") == "browser worker is busy" else 200, result)
     except Exception as error:
         await write_response(writer, 400, {"version": PROTOCOL_VERSION, "error": str(error)})
@@ -66,13 +84,15 @@ async def serve_connection(
         await writer.wait_closed()
 
 
-def capacity_settings() -> tuple[int, int, int, int]:
+def capacity_settings() -> tuple[int, int, int, int, int, int]:
     """Load bounded worker capacity, using small-container defaults."""
     return (
         max(1, int(os.getenv("WEBVIEW_MAX_PAGES", "2"))),
         max(1, int(os.getenv("WEBVIEW_MAX_PENDING", "8"))),
         int(os.getenv("WEBVIEW_MAX_BODY_BYTES", str(10 * 1024 * 1024))),
         max(1, int(os.getenv("WEBVIEW_MAX_CONTEXTS_PER_BROWSER", "100"))),
+        max(10, int(os.getenv("WEBVIEW_INTERACTIVE_IDLE_SECONDS", "120"))),
+        max(30, int(os.getenv("WEBVIEW_INTERACTIVE_ABSOLUTE_SECONDS", "600"))),
     )
 
 
@@ -80,11 +100,14 @@ async def main() -> None:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
     host = os.getenv("WEBVIEW_WORKER_HOST", "127.0.0.1")
     port = int(os.getenv("WEBVIEW_WORKER_PORT", "8787"))
-    max_pages, max_pending, max_body, max_contexts = capacity_settings()
+    max_pages, max_pending, max_body, max_contexts, interactive_idle, interactive_absolute = capacity_settings()
     stop = asyncio.Event()
 
     async with async_playwright() as playwright:
-        worker = BrowserWorker(playwright, max_pages, max_pending, max_body, max_contexts)
+        worker = BrowserWorker(
+            playwright, max_pages, max_pending, max_body, max_contexts,
+            interactive_idle, interactive_absolute,
+        )
         await worker.start()
         server = await asyncio.start_server(
             lambda reader, writer: serve_connection(reader, writer, worker), host, port

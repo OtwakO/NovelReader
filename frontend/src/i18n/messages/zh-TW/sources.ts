@@ -96,7 +96,8 @@ export default {
     resetFailed: "無法重設書源狀態。",
     unsupported: "暫不支援的控制項：{type}",
     effects: {
-      browserRequired: "此操作需要互動式瀏覽器工作階段，此功能尚未開放。",
+      browserRequired: "請在安全書源瀏覽器中繼續完成此操作。",
+      loginSaved: "書源登入狀態已儲存，作用中的工作階段已重新整理。",
       exploreRefreshed: "請重新整理「發現」以使用更新後的書源狀態。",
       search: "正在開啟搜尋：「{query}」。",
     },

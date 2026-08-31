@@ -157,7 +157,7 @@ func (s *Server) handleReplaceUploadCollection(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	changes, err := replaceSourceCollection(r.Context(), s.sourceStore, s.sourceProfiles, s.deleteSourceSession, collection.ID, sources, filename, "", "", time.Now())
+	changes, err := replaceSourceCollection(r.Context(), s.sourceStore, s.sourceProfiles, s.closeSourceRuntime, collection.ID, sources, filename, "", "", time.Now())
 	if err != nil {
 		writeCollectionError(w, err)
 		return
@@ -197,7 +197,7 @@ func (s *Server) handleSyncSourceCollection(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	changes, err := replaceSourceCollection(r.Context(), s.sourceStore, s.sourceProfiles, s.deleteSourceSession, collection.ID, sources, "", document.ETag, document.LastModified, time.Now())
+	changes, err := replaceSourceCollection(r.Context(), s.sourceStore, s.sourceProfiles, s.closeSourceRuntime, collection.ID, sources, "", document.ETag, document.LastModified, time.Now())
 	if err != nil {
 		writeCollectionError(w, err)
 		return
@@ -207,7 +207,7 @@ func (s *Server) handleSyncSourceCollection(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) handleDeleteSourceCollection(w http.ResponseWriter, r *http.Request) {
-	if err := deleteSourceCollection(r.Context(), s.sourceStore, s.sourceProfiles, s.deleteSourceSession, r.PathValue("id")); err != nil {
+	if err := deleteSourceCollection(r.Context(), s.sourceStore, s.sourceProfiles, s.closeSourceRuntime, r.PathValue("id")); err != nil {
 		writeCollectionError(w, err)
 		return
 	}

@@ -9,7 +9,9 @@ from urllib.parse import urlparse
 
 from patchright.async_api import async_playwright
 
-PROTOCOL_VERSION = 2
+from interactive import InteractiveSessions
+
+PROTOCOL_VERSION = 3
 DEFAULT_TIMEOUT_MS = 30_000
 
 
@@ -23,6 +25,8 @@ class BrowserWorker:
         max_pending: int,
         max_body_bytes: int,
         max_contexts: int,
+        interactive_idle_seconds: float = 120,
+        interactive_absolute_seconds: float = 600,
     ):
         self.playwright = playwright
         self.max_body_bytes = max_body_bytes
@@ -40,10 +44,18 @@ class BrowserWorker:
         self.closing = False
         self.consumers: list[asyncio.Task] = []
         self.max_pages = max_pages
+        self.capacity = asyncio.Semaphore(max_pages)
+        self.interactive = InteractiveSessions(
+            self._open_interactive_context,
+            self._release_browser,
+            interactive_idle_seconds,
+            interactive_absolute_seconds,
+        )
 
     async def start(self) -> None:
         await self._launch_browser()
         self.consumers = [asyncio.create_task(self._consume()) for _ in range(self.max_pages)]
+        await self.interactive.start()
 
     async def submit(self, request: dict) -> dict:
         if self.closing:
@@ -67,6 +79,7 @@ class BrowserWorker:
             if not future.done():
                 future.set_result(self._error("browser worker is shutting down"))
             self.queue.task_done()
+        await self.interactive.close_all()
         for consumer in self.consumers:
             consumer.cancel()
         await asyncio.gather(*self.consumers, return_exceptions=True)
@@ -93,11 +106,15 @@ class BrowserWorker:
     async def _run(self, request: dict) -> dict:
         self.total_requests += 1
         timeout_ms = max(1, int(request.get("timeoutMs") or DEFAULT_TIMEOUT_MS))
-        browser = await self._browser_for_request()
-        async with self.state_lock:
-            self.active += 1
+        await self.capacity.acquire()
+        browser = None
+        acquired = False
         browser_failed = False
         try:
+            browser = await self._browser_for_request()
+            async with self.state_lock:
+                self.active += 1
+            acquired = True
             async with asyncio.timeout(timeout_ms / 1000):
                 return await self._execute(browser, request, timeout_ms)
         except TimeoutError:
@@ -105,11 +122,14 @@ class BrowserWorker:
             return self._error(f"browser request timed out after {timeout_ms}ms")
         except Exception as error:
             self.failed_requests += 1
-            browser_failed = not browser.is_connected()
+            browser_failed = browser is not None and not browser.is_connected()
             return self._error(f"browser execution failed: {error}")
         finally:
-            browser_failed = browser_failed or not browser.is_connected()
-            await self._release_browser(browser, browser_failed)
+            if acquired:
+                browser_failed = browser_failed or not browser.is_connected()
+                await self._release_browser(browser, browser_failed)
+            else:
+                self.capacity.release()
 
     async def _browser_for_request(self):
         async with self.state_lock:
@@ -131,6 +151,44 @@ class BrowserWorker:
                 self.completed = 0
                 self.recycled += 1
                 await self._close_browser()
+        self.capacity.release()
+
+    async def _open_interactive_context(self, request: dict):
+        target = request.get("url", "")
+        if urlparse(target).scheme not in {"http", "https"}:
+            raise ValueError("only HTTP(S) URLs are supported")
+        await self.capacity.acquire()
+        browser = None
+        context = None
+        acquired = False
+        try:
+            browser = await self._browser_for_request()
+            async with self.state_lock:
+                self.active += 1
+            acquired = True
+            context = await browser.new_context(extra_http_headers=request.get("headers") or {})
+            cookies = browser_cookies(request.get("cookies") or [], target)
+            if cookies:
+                await context.add_cookies(cookies)
+            page = await context.new_page()
+            viewport = request.get("viewport") or {}
+            await page.set_viewport_size({
+                "width": min(1920, max(320, int(viewport.get("width") or 390))),
+                "height": min(1440, max(320, int(viewport.get("height") or 720))),
+            })
+            await page.goto(target, wait_until="domcontentloaded", timeout=int(request.get("timeoutMs") or DEFAULT_TIMEOUT_MS))
+            return browser, context, page
+        except BaseException:
+            if context is not None:
+                try:
+                    await asyncio.shield(asyncio.wait_for(context.close(), timeout=2))
+                except BaseException:
+                    pass
+            if acquired:
+                await self._release_browser(browser, not browser.is_connected())
+            else:
+                self.capacity.release()
+            raise
 
     async def _launch_browser(self) -> None:
         self.browser = await self.playwright.chromium.launch(headless=True)
