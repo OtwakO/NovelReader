@@ -98,7 +98,7 @@ func TestRawSourceAPIWorkflowReadsFirstMiddleLastChapters(t *testing.T) {
 		t.Fatalf("commit status=%d body=%s", committed.Code, committed.Body.String())
 	}
 
-	response = performAPIRequest(server, http.MethodGet, "/api/books/book-1/chapters", nil)
+	response = waitForCatalogRoute(t, server, "book-1")
 	var chapters []book.Chapter
 	if err := json.Unmarshal(response.Body.Bytes(), &chapters); err != nil || response.Code != http.StatusOK || len(chapters) != 5 {
 		t.Fatalf("toc status=%d chapters=%d err=%v body=%s", response.Code, len(chapters), err, response.Body.String())
@@ -126,7 +126,7 @@ func newWorkflowAPIServer(t *testing.T) (*Server, func()) {
 	jsVM.SetFetcher(client)
 	searcher := book.NewSearcher(client, jsVM, nil, sourceStore, bookStore)
 	server := NewServer(sourceStore, bookStore, searcher, nil, client, jsVM, nil, processor.Config{}, t.TempDir(), db)
-	return server, func() { _ = db.Close() }
+	return server, func() { _ = server.Close(); _ = db.Close() }
 }
 
 func performAPIRequest(server *Server, method, path string, body []byte) *httptest.ResponseRecorder {

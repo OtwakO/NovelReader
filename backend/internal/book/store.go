@@ -558,12 +558,41 @@ func (s *Store) GetBook(id string) (*Book, error) {
 
 // SaveChapters replaces all chapters for a book.
 func (s *Store) SaveChapters(bookID string, chapters []Chapter) error {
+	return s.replaceChapters(bookID, chapters, false)
+}
+
+// SaveCatalog atomically replaces a book's complete chapter catalog and count
+// only while the active source revision still matches the crawl that produced it.
+func (s *Store) SaveCatalog(bookID, sourceID string, stateVersion int64, chapters []Chapter) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck
+	var currentSourceID string
+	var currentStateVersion int64
+	if err := tx.QueryRow(`SELECT source_id, state_version FROM books WHERE id = ?`, bookID).Scan(&currentSourceID, &currentStateVersion); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrCatalogBookNotFound
+		}
+		return err
+	}
+	if currentSourceID != sourceID || currentStateVersion != stateVersion {
+		return ErrCatalogSourceChanged
+	}
+	return replaceChaptersTx(tx, bookID, chapters, true)
+}
 
+func (s *Store) replaceChapters(bookID string, chapters []Chapter, updateTotal bool) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+	return replaceChaptersTx(tx, bookID, chapters, updateTotal)
+}
+
+func replaceChaptersTx(tx *sql.Tx, bookID string, chapters []Chapter, updateTotal bool) error {
 	// Delete existing chapters
 	if _, err := tx.Exec(`DELETE FROM chapters WHERE book_id = ?`, bookID); err != nil {
 		return err
@@ -578,6 +607,19 @@ func (s *Store) SaveChapters(bookID string, chapters []Chapter) error {
 			ch.ID, ch.BookID, ch.Index, ch.Title, ch.URL, boolToInt(ch.IsVip), boolToInt(ch.IsVolume), boolToInt(ch.IsPay), ch.BaseURL, ch.Tag, ch.WordCount, boolToInt(ch.Cached))
 		if err != nil {
 			return err
+		}
+	}
+	if updateTotal {
+		result, err := tx.Exec(`UPDATE books SET total_chapter_num = ?, updated_at = ? WHERE id = ?`, len(chapters), time.Now().UnixMilli(), bookID)
+		if err != nil {
+			return err
+		}
+		updated, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if updated != 1 {
+			return errors.New("book: book not found")
 		}
 	}
 

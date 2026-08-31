@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,7 +38,11 @@ func TestHandleGetChaptersExposesTypedPaginationFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	response := invokeBookRoute(server.handleGetChapters, "book-1", "")
+	started := invokeBookRoute(server.handleGetChapters, "book-1", "")
+	if started.Code != http.StatusAccepted {
+		t.Fatalf("start status=%d body=%s", started.Code, started.Body.String())
+	}
+	response := waitForCatalogResponse(t, server, "book-1", http.StatusBadGateway)
 	var payload crawlErrorResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
@@ -49,6 +54,61 @@ func TestHandleGetChaptersExposesTypedPaginationFailure(t *testing.T) {
 	if err != nil || len(chapters) != 0 {
 		t.Fatalf("chapters=%+v err=%v, want fail-closed cache", chapters, err)
 	}
+}
+
+func TestHandleGetChaptersStartsAndReturnsSynchronizedCatalog(t *testing.T) {
+	sourceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">第一章</a>`))
+	}))
+	defer sourceServer.Close()
+	server, store, closeDB := newCrawlAPIServer(t)
+	defer closeDB()
+	source := &booksource.BookSource{BookSourceURL: sourceServer.URL, BookSourceName: "fixture", RuleToc: `{"chapterList":".chapter","chapterName":"text","chapterUrl":"href"}`}
+	if err := store.sourceStore.Upsert(source); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.bookStore.AddBook(&book.Book{ID: "book-1", Name: "Fixture", SourceID: source.ID, SourceURL: sourceServer.URL, BookURL: sourceServer.URL + "/book", TocURL: sourceServer.URL}); err != nil {
+		t.Fatal(err)
+	}
+	started := invokeBookRoute(server.handleGetChapters, "book-1", "")
+	if started.Code != http.StatusAccepted || started.Header().Get("Retry-After") != "1" {
+		t.Fatalf("start status=%d headers=%v body=%s", started.Code, started.Header(), started.Body.String())
+	}
+	ready := waitForCatalogResponse(t, server, "book-1", http.StatusOK)
+	var chapters []book.Chapter
+	if err := json.Unmarshal(ready.Body.Bytes(), &chapters); err != nil || len(chapters) != 1 || chapters[0].Title != "第一章" {
+		t.Fatalf("chapters=%+v error=%v", chapters, err)
+	}
+}
+
+func TestHandleRetryChaptersRestartsRetainedFailure(t *testing.T) {
+	var fail atomic.Bool
+	fail.Store(true)
+	sourceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if fail.Load() {
+			http.Error(w, "unavailable", http.StatusBadGateway)
+			return
+		}
+		_, _ = w.Write([]byte(`<a class="chapter" href="/chapter/1">第一章</a>`))
+	}))
+	defer sourceServer.Close()
+	server, store, closeDB := newCrawlAPIServer(t)
+	defer closeDB()
+	source := &booksource.BookSource{BookSourceURL: sourceServer.URL, BookSourceName: "fixture", RuleToc: `{"chapterList":".chapter","chapterName":"text","chapterUrl":"href"}`}
+	if err := store.sourceStore.Upsert(source); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.bookStore.AddBook(&book.Book{ID: "book-1", Name: "Fixture", SourceID: source.ID, SourceURL: sourceServer.URL, BookURL: sourceServer.URL + "/book", TocURL: sourceServer.URL}); err != nil {
+		t.Fatal(err)
+	}
+	invokeBookRoute(server.handleGetChapters, "book-1", "")
+	waitForCatalogResponse(t, server, "book-1", http.StatusBadGateway)
+	fail.Store(false)
+	retry := invokeBookRoute(server.handleRetryChapters, "book-1", "")
+	if retry.Code != http.StatusAccepted {
+		t.Fatalf("retry status=%d body=%s", retry.Code, retry.Body.String())
+	}
+	waitForCatalogResponse(t, server, "book-1", http.StatusOK)
 }
 
 func TestHandleGetChapterContentExposesTypedPaginationFailure(t *testing.T) {
@@ -93,16 +153,21 @@ func TestHandlersDistinguishNotFoundFromStorageFailure(t *testing.T) {
 	}
 	bookStore := book.NewStore(db)
 	initializeBookAPITestSchema(t, db)
-	server := &Server{bookStore: bookStore}
+	sourceStore := booksource.NewStore(db)
+	searcher := book.NewSearcher(fetcher.NewInsecure(time.Second), analyzer.NewJSVM(), nil, sourceStore, bookStore)
+	server := &Server{bookStore: bookStore, sourceStore: sourceStore, searcher: searcher}
+	server.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
+	defer server.catalogs.Close()
 
 	missing := invokeBookRoute(server.handleGetChapters, "missing", "")
-	if missing.Code != http.StatusNotFound {
-		t.Fatalf("missing book status=%d, want 404", missing.Code)
+	if missing.Code != http.StatusAccepted {
+		t.Fatalf("missing book start status=%d, want 202", missing.Code)
 	}
+	missing = waitForCatalogResponse(t, server, "missing", http.StatusNotFound)
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	storageFailure := invokeBookRoute(server.handleGetChapters, "missing", "")
+	storageFailure := invokeBookRoute(server.handleGetChapters, "other", "")
 	if storageFailure.Code != http.StatusInternalServerError {
 		t.Fatalf("storage failure status=%d, want 500; body=%s", storageFailure.Code, storageFailure.Body.String())
 	}
@@ -122,8 +187,33 @@ func newCrawlAPIServer(t *testing.T) (*Server, crawlStores, func()) {
 	sourceStore := booksource.NewStore(db)
 	bookStore := book.NewStore(db)
 	initializeBookAndSourceAPITestSchema(t, db)
-	searcher := book.NewSearcher(fetcher.NewInsecure(2*time.Second), analyzer.NewJSVM(), nil, nil, bookStore)
-	return &Server{sourceStore: sourceStore, bookStore: bookStore, searcher: searcher}, crawlStores{sourceStore, bookStore}, func() { _ = db.Close() }
+	searcher := book.NewSearcher(fetcher.NewInsecure(2*time.Second), analyzer.NewJSVM(), nil, sourceStore, bookStore)
+	server := &Server{sourceStore: sourceStore, bookStore: bookStore, searcher: searcher}
+	server.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
+	return server, crawlStores{sourceStore, bookStore}, func() { server.catalogs.Close(); _ = db.Close() }
+}
+
+func waitForCatalogRoute(t *testing.T, server *Server, bookID string) *httptest.ResponseRecorder {
+	t.Helper()
+	return waitForCatalogResponse(t, server, bookID, http.StatusOK)
+}
+
+func waitForCatalogResponse(t *testing.T, server *Server, bookID string, status int) *httptest.ResponseRecorder {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	var response *httptest.ResponseRecorder
+	for time.Now().Before(deadline) {
+		response = invokeBookRoute(server.handleGetChapters, bookID, "")
+		if response.Code == status {
+			return response
+		}
+		if response.Code != http.StatusAccepted {
+			t.Fatalf("catalog status=%d body=%s", response.Code, response.Body.String())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("catalog did not return status %d; last=%d body=%s", status, response.Code, response.Body.String())
+	return response
 }
 
 func invokeBookRoute(handler func(http.ResponseWriter, *http.Request), bookID, index string) *httptest.ResponseRecorder {

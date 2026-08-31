@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"math"
 	"net/http"
@@ -55,6 +54,7 @@ type Server struct {
 	webViewProbe        interface{ Probe(context.Context) error }
 	chineseConversion   chineseconv.Service
 	candidateOperations *candidate.Manager
+	catalogs            *book.Catalogs
 	coverReferenceKey   []byte
 	collectionLoader    *booksource.RemoteLoader
 	collectionScheduler *sourceCollectionScheduler
@@ -73,6 +73,9 @@ func (s *Server) Close() error {
 	}
 	if s.candidateOperations != nil {
 		s.candidateOperations.Close()
+	}
+	if s.catalogs != nil {
+		s.catalogs.Close()
 	}
 	if s.backups != nil {
 		if err := s.backups.Close(); err != nil {
@@ -121,6 +124,9 @@ func NewServer(
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(),
 		collectionLoader:    booksource.NewRemoteLoader(),
+	}
+	if bookStore != nil && sourceStore != nil && searcher != nil {
+		s.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
 	}
 	s.registerRoutes()
 	return s
@@ -194,6 +200,7 @@ func (s *Server) registerRoutesWithoutHealth() {
 
 	// Chapters
 	s.mux.HandleFunc("GET /api/books/{id}/chapters", s.handleGetChapters)
+	s.mux.HandleFunc("POST /api/books/{id}/chapters/sync", s.handleRetryChapters)
 	s.mux.HandleFunc("GET /api/books/{id}/chapters/{idx}/content", s.handleGetChapterContent)
 	s.mux.HandleFunc("GET /api/books/{id}/chapters/{idx}/images/{imageIdx}", s.handleGetChapterImage)
 
@@ -273,6 +280,7 @@ func (s *Server) registerAuthenticatedRoutes() {
 		requestServer.sourceProfiles = runtime.sourceProfiles
 		requestServer.sourceInteractions = runtime.sourceInteractions
 		requestServer.browserSessions = runtime.browserSessions
+		requestServer.catalogs = runtime.catalogs
 		requestServer.registerRoutesWithoutHealth()
 		requestServer.mux.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), readerHomeContextKey{}, runtime.home)))
 	})))
@@ -567,6 +575,9 @@ func (s *Server) handleClearBookSources(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
+	if s.catalogs != nil {
+		s.catalogs.Invalidate(id)
+	}
 	if err := s.bookStore.DeleteBook(id); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -579,62 +590,48 @@ func (s *Server) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 // --- Chapters ---
 
 func (s *Server) handleGetChapters(w http.ResponseWriter, r *http.Request) {
-	bookID := r.PathValue("id")
-	b, err := s.bookStore.GetBook(bookID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load book failed")
+	if s.catalogs == nil {
+		writeErrorCode(w, http.StatusServiceUnavailable, "catalog_unavailable", "catalog synchronization is unavailable")
 		return
 	}
-	if b == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+	writeCatalogResult(w, s.catalogs.Get(r.PathValue("id")))
+}
+
+func (s *Server) handleRetryChapters(w http.ResponseWriter, r *http.Request) {
+	if s.catalogs == nil {
+		writeErrorCode(w, http.StatusServiceUnavailable, "catalog_unavailable", "catalog synchronization is unavailable")
 		return
 	}
+	writeCatalogResult(w, s.catalogs.Retry(r.PathValue("id")))
+}
 
-	// Return cached chapters if available.
-	chapters, err := s.bookStore.GetChapters(bookID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load chapters failed")
-		return
+func writeCatalogResult(w http.ResponseWriter, result book.CatalogResult) {
+	switch result.State {
+	case book.CatalogReady:
+		writeJSON(w, http.StatusOK, result.Chapters)
+	case book.CatalogSyncing:
+		w.Header().Set("Retry-After", "1")
+		writeJSON(w, http.StatusAccepted, map[string]string{"state": string(book.CatalogSyncing)})
+	case book.CatalogFailed:
+		switch result.Failure {
+		case book.CatalogFailureBookNotFound:
+			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+		case book.CatalogFailureSourceNotFound:
+			writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
+		case book.CatalogFailureStorage:
+			writeErrorCode(w, http.StatusInternalServerError, "storage_error", "catalog storage unavailable")
+		case book.CatalogFailureUpstream:
+			if result.Err != nil {
+				writeCrawlError(w, "toc", result.Err)
+				return
+			}
+			writeErrorCode(w, http.StatusBadGateway, "catalog_sync_failed", "catalog synchronization failed")
+		default:
+			writeErrorCode(w, http.StatusBadGateway, "catalog_sync_failed", "catalog synchronization failed")
+		}
+	default:
+		writeErrorCode(w, http.StatusInternalServerError, "catalog_state_invalid", "invalid catalog synchronization state")
 	}
-	if len(chapters) > 0 {
-		writeJSON(w, http.StatusOK, chapters)
-		return
-	}
-
-	// Fetch TOC from source.
-	src, err := s.sourceStore.GetByID(b.SourceID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load source failed")
-		return
-	}
-	if src == nil {
-		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
-		return
-	}
-
-	chapters, err = s.searcher.GetChapterListForBook(*src, b, b.TocURL)
-	if err != nil {
-		writeCrawlError(w, "toc", err)
-		return
-	}
-
-	// Generate unique chapter IDs using bookID (the unique book identifier)
-	// instead of bookURL (which can be the same across different book entries)
-	for i := range chapters {
-		chapters[i].ID = fmt.Sprintf("%s_%d", bookID, i)
-	}
-
-	if err := s.bookStore.SaveChapters(bookID, chapters); err != nil {
-		log.Printf("api: save chapters: %v", err)
-		// non-fatal: return fetched chapters anyway
-	}
-
-	// Update total chapter count on the book
-	if err := s.bookStore.UpdateTotalChapters(bookID, len(chapters)); err != nil {
-		log.Printf("api: update chapter count: %v", err)
-	}
-
-	writeJSON(w, http.StatusOK, chapters)
 }
 
 func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request) {
@@ -873,6 +870,9 @@ func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 	if chapterIndex < 0 {
 		writeErrorCode(w, http.StatusBadGateway, "source_toc_empty", "target source has no readable chapters")
 		return
+	}
+	if s.catalogs != nil {
+		s.catalogs.Invalidate(bookID)
 	}
 	if err := s.bookStore.SwitchSource(bookID, current.StateVersion, *target, targetChapters, chapterIndex, current.DurChapterPos); err != nil {
 		if errors.Is(err, book.ErrBookStateChanged) {

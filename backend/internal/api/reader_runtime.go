@@ -30,6 +30,7 @@ type readerRuntime struct {
 	sourceProfiles     *sourceprofile.Store
 	sourceInteractions *sourceinteraction.Describer
 	browserSessions    *sourceinteraction.BrowserSessions
+	catalogs           *book.Catalogs
 	lastUsed           time.Time
 	references         int
 }
@@ -102,6 +103,7 @@ func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.U
 		home: home, sourceStore: sourceStore, bookStore: bookStore, fontStore: fontStore, sourceProfiles: sourceProfiles,
 		sourceInteractions: sourceinteraction.NewDescriber(sourceStore, sourceProfiles, m.jsVM.ForkState()),
 		browserSessions:    sourceinteraction.NewBrowserSessions(m.browser),
+		catalogs:           book.NewCatalogs(bookStore, sourceStore, readerSearcher),
 		searcher:           readerSearcher,
 		lastUsed:           now, references: 1,
 	}
@@ -228,6 +230,9 @@ func (r *readerRuntime) close() error {
 	}
 	if r.browserSessions != nil {
 		r.browserSessions.CloseSource(context.Background(), "")
+	}
+	if r.catalogs != nil {
+		r.catalogs.Close()
 	}
 	return r.home.Close()
 }

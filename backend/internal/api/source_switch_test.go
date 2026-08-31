@@ -54,7 +54,7 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	if err := server.bookStore.AddBook(stored); err != nil {
 		t.Fatal(err)
 	}
-	if response := performAPIRequest(server, http.MethodGet, "/api/books/book-1/chapters", nil); response.Code != http.StatusOK {
+	if response := waitForCatalogRoute(t, server, "book-1"); response.Code != http.StatusOK {
 		t.Fatalf("primary toc status=%d body=%s", response.Code, response.Body.String())
 	}
 	progressBody, _ := json.Marshal(map[string]interface{}{"sourceId": sourceID(primary.URL), "stateVersion": 0, "chapterIndex": 1, "position": 0.65})

@@ -139,7 +139,7 @@ Render the values on the shared Search/Explore result card, candidate preview, a
 - [x] Confirm existing models and parsers already carry `lastChapter` and `updateTime` across Search, Explore, Book Info, candidate preview, and shelf persistence.
 - [x] Accept metadata-first shelf admission.
 - [x] Change candidate resolution and commit interfaces to metadata-first behavior.
-- [ ] Implement catalog synchronization and typed HTTP state.
+- [x] Implement catalog synchronization and typed HTTP state.
 - [ ] Adapt Book Detail and candidate preview to the new catalog lifecycle.
 - [ ] Render latest chapter and source update time consistently.
 - [ ] Profile the real large catalog after decoupling; optimize only demonstrated parser/persistence hotspots.
@@ -148,13 +148,13 @@ Render the values on the shared Search/Explore result card, candidate preview, a
 
 Candidate admission is now metadata-first. Each binding runs only bounded Book Info; concurrent checks preserve stable source priority by holding successful lower-priority results in an observable `ready` state until every preferred binding has completed or failed. Only the selected binding becomes `verified`. Candidate preview is metadata-only, and commit uses `book.Store.AddOrMergeBook`, so full TOC size and chapter content no longer affect shelf admission.
 
-The existing stored-book chapter endpoint (`backend/internal/api/server.go:handleGetChapters`) still lazily fetches a missing TOC and saves it, but it performs the entire crawl synchronously inside the request and has no single-flight or observable syncing state. This is now the next architectural bottleneck.
+Each reader runtime now owns a concrete `book.Catalogs` coordinator. Cached chapters return directly from SQLite; a missing catalog starts or joins one of at most two bounded crawls for that reader; successful catalogs and `totalChapterNum` publish in one transaction; successful entries leave process memory; failures remain observable until explicit retry; and runtime/server closure cancels and drains active work before closing Reader Data. Book deletion and active-source switching invalidate and drain that book's old crawl before mutation for prompt cleanup. Correctness does not depend on cancellation: catalog publication verifies the book's source ID and state version inside the same SQLite transaction, so stale work cannot replace a switched source's catalog. `GET /books/{id}/chapters` returns `200`, `202 syncing`, or a typed failure; `POST /books/{id}/chapters/sync` retries retained failures without force-refreshing ready catalogs.
 
 `SearchResult`, `PreviewBook`, and `Book` already contain `LastChapter`/`UpdateTime`. Search/Explore parsing reads `lastChapter` and `updateTime`; Book Info refreshes both. The shared result card and detail views show latest chapter but not update time.
 
 ## Next Action
 
-Design and implement the focused catalog synchronization module at the stored-book chapter seam. Start with backend tests for: cached chapters return immediately; concurrent missing-catalog requests share one crawl; successful synchronization atomically saves one catalog; failure is observable and retryable; and bounded cancellation releases the in-flight entry. Do not change frontend polling until the backend state/HTTP contract is proven.
+Adapt the frontend to the typed catalog lifecycle without changing the global transport helper. Add a feature-specific result parser in `api/reader.ts`; Book Detail should render metadata immediately, poll `202` with bounded backoff, and offer explicit retry after failure. Reader should wait for synchronization before resolving the first readable chapter, with cancellation through its existing generation guard. Keep source switching behavior consistent with the same catalog result path.
 
 ## Verification
 
@@ -178,8 +178,20 @@ Completed verification for metadata-first admission:
 - stable-priority regression proves lower-priority metadata may become `ready` but is not selected before a preferred source completes;
 - no candidate preview or commit carries a chapter catalog.
 
+Completed verification for catalog synchronization:
+
+- cached chapters return without a crawl;
+- concurrent missing-catalog requests share one crawl;
+- chapter rows and `totalChapterNum` publish atomically;
+- failed crawls remain stable until explicit retry;
+- terminal state is published only after worker cleanup, preventing immediate-retry overlap;
+- polling consults in-memory state before SQLite, preventing synchronization read/write contention;
+- runtime closure cancels and drains active crawls;
+- book deletion/source switching invalidate and drain stale per-book work before mutation;
+- catalog publication rejects a changed source ID/state version transactionally, so cancellation races cannot publish stale chapters;
+- GET/POST endpoint success, `202`, retry, not-found, storage, and typed pagination failures pass.
+
 Still needed:
 
-- catalog synchronization concurrency, atomicity, failure, retry, and endpoint tests;
 - frontend candidate/detail/result-card tests, locale key symmetry, typecheck, and production build;
 - one real `光遇聚合` large-catalog verification showing immediate shelf admission followed by successful or truthfully failed catalog synchronization.
