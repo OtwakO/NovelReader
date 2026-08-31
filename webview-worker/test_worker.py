@@ -192,3 +192,42 @@ class InteractiveConstructionFailureTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(worker.capacity._value, 1)
         finally:
             await worker.close()
+
+
+class InteractiveDataURLTest(unittest.IsolatedAsyncioTestCase):
+    async def test_html_data_document_is_opened(self) -> None:
+        browser = MagicMock()
+        browser.is_connected.return_value = True
+        context = MagicMock()
+        context.close = AsyncMock()
+        context.add_cookies = AsyncMock()
+        page = MagicMock()
+        page.set_viewport_size = AsyncMock()
+        page.goto = AsyncMock()
+        context.new_page = AsyncMock(return_value=page)
+        browser.new_context = AsyncMock(return_value=context)
+        playwright = MagicMock()
+        playwright.chromium.launch = AsyncMock(return_value=browser)
+        worker = BrowserWorker(playwright, 1, 1, 1024, 10)
+        await worker.start()
+        try:
+            target = "data:text/html;base64,PGgxPlNldHRpbmdzPC9oMT4="
+            _, opened_context, _ = await worker._open_interactive_context({"url": target})
+            page.goto.assert_awaited_once_with(target, wait_until="domcontentloaded", timeout=30000)
+            await opened_context.close()
+            await worker._release_browser(browser, False)
+        finally:
+            await worker.close()
+
+    async def test_non_html_data_document_is_rejected(self) -> None:
+        worker = BrowserWorker(MagicMock(), 1, 1, 1024, 10)
+        with self.assertRaisesRegex(ValueError, "base64 HTML"):
+            await worker._open_interactive_context({"url": "data:text/javascript;base64,YWxlcnQoMSk="})
+
+    async def test_invalid_html_data_document_is_rejected_before_browser_launch(self) -> None:
+        playwright = MagicMock()
+        playwright.chromium.launch = AsyncMock()
+        worker = BrowserWorker(playwright, 1, 1, 1024, 10)
+        with self.assertRaisesRegex(ValueError, "invalid base64"):
+            await worker._open_interactive_context({"url": "data:text/html;base64,not-base64"})
+        playwright.chromium.launch.assert_not_awaited()

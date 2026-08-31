@@ -2,6 +2,7 @@ package sourceinteraction
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/url"
@@ -166,7 +167,19 @@ func (s *BrowserSessions) forget(owned *browserSession) {
 func newBrowserRequestID() string { return strings.ReplaceAll(uuid.NewString(), "-", "") }
 
 func validateBrowserURL(rawURL string) error {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	trimmed := strings.TrimSpace(rawURL)
+	if strings.HasPrefix(trimmed, "data:") {
+		const prefix = "data:text/html;base64,"
+		if !strings.HasPrefix(trimmed, prefix) {
+			return fmt.Errorf("sourceinteraction: invalid browser URL")
+		}
+		body, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(trimmed, prefix))
+		if err != nil || len(body) == 0 || len(body) > 512*1024 {
+			return fmt.Errorf("sourceinteraction: invalid browser URL")
+		}
+		return nil
+	}
+	parsed, err := url.Parse(trimmed)
 	if err != nil || parsed.Host == "" || parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return fmt.Errorf("sourceinteraction: invalid browser URL")
 	}

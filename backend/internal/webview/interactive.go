@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/otwako/novelreader/internal/sourceexec"
@@ -15,7 +16,7 @@ func (c *Client) StartInteractive(ctx context.Context, rawURL, title string, ses
 		return InteractiveFrame{}, fmt.Errorf("webview: nil client")
 	}
 	request := interactiveRequest{URL: rawURL, Viewport: map[string]int{"width": 390, "height": 720}, TimeoutMS: int(c.timeout.Milliseconds())}
-	if session != nil {
+	if session != nil && isNetworkBrowserURL(rawURL) {
 		request.Headers = session.RequestHeaders()
 		for _, cookie := range session.Cookies(rawURL) {
 			request.Cookies = append(request.Cookies, toProtocolCookie(cookie, rawURL))
@@ -52,16 +53,23 @@ func (c *Client) CloseInteractive(ctx context.Context, sessionID, rawURL string,
 	if err := c.interactiveWorker(ctx, http.MethodDelete, "/sessions/"+sessionID, interactiveRequest{Save: save}, &result); err != nil {
 		return err
 	}
-	if save && session != nil {
+	if save && session != nil && len(result.Cookies) > 0 {
 		cookieURL := result.FinalURL
-		if cookieURL == "" {
+		if !isNetworkBrowserURL(cookieURL) {
 			cookieURL = rawURL
+		}
+		if !isNetworkBrowserURL(cookieURL) {
+			return nil
 		}
 		if err := session.SetCookies(cookieURL, fromProtocolCookies(result.Cookies)); err != nil {
 			return fmt.Errorf("webview: sync interactive cookies: %w", err)
 		}
 	}
 	return nil
+}
+
+func isNetworkBrowserURL(rawURL string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "http://") || strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "https://")
 }
 
 func (c *Client) interactiveHTTPClient() *http.Client {

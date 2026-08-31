@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import contextlib
 import re
 from urllib.parse import urlparse
@@ -155,8 +157,19 @@ class BrowserWorker:
 
     async def _open_interactive_context(self, request: dict):
         target = request.get("url", "")
-        if urlparse(target).scheme not in {"http", "https"}:
-            raise ValueError("only HTTP(S) URLs are supported")
+        scheme = urlparse(target).scheme
+        if scheme not in {"http", "https", "data"}:
+            raise ValueError("only HTTP(S) and HTML data URLs are supported")
+        if scheme == "data":
+            prefix = "data:text/html;base64,"
+            if not target.startswith(prefix):
+                raise ValueError("only base64 HTML data URLs are supported")
+            try:
+                document = base64.b64decode(target[len(prefix):], validate=True)
+            except (binascii.Error, ValueError) as error:
+                raise ValueError("invalid base64 HTML data URL") from error
+            if not document or len(document) > 512 * 1024:
+                raise ValueError("HTML data document is empty or too large")
         await self.capacity.acquire()
         browser = None
         context = None

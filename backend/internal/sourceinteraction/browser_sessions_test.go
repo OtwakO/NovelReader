@@ -62,3 +62,20 @@ func TestRegisterBrowserRequestsRegistersAwaitLaunches(t *testing.T) {
 		t.Fatalf("effect=%+v", effects[0])
 	}
 }
+
+func TestBrowserSessionsAcceptsBoundedHTMLDataDocument(t *testing.T) {
+	browser := &browserFixture{}
+	sessions := NewBrowserSessions(browser)
+	requestID := sessions.Register(BrowserRequest{URL: "data:text/html;base64,PGgxPlNldHRpbmdzPC9oMT4=", Title: "Settings"})
+	if _, err := sessions.Start(t.Context(), "source-a", requestID, sourceexec.NewSourceSession()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBrowserSessionsRejectsNonHTMLDataDocument(t *testing.T) {
+	sessions := NewBrowserSessions(&browserFixture{})
+	requestID := sessions.Register(BrowserRequest{URL: "data:text/javascript;base64,YWxlcnQoMSk="})
+	if _, err := sessions.Start(t.Context(), "source-a", requestID, sourceexec.NewSourceSession()); err == nil {
+		t.Fatal("expected non-HTML data URL to be rejected")
+	}
+}

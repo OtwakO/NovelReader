@@ -3,6 +3,7 @@ package sourceinteraction
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -97,4 +98,34 @@ func interactionActionID(t *testing.T, view View, label string) string {
 	}
 	t.Fatalf("action %q not found", label)
 	return ""
+}
+
+func TestUnmodifiedAggregateSettingsEmitsBoundedHTMLDataDocument(t *testing.T) {
+	raw, err := os.ReadFile("../../../test-booksources/test_光遇聚合_aggregated_booksource.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sources []booksource.BookSource
+	if err := json.Unmarshal(raw, &sources); err != nil {
+		t.Fatal(err)
+	}
+	source := sources[0]
+	source.ID = "aggregate-fixture"
+	settings := json.RawMessage(`{"variable":"{\"云端配置\":{\"hosts\":[\"https://v1.gyks.cf\"]},\"线路\":\"https://v1.gyks.cf\"}"}`)
+	profiles := &mutableProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: settings, Authentication: json.RawMessage(`{}`)}}
+	service := NewDescriber(describerSourceStore{&source}, profiles, analyzer.NewJSVM())
+	view, err := service.Describe(t.Context(), source.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.Act(t.Context(), source.ID, ActionRequest{Revision: view.Revision, ActionID: interactionActionID(t, view, "⚙️ 书源设置")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Effects) == 0 || result.Effects[0].Type != "browser_required" || !strings.HasPrefix(result.Effects[0].URL, "data:text/html;base64,") {
+		t.Fatalf("effects=%+v", result.Effects)
+	}
+	if err := validateBrowserURL(result.Effects[0].URL); err != nil {
+		t.Fatal(err)
+	}
 }
