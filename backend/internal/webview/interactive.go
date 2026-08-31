@@ -17,7 +17,7 @@ func (c *Client) StartInteractive(ctx context.Context, rawURL, title string, vie
 	}
 	viewport.Width = min(430, max(390, viewport.Width))
 	viewport.Height = min(900, max(700, viewport.Height))
-	viewport.DeviceScaleFactor = min(2, max(1, viewport.DeviceScaleFactor))
+	viewport.DeviceScaleFactor = min(3, max(1, viewport.DeviceScaleFactor))
 	request := interactiveRequest{URL: rawURL, Viewport: viewport, TimeoutMS: int(c.timeout.Milliseconds())}
 	if session != nil && isNetworkBrowserURL(rawURL) {
 		request.Headers = session.RequestHeaders()

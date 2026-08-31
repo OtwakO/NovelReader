@@ -183,7 +183,7 @@ class BrowserWorker:
                 self.active += 1
             acquired = True
             viewport = request.get("viewport") or {}
-            device_scale_factor = min(2.0, max(1.0, float(viewport.get("deviceScaleFactor") or 1)))
+            device_scale_factor = min(3.0, max(1.0, float(viewport.get("deviceScaleFactor") or 1)))
             context = await browser.new_context(
                 extra_http_headers=request.get("headers") or {},
                 device_scale_factor=device_scale_factor,

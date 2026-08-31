@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sourceBrowserLocation, sourceBrowserViewport } from './source-browser-display';
+import { isInternalSourceBrowserLocation, sourceBrowserViewport } from './source-browser-display';
 
 describe('sourceBrowserViewport', () => {
   it('uses a portrait mobile viewport on desktop displays', () => {
@@ -7,16 +7,17 @@ describe('sourceBrowserViewport', () => {
   });
 
   it('keeps narrow clients portrait and bounds density', () => {
-    expect(sourceBrowserViewport(360, 3)).toEqual({ width: 390, height: 741, deviceScaleFactor: 2 });
+    expect(sourceBrowserViewport(360, 4)).toEqual({ width: 390, height: 741, deviceScaleFactor: 3 });
   });
 });
 
-describe('sourceBrowserLocation', () => {
-  it('does not render a source HTML data document as visible location text', () => {
-    expect(sourceBrowserLocation('data:text/html;base64,PGgxPlNldHRpbmdzPC9oMT4=')).toBe('Source-provided HTML document');
+describe('isInternalSourceBrowserLocation', () => {
+  it('hides internal blank and data document locations', () => {
+    expect(isInternalSourceBrowserLocation('about:blank')).toBe(true);
+    expect(isInternalSourceBrowserLocation('data:text/html;base64,PGgxPlNldHRpbmdzPC9oMT4=')).toBe(true);
   });
 
   it('keeps normal browser locations visible', () => {
-    expect(sourceBrowserLocation('https://example.test/login')).toBe('https://example.test/login');
+    expect(isInternalSourceBrowserLocation('https://example.test/login')).toBe(false);
   });
 });

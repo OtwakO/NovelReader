@@ -76,12 +76,10 @@ class InteractiveSessions:
         session = await self._get(session_id)
         async with session.lock:
             self._touch(session)
-            image = await session.page.screenshot(type="png")
-            media_type = "image/png"
+            image = await session.page.screenshot(type="jpeg", quality=95, scale="device")
             if len(image) > self._max_frame_bytes:
-                media_type = "image/jpeg"
-                for quality in (95, 85, 70):
-                    image = await session.page.screenshot(type="jpeg", quality=quality)
+                for quality in (90, 85, 75):
+                    image = await session.page.screenshot(type="jpeg", quality=quality, scale="device")
                     if len(image) <= self._max_frame_bytes:
                         break
                 if len(image) > self._max_frame_bytes:
@@ -90,7 +88,7 @@ class InteractiveSessions:
             return {
                 "sessionId": session_id,
                 "image": base64.b64encode(image).decode("ascii"),
-                "mediaType": media_type,
+                "mediaType": "image/jpeg",
                 "width": viewport["width"],
                 "height": viewport["height"],
                 "url": session.page.url,

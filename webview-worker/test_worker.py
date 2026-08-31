@@ -127,20 +127,20 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         await self.sessions.close_all()
 
-    async def test_frame_uses_lossless_png(self) -> None:
+    async def test_frame_uses_high_quality_device_scale_jpeg(self) -> None:
         created = await self.sessions.create({"url": "https://example.test"})
-        self.page.screenshot.assert_awaited_with(type="png")
-        self.assertEqual(created["mediaType"], "image/png")
+        self.page.screenshot.assert_awaited_with(type="jpeg", quality=95, scale="device")
+        self.assertEqual(created["mediaType"], "image/jpeg")
         await self.sessions.close(created["sessionId"])
 
-    async def test_large_png_falls_back_to_high_quality_jpeg(self) -> None:
+    async def test_large_jpeg_retries_at_lower_quality(self) -> None:
         sessions = InteractiveSessions(self.acquire, self.release, 60, 600, max_frame_bytes=4)
         self.page.screenshot = AsyncMock(side_effect=[b"oversized", b"jpeg"])
         await sessions.start()
         try:
             created = await sessions.create({"url": "https://example.test"})
             self.assertEqual(created["mediaType"], "image/jpeg")
-            self.page.screenshot.assert_has_awaits([call(type="png"), call(type="jpeg", quality=95)])
+            self.page.screenshot.assert_has_awaits([call(type="jpeg", quality=95, scale="device"), call(type="jpeg", quality=90, scale="device")])
             await sessions.close(created["sessionId"])
         finally:
             await sessions.close_all()
