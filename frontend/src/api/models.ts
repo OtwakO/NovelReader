@@ -5,6 +5,7 @@ export interface AltSource {
   sourceName: string;
   sourceGroup?: string;
   capabilities?: string[];
+  discoveryQuery?: string;
 }
 
 export interface SearchResult {

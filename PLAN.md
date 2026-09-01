@@ -157,7 +157,7 @@ Search uses deterministic batches and SSE:
 - cursors identify the next source offset and source-list revision;
 - the frontend merges cumulative results and preserves alternate bindings;
 - source work remains bounded by per-search and process-wide capacity;
-- recovery may run an opaque user query against one enabled installed source through the same Search workflow, accepting only exact logical-book bindings without interpreting source-specific syntax or internal provider identities.
+- recovery may run an opaque user query against one enabled installed source through the same Search workflow, accepting only exact logical-book bindings without interpreting source-specific syntax or internal provider identities; the opaque discovery query is retained only as display provenance so same-source bindings remain distinguishable.
 
 Opening a result creates a non-destructive Candidate Book Detail. It may validate sources but does not add the book to the shelf.
 

@@ -23,12 +23,13 @@ var (
 
 // AltSource is a secondary source for the same book.
 type AltSource struct {
-	SourceID     string   `json:"sourceId"`
-	SourceURL    string   `json:"sourceUrl"`
-	BookURL      string   `json:"bookUrl"`
-	SourceName   string   `json:"sourceName"`
-	SourceGroup  string   `json:"sourceGroup,omitempty"`
-	Capabilities []string `json:"capabilities,omitempty"`
+	SourceID       string   `json:"sourceId"`
+	SourceURL      string   `json:"sourceUrl"`
+	BookURL        string   `json:"bookUrl"`
+	SourceName     string   `json:"sourceName"`
+	SourceGroup    string   `json:"sourceGroup,omitempty"`
+	Capabilities   []string `json:"capabilities,omitempty"`
+	DiscoveryQuery string   `json:"discoveryQuery,omitempty"`
 }
 
 // PreviewBook is source-derived detail data without shelf ownership or progress.
