@@ -20,6 +20,8 @@ import (
 	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
+var ErrSearchSourceUnavailable = errors.New("search source unavailable")
+
 const (
 	defaultMaxConcurrentSearch       = 16               // small-container source fetches per search
 	defaultMaxConcurrentGlobalSearch = 32               // small-container source fetches per process
@@ -339,6 +341,42 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 		return err
 	}
 	return s.searchSources(ctx, query, candidates, s.concurrentPerSearch, onResult)
+}
+
+// SearchInstalledSource runs the ordinary Search workflow against one enabled installed source.
+// The query remains opaque; source-authored URL rules decide how to interpret it.
+func (s *Searcher) SearchInstalledSource(ctx context.Context, sourceID, query string) ([]SearchResult, error) {
+	candidates, err := s.searchCandidates()
+	if err != nil {
+		return nil, err
+	}
+	for _, src := range candidates {
+		if src.ID != sourceID {
+			continue
+		}
+
+		s.capacity.activeSearches.Add(1)
+		s.capacity.totalSearches.Add(1)
+		defer s.capacity.activeSearches.Add(-1)
+
+		var results []SearchResult
+		var sourceErr error
+		err = s.searchSources(ctx, query, []booksource.BookSource{src}, 1, func(_ booksource.BookSource, found []SearchResult, err error) {
+			results = found
+			sourceErr = err
+		})
+		if err != nil {
+			return nil, err
+		}
+		if sourceErr != nil {
+			return nil, sourceErr
+		}
+		if results == nil {
+			results = []SearchResult{}
+		}
+		return results, nil
+	}
+	return nil, ErrSearchSourceUnavailable
 }
 
 // searchCandidates returns enabled text-type sources with search capability.

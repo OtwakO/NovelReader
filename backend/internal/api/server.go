@@ -190,6 +190,7 @@ func (s *Server) registerRoutesWithoutHealth() {
 
 	// Search
 	s.mux.HandleFunc("GET /api/search/stream", s.handleSearchBatchStream)
+	s.mux.HandleFunc("POST /api/search/source", s.handleSearchInstalledSource)
 
 	// Explore
 	s.mux.HandleFunc("GET /api/explore/sources", s.handleExploreSources)

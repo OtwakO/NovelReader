@@ -6,14 +6,52 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 )
+
+const maxTargetedSearchRequestBytes = 8 << 10
+
+func (s *Server) handleSearchInstalledSource(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		SourceID string `json:"sourceId"`
+		Query    string `json:"query"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxTargetedSearchRequestBytes))
+	if err := decoder.Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid search request")
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid search request")
+		return
+	}
+	if strings.TrimSpace(request.SourceID) == "" || strings.TrimSpace(request.Query) == "" {
+		writeError(w, http.StatusBadRequest, "sourceId and query are required")
+		return
+	}
+
+	results, err := s.searcher.SearchInstalledSource(r.Context(), request.SourceID, request.Query)
+	if errors.Is(err, book.ErrSearchSourceUnavailable) {
+		writeError(w, http.StatusNotFound, "search source unavailable")
+		return
+	}
+	if err != nil {
+		writeCrawlError(w, "search", err)
+		return
+	}
+	for index := range results {
+		s.addCoverDisplayURL(&results[index])
+	}
+	writeJSON(w, http.StatusOK, results)
+}
 
 func (s *Server) handleSearchBatchStream(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")

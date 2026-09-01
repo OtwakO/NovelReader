@@ -1,4 +1,5 @@
 import type { SearchResult } from './models';
+import { request } from './transport';
 export type { AltSource, SearchResult } from './models';
 export interface SearchBatchOptions { batchSize: number; concurrency: number; cursor?: string }
 export interface SearchBatchStart { offset: number; eligible: number; sourcesInBatch: number; requestedConcurrency: number; effectiveConcurrency: number; retryCursor: string }
@@ -10,6 +11,10 @@ export interface SearchBatchHandlers {
   onDone: (event: SearchBatchDone) => void;
   onStale: (message: string) => void;
   onDisconnect: () => void;
+}
+
+export function searchInstalledSource(sourceId: string, query: string) {
+  return request<SearchResult[]>('/search/source', { method: 'POST', body: JSON.stringify({ sourceId, query }) });
 }
 
 export function searchBooksBatchStream(query: string, options: SearchBatchOptions, handlers: SearchBatchHandlers): EventSource {

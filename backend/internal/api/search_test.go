@@ -63,6 +63,46 @@ func TestHandleSearchStreamValidatesBatchParameters(t *testing.T) {
 	}
 }
 
+func TestHandleSearchInstalledSourceUsesOpaqueQuery(t *testing.T) {
+	var receivedQuery atomic.Value
+	sourceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedQuery.Store(r.URL.Query().Get("q"))
+		_, _ = fmt.Fprint(w, `<div class="book"><a class="name" href="/alternate">fixture</a></div>`)
+	}))
+	defer sourceServer.Close()
+
+	source := apiSource(sourceServer.URL, "Target", 0)
+	source.ID = "target-source"
+	store := &apiSourceStore{sources: []booksource.BookSource{source}}
+	searcher := book.NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), nil, store, nil)
+	server := &Server{searcher: searcher}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/search/source", strings.NewReader(`{"sourceId":"target-source","query":"fixture@provider"}`))
+	server.handleSearchInstalledSource(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d, want 200; body=%s", response.Code, response.Body.String())
+	}
+	if got := receivedQuery.Load(); got != "fixture@provider" {
+		t.Fatalf("source query=%v, want opaque query", got)
+	}
+	var results []book.SearchResult
+	if err := json.Unmarshal(response.Body.Bytes(), &results); err != nil || len(results) != 1 || results[0].SourceID != "target-source" {
+		t.Fatalf("unexpected results: %#v, err=%v", results, err)
+	}
+}
+
+func TestHandleSearchInstalledSourceRejectsUnavailableSource(t *testing.T) {
+	apiServer, _, calls, closeSource := newSearchAPIFixture(t, 1)
+	defer closeSource()
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/search/source", strings.NewReader(`{"sourceId":"missing","query":"fixture"}`))
+	apiServer.handleSearchInstalledSource(response, request)
+	if response.Code != http.StatusNotFound || calls.Load() != 0 {
+		t.Fatalf("status=%d calls=%d, want 404 without source work; body=%s", response.Code, calls.Load(), response.Body.String())
+	}
+}
+
 func TestHandleSearchStreamReportsSourceStoreFailures(t *testing.T) {
 	apiServer, store, _, closeSource := newSearchAPIFixture(t, 1)
 	defer closeSource()

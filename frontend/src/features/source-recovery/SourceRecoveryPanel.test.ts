@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as searchApi from '../../api/search';
 import SourceRecoveryPanel from './SourceRecoveryPanel.vue';
 
-vi.mock('../../api/search', async () => { const actual = await vi.importActual<typeof import('../../api/search')>('../../api/search'); return { ...actual, searchBooksBatchStream: vi.fn(() => ({ close: vi.fn() })) }; });
+vi.mock('../../api/search', async () => { const actual = await vi.importActual<typeof import('../../api/search')>('../../api/search'); return { ...actual, searchBooksBatchStream: vi.fn(() => ({ close: vi.fn() })), searchInstalledSource: vi.fn(async () => []) }; });
 beforeEach(() => vi.clearAllMocks());
-const i18n = createI18n({ legacy: false, globalInjection: true, locale: 'en', messages: { en: { sources: { capabilities: { search: 'Search', explore: 'Explore', headers: 'Headers', javascript: 'JavaScript', webview: 'WebView' } }, sourceRecovery: { eyebrow: 'Recovery', title: 'Sources', description: 'Description', stop: 'Stop', rescan: 'Clear', clearing: 'Clearing', confirmTitle: 'Confirm', confirmDescription: 'Description', cancel: 'Cancel', confirm: 'Confirm', switching: 'Switching', use: 'Use', empty: 'Empty', find: 'Find', filterLabel: 'Filter', filterPlaceholder: 'Search sources', filterKinds: 'Kinds', all: 'All', stored: 'Stored', new: 'New', noFilterMatches: 'No matches' }, search: { controls: { title: 'Controls', batchSize: 'Batch', intensity: 'Intensity', gentle: 'Gentle', balanced: 'Balanced', fast: 'Fast', advanced: 'Advanced', concurrency: 'Concurrency' }, status: { checkedOf: '', checked: '', results: '', concurrency: '', failures: '', disconnected: '', stale: '', storage: '' }, actions: { restart: '', retry: '', more: '' } } } } });
+const i18n = createI18n({ legacy: false, globalInjection: true, locale: 'en', messages: { en: { sources: { capabilities: { search: 'Search', explore: 'Explore', headers: 'Headers', javascript: 'JavaScript', webview: 'WebView' } }, sourceRecovery: { eyebrow: 'Recovery', title: 'Sources', description: 'Description', stop: 'Stop', rescan: 'Clear', clearing: 'Clearing', confirmTitle: 'Confirm', confirmDescription: 'Description', cancel: 'Cancel', confirm: 'Confirm', switching: 'Switching', use: 'Use', empty: 'Empty', find: 'Find', filterLabel: 'Filter', filterPlaceholder: 'Search sources', filterKinds: 'Kinds', all: 'All', stored: 'Stored', new: 'New', noFilterMatches: 'No matches', targetedTitle: 'Search this source', targetedDescription: 'Opaque query', targetedLabel: 'Query', targetedPlaceholder: 'Custom query', targetedAction: 'Run query', targetedAdded: 'Added {count}', targetedEmpty: 'No new matches', targetedFailed: 'Search failed' }, search: { controls: { title: 'Controls', batchSize: 'Batch', intensity: 'Intensity', gentle: 'Gentle', balanced: 'Balanced', fast: 'Fast', advanced: 'Advanced', concurrency: 'Concurrency' }, status: { checkedOf: '', checked: '', results: '', concurrency: '', failures: '', disconnected: '', stale: '', storage: '' }, actions: { restart: '', retry: '', more: '' } } } } });
 
 describe('SourceRecoveryPanel', () => {
   it('shows persisted alternate sources immediately', () => {
@@ -18,9 +18,19 @@ describe('SourceRecoveryPanel', () => {
     expect(wrapper.text()).toContain('Alternate provider');
     expect(wrapper.text()).not.toContain('Current provider');
   });
+  it('runs an opaque query only against the current source and accepts exact alternate bindings', async () => {
+    vi.mocked(searchApi.searchInstalledSource).mockResolvedValue([{ name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', bookUrl: '/provider-b', sourceId: 'aggregate', sourceUrl: 'aggregate', sourceName: 'Alternate provider' }]);
+    const wrapper = mount(SourceRecoveryPanel, { global: { plugins: [i18n] }, props: { book: { name: 'Book', author: 'Author' }, currentSourceId: 'aggregate', currentBookUrl: '/provider-a', storedSources: [], onClearAndRescan: vi.fn(async () => undefined) } });
+    await wrapper.get('details summary').trigger('click');
+    await wrapper.get('.targeted-search input').setValue('Book@provider');
+    await wrapper.get('.targeted-search form').trigger('submit');
+    expect(searchApi.searchInstalledSource).toHaveBeenCalledWith('aggregate', 'Book@provider');
+    expect(wrapper.text()).toContain('Alternate provider');
+    expect(wrapper.emitted('matches')?.[0]?.[0]).toEqual([expect.objectContaining({ sourceId: 'aggregate', bookUrl: '/provider-b' })]);
+  });
   it('filters known sources locally without changing discovery state', async () => {
     const wrapper = mount(SourceRecoveryPanel, { global: { plugins: [i18n] }, props: { book: { name: 'Book', author: 'Author' }, currentSourceId: 'current', currentBookUrl: '/current', storedSources: [{ sourceId: 'alpha', sourceUrl: 'alpha', bookUrl: '/a', sourceName: 'Alpha' }, { sourceId: 'beta', sourceUrl: 'beta', bookUrl: '/b', sourceName: 'Beta' }], onClearAndRescan: vi.fn(async () => undefined) } });
-    await wrapper.get('input[type="search"]').setValue('Beta');
+    await wrapper.get('.source-filter input[type="search"]').setValue('Beta');
     expect(wrapper.text()).toContain('Beta'); expect(wrapper.text()).not.toContain('Alpha'); expect(wrapper.vm.state.checked).toBe(0);
   });
   it('keeps an active scan when the same logical book receives refreshed props', async () => {
