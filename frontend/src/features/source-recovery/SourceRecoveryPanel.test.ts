@@ -42,6 +42,15 @@ describe('SourceRecoveryPanel', () => {
     expect(wrapper.find('.sources li.current button').exists()).toBe(false);
   });
 
+  it('emits a clean persisted binding when switching sources', async () => {
+    const alternate: AltSource = { sourceId: 'aggregate', sourceUrl: 'aggregate', bookUrl: '/alternate', sourceName: 'Aggregate', lastChapter: 'Alternate provider hint' };
+    const wrapper = mountPanel({ book: shelfBook(active, [alternate]) });
+    const rows = wrapper.findAll('.sources li');
+    expect(rows).toHaveLength(2);
+    await rows[1]!.get('button').trigger('click');
+    expect(wrapper.emitted('select')?.[0]?.[0]).toEqual(alternate);
+  });
+
   it('deduplicates the active binding when it is also present in stored sources', () => {
     const wrapper = mountPanel({ book: shelfBook(active, [active, { sourceId: 'aggregate', sourceUrl: 'aggregate', bookUrl: '/other', sourceName: 'Other' }]) });
     expect(wrapper.findAll('.sources li')).toHaveLength(2);
