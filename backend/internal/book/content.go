@@ -16,10 +16,7 @@ func (e *ContentPaginationError) Error() string {
 	if e == nil {
 		return "content: pagination failed"
 	}
-	location := e.PageURL
-	if e.FailedURL != "" {
-		location = e.FailedURL
-	}
+	location := paginationErrorLocation(e.PageURL, e.FailedURL)
 	return fmt.Sprintf("content: %s %s after %d pages: %v", e.Operation, location, e.PagesFetched, e.Err)
 }
 

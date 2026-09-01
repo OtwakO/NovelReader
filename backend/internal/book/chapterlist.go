@@ -28,11 +28,19 @@ func (e *TOCPaginationError) Error() string {
 	if e == nil {
 		return "toc: pagination failed"
 	}
-	location := e.PageURL
-	if e.FailedURL != "" {
-		location = e.FailedURL
-	}
+	location := paginationErrorLocation(e.PageURL, e.FailedURL)
 	return fmt.Sprintf("toc: %s %s after %d pages (%d chapters): %v", e.Operation, location, e.PagesFetched, e.ChaptersFetched, e.Err)
+}
+
+func paginationErrorLocation(pageURL, failedURL string) string {
+	location := pageURL
+	if failedURL != "" {
+		location = failedURL
+	}
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(location)), "data:") {
+		return "source-provided data"
+	}
+	return location
 }
 
 func (e *TOCPaginationError) Unwrap() error {

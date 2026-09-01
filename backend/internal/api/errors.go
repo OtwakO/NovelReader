@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/otwako/novelreader/internal/book"
 )
@@ -24,6 +25,13 @@ func writeErrorCode(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, map[string]string{"error": message, "code": code})
 }
 
+func publicCrawlURL(rawURL string) string {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "data:") {
+		return "source-provided data"
+	}
+	return rawURL
+}
+
 func writeCrawlError(w http.ResponseWriter, workflow string, err error) {
 	response := crawlErrorResponse{
 		Error:    err.Error(),
@@ -36,15 +44,15 @@ func writeCrawlError(w http.ResponseWriter, workflow string, err error) {
 	case errors.As(err, &tocErr):
 		response.Code = "toc_pagination_failed"
 		response.Operation = tocErr.Operation
-		response.PageURL = tocErr.PageURL
-		response.FailedURL = tocErr.FailedURL
+		response.PageURL = publicCrawlURL(tocErr.PageURL)
+		response.FailedURL = publicCrawlURL(tocErr.FailedURL)
 		response.PagesFetched = tocErr.PagesFetched
 		response.ChaptersFetched = tocErr.ChaptersFetched
 	case errors.As(err, &contentErr):
 		response.Code = "content_pagination_failed"
 		response.Operation = contentErr.Operation
-		response.PageURL = contentErr.PageURL
-		response.FailedURL = contentErr.FailedURL
+		response.PageURL = publicCrawlURL(contentErr.PageURL)
+		response.FailedURL = publicCrawlURL(contentErr.FailedURL)
 		response.PagesFetched = contentErr.PagesFetched
 	}
 	slog.Warn("api: upstream crawl failed", "workflow", workflow, "code", response.Code, "error", err)
