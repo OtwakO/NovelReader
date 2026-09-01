@@ -1,7 +1,52 @@
 // Source-switch tests keep canonical progress on readable target chapters.
 package book
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/otwako/novelreader/internal/database"
+)
+
+func TestSwitchSourcePreservesNWayBindingMetadataAcrossReloads(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "books.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	initializeBookTestSchema(t, db)
+	store := NewStore(db)
+	bindings := []AltSource{
+		{SourceID: "aggregate", SourceURL: "aggregate", BookURL: "/a", SourceName: "Aggregate", SourceGroup: "A", DiscoveryQuery: "Book@A", Capabilities: []string{"search"}},
+		{SourceID: "aggregate", SourceURL: "aggregate", BookURL: "/b", SourceName: "Aggregate", SourceGroup: "B", DiscoveryQuery: "Book@B", Capabilities: []string{"search", "toc"}},
+		{SourceID: "aggregate", SourceURL: "aggregate", BookURL: "/c", SourceName: "Aggregate", SourceGroup: "C", DiscoveryQuery: "Book@C", Capabilities: []string{"toc"}},
+	}
+	active := bindings[0]
+	if err := store.AddBook(&Book{ID: "book", Name: "Book", Author: "Author", SourceID: active.SourceID, SourceURL: active.SourceURL, BookURL: active.BookURL, Origin: active.SourceName, ActiveSource: &active, AlternateSources: bindings[1:]}); err != nil {
+		t.Fatal(err)
+	}
+	chapters := []Chapter{{Index: 0, Title: "Chapter", URL: "/chapter"}}
+	for _, wanted := range []AltSource{bindings[2], bindings[1], bindings[0]} {
+		current, err := store.GetBook("book")
+		if err != nil {
+			t.Fatal(err)
+		}
+		target := Book{SourceID: wanted.SourceID, SourceURL: wanted.SourceURL, BookURL: wanted.BookURL, Origin: wanted.SourceName}
+		if err := store.SwitchSource("book", current.StateVersion, target, chapters, 0, 0); err != nil {
+			t.Fatal(err)
+		}
+		reloaded, err := store.GetBook("book")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reloaded.ActiveSource == nil || reloaded.ActiveSource.BookURL != wanted.BookURL || reloaded.ActiveSource.SourceGroup != wanted.SourceGroup || reloaded.ActiveSource.DiscoveryQuery != wanted.DiscoveryQuery {
+			t.Fatalf("active binding after switch to %s: %+v", wanted.BookURL, reloaded.ActiveSource)
+		}
+		if len(reloaded.AlternateSources) != 2 {
+			t.Fatalf("alternates after switch to %s: %+v", wanted.BookURL, reloaded.AlternateSources)
+		}
+	}
+}
 
 func TestMigrateChapterIndexMatchesNormalizedTitleThenClampsRawIndex(t *testing.T) {
 	chapters := []Chapter{

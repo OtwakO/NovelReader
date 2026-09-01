@@ -2,7 +2,6 @@
 package book
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -81,6 +80,9 @@ func (s *Store) SwitchSource(bookID string, expectedVersion int64, target Book, 
 		return ErrInvalidSourceSwitch
 	}
 
+	s.mergeMu.Lock()
+	defer s.mergeMu.Unlock()
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -94,28 +96,13 @@ func (s *Store) SwitchSource(bookID string, expectedVersion int64, target Book, 
 		return ErrBookStateChanged
 	}
 
-	alternates := make([]AltSource, 0, len(current.AlternateSources))
-	found := false
-	var selected AltSource
-	for _, alternate := range current.AlternateSources {
-		if alternate.SourceID == target.SourceID && alternate.BookURL == target.BookURL {
-			found = true
-			selected = alternate
-			previous := AltSource{SourceID: current.SourceID, SourceURL: current.SourceURL, BookURL: current.BookURL, SourceName: current.Origin}
-			if current.ActiveSource != nil {
-				previous = enrichAlternateSource(previous, *current.ActiveSource)
-			}
-			alternates = append(alternates, previous)
-			continue
-		}
-		alternates = append(alternates, alternate)
-	}
-	if !found {
-		return ErrSourceNotAlternate
-	}
-	alternateJSON, err := json.Marshal(append(alternates, selected))
+	state, err := bindingStateFromBook(current).promote(target.SourceID, target.BookURL)
 	if err != nil {
-		return fmt.Errorf("switch source: encode alternates: %w", err)
+		return err
+	}
+	bindingJSON, err := encodeBindingState(state)
+	if err != nil {
+		return fmt.Errorf("switch source: encode binding state: %w", err)
 	}
 
 	if _, err := tx.Exec(`UPDATE books SET source_id = ?, source_url = ?, book_url = ?, toc_url = ?, origin = ?, variable_map = ?,
@@ -123,7 +110,7 @@ func (s *Store) SwitchSource(bookID string, expectedVersion int64, target Book, 
 		total_chapter_num = ?, state_version = state_version + 1, alternate_sources = ?, updated_at = ? WHERE id = ?`,
 		target.SourceID, target.SourceURL, target.BookURL, target.TocURL, target.Origin, target.VariableMap,
 		target.LastChapter, target.UpdateTime, target.WordCount, chapterIndex, position,
-		len(chapters), string(alternateJSON), time.Now().UnixMilli(), bookID); err != nil {
+		len(chapters), bindingJSON, time.Now().UnixMilli(), bookID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM chapters WHERE book_id = ?`, bookID); err != nil {

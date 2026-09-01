@@ -518,6 +518,14 @@ func applySearchResultToBook(book *Book, result SearchResult) {
 	book.SourceID = result.SourceID
 	book.SourceURL = result.SourceURL
 	book.Origin = result.SourceName
+	book.ActiveSource = &AltSource{
+		SourceID:     result.SourceID,
+		SourceURL:    result.SourceURL,
+		BookURL:      result.BookURL,
+		SourceName:   result.SourceName,
+		SourceGroup:  result.SourceGroup,
+		Capabilities: append([]string(nil), result.Capabilities...),
+	}
 }
 
 func (s *Searcher) preciseSearchSource(ctx context.Context, src booksource.BookSource, name, author string, session *sourceexec.SourceSession) (SearchResult, error) {

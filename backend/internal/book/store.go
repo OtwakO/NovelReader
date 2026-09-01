@@ -3,7 +3,6 @@ package book
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -21,7 +20,8 @@ var (
 	ErrInvalidProgress  = errors.New("book: invalid progress")
 )
 
-// AltSource is a secondary source for the same book.
+// AltSource is a complete source binding for the same logical book.
+// It may occupy either the active or alternate role.
 type AltSource struct {
 	SourceID       string   `json:"sourceId"`
 	SourceURL      string   `json:"sourceUrl"`
@@ -287,15 +287,17 @@ func (s *Store) AddBook(b *Book) error {
 	now := time.Now().UnixMilli()
 	b.CreatedAt = now
 	b.UpdatedAt = now
-	altJSON, _ := json.Marshal(persistedSourceBindings(b))
-	if len(altJSON) == 0 {
-		altJSON = []byte("[]")
+	state := bindingStateFromBook(b)
+	applyBindingState(b, state)
+	bindingJSON, err := encodeBindingState(state)
+	if err != nil {
+		return err
 	}
 	identityName, identityAuthor := NormalizeBookIdentity(b.Name, b.Author)
 	if identityName == "" {
 		return errors.New("book: name is required")
 	}
-	_, err := s.db.Exec(`INSERT INTO books (
+	_, err = s.db.Exec(`INSERT INTO books (
 		id, name, author, identity_name, identity_author, cover_url, intro, kind,
 		source_id, source_url, book_url, toc_url, origin, variable_map,
 		last_chapter, update_time, word_count,
@@ -317,7 +319,7 @@ func (s *Store) AddBook(b *Book) error {
 		b.SourceID, b.SourceURL, b.BookURL, b.TocURL, b.Origin, b.VariableMap,
 		b.LastChapter, b.UpdateTime, b.WordCount,
 		b.DurChapterIndex, b.DurChapterPos, b.TotalChapterNum, b.StateVersion,
-		string(altJSON),
+		bindingJSON,
 		b.CreatedAt, b.UpdatedAt,
 	)
 	return err
@@ -349,8 +351,9 @@ func (s *Store) AddOrMergeBook(candidate *Book) (*Book, bool, error) {
 		now := time.Now().UnixMilli()
 		candidate.CreatedAt = now
 		candidate.UpdatedAt = now
-		candidate.AlternateSources = mergeAlternateSources(candidate.SourceID, candidate.BookURL, candidate.AlternateSources)
-		alternateJSON, err := json.Marshal(persistedSourceBindings(candidate))
+		state := bindingStateFromBook(candidate)
+		applyBindingState(candidate, state)
+		alternateJSON, err := encodeBindingState(state)
 		if err != nil {
 			return nil, false, err
 		}
@@ -366,7 +369,7 @@ func (s *Store) AddOrMergeBook(candidate *Book) (*Book, bool, error) {
 			candidate.SourceID, candidate.SourceURL, candidate.BookURL, candidate.TocURL, candidate.Origin, candidate.VariableMap,
 			candidate.LastChapter, candidate.UpdateTime, candidate.WordCount,
 			candidate.DurChapterIndex, candidate.DurChapterPos, candidate.TotalChapterNum, candidate.StateVersion,
-			string(alternateJSON), candidate.CreatedAt, candidate.UpdatedAt,
+			alternateJSON, candidate.CreatedAt, candidate.UpdatedAt,
 		); err != nil {
 			return nil, false, err
 		}
@@ -376,15 +379,16 @@ func (s *Store) AddOrMergeBook(candidate *Book) (*Book, bool, error) {
 		return candidate, true, nil
 	}
 
-	discovered := append([]AltSource(nil), existing.AlternateSources...)
-	discovered = append(discovered, AltSource{SourceID: candidate.SourceID, SourceURL: candidate.SourceURL, BookURL: candidate.BookURL, SourceName: candidate.Origin})
-	discovered = append(discovered, candidate.AlternateSources...)
-	existing.AlternateSources = mergeAlternateSources(existing.SourceID, existing.BookURL, discovered)
-	alternateJSON, err := json.Marshal(persistedSourceBindings(&existing))
+	state := bindingStateFromBook(&existing).upsert(bindingFromBook(candidate))
+	for _, alternate := range candidate.AlternateSources {
+		state = state.upsert(alternate)
+	}
+	applyBindingState(&existing, state)
+	alternateJSON, err := encodeBindingState(state)
 	if err != nil {
 		return nil, false, err
 	}
-	if _, err := tx.Exec(`UPDATE books SET alternate_sources = ?, updated_at = ? WHERE id = ?`, string(alternateJSON), time.Now().UnixMilli(), existing.ID); err != nil {
+	if _, err := tx.Exec(`UPDATE books SET alternate_sources = ?, updated_at = ? WHERE id = ?`, alternateJSON, time.Now().UnixMilli(), existing.ID); err != nil {
 		return nil, false, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -416,15 +420,16 @@ func (s *Store) AddOrMergeBookWithChapters(candidate *Book, chapters []Chapter) 
 		return nil, false, err
 	}
 	if err == nil {
-		discovered := append([]AltSource(nil), existing.AlternateSources...)
-		discovered = append(discovered, AltSource{SourceID: candidate.SourceID, SourceURL: candidate.SourceURL, BookURL: candidate.BookURL, SourceName: candidate.Origin})
-		discovered = append(discovered, candidate.AlternateSources...)
-		existing.AlternateSources = mergeAlternateSources(existing.SourceID, existing.BookURL, discovered)
-		alternateJSON, marshalErr := json.Marshal(persistedSourceBindings(&existing))
+		state := bindingStateFromBook(&existing).upsert(bindingFromBook(candidate))
+		for _, alternate := range candidate.AlternateSources {
+			state = state.upsert(alternate)
+		}
+		applyBindingState(&existing, state)
+		alternateJSON, marshalErr := encodeBindingState(state)
 		if marshalErr != nil {
 			return nil, false, marshalErr
 		}
-		if _, err := tx.Exec(`UPDATE books SET alternate_sources = ?, updated_at = ? WHERE id = ?`, string(alternateJSON), time.Now().UnixMilli(), existing.ID); err != nil {
+		if _, err := tx.Exec(`UPDATE books SET alternate_sources = ?, updated_at = ? WHERE id = ?`, alternateJSON, time.Now().UnixMilli(), existing.ID); err != nil {
 			return nil, false, err
 		}
 		if err := tx.Commit(); err != nil {
@@ -437,8 +442,9 @@ func (s *Store) AddOrMergeBookWithChapters(candidate *Book, chapters []Chapter) 
 	candidate.CreatedAt = now
 	candidate.UpdatedAt = now
 	candidate.TotalChapterNum = len(chapters)
-	candidate.AlternateSources = mergeAlternateSources(candidate.SourceID, candidate.BookURL, candidate.AlternateSources)
-	alternateJSON, err := json.Marshal(persistedSourceBindings(candidate))
+	state := bindingStateFromBook(candidate)
+	applyBindingState(candidate, state)
+	alternateJSON, err := encodeBindingState(state)
 	if err != nil {
 		return nil, false, err
 	}
@@ -454,7 +460,7 @@ func (s *Store) AddOrMergeBookWithChapters(candidate *Book, chapters []Chapter) 
 		candidate.SourceID, candidate.SourceURL, candidate.BookURL, candidate.TocURL, candidate.Origin, candidate.VariableMap,
 		candidate.LastChapter, candidate.UpdateTime, candidate.WordCount,
 		candidate.DurChapterIndex, candidate.DurChapterPos, candidate.TotalChapterNum, candidate.StateVersion,
-		string(alternateJSON), candidate.CreatedAt, candidate.UpdatedAt,
+		alternateJSON, candidate.CreatedAt, candidate.UpdatedAt,
 	); err != nil {
 		return nil, false, err
 	}
@@ -478,23 +484,23 @@ func (s *Store) AddOrMergeBookWithChapters(candidate *Book, chapters []Chapter) 
 // ClearBookSources removes discovered alternate bindings without changing the
 // active source or reading state.
 func (s *Store) ClearBookSources(bookID string) (*Book, error) {
-	s.mergeMu.Lock()
-	defer s.mergeMu.Unlock()
-	result, err := s.db.Exec(`UPDATE books SET alternate_sources = '[]', updated_at = ? WHERE id = ?`, time.Now().UnixMilli(), bookID)
-	if err != nil {
-		return nil, err
-	}
-	if affected, err := result.RowsAffected(); err != nil {
-		return nil, err
-	} else if affected == 0 {
-		return nil, ErrBookNotFound
-	}
-	return s.GetBook(bookID)
+	return s.updateBindingState(bookID, func(state bindingState) (bindingState, error) {
+		return state.clearAlternates(), nil
+	})
 }
 
 // MergeBookSources adds source bindings to an existing shelf book without
 // switching its active source or touching reading state.
 func (s *Store) MergeBookSources(bookID string, sources []AltSource) (*Book, error) {
+	return s.updateBindingState(bookID, func(state bindingState) (bindingState, error) {
+		for _, source := range sources {
+			state = state.upsert(source)
+		}
+		return state, nil
+	})
+}
+
+func (s *Store) updateBindingState(bookID string, mutate func(bindingState) (bindingState, error)) (*Book, error) {
 	s.mergeMu.Lock()
 	defer s.mergeMu.Unlock()
 	tx, err := s.db.Begin()
@@ -502,33 +508,29 @@ func (s *Store) MergeBookSources(bookID string, sources []AltSource) (*Book, err
 		return nil, err
 	}
 	defer tx.Rollback() //nolint:errcheck
-	var existing Book
-	if err := scanBookRow(tx.QueryRow(`SELECT `+bookColumns+` FROM books WHERE id = ?`, bookID), &existing); err != nil {
+	var stored Book
+	if err := scanBookRow(tx.QueryRow(`SELECT `+bookColumns+` FROM books WHERE id = ?`, bookID), &stored); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrBookNotFound
 		}
 		return nil, err
 	}
-	existing.AlternateSources = mergeAlternateSources(existing.SourceID, existing.BookURL, append(existing.AlternateSources, sources...))
-	alternateJSON, err := json.Marshal(persistedSourceBindings(&existing))
+	state, err := mutate(bindingStateFromBook(&stored))
 	if err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec(`UPDATE books SET alternate_sources = ?, updated_at = ? WHERE id = ?`, string(alternateJSON), time.Now().UnixMilli(), existing.ID); err != nil {
+	encoded, err := encodeBindingState(state)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(`UPDATE books SET alternate_sources = ?, updated_at = ? WHERE id = ?`, encoded, time.Now().UnixMilli(), stored.ID); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &existing, nil
-}
-
-func persistedSourceBindings(book *Book) []AltSource {
-	bindings := append([]AltSource(nil), book.AlternateSources...)
-	if book.ActiveSource != nil {
-		bindings = append(bindings, *book.ActiveSource)
-	}
-	return mergeAlternateSources("", "", bindings)
+	applyBindingState(&stored, state)
+	return &stored, nil
 }
 
 func mergeAlternateSources(currentSourceID, currentBookURL string, sources []AltSource) []AltSource {
@@ -792,19 +794,11 @@ func scanBook(s scanner, includeCurrentChapter bool) (*Book, error) {
 	if err := s.Scan(destinations...); err != nil {
 		return nil, err
 	}
-	if altSourcesStr != "" && altSourcesStr != "[]" {
-		var persisted []AltSource
-		if err := json.Unmarshal([]byte(altSourcesStr), &persisted); err == nil {
-			for index := range persisted {
-				source := persisted[index]
-				if source.SourceID == b.SourceID && source.BookURL == b.BookURL {
-					b.ActiveSource = &source
-					continue
-				}
-				b.AlternateSources = append(b.AlternateSources, source)
-			}
-		}
+	state, err := decodeBindingState(altSourcesStr, &b)
+	if err != nil {
+		return nil, err
 	}
+	applyBindingState(&b, state)
 	b.Intro = NormalizeDescription(b.Intro)
 	return &b, nil
 }

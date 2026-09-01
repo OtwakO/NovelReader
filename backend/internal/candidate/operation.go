@@ -302,7 +302,8 @@ func previewBook(value *book.Book) book.PreviewBook {
 	return book.PreviewBook{Name: value.Name, Author: value.Author, CoverURL: value.CoverURL, Intro: value.Intro, Kind: value.Kind, SourceID: value.SourceID, LastChapter: value.LastChapter, UpdateTime: value.UpdateTime, WordCount: value.WordCount, Origin: value.Origin, SourceURL: value.SourceURL, BookURL: value.BookURL, TocURL: value.TocURL, AlternateSources: value.AlternateSources}
 }
 func inputBook(in Input, b binding, src booksource.BookSource) *book.Book {
-	return &book.Book{Name: in.Name, Author: in.Author, CoverURL: in.CoverURL, Intro: in.Intro, Kind: in.Kind, LastChapter: in.LastChapter, UpdateTime: in.UpdateTime, WordCount: in.WordCount, Origin: sourceName(src, b.sourceName), SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL}
+	name := sourceName(src, b.sourceName)
+	return &book.Book{Name: in.Name, Author: in.Author, CoverURL: in.CoverURL, Intro: in.Intro, Kind: in.Kind, LastChapter: in.LastChapter, UpdateTime: in.UpdateTime, WordCount: in.WordCount, Origin: name, SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL, ActiveSource: &book.AltSource{SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL, SourceName: name, SourceGroup: b.sourceGroup, Capabilities: append([]string(nil), b.capabilities...)}}
 }
 func sourceName(src booksource.BookSource, fallback string) string {
 	if strings.TrimSpace(src.BookSourceName) != "" {

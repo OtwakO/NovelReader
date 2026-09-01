@@ -91,6 +91,28 @@ func TestStoreMergeBookSourcesEnrichesExistingBinding(t *testing.T) {
 	}
 }
 
+func TestStoreClearBookSourcesPreservesActiveBindingMetadata(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "books.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewStore(db)
+	initializeBookTestSchema(t, db)
+	active := &AltSource{SourceID: "aggregate", SourceURL: "aggregate", BookURL: "/current", SourceName: "Aggregate", DiscoveryQuery: "Fixture@current"}
+	if err := store.AddBook(&Book{ID: "book-a", Name: "Fixture", Author: "Author", SourceID: active.SourceID, SourceURL: active.SourceURL, BookURL: active.BookURL, Origin: active.SourceName, ActiveSource: active, AlternateSources: []AltSource{{SourceID: "aggregate", SourceURL: "aggregate", BookURL: "/alternate", SourceName: "Aggregate"}}}); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := store.ClearBookSources("book-a")
+	if err != nil || stored.ActiveSource == nil || stored.ActiveSource.DiscoveryQuery != "Fixture@current" || len(stored.AlternateSources) != 0 {
+		t.Fatalf("stored=%+v error=%v", stored, err)
+	}
+	reloaded, err := store.GetBook("book-a")
+	if err != nil || reloaded.ActiveSource == nil || reloaded.ActiveSource.DiscoveryQuery != "Fixture@current" || len(reloaded.AlternateSources) != 0 {
+		t.Fatalf("reloaded=%+v error=%v", reloaded, err)
+	}
+}
+
 func TestStoreLowLevelAddCannotReplaceAnotherLogicalBookID(t *testing.T) {
 	db, err := database.Open(filepath.Join(t.TempDir(), "books.db"))
 	if err != nil {

@@ -6,7 +6,7 @@ import SourceRecoveryPanel from './SourceRecoveryPanel.vue';
 
 vi.mock('../../api/search', async () => { const actual = await vi.importActual<typeof import('../../api/search')>('../../api/search'); return { ...actual, searchBooksBatchStream: vi.fn(() => ({ close: vi.fn() })), searchInstalledSource: vi.fn(async () => []) }; });
 beforeEach(() => vi.clearAllMocks());
-const i18n = createI18n({ legacy: false, globalInjection: true, locale: 'en', messages: { en: { sources: { capabilities: { search: 'Search', explore: 'Explore', headers: 'Headers', javascript: 'JavaScript', webview: 'WebView' } }, sourceRecovery: { eyebrow: 'Recovery', title: 'Sources', description: 'Description', stop: 'Stop', rescan: 'Clear', clearing: 'Clearing', confirmTitle: 'Confirm', confirmDescription: 'Description', cancel: 'Cancel', confirm: 'Confirm', switching: 'Switching', use: 'Use', empty: 'Empty', find: 'Find', filterLabel: 'Filter', filterPlaceholder: 'Search sources', filterKinds: 'Kinds', all: 'All', stored: 'Stored', new: 'New', noFilterMatches: 'No matches', targetedTitle: 'Search this source', targetedDescription: 'Opaque query', targetedLabel: 'Query', targetedPlaceholder: 'Custom query', targetedAction: 'Run query', targetedAdded: 'Added {count}', targetedEmpty: 'No new matches', targetedFailed: 'Search failed', discoveredByQuery: 'Found with query: {query}' }, search: { controls: { title: 'Controls', batchSize: 'Batch', intensity: 'Intensity', gentle: 'Gentle', balanced: 'Balanced', fast: 'Fast', advanced: 'Advanced', concurrency: 'Concurrency' }, status: { checkedOf: '', checked: '', results: '', concurrency: '', failures: '', disconnected: '', stale: '', storage: '' }, actions: { restart: '', retry: '', more: '' } } } } });
+const i18n = createI18n({ legacy: false, globalInjection: true, locale: 'en', messages: { en: { sources: { capabilities: { search: 'Search', explore: 'Explore', headers: 'Headers', javascript: 'JavaScript', webview: 'WebView' } }, sourceRecovery: { eyebrow: 'Recovery', title: 'Sources', description: 'Description', stop: 'Stop', rescan: 'Clear', clearing: 'Clearing', confirmTitle: 'Confirm', confirmDescription: 'Description', cancel: 'Cancel', confirm: 'Confirm', switching: 'Switching', use: 'Use', empty: 'Empty', find: 'Find', filterLabel: 'Filter', filterPlaceholder: 'Search sources', filterKinds: 'Kinds', all: 'All', stored: 'Stored', new: 'New', noFilterMatches: 'No matches', targetedTitle: 'Search this source', targetedDescription: 'Opaque query', targetedLabel: 'Query', targetedPlaceholder: 'Custom query', targetedAction: 'Run query', targetedSaved: 'Saved {count}', targetedEmpty: 'No new matches', targetedFailed: 'Search failed', discoveredByQuery: 'Found with query: {query}' }, search: { controls: { title: 'Controls', batchSize: 'Batch', intensity: 'Intensity', gentle: 'Gentle', balanced: 'Balanced', fast: 'Fast', advanced: 'Advanced', concurrency: 'Concurrency' }, status: { checkedOf: '', checked: '', results: '', concurrency: '', failures: '', disconnected: '', stale: '', storage: '' }, actions: { restart: '', retry: '', more: '' } } } } });
 
 describe('SourceRecoveryPanel', () => {
   it('shows persisted alternate sources immediately', () => {
@@ -28,6 +28,28 @@ describe('SourceRecoveryPanel', () => {
     expect(wrapper.text()).toContain('Alternate provider');
     expect(wrapper.text()).toContain('Found with query: Book@provider');
     expect(wrapper.emitted('matches')?.[0]?.[0]).toEqual([expect.objectContaining({ sourceId: 'aggregate', bookUrl: '/provider-b', discoveryQuery: 'Book@provider' })]);
+  });
+  it('preserves multiple bindings returned by one opaque partial query', async () => {
+    vi.mocked(searchApi.searchInstalledSource).mockResolvedValue([
+      { name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', bookUrl: '/69', sourceId: 'aggregate', sourceUrl: 'aggregate', sourceName: 'Aggregate' },
+      { name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', bookUrl: '/fake-69', sourceId: 'aggregate', sourceUrl: 'aggregate', sourceName: 'Aggregate' },
+    ]);
+    const wrapper = mount(SourceRecoveryPanel, { global: { plugins: [i18n] }, props: { book: { name: 'Book', author: 'Author' }, currentSourceId: 'aggregate', currentBookUrl: '/current', storedSources: [], onClearAndRescan: vi.fn(async () => undefined) } });
+    await wrapper.get('.targeted-search input').setValue('Book@69');
+    await wrapper.get('.targeted-search form').trigger('submit');
+    expect(wrapper.findAll('.sources li')).toHaveLength(2);
+    expect(wrapper.emitted('matches')?.[0]?.[0]).toEqual([
+      expect.objectContaining({ bookUrl: '/69', discoveryQuery: 'Book@69' }),
+      expect.objectContaining({ bookUrl: '/fake-69', discoveryQuery: 'Book@69' }),
+    ]);
+  });
+  it('persists metadata for the current binding without showing it as an alternate', async () => {
+    vi.mocked(searchApi.searchInstalledSource).mockResolvedValue([{ name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', bookUrl: '/provider-a', sourceId: 'aggregate', sourceUrl: 'aggregate', sourceName: 'Aggregate' }]);
+    const wrapper = mount(SourceRecoveryPanel, { global: { plugins: [i18n] }, props: { book: { name: 'Book', author: 'Author' }, currentSourceId: 'aggregate', currentBookUrl: '/provider-a', storedSources: [], onClearAndRescan: vi.fn(async () => undefined) } });
+    await wrapper.get('.targeted-search input').setValue('Book@current');
+    await wrapper.get('.targeted-search form').trigger('submit');
+    expect(wrapper.emitted('matches')?.[0]?.[0]).toEqual([expect.objectContaining({ bookUrl: '/provider-a', discoveryQuery: 'Book@current' })]);
+    expect(wrapper.findAll('.sources li')).toHaveLength(0);
   });
   it('enriches an already stored binding with its targeted discovery query', async () => {
     vi.mocked(searchApi.searchInstalledSource).mockResolvedValue([{ name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', bookUrl: '/provider-b', sourceId: 'aggregate', sourceUrl: 'aggregate', sourceName: 'Aggregate' }]);

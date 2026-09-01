@@ -72,7 +72,10 @@ export default defineComponent({
       for (const item of items) {
         if (!matchesLogicalBook(this.book, item)) continue;
         for (const source of [{ sourceId: item.sourceId, sourceUrl: item.sourceUrl, bookUrl: item.bookUrl, sourceName: item.sourceName, sourceGroup: item.sourceGroup, capabilities: item.capabilities, discoveryQuery }, ...(item.alternateSources ?? []).map(source => ({ ...source, discoveryQuery }))]) {
-          if (this.isCurrentBinding(source)) continue;
+          if (this.isCurrentBinding(source)) {
+            if (source.discoveryQuery) found.push(source);
+            continue;
+          }
           const key = this.key(source);
           const discovered = this.matches.findIndex(item => this.key(item) === key);
           if (discovered >= 0) this.matches[discovered] = { ...this.matches[discovered], ...source };
@@ -82,6 +85,7 @@ export default defineComponent({
         }
       }
       if (found.length) this.$emit('matches', found);
+      return found.length;
     },
     savePreferences() { saveSearchPreferences({ batchSize: this.batchSize, intensity: this.intensity, advancedConcurrency: this.advancedConcurrency }); },
     resetDiscovery() { this.controller?.destroy(); this.seen = new Set(); this.matches = []; this.seedStoredSources(); this.state = { ...emptyState }; },
@@ -95,10 +99,8 @@ export default defineComponent({
       const query = this.targetedQuery;
       this.targetedSearching = true; this.targetedError = ''; this.targetedMessage = '';
       try {
-        const before = this.sources.length;
-        this.acceptResults(await searchInstalledSource(this.currentSourceId, query), query);
-        const added = this.sources.length - before;
-        this.targetedMessage = added ? this.$t('sourceRecovery.targetedAdded', { count: added }) : this.$t('sourceRecovery.targetedEmpty');
+        const saved = this.acceptResults(await searchInstalledSource(this.currentSourceId, query), query);
+        this.targetedMessage = saved ? this.$t('sourceRecovery.targetedSaved', { count: saved }) : this.$t('sourceRecovery.targetedEmpty');
       } catch (cause) {
         this.targetedError = cause instanceof Error ? cause.message : this.$t('sourceRecovery.targetedFailed');
       } finally {
