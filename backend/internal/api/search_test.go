@@ -47,6 +47,19 @@ func TestHandleSearchStreamEmitsBatchProgressAndContinuation(t *testing.T) {
 	}
 }
 
+func TestHandleSearchStreamAcceptsRecoverySourceExpansion(t *testing.T) {
+	apiServer, _, calls, closeSource := newSearchAPIFixture(t, 1)
+	defer closeSource()
+	response := performSearch(t, apiServer, "/api/search/stream?q=fixture&batchSize=1&expandSourceId=source-0")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	assertEventTypes(t, decodeSSE(t, response), "start", "results", "done")
+	if calls.Load() != 2 {
+		t.Fatalf("source calls=%d, want configured plus default-state expansion", calls.Load())
+	}
+}
+
 func TestHandleSearchStreamValidatesBatchParameters(t *testing.T) {
 	apiServer, _, _, closeSource := newSearchAPIFixture(t, 1)
 	defer closeSource()
@@ -95,6 +108,7 @@ func newSearchAPIFixture(t *testing.T, count int) (*Server, *apiSourceStore, *at
 	store := &apiSourceStore{}
 	for i := 0; i < count; i++ {
 		source := apiSource(sourceServer.URL+"/"+fmt.Sprint(i), fmt.Sprintf("Source %d", i), i)
+		source.ID = fmt.Sprintf("source-%d", i)
 		source.SearchURL = sourceServer.URL + "/search?q={{key}}&source=" + fmt.Sprint(i)
 		store.sources = append(store.sources, source)
 	}

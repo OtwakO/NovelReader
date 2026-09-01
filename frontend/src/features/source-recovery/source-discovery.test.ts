@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import type { SearchBatchHandlers } from '../../api/search';
+import { describe, expect, it, vi } from 'vitest';
+import type { SearchBatchHandlers, SearchBatchOptions } from '../../api/search';
 import { createSourceDiscovery } from './source-discovery';
 
 function harness() {
@@ -9,6 +9,13 @@ function harness() {
 }
 
 describe('source discovery', () => {
+  it('requests default-state expansion for the current installed source', () => {
+    let captured: SearchBatchOptions | undefined;
+    const discovery = createSourceDiscovery({ query: () => 'Book', preferences: () => ({ batchSize: 10, concurrency: 2 }), expandSourceId: () => 'aggregate', openStream: (_query, options) => { captured = options; return { close: vi.fn() }; } });
+    discovery.start();
+    expect(captured?.expandSourceId).toBe('aggregate');
+  });
+
   it('tracks progress and continues at the next cursor', () => {
     const { controller, streams } = harness(); controller.start();
     streams[0]?.handlers.onStart({ offset: 0, eligible: 80, sourcesInBatch: 25, requestedConcurrency: 7, retryCursor: 'retry-0', effectiveConcurrency: 7 });

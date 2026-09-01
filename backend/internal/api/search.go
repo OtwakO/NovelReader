@@ -37,6 +37,7 @@ func (s *Server) handleSearchBatchStream(w http.ResponseWriter, r *http.Request)
 
 	plan, err := s.searcher.PrepareSearchBatch(book.SearchBatchOptions{
 		Cursor: r.URL.Query().Get("cursor"), Limit: batchSize, Concurrency: concurrency,
+		ExpandSourceID: r.URL.Query().Get("expandSourceId"),
 	})
 	if errors.Is(err, book.ErrStaleSearchCursor) {
 		slog.Info("search batch rejected", "reason", "sources_changed")

@@ -28,9 +28,10 @@ var (
 )
 
 type SearchBatchOptions struct {
-	Cursor      string
-	Limit       int
-	Concurrency int
+	Cursor         string
+	Limit          int
+	Concurrency    int
+	ExpandSourceID string
 }
 
 type SearchBatchPlan struct {
@@ -45,6 +46,7 @@ type SearchBatchPlan struct {
 	NextCursor           string
 	HasMore              bool
 	sources              []booksource.BookSource
+	expandSourceID       string
 }
 
 type searchCursor struct {
@@ -112,6 +114,7 @@ func (s *Searcher) PrepareSearchBatch(options SearchBatchOptions) (SearchBatchPl
 		RetryCursor:          encodeSearchCursor(offset, revision),
 		HasMore:              end < len(candidates),
 		sources:              append([]booksource.BookSource(nil), candidates[offset:end]...),
+		expandSourceID:       options.ExpandSourceID,
 	}
 	if plan.HasMore {
 		plan.NextCursor = encodeSearchCursor(end, revision)
@@ -123,7 +126,7 @@ func (s *Searcher) SearchBatch(ctx context.Context, query string, plan SearchBat
 	s.capacity.activeSearches.Add(1)
 	s.capacity.totalSearches.Add(1)
 	defer s.capacity.activeSearches.Add(-1)
-	return s.searchSources(ctx, query, plan.sources, plan.EffectiveConcurrency, onResult)
+	return s.searchSources(ctx, query, plan.sources, plan.EffectiveConcurrency, plan.expandSourceID, onResult)
 }
 
 func searchSourceRevision(sources []booksource.BookSource) string {

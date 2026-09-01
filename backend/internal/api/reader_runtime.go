@@ -99,6 +99,7 @@ func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.U
 	}
 	readerSearcher := m.searcher.ForkReader(m.jsVM.ForkState(), analyzer.NewCacheManager(), sourceStore, bookStore, m.limits)
 	readerSearcher.SetSourceSessionHydrator(sourceSessionHydrator(sourceProfiles))
+	readerSearcher.SetSourceAuthenticationHydrator(sourceAuthenticationHydrator(sourceProfiles))
 	runtime := &readerRuntime{
 		home: home, sourceStore: sourceStore, bookStore: bookStore, fontStore: fontStore, sourceProfiles: sourceProfiles,
 		sourceInteractions: sourceinteraction.NewDescriber(sourceStore, sourceProfiles, m.jsVM.ForkState()),

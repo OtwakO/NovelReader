@@ -44,4 +44,14 @@ func TestSourceSessionHydratorAppliesReaderOwnedState(t *testing.T) {
 	if session.RequestHeaders()["Authorization"] != "Bearer token" || session.JarCookieHeader(source.BookSourceURL) != "sid=secret" {
 		t.Fatalf("headers=%v cookie=%q", session.RequestHeaders(), session.JarCookieHeader(source.BookSourceURL))
 	}
+	defaults := sourceexec.NewSourceSession()
+	if err := sourceAuthenticationHydrator(profiles)(t.Context(), source, defaults); err != nil {
+		t.Fatal(err)
+	}
+	if defaults.GetVariable(source.BookSourceURL) != "" || defaults.GetMemory("mode") != nil {
+		t.Fatalf("authentication-only hydration leaked settings: variable=%q mode=%v", defaults.GetVariable(source.BookSourceURL), defaults.GetMemory("mode"))
+	}
+	if defaults.RequestHeaders()["Authorization"] != "Bearer token" || defaults.JarCookieHeader(source.BookSourceURL) != "sid=secret" {
+		t.Fatalf("authentication-only headers=%v cookie=%q", defaults.RequestHeaders(), defaults.JarCookieHeader(source.BookSourceURL))
+	}
 }

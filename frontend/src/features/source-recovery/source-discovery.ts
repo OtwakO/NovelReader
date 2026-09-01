@@ -13,6 +13,7 @@ export function createSourceDiscovery(options: {
   query: () => string;
   preferences: () => { batchSize: number; concurrency: number };
   openStream: OpenSourceDiscoveryStream;
+  expandSourceId?: () => string;
   onResults?: (items: SearchResult[]) => void;
   onChange?: (state: SourceDiscoveryState) => void;
 }) {
@@ -43,7 +44,7 @@ export function createSourceDiscovery(options: {
     const configuration = options.preferences();
     Object.assign(state, { searching: true, errorCode: '', errorDetail: '', restartRequired: false, retryRequired: false, hasMore: false });
     batchFailures = 0; changed();
-    stream = options.openStream(query, { cursor, batchSize: configuration.batchSize, concurrency: configuration.concurrency }, {
+    stream = options.openStream(query, { cursor, batchSize: configuration.batchSize, concurrency: configuration.concurrency, expandSourceId: options.expandSourceId?.() || undefined }, {
       onStart(event) { if (currentGeneration !== generation) return; state.eligible = event.eligible; state.effectiveConcurrency = event.effectiveConcurrency; retryCursor = event.retryCursor || cursor; changed(); },
       onResult(_sourceId, items, checked) { if (currentGeneration !== generation) return; state.checked = checked; state.resultCount += items.length; options.onResults?.(items); changed(); },
       onSourceError(_sourceId, _message, checked) { if (currentGeneration !== generation) return; state.checked = checked; batchFailures += 1; state.sourceFailures = committedFailures + batchFailures; changed(); },
