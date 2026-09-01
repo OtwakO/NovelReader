@@ -85,7 +85,6 @@ type Searcher struct {
 	transportFactory        TransportFactory
 	webViewTransportFactory WebViewTransportFactory
 	sessionHydrator         SourceSessionHydrator
-	authenticationHydrator  SourceSessionHydrator
 	jsVM                    *analyzer.JSVM
 	cache                   *analyzer.CacheManager
 	sourceStore             sourceLister
@@ -242,25 +241,15 @@ func (s *Searcher) SetSourceSessionHydrator(hydrator SourceSessionHydrator) {
 	s.sessionHydrator = hydrator
 }
 
-// SetSourceAuthenticationHydrator injects login state without source settings.
-// Recovery uses it to evaluate a source's own default discovery behavior safely.
-func (s *Searcher) SetSourceAuthenticationHydrator(hydrator SourceSessionHydrator) {
-	s.authenticationHydrator = hydrator
-}
-
 func (s *Searcher) prepareSourceSession(ctx context.Context, src booksource.BookSource, session *sourceexec.SourceSession) error {
-	return prepareSourceSessionWithHydrator(ctx, src, session, s.sessionHydrator)
-}
-
-func prepareSourceSessionWithHydrator(ctx context.Context, src booksource.BookSource, session *sourceexec.SourceSession, hydrator SourceSessionHydrator) error {
 	if session == nil {
 		return nil
 	}
 	if err := session.HydrateOnce(func() error {
-		if hydrator == nil {
+		if s.sessionHydrator == nil {
 			return nil
 		}
-		return hydrator(ctx, src, session)
+		return s.sessionHydrator(ctx, src, session)
 	}); err != nil {
 		return err
 	}
@@ -349,7 +338,7 @@ func (s *Searcher) SearchStream(ctx context.Context, query string, onResult Sear
 	if err != nil {
 		return err
 	}
-	return s.searchSources(ctx, query, candidates, s.concurrentPerSearch, "", onResult)
+	return s.searchSources(ctx, query, candidates, s.concurrentPerSearch, onResult)
 }
 
 // searchCandidates returns enabled text-type sources with search capability.
@@ -411,20 +400,12 @@ func (s *Searcher) searchSourceWithLimit(ctx context.Context, src booksource.Boo
 	return s.searchSourceWithLimitAndSession(ctx, src, query, limit, sourceexec.NewSourceSession())
 }
 
-func (s *Searcher) searchSourceWithHydrator(ctx context.Context, src booksource.BookSource, query string, hydrator SourceSessionHydrator) ([]SearchResult, error) {
-	return s.searchSourceWithLimitAndSessionHydrator(ctx, src, query, maxResultsPerSource, sourceexec.NewSourceSession(), hydrator)
-}
-
 func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src booksource.BookSource, query string, limit int, session *sourceexec.SourceSession) ([]SearchResult, error) {
-	return s.searchSourceWithLimitAndSessionHydrator(ctx, src, query, limit, session, s.sessionHydrator)
-}
-
-func (s *Searcher) searchSourceWithLimitAndSessionHydrator(ctx context.Context, src booksource.BookSource, query string, limit int, session *sourceexec.SourceSession, hydrator SourceSessionHydrator) ([]SearchResult, error) {
 	srcCtx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
 	defer cancel()
 
 	// Search owns one session/client pair unless a multi-stage workflow supplies one.
-	if err := prepareSourceSessionWithHydrator(srcCtx, src, session, hydrator); err != nil {
+	if err := s.prepareSourceSession(srcCtx, src, session); err != nil {
 		return nil, fmt.Errorf("source profile: %w", err)
 	}
 	sourceHeaders, err := evaluateSourceHeaders(srcCtx, s.jsVM, src, session)

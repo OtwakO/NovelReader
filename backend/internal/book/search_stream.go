@@ -11,18 +11,13 @@ import (
 	"github.com/otwako/novelreader/internal/booksource"
 )
 
-type searchJob struct {
-	src    booksource.BookSource
-	expand bool
-}
-
 type searchJobResult struct {
 	src     booksource.BookSource
 	results []SearchResult
 	err     error
 }
 
-func (s *Searcher) searchSources(ctx context.Context, query string, candidates []booksource.BookSource, concurrency int, expandSourceID string, onResult SearchCallback) error {
+func (s *Searcher) searchSources(ctx context.Context, query string, candidates []booksource.BookSource, concurrency int, onResult SearchCallback) error {
 	if len(candidates) == 0 {
 		return nil
 	}
@@ -33,7 +28,7 @@ func (s *Searcher) searchSources(ctx context.Context, query string, candidates [
 		concurrency = defaultMaxConcurrentSearch
 	}
 
-	jobs := make(chan searchJob)
+	jobs := make(chan booksource.BookSource)
 	results := make(chan searchJobResult, len(candidates))
 	globalSlots := s.searchSlots
 	if globalSlots == nil {
@@ -47,13 +42,13 @@ func (s *Searcher) searchSources(ctx context.Context, query string, candidates [
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
-			for job := range jobs {
+			for src := range jobs {
 				select {
 				case globalSlots <- struct{}{}:
 				case <-ctx.Done():
 					return
 				}
-				s.searchSourceJob(ctx, query, job, globalSlots, results)
+				s.searchSourceJob(ctx, query, src, globalSlots, results)
 			}
 		}()
 	}
@@ -61,7 +56,7 @@ func (s *Searcher) searchSources(ctx context.Context, query string, candidates [
 		defer close(jobs)
 		for _, src := range candidates {
 			select {
-			case jobs <- searchJob{src: src, expand: src.ID != "" && src.ID == expandSourceID}:
+			case jobs <- src:
 			case <-ctx.Done():
 				return
 			}
@@ -107,8 +102,7 @@ func (s *Searcher) searchSources(ctx context.Context, query string, candidates [
 	return ctx.Err()
 }
 
-func (s *Searcher) searchSourceJob(ctx context.Context, query string, job searchJob, globalSlots chan struct{}, results chan<- searchJobResult) {
-	src := job.src
+func (s *Searcher) searchSourceJob(ctx context.Context, query string, src booksource.BookSource, globalSlots chan struct{}, results chan<- searchJobResult) {
 	s.capacity.activeSourceFetches.Add(1)
 	s.capacity.totalSourceFetches.Add(1)
 	defer s.capacity.activeSourceFetches.Add(-1)
@@ -122,39 +116,12 @@ func (s *Searcher) searchSourceJob(ctx context.Context, query string, job search
 	}()
 
 	found, err := s.searchSource(ctx, src, query)
-	if job.expand {
-		defaults, defaultErr := s.searchSourceWithHydrator(ctx, src, query, s.authenticationHydrator)
-		switch {
-		case err == nil && defaultErr == nil:
-			found = mergeSourceBindings(found, defaults)
-		case err != nil && defaultErr == nil:
-			found, err = defaults, nil
-		case err == nil && defaultErr != nil:
-			slog.Info("search: current source default-state expansion failed", "source", src.BookSourceName, "error", defaultErr)
-		}
-	}
 	if err != nil {
 		s.capacity.failedSources.Add(1)
 	} else {
 		s.capacity.completedSources.Add(1)
 	}
 	results <- searchJobResult{src, found, err}
-}
-
-func mergeSourceBindings(groups ...[]SearchResult) []SearchResult {
-	merged := make([]SearchResult, 0)
-	seen := make(map[string]struct{})
-	for _, group := range groups {
-		for _, result := range group {
-			key := result.SourceID + "\x00" + result.BookURL
-			if _, exists := seen[key]; exists {
-				continue
-			}
-			seen[key] = struct{}{}
-			merged = append(merged, result)
-		}
-	}
-	return merged
 }
 
 func searchErrorCategory(message string) string {

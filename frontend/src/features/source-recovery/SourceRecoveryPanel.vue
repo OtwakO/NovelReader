@@ -58,7 +58,6 @@ export default defineComponent({
       query: () => this.book.name,
       preferences: () => ({ batchSize: this.batchSize, concurrency: requestedConcurrency({ batchSize: this.batchSize, intensity: this.intensity, advancedConcurrency: this.advancedConcurrency }) }),
       openStream: searchBooksBatchStream,
-      expandSourceId: () => this.currentSourceId,
       onChange: (state) => { this.state = state; },
       onResults: (items) => this.acceptResults(items),
     });

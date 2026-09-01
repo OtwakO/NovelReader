@@ -15,7 +15,6 @@ import (
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fetcher"
-	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
 func TestPrepareSearchBatchPartitionsDeterministically(t *testing.T) {
@@ -125,84 +124,6 @@ func TestSearchBatchStreamsBeforeWholeBatchFinishes(t *testing.T) {
 	}
 	close(release)
 	if err := <-done; err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestSearchBatchExpandsCurrentSourceWithItsDefaultState(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer fixture" {
-			http.Error(w, "missing authentication", http.StatusUnauthorized)
-			return
-		}
-		provider := r.URL.Query().Get("provider")
-		if provider == "configured" {
-			_, _ = fmt.Fprint(w, `<a class="book" href="/configured">Fixture</a>`)
-			return
-		}
-		_, _ = fmt.Fprint(w, `<a class="book" href="/configured">Fixture</a><a class="book" href="/alternate">Fixture</a>`)
-	}))
-	defer server.Close()
-
-	source := batchSource(server.URL, "Aggregate", 0)
-	source.ID = "aggregate"
-	source.SearchURL = `@js:baseUrl + '/search?provider=' + (source.getVariable() || 'all')`
-	source.RuleSearch = `{"bookList":".book","name":"text","bookUrl":"href"}`
-	searcher := NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), nil, &mutableSourceStore{sources: []booksource.BookSource{source}}, nil)
-	searcher.SetSourceSessionHydrator(func(_ context.Context, source booksource.BookSource, session *sourceexec.SourceSession) error {
-		session.PutVariable(source.BookSourceURL, "configured")
-		session.SetLoginHeader(`{"Authorization":"Bearer fixture"}`)
-		return nil
-	})
-	searcher.SetSourceAuthenticationHydrator(func(_ context.Context, _ booksource.BookSource, session *sourceexec.SourceSession) error {
-		session.SetLoginHeader(`{"Authorization":"Bearer fixture"}`)
-		return nil
-	})
-	plan, err := searcher.PrepareSearchBatch(SearchBatchOptions{Limit: 1, ExpandSourceID: source.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var results []SearchResult
-	if err := searcher.SearchBatch(t.Context(), "Fixture", plan, func(_ booksource.BookSource, found []SearchResult, searchErr error) {
-		if searchErr != nil {
-			t.Fatal(searchErr)
-		}
-		results = found
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if len(results) != 2 || results[0].BookURL == results[1].BookURL {
-		t.Fatalf("results=%+v, want configured and default-state bindings", results)
-	}
-}
-
-func TestSearchBatchUsesDefaultStateWhenConfiguredCurrentSourceFails(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("provider") == "configured" {
-			http.Error(w, "configured provider unavailable", http.StatusBadGateway)
-			return
-		}
-		_, _ = fmt.Fprint(w, `<a class="book" href="/alternate">Fixture</a>`)
-	}))
-	defer server.Close()
-	source := batchSource(server.URL, "Aggregate", 0)
-	source.ID = "aggregate"
-	source.SearchURL = `@js:baseUrl + '/search?provider=' + (source.getVariable() || 'all')`
-	source.RuleSearch = `{"bookList":".book","name":"text","bookUrl":"href"}`
-	searcher := NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), nil, &mutableSourceStore{sources: []booksource.BookSource{source}}, nil)
-	searcher.SetSourceSessionHydrator(func(_ context.Context, source booksource.BookSource, session *sourceexec.SourceSession) error {
-		session.PutVariable(source.BookSourceURL, "configured")
-		return nil
-	})
-	plan, err := searcher.PrepareSearchBatch(SearchBatchOptions{Limit: 1, ExpandSourceID: source.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := searcher.SearchBatch(t.Context(), "Fixture", plan, func(_ booksource.BookSource, results []SearchResult, searchErr error) {
-		if searchErr != nil || len(results) != 1 || results[0].BookURL != server.URL+"/alternate" {
-			t.Fatalf("results=%+v error=%v", results, searchErr)
-		}
-	}); err != nil {
 		t.Fatal(err)
 	}
 }

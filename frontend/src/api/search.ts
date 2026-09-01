@@ -1,6 +1,6 @@
 import type { SearchResult } from './models';
 export type { AltSource, SearchResult } from './models';
-export interface SearchBatchOptions { batchSize: number; concurrency: number; cursor?: string; expandSourceId?: string }
+export interface SearchBatchOptions { batchSize: number; concurrency: number; cursor?: string }
 export interface SearchBatchStart { offset: number; eligible: number; sourcesInBatch: number; requestedConcurrency: number; effectiveConcurrency: number; retryCursor: string }
 export interface SearchBatchDone { complete: boolean; checked: number; eligible: number; hasMore: boolean; nextCursor?: string; retryCursor: string; sourceFailures: number }
 export interface SearchBatchHandlers {
@@ -15,7 +15,6 @@ export interface SearchBatchHandlers {
 export function searchBooksBatchStream(query: string, options: SearchBatchOptions, handlers: SearchBatchHandlers): EventSource {
   const params = new URLSearchParams({ q: query, batchSize: String(options.batchSize), concurrency: String(options.concurrency) });
   if (options.cursor) params.set('cursor', options.cursor);
-  if (options.expandSourceId) params.set('expandSourceId', options.expandSourceId);
   const stream = new EventSource(`/api/search/stream?${params}`);
   let finished = false;
   stream.onmessage = (message) => {

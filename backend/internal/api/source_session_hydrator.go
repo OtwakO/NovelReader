@@ -20,14 +20,3 @@ func sourceSessionHydrator(profiles *sourceprofile.Store) book.SourceSessionHydr
 		return nil
 	}
 }
-
-func sourceAuthenticationHydrator(profiles *sourceprofile.Store) book.SourceSessionHydrator {
-	return func(ctx context.Context, source booksource.BookSource, session *sourceexec.SourceSession) error {
-		profile, err := profiles.Load(ctx, source.ID)
-		if err != nil {
-			return err
-		}
-		sourceprofile.ApplyAuthentication(session, sourceprofile.DecodeAuthentication(profile.Authentication))
-		return nil
-	}
-}
