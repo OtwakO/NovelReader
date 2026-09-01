@@ -31,7 +31,7 @@ export default defineComponent({
   },
   computed: {
     sources(): AltSource[] {
-      const values = [...this.storedSources, ...this.matches];
+      const values = [...this.matches, ...this.storedSources];
       return values.filter((source, index) => !this.isCurrentBinding(source) && values.findIndex((item) => item.sourceId === source.sourceId && item.bookUrl === source.bookUrl) === index);
     },
     knownSourceCount(): number { return this.sources.length + (this.currentSourceId.trim() ? 1 : 0); },
@@ -72,8 +72,13 @@ export default defineComponent({
       for (const item of items) {
         if (!matchesLogicalBook(this.book, item)) continue;
         for (const source of [{ sourceId: item.sourceId, sourceUrl: item.sourceUrl, bookUrl: item.bookUrl, sourceName: item.sourceName, sourceGroup: item.sourceGroup, capabilities: item.capabilities, discoveryQuery }, ...(item.alternateSources ?? []).map(source => ({ ...source, discoveryQuery }))]) {
-          if (this.isCurrentBinding(source) || this.seen.has(this.key(source))) continue;
-          this.seen.add(this.key(source)); this.matches.push(source); found.push(source);
+          if (this.isCurrentBinding(source)) continue;
+          const key = this.key(source);
+          const discovered = this.matches.findIndex(item => this.key(item) === key);
+          if (discovered >= 0) this.matches[discovered] = { ...this.matches[discovered], ...source };
+          else if (!this.seen.has(key) || source.discoveryQuery) this.matches.push(source);
+          if (this.seen.has(key) && !source.discoveryQuery) continue;
+          this.seen.add(key); found.push(source);
         }
       }
       if (found.length) this.$emit('matches', found);

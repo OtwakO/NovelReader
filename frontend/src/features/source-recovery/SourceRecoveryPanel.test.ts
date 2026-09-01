@@ -29,6 +29,14 @@ describe('SourceRecoveryPanel', () => {
     expect(wrapper.text()).toContain('Found with query: Book@provider');
     expect(wrapper.emitted('matches')?.[0]?.[0]).toEqual([expect.objectContaining({ sourceId: 'aggregate', bookUrl: '/provider-b', discoveryQuery: 'Book@provider' })]);
   });
+  it('enriches an already stored binding with its targeted discovery query', async () => {
+    vi.mocked(searchApi.searchInstalledSource).mockResolvedValue([{ name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', bookUrl: '/provider-b', sourceId: 'aggregate', sourceUrl: 'aggregate', sourceName: 'Aggregate' }]);
+    const wrapper = mount(SourceRecoveryPanel, { global: { plugins: [i18n] }, props: { book: { name: 'Book', author: 'Author' }, currentSourceId: 'aggregate', currentBookUrl: '/provider-a', storedSources: [{ sourceId: 'aggregate', sourceUrl: 'aggregate', bookUrl: '/provider-b', sourceName: 'Aggregate' }], onClearAndRescan: vi.fn(async () => undefined) } });
+    await wrapper.get('.targeted-search input').setValue('Book@provider');
+    await wrapper.get('.targeted-search form').trigger('submit');
+    expect(wrapper.text()).toContain('Found with query: Book@provider');
+    expect(wrapper.emitted('matches')?.[0]?.[0]).toEqual([expect.objectContaining({ bookUrl: '/provider-b', discoveryQuery: 'Book@provider' })]);
+  });
   it('filters known sources locally without changing discovery state', async () => {
     const wrapper = mount(SourceRecoveryPanel, { global: { plugins: [i18n] }, props: { book: { name: 'Book', author: 'Author' }, currentSourceId: 'current', currentBookUrl: '/current', storedSources: [{ sourceId: 'alpha', sourceUrl: 'alpha', bookUrl: '/a', sourceName: 'Alpha' }, { sourceId: 'beta', sourceUrl: 'beta', bookUrl: '/b', sourceName: 'Beta' }], onClearAndRescan: vi.fn(async () => undefined) } });
     await wrapper.get('.source-filter input[type="search"]').setValue('Beta');

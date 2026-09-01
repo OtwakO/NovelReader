@@ -74,6 +74,23 @@ func TestStoreMergeBookSourcesPreservesDiscoveryQuery(t *testing.T) {
 	}
 }
 
+func TestStoreMergeBookSourcesEnrichesExistingBinding(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "books.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := NewStore(db)
+	initializeBookTestSchema(t, db)
+	if err := store.AddBook(&Book{ID: "book-a", Name: "Fixture", Author: "Author", SourceID: "aggregate", SourceURL: "aggregate", BookURL: "/current", AlternateSources: []AltSource{{SourceID: "aggregate", SourceURL: "aggregate", BookURL: "/alternate", SourceName: "Aggregate"}}}); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := store.MergeBookSources("book-a", []AltSource{{SourceID: "aggregate", SourceURL: "aggregate", BookURL: "/alternate", SourceName: "Aggregate", DiscoveryQuery: "Fixture@provider"}})
+	if err != nil || len(stored.AlternateSources) != 1 || stored.AlternateSources[0].DiscoveryQuery != "Fixture@provider" {
+		t.Fatalf("stored=%+v error=%v", stored, err)
+	}
+}
+
 func TestStoreLowLevelAddCannotReplaceAnotherLogicalBookID(t *testing.T) {
 	db, err := database.Open(filepath.Join(t.TempDir(), "books.db"))
 	if err != nil {

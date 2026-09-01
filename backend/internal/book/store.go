@@ -523,20 +523,41 @@ func (s *Store) MergeBookSources(bookID string, sources []AltSource) (*Book, err
 }
 
 func mergeAlternateSources(currentSourceID, currentBookURL string, sources []AltSource) []AltSource {
-	seen := map[string]bool{currentSourceID + "\n" + currentBookURL: true}
+	currentKey := currentSourceID + "\n" + currentBookURL
+	indexes := make(map[string]int, len(sources))
 	merged := make([]AltSource, 0, len(sources))
 	for _, source := range sources {
 		if source.SourceID == "" || source.BookURL == "" {
 			continue
 		}
 		key := source.SourceID + "\n" + source.BookURL
-		if seen[key] {
+		if key == currentKey {
 			continue
 		}
-		seen[key] = true
+		if index, exists := indexes[key]; exists {
+			merged[index] = enrichAlternateSource(merged[index], source)
+			continue
+		}
+		indexes[key] = len(merged)
 		merged = append(merged, source)
 	}
 	return merged
+}
+
+func enrichAlternateSource(existing, incoming AltSource) AltSource {
+	if incoming.SourceName != "" {
+		existing.SourceName = incoming.SourceName
+	}
+	if incoming.SourceGroup != "" {
+		existing.SourceGroup = incoming.SourceGroup
+	}
+	if len(incoming.Capabilities) > 0 {
+		existing.Capabilities = incoming.Capabilities
+	}
+	if incoming.DiscoveryQuery != "" {
+		existing.DiscoveryQuery = incoming.DiscoveryQuery
+	}
+	return existing
 }
 
 // DeleteBook removes a book from the shelf.
