@@ -46,8 +46,9 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 
 	stored := &book.Book{
 		ID: "book-1", Name: "Fixture", SourceID: sourceID(primary.URL), SourceURL: primary.URL, BookURL: primary.URL + "/book", TocURL: primary.URL + "/toc", Origin: "Primary",
+		ActiveSource: &book.AltSource{SourceID: sourceID(primary.URL), SourceURL: primary.URL, BookURL: primary.URL + "/book", SourceName: "Primary", DiscoveryQuery: "Fixture@primary", SourceGroup: "Primary type", Capabilities: []string{"search"}},
 		AlternateSources: []book.AltSource{
-			{SourceID: sourceID(target.URL), SourceURL: target.URL, BookURL: target.URL + "/book", SourceName: "Target"},
+			{SourceID: sourceID(target.URL), SourceURL: target.URL, BookURL: target.URL + "/book", SourceName: "Target", DiscoveryQuery: "Fixture@target", SourceGroup: "Target type", Capabilities: []string{"explore"}},
 			{SourceID: sourceID(bad.URL), SourceURL: bad.URL, BookURL: bad.URL + "/book", SourceName: "Bad"},
 		},
 	}
@@ -105,7 +106,10 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 		t.Fatalf("stale progress status=%d body=%s", response.Code, response.Body.String())
 	}
 	assertStoredSource(t, server, target.URL, 1, 0.65, 2, 3)
-	if len(result.Book.AlternateSources) != 2 || result.Book.AlternateSources[0].SourceURL != primary.URL {
+	if result.Book.ActiveSource == nil || result.Book.ActiveSource.DiscoveryQuery != "Fixture@target" || result.Book.ActiveSource.SourceGroup != "Target type" || len(result.Book.ActiveSource.Capabilities) != 1 {
+		t.Fatalf("active target metadata was not preserved: %+v", result.Book.ActiveSource)
+	}
+	if len(result.Book.AlternateSources) != 2 || result.Book.AlternateSources[0].SourceURL != primary.URL || result.Book.AlternateSources[0].DiscoveryQuery != "Fixture@primary" || result.Book.AlternateSources[0].SourceGroup != "Primary type" || len(result.Book.AlternateSources[0].Capabilities) != 1 {
 		t.Fatalf("switch was not reversible: %+v", result.Book.AlternateSources)
 	}
 	primaryRequest, _ := json.Marshal(map[string]string{"sourceId": sourceID(primary.URL), "sourceUrl": primary.URL, "bookUrl": primary.URL + "/book"})
@@ -113,6 +117,10 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 		t.Fatalf("switch back status=%d body=%s", response.Code, response.Body.String())
 	}
 	assertStoredSource(t, server, primary.URL, 1, 0.65, 3, 3)
+	restored, err := server.bookStore.GetBook("book-1")
+	if err != nil || restored.ActiveSource == nil || restored.ActiveSource.DiscoveryQuery != "Fixture@primary" || len(restored.AlternateSources) != 2 || restored.AlternateSources[0].DiscoveryQuery != "Fixture@target" {
+		t.Fatalf("A-B-A binding metadata was not preserved: book=%+v err=%v", restored, err)
+	}
 	bookmarkResponse = performAPIRequest(server, http.MethodGet, "/api/books/book-1/bookmarks", nil)
 	if err := json.Unmarshal(bookmarkResponse.Body.Bytes(), &bookmarks); err != nil {
 		t.Fatal(err)

@@ -78,6 +78,7 @@ type Book struct {
 	StateVersion        int64   `json:"stateVersion" db:"state_version"`
 	CurrentChapterTitle string  `json:"currentChapterTitle,omitempty" db:"-"`
 
+	ActiveSource     *AltSource  `json:"activeSource,omitempty" db:"-"`
 	AlternateSources []AltSource `json:"alternateSources,omitempty" db:"alternate_sources"`
 
 	CreatedAt int64 `json:"createdAt" db:"created_at"`
@@ -286,7 +287,7 @@ func (s *Store) AddBook(b *Book) error {
 	now := time.Now().UnixMilli()
 	b.CreatedAt = now
 	b.UpdatedAt = now
-	altJSON, _ := json.Marshal(b.AlternateSources)
+	altJSON, _ := json.Marshal(persistedSourceBindings(b))
 	if len(altJSON) == 0 {
 		altJSON = []byte("[]")
 	}
@@ -349,7 +350,7 @@ func (s *Store) AddOrMergeBook(candidate *Book) (*Book, bool, error) {
 		candidate.CreatedAt = now
 		candidate.UpdatedAt = now
 		candidate.AlternateSources = mergeAlternateSources(candidate.SourceID, candidate.BookURL, candidate.AlternateSources)
-		alternateJSON, err := json.Marshal(candidate.AlternateSources)
+		alternateJSON, err := json.Marshal(persistedSourceBindings(candidate))
 		if err != nil {
 			return nil, false, err
 		}
@@ -379,7 +380,7 @@ func (s *Store) AddOrMergeBook(candidate *Book) (*Book, bool, error) {
 	discovered = append(discovered, AltSource{SourceID: candidate.SourceID, SourceURL: candidate.SourceURL, BookURL: candidate.BookURL, SourceName: candidate.Origin})
 	discovered = append(discovered, candidate.AlternateSources...)
 	existing.AlternateSources = mergeAlternateSources(existing.SourceID, existing.BookURL, discovered)
-	alternateJSON, err := json.Marshal(existing.AlternateSources)
+	alternateJSON, err := json.Marshal(persistedSourceBindings(&existing))
 	if err != nil {
 		return nil, false, err
 	}
@@ -419,7 +420,7 @@ func (s *Store) AddOrMergeBookWithChapters(candidate *Book, chapters []Chapter) 
 		discovered = append(discovered, AltSource{SourceID: candidate.SourceID, SourceURL: candidate.SourceURL, BookURL: candidate.BookURL, SourceName: candidate.Origin})
 		discovered = append(discovered, candidate.AlternateSources...)
 		existing.AlternateSources = mergeAlternateSources(existing.SourceID, existing.BookURL, discovered)
-		alternateJSON, marshalErr := json.Marshal(existing.AlternateSources)
+		alternateJSON, marshalErr := json.Marshal(persistedSourceBindings(&existing))
 		if marshalErr != nil {
 			return nil, false, marshalErr
 		}
@@ -437,7 +438,7 @@ func (s *Store) AddOrMergeBookWithChapters(candidate *Book, chapters []Chapter) 
 	candidate.UpdatedAt = now
 	candidate.TotalChapterNum = len(chapters)
 	candidate.AlternateSources = mergeAlternateSources(candidate.SourceID, candidate.BookURL, candidate.AlternateSources)
-	alternateJSON, err := json.Marshal(candidate.AlternateSources)
+	alternateJSON, err := json.Marshal(persistedSourceBindings(candidate))
 	if err != nil {
 		return nil, false, err
 	}
@@ -509,7 +510,7 @@ func (s *Store) MergeBookSources(bookID string, sources []AltSource) (*Book, err
 		return nil, err
 	}
 	existing.AlternateSources = mergeAlternateSources(existing.SourceID, existing.BookURL, append(existing.AlternateSources, sources...))
-	alternateJSON, err := json.Marshal(existing.AlternateSources)
+	alternateJSON, err := json.Marshal(persistedSourceBindings(&existing))
 	if err != nil {
 		return nil, err
 	}
@@ -520,6 +521,14 @@ func (s *Store) MergeBookSources(bookID string, sources []AltSource) (*Book, err
 		return nil, err
 	}
 	return &existing, nil
+}
+
+func persistedSourceBindings(book *Book) []AltSource {
+	bindings := append([]AltSource(nil), book.AlternateSources...)
+	if book.ActiveSource != nil {
+		bindings = append(bindings, *book.ActiveSource)
+	}
+	return mergeAlternateSources("", "", bindings)
 }
 
 func mergeAlternateSources(currentSourceID, currentBookURL string, sources []AltSource) []AltSource {
@@ -784,7 +793,17 @@ func scanBook(s scanner, includeCurrentChapter bool) (*Book, error) {
 		return nil, err
 	}
 	if altSourcesStr != "" && altSourcesStr != "[]" {
-		json.Unmarshal([]byte(altSourcesStr), &b.AlternateSources)
+		var persisted []AltSource
+		if err := json.Unmarshal([]byte(altSourcesStr), &persisted); err == nil {
+			for index := range persisted {
+				source := persisted[index]
+				if source.SourceID == b.SourceID && source.BookURL == b.BookURL {
+					b.ActiveSource = &source
+					continue
+				}
+				b.AlternateSources = append(b.AlternateSources, source)
+			}
+		}
 	}
 	b.Intro = NormalizeDescription(b.Intro)
 	return &b, nil

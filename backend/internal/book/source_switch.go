@@ -96,10 +96,16 @@ func (s *Store) SwitchSource(bookID string, expectedVersion int64, target Book, 
 
 	alternates := make([]AltSource, 0, len(current.AlternateSources))
 	found := false
+	var selected AltSource
 	for _, alternate := range current.AlternateSources {
 		if alternate.SourceID == target.SourceID && alternate.BookURL == target.BookURL {
 			found = true
-			alternates = append(alternates, AltSource{SourceID: current.SourceID, SourceURL: current.SourceURL, BookURL: current.BookURL, SourceName: current.Origin})
+			selected = alternate
+			previous := AltSource{SourceID: current.SourceID, SourceURL: current.SourceURL, BookURL: current.BookURL, SourceName: current.Origin}
+			if current.ActiveSource != nil {
+				previous = enrichAlternateSource(previous, *current.ActiveSource)
+			}
+			alternates = append(alternates, previous)
 			continue
 		}
 		alternates = append(alternates, alternate)
@@ -107,7 +113,7 @@ func (s *Store) SwitchSource(bookID string, expectedVersion int64, target Book, 
 	if !found {
 		return ErrSourceNotAlternate
 	}
-	alternateJSON, err := json.Marshal(alternates)
+	alternateJSON, err := json.Marshal(append(alternates, selected))
 	if err != nil {
 		return fmt.Errorf("switch source: encode alternates: %w", err)
 	}

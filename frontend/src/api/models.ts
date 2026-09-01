@@ -51,6 +51,7 @@ export interface Book {
   totalChapterNum: number;
   stateVersion: number;
   currentChapterTitle?: string;
+  activeSource?: AltSource;
   alternateSources?: AltSource[];
   createdAt?: number;
   updatedAt?: number;
