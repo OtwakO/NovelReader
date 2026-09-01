@@ -66,6 +66,20 @@ func sameBook(a, b SearchResult) bool {
 	return true
 }
 
+// bindingFromSearchResult preserves source-returned display metadata without
+// interpreting it as provider identity.
+func bindingFromSearchResult(result SearchResult) AltSource {
+	return AltSource{
+		SourceID:     result.SourceID,
+		SourceURL:    result.SourceURL,
+		BookURL:      result.BookURL,
+		SourceName:   result.SourceName,
+		SourceGroup:  result.SourceGroup,
+		Capabilities: append([]string(nil), result.Capabilities...),
+		LastChapter:  result.LastChapter,
+	}
+}
+
 // MergeAndSort merges same-book results from different sources, sorts by relevance.
 // Groups are keyed by normalized name. Within each name bucket, sameBook() prevents
 // false merges (same name, different author).
@@ -111,18 +125,10 @@ func MergeAndSort(query string, results []SearchResult) []SearchResult {
 		// Merge into existing group: promote if better
 		if r.Score > matched.primary.Score ||
 			(r.Score == matched.primary.Score && len(r.CoverURL) > len(matched.primary.CoverURL)) {
-			matched.alts = append(matched.alts, AltSource{
-				SourceURL:  matched.primary.SourceURL,
-				BookURL:    matched.primary.BookURL,
-				SourceName: matched.primary.SourceName,
-			})
+			matched.alts = append(matched.alts, bindingFromSearchResult(matched.primary))
 			matched.primary = r
 		} else {
-			matched.alts = append(matched.alts, AltSource{
-				SourceURL:  r.SourceURL,
-				BookURL:    r.BookURL,
-				SourceName: r.SourceName,
-			})
+			matched.alts = append(matched.alts, bindingFromSearchResult(r))
 		}
 	}
 

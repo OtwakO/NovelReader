@@ -303,7 +303,11 @@ func previewBook(value *book.Book) book.PreviewBook {
 }
 func inputBook(in Input, b binding, src booksource.BookSource) *book.Book {
 	name := sourceName(src, b.sourceName)
-	return &book.Book{Name: in.Name, Author: in.Author, CoverURL: in.CoverURL, Intro: in.Intro, Kind: in.Kind, LastChapter: in.LastChapter, UpdateTime: in.UpdateTime, WordCount: in.WordCount, Origin: name, SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL, ActiveSource: &book.AltSource{SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL, SourceName: name, SourceGroup: b.sourceGroup, Capabilities: append([]string(nil), b.capabilities...)}}
+	lastChapter := b.lastChapter
+	if lastChapter == "" {
+		lastChapter = in.LastChapter
+	}
+	return &book.Book{Name: in.Name, Author: in.Author, CoverURL: in.CoverURL, Intro: in.Intro, Kind: in.Kind, LastChapter: lastChapter, UpdateTime: in.UpdateTime, WordCount: in.WordCount, Origin: name, SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL, ActiveSource: &book.AltSource{SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL, SourceName: name, SourceGroup: b.sourceGroup, Capabilities: append([]string(nil), b.capabilities...), LastChapter: lastChapter}}
 }
 func sourceName(src booksource.BookSource, fallback string) string {
 	if strings.TrimSpace(src.BookSourceName) != "" {
@@ -324,9 +328,9 @@ func bindings(in Input) []binding {
 			result = append(result, b)
 		}
 	}
-	add(binding{sourceID: in.SourceID, sourceURL: in.SourceURL, bookURL: in.BookURL, sourceName: in.SourceName, sourceGroup: in.SourceGroup, capabilities: in.Capabilities})
+	add(binding{sourceID: in.SourceID, sourceURL: in.SourceURL, bookURL: in.BookURL, sourceName: in.SourceName, sourceGroup: in.SourceGroup, capabilities: in.Capabilities, lastChapter: in.LastChapter})
 	for _, a := range in.AlternateSources {
-		add(binding{sourceID: a.SourceID, sourceURL: a.SourceURL, bookURL: a.BookURL, sourceName: a.SourceName, sourceGroup: a.SourceGroup, capabilities: a.Capabilities})
+		add(binding{sourceID: a.SourceID, sourceURL: a.SourceURL, bookURL: a.BookURL, sourceName: a.SourceName, sourceGroup: a.SourceGroup, capabilities: a.Capabilities, lastChapter: a.LastChapter})
 	}
 	return result
 }
@@ -336,7 +340,7 @@ func alternates(all []binding, winner binding) []book.AltSource {
 		if b.sourceID == winner.sourceID && b.bookURL == winner.bookURL {
 			continue
 		}
-		result = append(result, book.AltSource{SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL, SourceName: b.sourceName, SourceGroup: b.sourceGroup, Capabilities: b.capabilities})
+		result = append(result, book.AltSource{SourceID: b.sourceID, SourceURL: b.sourceURL, BookURL: b.bookURL, SourceName: b.sourceName, SourceGroup: b.sourceGroup, Capabilities: b.capabilities, LastChapter: b.lastChapter})
 	}
 	return result
 }

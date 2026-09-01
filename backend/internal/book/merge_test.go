@@ -2,6 +2,19 @@ package book
 
 import "testing"
 
+func TestMergeAndSortKeepsLastChapterOnAlternateBinding(t *testing.T) {
+	results := MergeAndSort("Book", []SearchResult{
+		{Name: "Book", Author: "Author", SourceID: "a", SourceURL: "a", BookURL: "/a", SourceName: "Aggregate", LastChapter: "Provider A"},
+		{Name: "Book", Author: "Author", SourceID: "b", SourceURL: "b", BookURL: "/b", SourceName: "Aggregate", LastChapter: "Provider B"},
+	})
+	if len(results) != 1 || len(results[0].AlternateSources) != 1 {
+		t.Fatalf("results=%+v", results)
+	}
+	if results[0].AlternateSources[0].LastChapter == "" || results[0].AlternateSources[0].LastChapter == results[0].LastChapter {
+		t.Fatalf("binding display snapshots were not preserved: %+v", results[0])
+	}
+}
+
 func TestScoreResultRanksTitleBeforeAuthorAtSameSpecificity(t *testing.T) {
 	tests := []struct {
 		name   string

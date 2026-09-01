@@ -25,10 +25,8 @@ describe('ReaderSourceSheet', () => {
         stubs: { SourceRecoveryPanel: true },
       },
       props: {
-        book: { name: 'Book', author: 'Author' },
+        book: { id: 'book', name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', sourceId: 'https://current.example', sourceUrl: 'https://current.example', bookUrl: '/current-book', origin: 'Current source', lastChapter: '', durChapterIndex: 0, durChapterPos: 0, totalChapterNum: 0, stateVersion: 1 },
         currentSource: 'Current source',
-        currentSourceId: 'https://current.example',
-        currentBookUrl: '/current-book',
         onClearAndRescan: async () => undefined,
       },
     });

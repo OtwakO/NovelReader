@@ -78,6 +78,18 @@ func TestBindingStateRejectsMalformedAndMismatchedData(t *testing.T) {
 	}
 }
 
+func TestBindingStateKeepsLastChapterWithItsBinding(t *testing.T) {
+	book := &Book{SourceID: "aggregate", SourceURL: "aggregate", BookURL: "/a", Origin: "Aggregate", LastChapter: "Initial provider hint"}
+	state := bindingStateFromBook(book).upsert(AltSource{SourceID: "aggregate", SourceURL: "aggregate", BookURL: "/b", SourceName: "Aggregate", LastChapter: "Alternate provider hint"})
+	state, err := state.promote("aggregate", "/b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Active.LastChapter != "Alternate provider hint" || len(state.Alternates) != 1 || state.Alternates[0].LastChapter != "Initial provider hint" {
+		t.Fatalf("state=%+v", state)
+	}
+}
+
 func TestBindingStateEncodingUsesExplicitVersionedObject(t *testing.T) {
 	encoded, err := encodeBindingState(bindingState{Active: AltSource{SourceID: "source", SourceURL: "source", BookURL: "/book", SourceName: "Source"}})
 	if err != nil {

@@ -6,6 +6,7 @@ export interface AltSource {
   sourceGroup?: string;
   capabilities?: string[];
   discoveryQuery?: string;
+  lastChapter?: string;
 }
 
 export interface SearchResult {

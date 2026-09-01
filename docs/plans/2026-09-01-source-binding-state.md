@@ -13,6 +13,8 @@ Represent every book source binding with one complete domain shape so metadata r
 - Decode the legacy JSON array format without mutating it until the next normal write.
 - Route binding enrichment, clearing, and source promotion through one store-owned mutation seam.
 - Allow targeted search results matching the current binding to enrich active metadata.
+- Preserve each binding's source-returned `lastChapter` snapshot as an opaque display hint.
+- Present active, stored alternate, and newly discovered bindings through one unified frontend list.
 - Preserve ordinary Search and BookSource execution behavior.
 
 Out of scope:
@@ -42,16 +44,22 @@ All binding-state writes use a private store transaction/mutation helper. Source
 - Replace rather than layer over `persistedSourceBindings` and active-entry inference.
 - Preserve query text only as provenance; never parse it or label it as a provider identity.
 - The initial active binding is always materialized from current book fields. It gains richer metadata when available at shelf admission or when targeted search returns the exact current binding.
+- `lastChapter` is retained verbatim per binding as source-returned display text. It is never parsed or treated as an internal-provider identity.
+- Persistence keeps explicit active/alternate roles for transactional correctness; the frontend presents both roles as one known-bindings collection with current/stored/new presentation state.
 
 ## Current State
 
-Completed. The store now persists a versioned binding-state object, decodes legacy arrays, rejects malformed state, and routes merge/clear operations through one transaction-owned mutation seam. Source switching promotes the selected binding inside the same transaction as source fields, chapters, progress, and bookmark migration. Shelf admission materializes the active binding, and targeted searches can enrich the exact current binding without presenting it as an alternate.
+Completed. The store persists a versioned binding-state object, decodes legacy arrays, rejects malformed state, and routes merge/clear operations through one transaction-owned mutation seam. Source switching promotes the selected binding inside the same transaction as source fields, chapters, progress, and bookmark migration. Shelf admission materializes the active binding, and targeted searches can enrich the exact current binding.
+
+Each binding now retains its source-returned `lastChapter` snapshot without interpreting it as provider identity. Search-result merging, candidate admission, exact-binding enrichment, and source promotion preserve that text with the exact `(sourceId, bookUrl)` binding.
+
+Both Book Detail and Reader pass one complete shelf `Book` into the recovery module. The module derives one deduplicated known-bindings collection from the active binding, persisted alternates, and session discoveries. The active binding is rendered once with a current-source status and no switch action. Clear/rescan removes only persisted alternates and temporary discoveries; the active binding and its metadata remain visible.
 
 No SQL schema change was required. Existing legacy arrays remain readable and are rewritten to the object format on the next normal binding-state write.
 
 ## Next Action
 
-None. This plan is complete. If provider labels were never supplied by shelf admission or a result matching the exact current binding, they remain unknown; NovelReader does not infer them from other opaque query results.
+None. This plan is complete. Internal-provider identity remains opaque; `lastChapter` is only source-returned display text and is never parsed.
 
 ## Verification
 
@@ -70,8 +78,9 @@ Required focused scenario:
 Completed verification:
 
 - Full backend suite: `go test ./...`
-- Focused frontend tests: `SourceRecoveryPanel.test.ts` and `i18n.test.ts` (13/13)
+- Unified recovery UI: 13 focused tests across panel, reader sheet, and i18n
+- Full frontend suite: 47 tests
 - Frontend typecheck: `vue-tsc --noEmit`
 - Frontend production build: `vite build`
 - Transactional SQLite regression: A → C → B → A with reload after every promotion
-- Legacy-array decoding, malformed-state rejection, active-metadata clearing, and multi-result opaque-query regressions
+- Legacy-array decoding, malformed-state rejection, active-metadata clearing, multi-result opaque-query, per-binding `lastChapter`, Search merge, and shelf-admission regressions

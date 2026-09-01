@@ -30,6 +30,7 @@ type AltSource struct {
 	SourceGroup    string   `json:"sourceGroup,omitempty"`
 	Capabilities   []string `json:"capabilities,omitempty"`
 	DiscoveryQuery string   `json:"discoveryQuery,omitempty"`
+	LastChapter    string   `json:"lastChapter,omitempty"`
 }
 
 // PreviewBook is source-derived detail data without shelf ownership or progress.
@@ -567,6 +568,9 @@ func enrichAlternateSource(existing, incoming AltSource) AltSource {
 	}
 	if incoming.DiscoveryQuery != "" {
 		existing.DiscoveryQuery = incoming.DiscoveryQuery
+	}
+	if incoming.LastChapter != "" {
+		existing.LastChapter = incoming.LastChapter
 	}
 	return existing
 }

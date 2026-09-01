@@ -157,8 +157,8 @@ type operation struct {
 }
 
 type binding struct {
-	sourceID, sourceURL, bookURL, sourceName, sourceGroup string
-	capabilities                                          []string
+	sourceID, sourceURL, bookURL, sourceName, sourceGroup, lastChapter string
+	capabilities                                                       []string
 }
 type resolved struct {
 	book      *book.Book

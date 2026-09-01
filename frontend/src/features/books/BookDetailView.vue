@@ -295,10 +295,7 @@ export default defineComponent({
         :error="tocError"
       />
       <SourceRecoveryPanel
-        :book="{ name: book.name, author: book.author }"
-        :current-source-id="book.sourceId"
-        :current-book-url="book.bookUrl"
-        :stored-sources="book.alternateSources || []"
+        :book="book"
         :switching="switching"
         :action-error="sourceError"
         :action-message="sourceMessage"

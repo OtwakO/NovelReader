@@ -70,7 +70,7 @@ func TestOperationPrefersPrimaryMetadataAndCommitsWithoutRecrawl(t *testing.T) {
 	searcher := book.NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), analyzer.NewCacheManager(), sources, nil)
 	books := &memoryBooks{}
 	var released atomic.Int32
-	input := Input{Name: "Fixture Novel", Author: "Fixture Author", SourceURL: inputs[0].server.URL, BookURL: inputs[0].server.URL + "/book", ShelveBookID: "stored"}
+	input := Input{Name: "Fixture Novel", Author: "Fixture Author", SourceURL: inputs[0].server.URL, BookURL: inputs[0].server.URL + "/book", LastChapter: "Primary provider hint", ShelveBookID: "stored"}
 	for _, fixture := range inputs[1:] {
 		input.AlternateSources = append(input.AlternateSources, book.AltSource{SourceURL: fixture.server.URL, BookURL: fixture.server.URL + "/book"})
 	}
@@ -98,6 +98,9 @@ func TestOperationPrefersPrimaryMetadataAndCommitsWithoutRecrawl(t *testing.T) {
 	final := waitForState(t, manager, "reader", snapshot.ID, StateCommitted)
 	if final.StoredBook == nil || final.StoredBook.SourceURL != inputs[0].server.URL {
 		t.Fatalf("final=%+v", final)
+	}
+	if final.StoredBook.ActiveSource == nil || final.StoredBook.ActiveSource.LastChapter != "Primary provider hint" {
+		t.Fatalf("active binding display snapshot=%+v", final.StoredBook.ActiveSource)
 	}
 	if final.Known != 9 {
 		t.Fatalf("known=%d", final.Known)

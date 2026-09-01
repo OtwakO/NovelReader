@@ -525,6 +525,7 @@ func applySearchResultToBook(book *Book, result SearchResult) {
 		SourceName:   result.SourceName,
 		SourceGroup:  result.SourceGroup,
 		Capabilities: append([]string(nil), result.Capabilities...),
+		LastChapter:  result.LastChapter,
 	}
 }
 

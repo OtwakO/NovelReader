@@ -19,10 +19,11 @@ type bindingState struct {
 
 func bindingFromBook(book *Book) AltSource {
 	binding := AltSource{
-		SourceID:   book.SourceID,
-		SourceURL:  book.SourceURL,
-		BookURL:    book.BookURL,
-		SourceName: book.Origin,
+		SourceID:    book.SourceID,
+		SourceURL:   book.SourceURL,
+		BookURL:     book.BookURL,
+		SourceName:  book.Origin,
+		LastChapter: book.LastChapter,
 	}
 	if book.ActiveSource != nil && sameBinding(binding, *book.ActiveSource) {
 		binding = enrichAlternateSource(binding, *book.ActiveSource)
