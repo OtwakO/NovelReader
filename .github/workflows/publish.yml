@@ -32,65 +32,8 @@ env:
   WORKER_IMAGE: ghcr.io/otwako/novelreader-webview
 
 jobs:
-  changes:
-    name: Plan container release
-    runs-on: ubuntu-latest
-    outputs:
-      app: ${{ steps.plan.outputs.app }}
-      worker: ${{ steps.plan.outputs.worker }}
-      previous_release: ${{ steps.plan.outputs.previous_release }}
-    steps:
-      - name: Check out repository history
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-
-      - name: Determine required builds
-        id: plan
-        shell: bash
-        run: |
-          set -euo pipefail
-          app=false
-          worker=false
-          previous_release=
-
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            app=true
-            worker=true
-          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            # A release always rebuilds the app. The worker is rebuilt only when
-            # it changed since the preceding release; otherwise that immutable
-            # release image is pulled, verified with the new app, and retagged.
-            app=true
-            previous_release=$(git describe --tags --match 'v*' --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
-            if [[ -z "$previous_release" ]] || ! git diff --quiet "$previous_release" HEAD -- webview-worker; then
-              worker=true
-            fi
-          else
-            base="${{ github.event.before }}"
-            if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
-              base=HEAD^
-            fi
-            if ! git diff --quiet "$base" HEAD -- .github/workflows/publish.yml; then
-              app=true
-              worker=true
-            else
-              if ! git diff --quiet "$base" HEAD -- backend frontend build .dockerignore Dockerfile docker-entrypoint.sh; then
-                app=true
-              fi
-              if ! git diff --quiet "$base" HEAD -- webview-worker; then
-                worker=true
-              fi
-            fi
-          fi
-
-          printf 'app=%s\nworker=%s\nprevious_release=%s\n' \
-            "$app" "$worker" "$previous_release" | tee -a "$GITHUB_OUTPUT"
-
   backend:
     name: Verify backend
-    needs: changes
-    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -110,8 +53,6 @@ jobs:
 
   frontend:
     name: Verify frontend
-    needs: changes
-    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -131,8 +72,6 @@ jobs:
 
   webview:
     name: Verify WebView worker
-    needs: changes
-    if: needs.changes.outputs.worker == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -154,16 +93,10 @@ jobs:
 
   containers:
     name: Verify and publish images
-    needs: [changes, backend, frontend, webview]
+    needs: [backend, frontend, webview]
     concurrency:
       group: novelreader-container-publication
       cancel-in-progress: false
-    if: >-
-      always() &&
-      needs.changes.result == 'success' &&
-      (needs.backend.result == 'success' || needs.backend.result == 'skipped') &&
-      (needs.frontend.result == 'success' || needs.frontend.result == 'skipped') &&
-      (needs.webview.result == 'success' || needs.webview.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -184,8 +117,7 @@ jobs:
           docker compose -f docker-compose.yml config --quiet
           docker compose -f compose.e2e.yaml --profile webview --profile e2e config --quiet
 
-      - name: Build app image once
-        if: needs.changes.outputs.app == 'true'
+      - name: Build app image
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
@@ -199,17 +131,7 @@ jobs:
           provenance: false
           sbom: false
 
-      - name: Use previously published app image
-        id: reused-app
-        if: needs.changes.outputs.app != 'true'
-        run: |
-          digest=$(docker buildx imagetools inspect "$APP_IMAGE:edge" --format '{{.Manifest.Digest}}')
-          docker pull "$APP_IMAGE@$digest"
-          docker tag "$APP_IMAGE@$digest" novelreader:e2e
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-
-      - name: Build WebView image once
-        if: needs.changes.outputs.worker == 'true'
+      - name: Build WebView image
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: ./webview-worker
@@ -223,26 +145,6 @@ jobs:
           provenance: false
           sbom: false
 
-      - name: Use previously verified WebView image
-        id: reused-worker
-        if: needs.changes.outputs.worker != 'true'
-        env:
-          PREVIOUS_RELEASE: ${{ needs.changes.outputs.previous_release }}
-        run: |
-          set -euo pipefail
-          source_tag=edge
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            if [[ -z "$PREVIOUS_RELEASE" ]]; then
-              echo 'A first release must build the WebView image.' >&2
-              exit 1
-            fi
-            source_tag="${PREVIOUS_RELEASE#v}"
-          fi
-          digest=$(docker buildx imagetools inspect "$WORKER_IMAGE:$source_tag" --format '{{.Manifest.Digest}}')
-          docker pull "$WORKER_IMAGE@$digest"
-          docker tag "$WORKER_IMAGE@$digest" novelreader-webview:e2e
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-
       - name: Verify exact release images with Compose
         env:
           E2E_SKIP_BUILD: '1'
@@ -252,10 +154,6 @@ jobs:
 
       - name: Stage verified image digests
         id: stage
-        env:
-          APP_CHANGED: ${{ needs.changes.outputs.app }}
-          WORKER_CHANGED: ${{ needs.changes.outputs.worker }}
-          PREVIOUS_RELEASE: ${{ needs.changes.outputs.previous_release }}
         run: |
           set -euo pipefail
           staging_tag="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -268,25 +166,13 @@ jobs:
             docker buildx imagetools inspect "$target" --format '{{.Manifest.Digest}}'
           }
 
-          if [[ "$APP_CHANGED" == "true" ]]; then
-            app_digest=$(stage_local novelreader:e2e "$APP_IMAGE")
-          else
-            app_digest='${{ steps.reused-app.outputs.digest }}'
-          fi
-
-          if [[ "$WORKER_CHANGED" == "true" ]]; then
-            worker_digest=$(stage_local novelreader-webview:e2e "$WORKER_IMAGE")
-          else
-            worker_digest='${{ steps.reused-worker.outputs.digest }}'
-          fi
-
+          app_digest=$(stage_local novelreader:e2e "$APP_IMAGE")
+          worker_digest=$(stage_local novelreader-webview:e2e "$WORKER_IMAGE")
           printf 'app_digest=%s\nworker_digest=%s\n' \
             "$app_digest" "$worker_digest" | tee -a "$GITHUB_OUTPUT"
 
       - name: Promote verified image pair
         env:
-          APP_CHANGED: ${{ needs.changes.outputs.app }}
-          WORKER_CHANGED: ${{ needs.changes.outputs.worker }}
           APP_DIGEST: ${{ steps.stage.outputs.app_digest }}
           WORKER_DIGEST: ${{ steps.stage.outputs.worker_digest }}
         run: |
@@ -316,9 +202,8 @@ jobs:
             docker buildx imagetools create "${args[@]}" "$repository@$digest"
           }
 
-          # Every participating image receives an immutable full-SHA reference
-          # before any public alias moves. Worker aliases move first; the app
-          # moves last so users never receive a new app before its paired worker.
+          # Both images receive immutable references before any public alias moves.
+          # The worker moves first and the app last so the published pair stays compatible.
           ensure_immutable "$APP_IMAGE" "$APP_DIGEST"
           ensure_immutable "$WORKER_IMAGE" "$WORKER_DIGEST"
 
@@ -330,10 +215,6 @@ jobs:
             promote "$WORKER_IMAGE" "$WORKER_DIGEST" manual
             promote "$APP_IMAGE" "$APP_DIGEST" manual
           else
-            if [[ "$WORKER_CHANGED" == "true" ]]; then
-              promote "$WORKER_IMAGE" "$WORKER_DIGEST" latest edge
-            fi
-            if [[ "$APP_CHANGED" == "true" ]]; then
-              promote "$APP_IMAGE" "$APP_DIGEST" latest edge
-            fi
+            promote "$WORKER_IMAGE" "$WORKER_DIGEST" latest edge
+            promote "$APP_IMAGE" "$APP_DIGEST" latest edge
           fi
