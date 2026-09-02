@@ -84,7 +84,7 @@ describe('SourceManagementView collection availability', () => {
       explore: 0,
     });
     expect(collectionButton.classes()).toContain('unavailable');
-    expect(collectionButton.find('strong').text()).toBe('Collection One');
+    expect(collectionButton.find('strong').text()).toBe('Collection');
     expect(collectionButton.find('span').exists()).toBe(false);
   });
 });
