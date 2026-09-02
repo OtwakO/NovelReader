@@ -106,6 +106,58 @@ The current prose progress schema remains authoritative until a second modality 
 
 Local imports remain separate shelf items from BookSource books by default. Provider-specific identity and storage remain provider-owned. Cross-provider edition linking is not part of this decision and may be designed later if readers need it.
 
+## Future Provider Adoption Reference
+
+Use this section when the first non-BookSource provider—most likely local TXT or EPUB import—becomes accepted implementation work. It defines the extension path, not interface signatures or storage schemas; those must be designed from the concrete provider requirements available at that time.
+
+### Start the workstream
+
+1. Create a dedicated implementation plan for the provider. Do not reopen the completed reading-foundation plan.
+2. Revalidate this decision against the actual format and product requirements before changing shared models.
+3. Keep each imported publication as its own shelf item unless a separate decision introduces cross-provider edition linking.
+4. Identify the provider capabilities that genuinely differ from BookSource before extracting interfaces. Prefer small capability-specific interfaces over a provider registry or one comprehensive provider interface.
+
+### Provider and storage ownership
+
+- Store provider-native identity and state in provider-owned storage. Do not add a growing set of nullable TXT-, EPUB-, archive-, or BookSource-specific columns to one shared record.
+- Keep file paths, archive entry names, encoding details, parsing state, and provider-native identifiers behind the backend reading seam.
+- Validate imported files at the import boundary and preserve enough provider-owned identity to reopen sections and resources deterministically.
+- Application-level reading orchestration should select the provider, authorize the shelf item, open its section, normalize the result, issue resource references, and return stable reading errors. The HTTP layer and frontend renderer should not branch on local paths, archive formats, or BookSource rules.
+
+### Sections and documents
+
+- Map the provider's ordered divisions to Reading Sections. A BookSource chapter, EPUB spine item, and generated TXT section are provider-specific forms of the same cross-provider concept.
+- Normalize plain TXT and reflowable EPUB sections into the existing Prose Document semantics whenever their reading behavior is flowing prose.
+- Extend prose block kinds only for demonstrated semantic behavior needed by a real provider. Do not expose raw HTML or create format-named block kinds such as `epub-paragraph`.
+- Do not infer the renderer from file extension in the frontend. The backend/provider returns an explicit document kind, and the Reading Session selects the renderer from that discriminator.
+- Treat fixed-layout EPUB as a separate design question. Use an image-sequence or separately justified fixed-layout document only if its observed layout, navigation, and location behavior cannot be represented honestly as prose.
+
+### Resources
+
+- Convert EPUB images, fonts, stylesheets, and other permitted archive assets into NovelReader-controlled opaque Content Resource references. Never expose archive paths or local filesystem paths to the frontend.
+- Resolve each reference only within its authorized shelf item and section/provider state. Resource delivery must not become a general local-file, archive-entry, or remote-URL proxy.
+- Reuse common authorization, bounded reads, media-type validation, caching policy, and response safety where their invariants are truly shared; keep BookSource headers, cookies, sessions, request options, and decoding inside the BookSource adapter.
+- Prefer streaming for large untransformed resources, but retain bounded whole-body handling where parsing or transformation requires it.
+
+### Frontend and reading state
+
+- Reuse the Prose Renderer for TXT and reflowable EPUB documents. Provider-specific import or parsing behavior must not enter that renderer.
+- Keep the Reading Session responsible for common loading, section navigation, chrome, failures, and persistence coordination. Provider-only controls such as BookSource recovery should be capability-gated rather than made mandatory for every provider.
+- Continue using the current prose location/progress behavior while the new provider still produces prose. A second provider alone does not justify modality-specific progress migration.
+- Introduce structured, versioned Reading Locations only when a second reading modality supplies a real incompatible location shape, then migrate existing prose progress explicitly.
+
+### Completion checks
+
+Before considering the first provider integration complete, verify that:
+
+- the provider can enumerate/open Reading Sections without the frontend knowing its native format;
+- its flowing content reaches the existing Prose Renderer as a versioned Prose Document;
+- any binary assets resolve through authorized opaque references;
+- BookSource-specific behavior has not leaked into the provider-neutral reading interface;
+- provider-specific identity and storage remain cohesive and independently maintainable;
+- existing BookSource reading and progress continue to work;
+- current architecture documentation reflects the concrete interfaces and storage chosen during implementation.
+
 ## Rationale
 
 This design shares infrastructure where the invariants are genuinely common—authorization, section opening, resource delivery, errors, and reading-session coordination—while preserving cohesion for behavior that differs substantially by modality.
