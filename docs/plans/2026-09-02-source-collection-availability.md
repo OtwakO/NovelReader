@@ -200,7 +200,7 @@ Verified during planning:
 - branch created from clean `main`: `feat/source-collection-availability`;
 - Search candidate path: `Store.ListEnabled` → `Searcher.searchCandidates`;
 - Explore candidate path: `Store.ListExploreEnabled` → `Searcher.ExploreSources`;
-- direct Explore path currently bypasses collection state via `Store.GetByID`;
+- direct Explore was identified as a bypass risk and was moved to the effective-availability lookup;
 - collection replacement updates owned source rows but not collection policy fields;
 - repository schema policy permits recreation of pre-public development reader data.
 
@@ -220,4 +220,4 @@ Final verification completed:
 
 ## Open Questions
 
-None currently blocking. If implementation shows that the Explore store interface cannot express direct effective availability without widening several test fakes, prefer one small capability method over leaking collection data into `book.Searcher`.
+None.
