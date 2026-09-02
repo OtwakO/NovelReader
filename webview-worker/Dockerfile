@@ -18,7 +18,7 @@ RUN uv sync --frozen --no-dev --no-install-project \
     && chmod -R a+rX /ms-playwright /app/.venv
 
 RUN useradd --create-home --uid 10001 appuser
-COPY --chown=10001:10001 browser.py worker.py ./
+COPY --chown=10001:10001 browser.py interactive.py worker.py ./
 USER appuser
 
 EXPOSE 8787

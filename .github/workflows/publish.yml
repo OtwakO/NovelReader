@@ -145,6 +145,9 @@ jobs:
           provenance: false
           sbom: false
 
+      - name: Verify WebView image imports
+        run: docker run --rm --entrypoint /app/.venv/bin/python novelreader-webview:e2e -c "import browser, interactive, worker"
+
       - name: Verify exact release images with Compose
         env:
           E2E_SKIP_BUILD: '1'
