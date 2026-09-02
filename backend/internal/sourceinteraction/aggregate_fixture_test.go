@@ -2,6 +2,7 @@ package sourceinteraction
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -11,8 +12,12 @@ import (
 	"github.com/otwako/novelreader/internal/sourceprofile"
 )
 
-func TestDescribeUnmodifiedAggregateFixture(t *testing.T) {
+func privateAggregateSource(t *testing.T) booksource.BookSource {
+	t.Helper()
 	raw, err := os.ReadFile("../../../test-booksources/test_光遇聚合_aggregated_booksource.json")
+	if errors.Is(err, os.ErrNotExist) {
+		t.Skip("private aggregate BookSource fixture is not installed")
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,8 +25,16 @@ func TestDescribeUnmodifiedAggregateFixture(t *testing.T) {
 	if err := json.Unmarshal(raw, &sources); err != nil {
 		t.Fatal(err)
 	}
+	if len(sources) == 0 {
+		t.Fatal("private aggregate BookSource fixture contains no sources")
+	}
 	source := sources[0]
 	source.ID = "aggregate-fixture"
+	return source
+}
+
+func TestDescribeUnmodifiedAggregateFixture(t *testing.T) {
+	source := privateAggregateSource(t)
 	describer := NewDescriber(describerSourceStore{&source}, describerProfileStore{sourceprofile.Profile{SourceID: source.ID, Settings: json.RawMessage(`{}`)}}, analyzer.NewJSVM())
 	view, err := describer.Describe(t.Context(), source.ID)
 	if err != nil {
@@ -38,16 +51,7 @@ func TestDescribeUnmodifiedAggregateFixture(t *testing.T) {
 }
 
 func TestActUnmodifiedAggregateFallbackSettings(t *testing.T) {
-	raw, err := os.ReadFile("../../../test-booksources/test_光遇聚合_aggregated_booksource.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var sources []booksource.BookSource
-	if err := json.Unmarshal(raw, &sources); err != nil {
-		t.Fatal(err)
-	}
-	source := sources[0]
-	source.ID = "aggregate-fixture"
+	source := privateAggregateSource(t)
 	profiles := &mutableProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: json.RawMessage(`{}`), Authentication: json.RawMessage(`{}`)}}
 	service := NewDescriber(describerSourceStore{&source}, profiles, analyzer.NewJSVM())
 
@@ -101,16 +105,7 @@ func interactionActionID(t *testing.T, view View, label string) string {
 }
 
 func TestUnmodifiedAggregateSettingsAwaitPersistsReturnedSelection(t *testing.T) {
-	raw, err := os.ReadFile("../../../test-booksources/test_光遇聚合_aggregated_booksource.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var sources []booksource.BookSource
-	if err := json.Unmarshal(raw, &sources); err != nil {
-		t.Fatal(err)
-	}
-	source := sources[0]
-	source.ID = "aggregate-fixture"
+	source := privateAggregateSource(t)
 	settings := json.RawMessage(`{"variable":"{\"云端配置\":{\"hosts\":[\"https://v1.gyks.cf\"]},\"线路\":\"https://v1.gyks.cf\"}"}`)
 	profiles := &mutableProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: settings, Authentication: json.RawMessage(`{}`)}}
 	service := NewDescriber(describerSourceStore{&source}, profiles, analyzer.NewJSVM())
@@ -138,16 +133,7 @@ func TestUnmodifiedAggregateSettingsAwaitPersistsReturnedSelection(t *testing.T)
 }
 
 func TestUnmodifiedAggregateSettingsEmitsBoundedHTMLDataDocument(t *testing.T) {
-	raw, err := os.ReadFile("../../../test-booksources/test_光遇聚合_aggregated_booksource.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var sources []booksource.BookSource
-	if err := json.Unmarshal(raw, &sources); err != nil {
-		t.Fatal(err)
-	}
-	source := sources[0]
-	source.ID = "aggregate-fixture"
+	source := privateAggregateSource(t)
 	settings := json.RawMessage(`{"variable":"{\"云端配置\":{\"hosts\":[\"https://v1.gyks.cf\"]},\"线路\":\"https://v1.gyks.cf\"}"}`)
 	profiles := &mutableProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: settings, Authentication: json.RawMessage(`{}`)}}
 	service := NewDescriber(describerSourceStore{&source}, profiles, analyzer.NewJSVM())

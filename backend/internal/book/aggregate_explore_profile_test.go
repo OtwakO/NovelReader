@@ -3,6 +3,7 @@ package book
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -35,6 +36,9 @@ func TestUnmodifiedAggregateExploreUsesHydratedSourceSettings(t *testing.T) {
 	defer server.Close()
 
 	raw, err := os.ReadFile("../../../test-booksources/test_光遇聚合_aggregated_booksource.json")
+	if errors.Is(err, os.ErrNotExist) {
+		t.Skip("private aggregate BookSource fixture is not installed")
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
