@@ -434,7 +434,7 @@ export default defineComponent({
           <strong>{{ $t('sources.collections.all') }}</strong>
         </button>
         <button v-for="collection in collections" :key="collection.id" :class="{ active: selectedCollectionId === collection.id, unavailable: !collection.enabled }" @click="selectedCollectionId = collection.id">
-          <strong>{{ collection.name }}</strong><span v-if="!collection.enabled">{{ $t('sources.collections.disabled') }}</span>
+          <strong>{{ collection.name }}</strong>
         </button>
         <button :class="{ active: selectedCollectionId === 'standalone' }" @click="selectedCollectionId = 'standalone'">
           <strong>{{ $t('sources.collections.standalone') }}</strong>
@@ -723,13 +723,11 @@ export default defineComponent({
 .collection-strip strong {
   line-height: 1.25;
 }
-.collection-strip button > span {
-  color: var(--color-ink-muted);
-  font-size: 0.68rem;
-  font-weight: 700;
-}
-.collection-strip button.unavailable:not(.active) {
+.collection-strip button.unavailable {
   opacity: 0.68;
+}
+.collection-strip button.unavailable strong {
+  text-decoration: line-through;
 }
 .collection-actions small {
   color: var(--color-ink-muted);
