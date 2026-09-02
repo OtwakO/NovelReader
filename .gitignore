@@ -10,7 +10,7 @@ node_modules/
 __pycache__/
 *.pyc
 webview-worker/.venv/
-reference/
+/reference/
 backend/server
 backend/novelreader
 .playwright-cli/

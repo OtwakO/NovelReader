@@ -1,5 +1,7 @@
 # Codebase Cleanup Audit
 
+> **Archived historical audit (2026-08).** This records the candidate-resolution cleanup completed at that time. It is not a current cleanup backlog. Current architecture and project state are routed from [`PLAN.md`](../../../PLAN.md).
+
 ## Purpose
 
 This document records the evidence and outcome of the cleanup completed alongside the asynchronous candidate-resolution architecture. NovelReader is pre-public, and its HTTP API is currently private to the bundled frontend and repository-owned tests. Superseded internal HTTP workflows therefore do not receive compatibility preservation unless explicitly designated as supported contracts.

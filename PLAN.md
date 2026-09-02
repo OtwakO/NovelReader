@@ -1,389 +1,143 @@
-# NovelReader — Engineering Plan
+# NovelReader — Project Plan
 
-`PLAN.md` describes the project as it exists now: its objective, architecture, current state, next work, and durable decisions. Historical discoveries belong in `DEVELOPMENT.md`; detailed subsystem contracts and audit evidence belong in `docs/` and `testdata/`.
-
-The former detailed plan is preserved as `docs/archive/PLAN_HISTORY_2026-08-27.md` for historical reference only.
+`PLAN.md` is the current-state router. Load only the linked document relevant to the task; completed plans and archived material are historical evidence, not live backlogs.
 
 ## Objective
 
-Build a self-hosted, web-first novel reader with strong behavioral compatibility with Legado BookSource JSON.
+Build a self-hosted, web-first novel reader with strong practical compatibility with Legado BookSource JSON while keeping reader data isolated, portable, and understandable.
 
 NovelReader must:
 
 - preserve imported BookSource definitions losslessly, including unknown fields;
-- execute source-defined requests, rules, JavaScript, sessions, cookies, and WebView work on the backend;
-- distinguish engine defects from DNS, upstream, authentication, WAF, captcha, and stale-source failures;
-- provide a lightweight responsive Reader and management UI through stable typed domain APIs;
-- provide an installable resilient web app shell without service-worker ownership of authenticated API or Reader Data;
-- keep each reader account's books, sources, reading state, and files isolated and portable;
-- remain understandable and maintainable without source-specific patches or speculative abstraction.
+- execute source-defined requests, rules, JavaScript, sessions, cookies, typed data, and WebView work on the backend;
+- expose typed Search, Explore, Book Detail, catalog, source-recovery, and Reader workflows to the Vue frontend;
+- isolate every Reader Account's sources, books, progress, files, settings, and source interaction state;
+- fail explicitly without source-specific production patches, captcha solving, or automatic WAF bypass.
 
-“Compatible” means matching documented and observed Legado behavior where a portable server implementation is practical. It does not mean bypassing site policy, captchas, authentication, or anti-automation controls.
-
-## Architecture
-
-### System shape
+## System Map
 
 ```text
 Vue 3 SPA
-  → typed HTTP/SSE API modules
-  → authenticated Go API adapters
-  → book/search/explore/candidate domain workflows
-  → shared source executor and SourceSession
-  → HTTP, fingerprint, typed-data, or WebView transport
-  → Legado-compatible analyzer and JavaScript bridge
-  → typed domain results
-  → per-reader SQLite database and files
+  → typed authenticated HTTP/SSE interfaces
+  → book/search/explore/candidate/source-interaction workflows
+  → shared source executor, analyzer, JavaScript bridge, and SourceSession
+  → HTTP, fingerprint, typed-data, or Patchright WebView transport
+  → per-reader SQLite data and files
 ```
 
-The frontend owns interaction and presentation. It never constructs BookSource URLs, evaluates source rules, or interprets source-specific crawling behavior. BookSource cover bytes are also backend-owned: stored books use a book-derived endpoint, while temporary Search, Explore, and candidate results use authenticated opaque signed references so HTTP-only images and source request state work under HTTPS without exposing a general image proxy.
+Repository ownership:
 
-The production frontend is an installable PWA. Its service worker pre-caches only the app shell, manifest, icons, and fingerprinted frontend assets; `/api` requests remain network-owned and authenticated books, chapters, progress, and credentials are never placed in service-worker caches. Waiting updates activate at the next launch or reload boundary rather than interrupting an active reading session.
+- `backend/internal/api/` — authenticated HTTP/SSE adapters.
+- `backend/internal/auth/` — accounts, sessions, setup, recovery, and administration.
+- `backend/internal/readerstore/` — reader homes, schemas, lifecycle, backup staging, and replacement.
+- `backend/internal/booksource/` — lossless BookSource model and persistence.
+- `backend/internal/sourceexec/` — shared request construction, source sessions, and transport routing.
+- `backend/internal/analyzer/` — Legado-compatible rules and JavaScript bridge.
+- `backend/internal/book/` — Search, Explore parsing, Book Info, catalogs, content, shelf, source binding, progress, and bookmarks.
+- `backend/internal/candidate/` — bounded metadata-first shelf admission.
+- `backend/internal/sourceinteraction/` — reader-owned source settings, credentials, actions, and browser continuations.
+- `backend/internal/backup/` — portable Reader Data archive and staged restore workflows.
+- `backend/internal/webview/` and `webview-worker/` — versioned Go/Patchright browser seam.
+- `frontend/src/features/` — feature-owned Vue workflows and presentation.
+- `testdata/booksource/` — deterministic conformance fixtures and immutable live-audit evidence.
 
-### Repository ownership
+Current architecture:
 
-```text
-backend/internal/
-  api/          HTTP/SSE adapters, authentication boundaries, static delivery
-  auth/         accounts, sessions, setup, recovery, administration
-  readerstore/  per-reader homes, schema validation, lifecycle, replacement
-  backup/       portable Reader-home archives and staged restore operations
-  booksource/   canonical source model, import/export, persistence
-  sourceexec/   request construction, sessions, routing transports
-  analyzer/     Default/CSS/XPath/JSONPath/Regex rules and JavaScript bridge
-  book/         search, detail, TOC, content, shelf, progress, bookmarks
-  candidate/    asynchronous readable-candidate validation and commit
-  chineseconv/  display-only Chinese conversion capability and official OpenCC adapter
-  explore/      source-native catalog sessions and pagination where separated
-  webview/      Go-side Patchright worker client and diagnostic
-
-webview-worker/  Python Patchright browser worker managed with uv
-
-frontend/src/
-  api/          typed backend transport and DTOs
-  app/          bootstrap, Router, route policy, application shells
-  stores/       narrowly shared Pinia state and durable UI preferences
-  ui/           tokens and reusable interaction primitives
-  features/     feature-owned pages, workflows, state, and components
-
-testdata/booksource/
-  conformance/  deterministic captured compatibility fixtures
-  audits/       immutable sampled live-audit evidence
-```
-
-Feature code should stay near the feature it supports. New shared layers require more than one real caller and a clearer interface than direct use.
-
-### Identity and storage
-
-- `system.db` owns accounts, authentication sessions, setup/recovery state, and reader-administration jobs.
-- Each immutable user ID owns one self-contained reader home containing `reader.db` and ordinary files.
-- Every Reader Data request authenticates first, derives identity from request context, and acquires that reader's bounded runtime.
-- `readerstore` exclusively owns reader-home paths, schema validation, database lifecycle, export/import boundaries, and deletion coordination.
-- One writable `DATA_DIR` has one NovelReader server owner. Shared writable multi-process access is unsupported.
-- A stopped-server copy of the complete `data/` directory is the disaster-recovery backup boundary.
-- Portable reader backups are versioned `.tar.gz` physical Reader-home snapshots (`manifest.json`, `RESTORE.txt`, `reader-home/`) created from a consistent SQLite snapshot. They exclude account identity, passwords, sessions, and automation tokens; restoring replaces the target's Reader Data while keeping the target account authority.
-- Online restore stages and validates the complete archive while reading continues, then performs a brief per-reader quiesce and same-filesystem atomic replacement with rollback. Prepared restores are reader-owned and expire after 30 minutes. The backup service owns operation expiry and its top-level extraction workspaces; readerstore exclusively owns per-reader replacement staging and rollback reconciliation. A bounded service janitor removes expired operations without API traffic, startup removes abandoned backup workspaces, and readerstore startup rolls back interrupted cutovers or discards stale prepared homes so uncommitted Reader Data cannot remain orphaned after a crash.
-- Reader-owned hash-only automation tokens have separate `backup:export` and `backup:restore` scopes; issuing restore authority requires current-password reauthentication. Archive format compatibility and Reader schema compatibility remain separate so a future migration step can sit between extraction and validation.
-
-NovelReader remains pre-public. Development data is disposable:
-
-- change the canonical fresh schema directly;
-- recreate incompatible local databases or data roots;
-- do not add migrations, backfills, compatibility adapters, or migration-only tests unless public or irreplaceable data exists or the user explicitly approves them.
-
-See `docs/AUTHENTICATION_DESIGN.md`, `docs/USER_STORAGE_IMPLEMENTATION_TASKS.md`, and `docs/adr/0001-user-owned-data-and-local-authentication.md`.
-
-### BookSource execution
-
-#### Canonical model
-
-- Each installed definition has an immutable NovelReader Source ID; `bookSourceUrl` remains imported Legado address data, may duplicate, and is never the runtime locator. Source names are display labels and may also duplicate.
-- All imported fields, including unknown fields, survive import, editing, persistence, and export.
-- Typed fields exist for behavior NovelReader executes; original definitions remain available for round-trip fidelity and diagnostics.
-- Malformed executable fields produce explicit import or runtime diagnostics rather than silently becoming empty behavior.
-
-#### Shared request boundary
-
-Search, Book Info, TOC, chapter content, pagination, images, Explore, JavaScript bridge requests, and WebView requests use the same execution contract.
-
-```text
-RequestSpec
-  URL, method, body, headers, charset, retry
-  webView, webJs, bodyJs, type, origin, dnsIp
-  source identity and SourceSession context
-
-Response
-  requested/final URL, status, headers, body/bytes
-  transport kind, redirects, timing, classified failure
-```
-
-Routing selects normal HTTP, fingerprint, bounded typed `data:` execution, or WebView without exposing transport details to book-domain workflows.
-
-#### SourceSession
-
-A SourceSession owns the scoped state needed across one source workflow:
-
-- cookies and cookie helpers;
-- source variables, cache, and headers;
-- rate and request state;
-- JavaScript library/context;
-- mutable book/chapter execution context;
-- session-scoped fingerprint or WebView continuity.
-
-State may persist across detail → TOC → content for one user and source. It must never leak across users or unrelated sources.
-
-#### Analyzer
-
-The analyzer preserves typed HTML, JSON, list, string, and JavaScript values where possible and implements Legado-compatible Default/JSoup, CSS, XPath, JSONPath, Regex, connectors, replacements, indices, variables, and script chaining.
-
-Compatibility work must fix shared executor, analyzer, session, or workflow seams. Source-specific production branches are a last resort and require evidence that the source contract itself is exceptional.
-
-### Book and reading model
-
-- Normalized title plus author is the logical book identity.
-- `(sourceUrl, bookUrl)` pairs are source bindings beneath that logical book.
-- Adding or rediscovering the same logical book merges alternate bindings while preserving its ID, selected source, chapters, progress, bookmarks, and cache.
-- Source switching validates an already persisted exact alternate binding before atomically replacing the active binding. Failed validation leaves active state unchanged.
-- Reading progress is one canonical chapter/index position migrated across source switches by normalized chapter-title match, then a documented approximate index fallback.
-- Bookmark source migration requires an exact normalized-title match; otherwise the bookmark remains explicitly orphaned.
-- Processed chapter content may be cached server-side under bounded retention for upstream-outage fallback.
-- Reader Chinese conversion is display-only and never changes canonical chapters, progress, bookmarks, shelf metadata, or backend data. Simplified conversion and Taiwan Traditional phrase conversion are provided through a narrow backend capability; release images use the pinned official BYVoid/OpenCC runtime with the Jieba-backed `tw2sp_jieba` and `s2twp_jieba` presets, while ordinary local builds may explicitly report that native conversion is unavailable.
-
-### Search and candidate journey
-
-Search uses deterministic batches and SSE:
-
-- the backend selects eligible text sources in stable order;
-- cursors identify the next source offset and source-list revision;
-- the frontend merges cumulative results and preserves alternate bindings;
-- source work remains bounded by per-search and process-wide capacity;
-- recovery may run an opaque user query against one enabled installed source through the same Search workflow, accepting only exact logical-book bindings without interpreting source-specific syntax or internal provider identities; the opaque discovery query is retained only as display provenance so same-source bindings remain distinguishable.
-
-Opening a result creates a non-destructive Candidate Book Detail. It may validate sources but does not add the book to the shelf.
-
-Direct Add and Candidate Book Detail share the account-scoped asynchronous candidate operation defined in `docs/CANDIDATE_BOOK_JOURNEY.md`:
-
-- every discovered binding is queued in stable primary-first order;
-- up to five source pipelines run concurrently and freed slots refill immediately;
-- the current implementation requires Book Info, a usable TOC, a readable chapter URL, and credible chapter content before shelf admission;
-- progress and per-source stages are exposed through reconnectable SSE snapshots;
-- the first verified source wins; untouched and winner-cancelled attempts are marked skipped, not failed;
-- server-held verified Book Info and TOC commit idempotently without recrawling;
-- active work is replacing this chapter-count-dependent admission contract with metadata-first shelf admission and separately synchronized catalogs;
-- direct card Add commits automatically, while Candidate Book Detail requires explicit Add;
-- cancellation is acknowledged immediately while active source work drains privately before runtime release;
-- operations expire, evict, cancel, commit, and shut down without leaking reader-runtime leases.
-
-The active private API uses `/api/candidate-resolutions`. Superseded synchronous preview, readable, enrich, and shelf-ingestion endpoints are removed.
-
-### Explore
-
-Explore is strictly one selected BookSource at a time.
-
-- Eligibility follows the source's Explore configuration independently of text-search enablement.
-- The backend evaluates source-native categories, controls, requests, rules, and pagination.
-- Opaque bounded sessions retain source state and enforce sequential server-authoritative pages.
-- The frontend renders typed catalogs, controls, results, pagination, and diagnostics without seeing raw rules or executable expressions.
-- NovelReader does not create a cross-source recommendation feed, rankings, or editorial aggregation.
-
-### Frontend
-
-The production frontend is a Vue 3 SPA using Vue Router, Pinia, Vue I18n, Vite, and the Options API convention.
-
-- Hash routing preserves static-file and direct-link deployment compatibility.
-- Pinia is reserved for genuinely cross-route state, not every API response.
-- Feature-owned English, Simplified Chinese, and Traditional Chinese modules must have identical key coverage.
-- Browser language selects the initial locale with English fallback; preference is device-local and does not alter URLs.
-- Shelf restoration, filters, disclosure state, and similar convenience state may remain tab/device-local when they are not Reader Data.
-- Responsive mobile behavior, accessibility, visible failure states, and no horizontal overflow are required UI gates.
-- Reader interactions, typography, source recovery, TOC, bookmarks, wake lock, and keyboard controls stay feature-local and guarded against accidental input conflicts.
-- Route-level code splitting and immutable caching of fingerprinted assets are the frontend delivery policy; correctness must not depend on eager loading unrelated routes.
-
-### Deployment
-
-- `docker-compose.yml` is the standalone operator-facing production stack.
-- It runs `ghcr.io/otwako/novelreader:latest` and the private-network WebView worker, persists `./data:/data`, and requires no `.env` file.
-- The app entrypoint prepares bind-mount ownership and drops to configured numeric `PUID:PGID`.
-- `compose.e2e.yaml` is the deterministic local-build and deployment-test contract.
-- GitHub Actions runs backend, frontend, and changed WebView verification in parallel, builds each required container image once with Buildx, runs Compose E2E against those exact images, and publishes only after they pass.
-- Every successful container run records a full-commit `sha-*` app/worker pair for exact rollback. Main moves `latest` and `edge` only for changed images. Unchanged WebView code reuses the published `edge` image for main E2E; `v*` releases publish normalized semver image tags and reuse the preceding immutable release worker digest after verifying it with the new app.
-- `run-local.bat` remains the development workflow.
-
-WebView is observable but not continuously monitored. Settings performs an authenticated backend-owned synthetic execution through the same Go → worker → Chromium path used by sources and reports `not configured`, `unavailable`, or `verified`.
+- [Authentication, reader storage, and backup](docs/architecture/authentication-and-reader-storage.md)
+- [Discovery, shelf, catalogs, and reading](docs/architecture/discovery-and-reading.md)
+- [Domain language](docs/reference/domain-language.md)
 
 ## Current State
 
-### Source Collections
+### Complete product foundations
 
-The `feat/source-collections` branch adds reader-owned Source Collections without changing the flat BookSource execution model:
+- Local Reader Accounts, setup, registration policy, recovery, password management, administration, and durable deletion.
+- Per-reader storage with isolated `reader.db`, files, source profile state, and encrypted source credentials.
+- Portable Reader Data backup/restore with scoped automation tokens and staged atomic replacement.
+- Lossless BookSource import/export, Source Collections, manual/scheduled collection synchronization, and duplicate source definitions.
+- Shared HTTP/fingerprint/typed-data/WebView execution with bounded source sessions and process capacity.
+- Batched streaming Search and strict single-source Explore.
+- Metadata-first shelf admission: bounded Book Info selects a source; catalog synchronization is separate, single-flight, cached in SQLite, observable, retryable, and atomically published.
+- Logical-book identity by normalized title/author with exact `(SourceID, BookURL)` source bindings, unified source recovery, and atomic source switching.
+- Reader progress, bookmarks, chapter cache, source migration, Chinese conversion, responsive controls, keyboard navigation, TOC filtering/ordering, wake lock, and shelf filtering/restoration.
+- Reader-owned source interaction, settings, login state, controlled browser sessions, and bounded `startBrowserAwait` continuation replay.
+- Installable Vue PWA, Docker Compose production deployment, deterministic Compose E2E, and GHCR publication.
 
-- a complete uploaded JSON document can be imported and atomically replaced as one renameable collection;
-- a URL collection can be manually synchronized, with failed downloads or malformed documents leaving the last good sources unchanged;
-- collection replacement is authoritative: existing definitions and user edits are overwritten and missing entries are removed;
-- collection membership stores an internal document position separate from imported Legado `customOrder`; synchronization preserves Source IDs by exact imported definition first, then by the prior persisted document order, and writes the incoming document order for the next synchronization;
-- an immutable NovelReader Source ID identifies each installed definition, while duplicate `bookSourceUrl` values are allowed within and across collections and remain independent through Search, Explore, candidate resolution, stored bindings, and source sessions;
-- automatic synchronization is off by default, with only manual, daily, and weekly schedules;
-- standalone sources and existing individual source editing/deletion remain supported;
-- Search, Explore, candidate, and reading workflows continue consuming the existing flat effective source list and do not depend on collection concepts.
+### Compatibility position
 
-The implementation includes transactional collection storage, authenticated upload/URL/rename/replace/sync/delete endpoints, bounded public URL retrieval, collection-aware management UI, immutable Source IDs across runtime workflows, and a small reader-runtime-owned daily/weekly scheduler that reuses manual synchronization semantics.
+The major text-reading journeys are operational. Remaining compatibility work is incremental and evidence-driven, concentrated in shared analyzer, JavaScript bridge, session, request, source-interaction, and media-specific semantics. NovelReader does not claim universal parity with every Android/JVM-only Legado behavior.
 
-### Complete foundations
+Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for unresolved capability families and [archived compatibility tracker](docs/archive/audits/legado-compatibility-tracker-2026-08.md) for the completed 2026-08 audit queue.
 
-- Per-reader authentication, ownership, isolated storage, administration, recovery, registration policy, password change, and durable reader deletion.
-- Lossless BookSource import/export and backend-owned request/rule execution.
-- Complete search → Book Info → TOC → content domain pipeline with structured failures.
-- HTTP, fingerprint, typed-data, and optional Patchright WebView transport boundaries.
-- Bounded workflow sessions, browser admission, process capacity controls, and deterministic load coverage.
-- Batched streaming Search with cumulative alternate-source discovery.
-- Asynchronous readable-candidate resolution and no-recrawl shelf commit.
-- Stored Book Detail, source discovery, source switching, Shelf, Reader, progress, bookmarks, offline cache, and display-only Chinese conversion.
-- Strict single-source Explore.
-- BookSource management, Settings, WebView diagnostic, reader account, and administrator reader management.
-- Production Vue frontend replacement with no active Svelte runtime.
-- Standalone Docker Compose deployment and successful GHCR publication workflow.
-- Removal of superseded candidate-ingestion and unbatched Search API surfaces.
+## Active Work
 
-### Current compatibility position
+No implementation workstream is currently designated active in repository documentation. The completed [documentation reorganization](docs/plans/2026-09-01-documentation-reorganization.md) records the current document structure and validation.
 
-The major crawl and Explore vertical slices are operational, but full Legado compatibility is not complete. Remaining work is concentrated in shared rule and JavaScript semantics rather than missing end-to-end product journeys.
+## Immediate Priorities
 
-Known incomplete areas include:
-
-- remaining Default/JSoup/CSS/XPath/JSONPath/Regex edge semantics;
-- complete Java bridge surface and mutable entity behavior;
-- cookie, source-variable, and login-state parity for advanced sources;
-- JavaScript timeout, recursion, and runtime-isolation closure;
-- advanced source login/browser interactions;
-- media-oriented and Android-only source behaviors.
-
-Detailed compatibility backlog: `docs/LEGADO_COMPATIBILITY_TASKS.md`.
-
-### Work in progress
-
-The current `feat/aggregated-booksources` branch is extending shared Legado compatibility for programmable aggregate BookSources without introducing an aggregate-specific domain model:
-
-- typed Base64 `data:` requests with a non-empty URL-option `type` are realized in memory through the existing `sourceexec.Transport` interface;
-- typed data execution precedes HTTP/WebView selection, matching Legado's execution order, and returns hexadecimal response text for source-defined `bodyJs` processing;
-- `java.hexDecodeToString` provides the matching JavaScript bridge operation;
-- typed payloads are bounded and malformed payloads fail explicitly without network access;
-- `java.get` / `java.put` and entity `getVariable` / `putVariable` use the active chapter then book context, with book variable mutations serialized through the existing `Book.variableMap` field;
-- each JavaScript evaluation uses global scope on a fresh runtime, preserving Legado `jsLib` sibling-helper calls through `this` without declaration leakage between evaluations;
-- structured JavaScript TOC elements remain structured while chapter field rules run, and `java.getCookie(url, key?)` reads the existing source-scoped session;
-- aggregate labels such as provider-specific `type` values remain opaque imported data and never select NovelReader production behavior.
-
-A deterministic synthetic aggregate fixture proves Search → Book Info → TOC → Content through typed data requests, local gateway calls, synthetic stage URLs, and book-variable continuity. The unmodified 光遇 source also completes that live workflow: Search returns results, Book Info resolves a typed `gycatalog` URL, TOC returns 106 chapters while persisting `book_id`, and first/middle/last chapter content is readable through typed `gycontent` requests. Durable reader-owned source settings and source login remain separate storage/security slices and must not be folded into transient workflow state.
-
-The backup/restore and startup-performance work previously listed here is integrated on `main`.
-
-Reader-owned Source Profiles, normalized source interaction, Explore state hydration, deterministic cleanup, and bounded controlled browser sessions are complete; the historical implementation plan is [`docs/plans/2026-08-30-source-interaction.md`](docs/plans/2026-08-30-source-interaction.md).
-
-Active implementation plan: [`docs/plans/2026-08-31-catalog-synchronization.md`](docs/plans/2026-08-31-catalog-synchronization.md) — metadata-first shelf admission, separately synchronized complete catalogs, and latest-chapter/update-time presentation.
-
-## Roadmap
-
-### 1. Decouple shelf admission from catalog synchronization
-
-Follow the active [catalog synchronization plan](docs/plans/2026-08-31-catalog-synchronization.md): validate and persist bounded Book Info metadata independently of chapter count, synchronize complete catalogs through one cohesive single-flight module, publish catalogs atomically, and expose source-provided latest-chapter/update-time metadata without requiring a TOC crawl.
-
-### 2. Continue shared Legado compatibility convergence
-
-Use deterministic audits and real sources to select the next shared compatibility seam. Prioritize behavior that unlocks multiple sources or a core text-reading workflow.
-
-Current priority families:
-
-1. remaining rule-engine semantics and typed intermediate behavior;
-2. JavaScript bridge/session parity used by text BookSources;
-3. mutable book/source context and durable variables;
-4. request/cookie/login integration required during normal source execution;
-5. regression closure for observed shared failure categories.
-
-Do not implement a source-specific adapter when a reusable Legado behavior explains the source.
-
-### 3. Operational and diagnostic refinement
-
-Add diagnostics only for demonstrated needs. Likely future work includes redacted request/rule tracing and clearer source-execution evidence. Do not introduce continuous BookSource health monitoring; failures should surface when a user-triggered operation actually fails.
+1. Select the next compatibility slice from current evidence, not from historical unchecked boxes.
+2. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
+3. Finish consistent display of source-provided `updateTime` metadata if that presentation improvement is prioritized.
 
 ## Durable Decisions
 
-| Area | Decision |
-|---|---|
-| Compatibility | Follow documented and observed Legado behavior; fix shared seams before source-specific behavior. |
-| Frontend boundary | Vue consumes typed domain APIs and never executes BookSource rules. |
-| Work ownership | Go owns fetching, parsing, aggregation, persistence, source sessions, and other resource-intensive work. |
-| Frontend framework | Vue 3 SPA, Vue Router, narrow Pinia, Vue I18n, Vite, Options API convention. |
-| Routing | Hash history until deployment requirements justify server route handling. |
-| Source identity | Immutable NovelReader Source ID; `bookSourceUrl` is imported Legado address data and may duplicate. |
-| Logical book identity | Normalized title plus author, with source bindings beneath it. |
-| Candidate validation | Backend-owned asynchronous operation with five work-conserving pipelines and first fully readable winner. |
-| Candidate persistence | Server-held verified result; idempotent no-recrawl commit. |
-| Explore | One selected BookSource and its native catalog at a time. |
-| Request architecture | One shared executor and transport-neutral request/response contract. |
-| Browser runtime | Private Python Patchright worker over a small versioned HTTP boundary. |
-| Runtime state | Explicit per-user/per-source SourceSession; no cross-user/source leakage. |
-| Storage | `system.db` plus one self-contained reader home per immutable user ID. |
-| Schema policy | Recreate disposable pre-public data; no migration machinery by default. |
-| Unknown source fields | Preserve losslessly. |
-| Errors | Structured and explicit; never collapse failures into silent empty results. |
-| Reader conversion | Frontend display-only; canonical text and reading state remain unchanged. |
-| Source health | User-triggered diagnostics only; no continuous background monitoring. |
-| Go toolchain | Go 1.27.0 is authoritative in `backend/go.mod`, and CI follows that module directive; Docker retains its existing unpinned Go Alpine builder image. |
-| Deployment | Standalone production Compose plus separate deterministic E2E Compose contract. |
+- **Compatibility:** match documented and observed Legado behavior at shared seams before considering source-specific behavior.
+- **Frontend seam:** Vue consumes typed domain interfaces and never executes BookSource rules or interprets opaque source payloads.
+- **Source identity:** immutable NovelReader Source ID; imported `bookSourceUrl` is source data and may duplicate.
+- **Book identity:** normalized title plus author identifies a logical shelf book; exact source bindings live beneath it.
+- **Shelf admission:** Book Info metadata is sufficient for admission; catalog availability is a separate observable state.
+- **Explore:** one selected BookSource and its native catalog at a time.
+- **Storage:** `system.db` plus one self-contained reader home per immutable Reader Account ID.
+- **Schema policy:** pre-public disposable data may be recreated; do not add migration machinery without a real compatibility requirement.
+- **Source interaction:** reader-owned, source-ID-bound state; removing a source deterministically removes its owned state.
+- **Browser runtime:** private bounded Patchright worker behind a versioned backend-owned interface.
+- **Errors:** explicit typed failures; never convert parser/transport failures into successful empty results.
+- **Source health:** user-triggered diagnostics only; no continuous broad monitoring.
+- **Deployment:** standalone production Compose plus a separate deterministic E2E Compose contract.
 
-## Constraints and Out of Scope
+Cross-cutting rationale:
+
+- [Local accounts with self-contained reader directories](docs/decisions/0001-user-owned-data-and-local-authentication.md)
+
+## Constraints
 
 Unless separately approved:
 
-- no captcha solving or automatic WAF bypass;
-- no source-specific production patches merely to make one fixture pass;
+- no captcha solving, automatic WAF bypass, or unrestricted browser automation;
+- no source-specific production branches merely to make one fixture pass;
 - no frontend crawling or source-rule interpretation;
-- no public-data migration framework during disposable pre-public development;
-- no Kubernetes, distributed writable data root, or multi-instance session coordination;
-- no cross-source Explore recommendation feed;
-- no audio/TTS/RSS/media-domain implementation;
-- no Android-only UI extension emulation;
-- no broad health polling of imported BookSources;
-- no automatic interactive source-login implementation;
-- no speculative repository/store abstraction or global frontend state for feature-local workflows.
+- no distributed writable data root or multi-instance session coordination;
+- no continuous source-health polling;
+- no speculative shared abstraction or global frontend state for feature-local workflows;
+- no media-domain expansion without a scoped model and implementation plan.
 
 ## Verification Policy
 
-Match verification effort to the change, but compatibility and cross-stack behavior must be proven at the correct boundaries.
+Match verification to risk and run the smallest authoritative gate first.
 
 For BookSource execution changes:
 
-1. identify the upstream Legado behavior and shared seam;
-2. add a deterministic failing regression using captured or synthetic evidence;
+1. identify the upstream behavior and shared seam;
+2. add a deterministic regression through the nearest production interface;
 3. implement the smallest shared fix;
-4. run focused package tests, then broader tests only when coupling or risk warrants them;
-5. reproduce relevant live behavior when the change concerns upstream execution;
-6. classify failures by transport, site/WAF/DNS, session, analyzer, workflow, storage, or frontend;
-7. record non-obvious findings in `DEVELOPMENT.md` or the relevant audit document.
+4. run focused package tests, then broaden only for real coupling risk;
+5. classify live failures as transport, upstream/WAF/DNS, session, analyzer, workflow, storage, or frontend.
 
-For frontend behavior:
+For frontend changes, run focused component tests, TypeScript checking, and the production build; use visible browser verification when layout or interaction behavior changes.
 
-- run typecheck, ESLint, focused tests, and production build;
-- use real Playwright interactions against the real backend for meaningful user journeys;
-- inspect desktop and mobile layouts, visible states, overflow, and browser console output;
-- do not substitute direct API calls for a required visible UI verification.
+For deployment changes, validate the affected Compose contract and report unavailable Docker/runtime verification explicitly.
 
-For container/deployment changes:
+## Documentation Route
 
-- validate both Compose contracts;
-- build the affected images;
-- run deterministic Compose E2E when Docker access permits;
-- report environment blocks explicitly rather than implying runtime verification passed.
-
-## Documentation Ownership
-
-- `PLAN.md` — current architecture, state, priorities, decisions, and constraints.
-- `DEVELOPMENT.md` — append-only history of non-obvious changes and discoveries.
-- `docs/CANDIDATE_BOOK_JOURNEY.md` — candidate operation and user-journey contract.
-- `docs/AUTHENTICATION_DESIGN.md` — authentication and reader ownership design.
-- `docs/USER_STORAGE_IMPLEMENTATION_TASKS.md` — storage implementation checklist and legacy-removal evidence.
-- `docs/LEGADO_COMPATIBILITY_TASKS.md` — detailed compatibility backlog.
-- `docs/CODEBASE_CLEANUP_AUDIT.md` — maintainability cleanup findings and completed removals.
-- `testdata/booksource/audits/` — immutable deterministic live-audit evidence.
-- `docs/archive/PLAN_HISTORY_2026-08-27.md` — historical snapshot of the former detailed plan; not a current source of truth.
-
-Update this plan only when the objective, architecture, current phase, next action, durable decisions, or real constraints change. Do not turn it back into a bug diary or audit log.
+- `README.md` — setup, operation, testing, and deployment.
+- `PRODUCT.md` — product purpose and interaction principles.
+- `PLAN.md` — current project state, priorities, and routing.
+- `docs/architecture/` — current subsystem behavior.
+- `docs/decisions/` — durable cross-cutting rationale.
+- `docs/plans/` — substantial workstream handoff; completed plans are frozen history.
+- `docs/roadmaps/` — unresolved future direction.
+- `docs/reference/` — stable terminology and reference material.
+- `docs/research/` — durable investigations.
+- `docs/runbooks/` — operational procedures.
+- `docs/verification/` — dated evidence.
+- `docs/archive/` — non-authoritative historical audits, designs, logs, plans, and research.

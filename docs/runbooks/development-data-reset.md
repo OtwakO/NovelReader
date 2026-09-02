@@ -32,5 +32,6 @@ deployment backup:
 
 If NovelReader crashed and cannot restart, copy everything as-is, including SQLite `-wal` and
 `-shm` files. Never copy only a main `.db` file or manually delete WAL/SHM files from the copy.
-Per-reader portable export/import is a separate later feature and is not a replacement for this
-complete stopped deployment copy.
+Per-reader portable backup/restore is a separate implemented feature and is not a replacement for this
+complete stopped deployment copy. Portable archives exclude account authority and source credentials;
+use the complete stopped deployment copy when those deployment-owned records must also be preserved.

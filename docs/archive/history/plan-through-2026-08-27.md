@@ -1,4 +1,6 @@
-# NovelReader — Engineering Plan
+# NovelReader Plan through 2026-08-27
+
+> **Archived plan snapshot.** This file is non-authoritative historical context. Current project state and documentation routing live in [`PLAN.md`](../../../PLAN.md).
 
 This plan is the comprehensive architecture and current project-state source of truth.
 

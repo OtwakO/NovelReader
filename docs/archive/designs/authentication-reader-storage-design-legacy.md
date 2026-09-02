@@ -1,5 +1,7 @@
 # Authentication, Reader Ownership, and Portable Storage Design
 
+> **Archived superseded design.** This document preserves the original phased design and rationale. For current implemented behavior, see [`docs/architecture/authentication-and-reader-storage.md`](../../architecture/authentication-and-reader-storage.md).
+
 ## Goal and invariants
 
 Add a real application-user boundary before durable source login is implemented. A signed-in Reader Account may access only its own sources, files, shelf, chapters, caches, progress, bookmarks, history, preferences, source login state, and live source sessions.

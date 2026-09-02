@@ -1,4 +1,6 @@
-# Development Notes
+# Development Notes through 2026-08-30
+
+> **Archived chronological log.** This file is frozen historical context, not current project state or an append target. Start with [`PLAN.md`](../../../PLAN.md) and use Git history for subsequent changes.
 
 ### [2026-08-29] Portable backups replace Reader homes, not account authority
 - **Context**: Reader Data needed both a simple extract-and-copy backup and online restore without stopping unrelated readers. A live `reader.db` cannot be archived safely, and restore must not transplant usernames, passwords, sessions, or automation credentials.

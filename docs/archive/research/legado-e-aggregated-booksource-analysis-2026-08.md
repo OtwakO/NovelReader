@@ -1,4 +1,6 @@
-# Legado-E Aggregated BookSource Compatibility Analysis
+# Legado-E Aggregated BookSource Compatibility Analysis — 2026-08
+
+> **Archived research snapshot.** The conclusion that NovelReader did not support the fixture is superseded: generic typed-data execution, source context variables, Source Profiles, controlled browser interaction, and the core aggregate Search → Book Info → TOC → Content workflow are implemented. Preserve this document for technical evidence, not current status. See [`PLAN.md`](../../../PLAN.md) and the [Legado compatibility roadmap](../../roadmaps/legado-compatibility.md).
 
 ## Scope
 

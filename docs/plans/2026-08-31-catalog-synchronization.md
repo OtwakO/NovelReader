@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 updated: 2026-08-31
 ---
 
@@ -141,8 +141,8 @@ Render the values on the shared Search/Explore result card, candidate preview, a
 - [x] Change candidate resolution and commit interfaces to metadata-first behavior.
 - [x] Implement catalog synchronization and typed HTTP state.
 - [x] Adapt Book Detail and candidate preview to the new catalog lifecycle.
-- [ ] Render latest chapter and source update time consistently.
-- [ ] Profile the real large catalog after decoupling; optimize only demonstrated parser/persistence hotspots.
+- [x] Profile and fix the demonstrated large-catalog parser hotspot without changing synchronization semantics.
+- [ ] Render source update time consistently; tracked as an optional presentation item in `docs/roadmaps/reader-ux.md`.
 
 ## Current State
 
@@ -152,9 +152,9 @@ Each reader runtime now owns a concrete `book.Catalogs` coordinator. Cached chap
 
 `SearchResult`, `PreviewBook`, and `Book` already contain `LastChapter`/`UpdateTime`. Search/Explore parsing reads `lastChapter` and `updateTime`; Book Info refreshes both. The shared result card and detail views show latest chapter but not update time.
 
-## Next Action
+## Outcome
 
-Complete the remaining metadata presentation work: render source update time consistently beside latest chapter on Search/Explore cards, candidate preview, and stored Book Detail. Keep catalog freshness independent from these non-authoritative source strings.
+The catalog architecture and the profiled large-catalog parser optimization are complete. Consistent `updateTime` presentation is a separate optional UI improvement tracked in [`docs/roadmaps/reader-ux.md`](../roadmaps/reader-ux.md); it does not keep this implementation plan active.
 
 ## Verification
 
@@ -219,7 +219,6 @@ Real-source verification (`光遇聚合`, `凡人修仙传`):
 - NovelReader now renders the actual failure on Book Detail and Reader, with explicit catalog retry and source-recovery actions instead of an empty TOC/blank reading canvas;
 - the external aggregate routes were still unavailable during verification, so no chapters were fabricated or reported as recovered.
 
-Still needed:
+Follow-up outside this completed workstream:
 
-- latest chapter/update-time presentation completion;
-- optional parser/persistence profiling only if a successfully returned large catalog demonstrates a real hotspot.
+- optional consistent `updateTime` presentation is tracked in [`docs/roadmaps/reader-ux.md`](../roadmaps/reader-ux.md).

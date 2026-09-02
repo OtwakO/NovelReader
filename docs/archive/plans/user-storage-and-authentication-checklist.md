@@ -1,7 +1,9 @@
 # User Storage and Authentication Implementation Tasks
 
+> **Archived historical checklist.** Its unchecked phases and deferred items do not represent current state: authentication/ownership, portable backup/restore, source profiles, encrypted source credentials, and controlled browser interaction are implemented. See [`docs/architecture/authentication-and-reader-storage.md`](../../architecture/authentication-and-reader-storage.md).
+
 This checklist tracks implementation of the accepted design in
-[`AUTHENTICATION_DESIGN.md`](./AUTHENTICATION_DESIGN.md). The design document owns the security and
+the archived [authentication design](../designs/authentication-reader-storage-design-legacy.md). The design document owns the security and
 storage contracts; this file owns execution order and completion status.
 
 ## Working rules
@@ -235,5 +237,5 @@ Before Phase 2 is marked complete:
 - [x] Administrator list/disable/re-enable for ordinary readers.
 - [x] Administrator-issued one-time reader password reset complete.
 - [x] Durable ordinary-reader deletion complete.
-- [x] Clean-data-root account-shell browser workflow: setup → logout/login → real source import/search → shelf/detail/TOC/content → logout and private-data denial. Evidence: [`docs/verification/ACCOUNT_SHELL_CLEAN_ROOT_2026-08-13.md`](verification/ACCOUNT_SHELL_CLEAN_ROOT_2026-08-13.md).
+- [x] Clean-data-root account-shell browser workflow: setup → logout/login → real source import/search → shelf/detail/TOC/content → logout and private-data denial. Evidence: [`docs/verification/ACCOUNT_SHELL_CLEAN_ROOT_2026-08-13.md`](../../verification/ACCOUNT_SHELL_CLEAN_ROOT_2026-08-13.md).
 - [ ] Next gate: complete the remaining Phase 2 legacy-removal checks above.

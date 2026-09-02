@@ -1,4 +1,6 @@
-# Candidate Book Journey
+# Candidate Book Journey — Readable-Admission Contract
+
+> **Archived superseded design.** This document required TOC and chapter-content validation before shelf admission. The implemented metadata-first contract is [`docs/reference/candidate-journey.md`](../../reference/candidate-journey.md); catalog synchronization is separate.
 
 ## Purpose
 

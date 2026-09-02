@@ -1,4 +1,6 @@
-# Future Reader UX Opportunities
+# Future Reader UX Opportunities — 2026-08 Snapshot
+
+> **Archived research snapshot.** Several listed gaps—shelf filtering/restoration, Source Recovery filtering, Reader keyboard controls, wake lock, TOC filtering/ordering, and per-binding latest-chapter hints—are now implemented. Current future direction is [`docs/roadmaps/reader-ux.md`](../../roadmaps/reader-ux.md).
 
 ## Purpose
 

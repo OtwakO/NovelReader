@@ -216,9 +216,9 @@ Use only the types the repository actually needs:
 - `docs/notes/`, `docs/runbooks/`, `docs/reference/` — create only for a real need: rare durable
   discoveries, operational procedures, or stable reference material respectively.
 
-If the repository already has `DEVELOPMENT.md`, treat it as valid historical material, but do not
-keep growing a monolithic chronological log by default. Put new knowledge in the smallest canonical
-place and do not migrate old history merely for consistency.
+The legacy chronological development log is archived at
+`docs/archive/history/development-log-through-2026-08-30.md`. Do not append to it. Put new knowledge
+in the smallest canonical current document and use Git history for chronology.
 
 ### Plans, decisions, and handoff
 Create or update an implementation plan after the approach is accepted when the work is substantial
