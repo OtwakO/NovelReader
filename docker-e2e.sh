@@ -15,8 +15,15 @@ compose() {
 }
 
 cleanup() {
+  status=$?
+  if [[ "$status" != 0 ]]; then
+    echo "Docker E2E failed; Compose status and service logs follow:" >&2
+    compose ps -a >&2 || true
+    compose logs --no-color --tail 200 app webview-worker fixture >&2 || true
+  fi
   rm -f "$ROOT/.docker-e2e-search.json" "$ROOT/.docker-e2e-sources.json" "$ROOT/.docker-e2e-cookies"
   compose down -v --remove-orphans >/dev/null 2>&1 || true
+  exit "$status"
 }
 trap cleanup EXIT INT TERM
 
