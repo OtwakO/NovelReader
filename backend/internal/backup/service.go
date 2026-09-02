@@ -96,7 +96,6 @@ func newService(readers *readerstore.Manager, dataRoot string, quiesce func(cont
 }
 
 func (s *Service) Export(ctx context.Context, userID readerstore.UserID, username string, createdAt time.Time, output io.Writer) (ExportInfo, error) {
-	createdAt = createdAt.In(time.Local)
 	temporary, err := os.MkdirTemp(s.root, exportWorkspacePrefix)
 	if err != nil {
 		return ExportInfo{}, fmt.Errorf("backup: create export staging: %w", err)
