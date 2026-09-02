@@ -426,6 +426,15 @@ test after that repeats the same confidence — it doesn't add new confidence.
 - Duplicated tests, repo-wide tests when the scope is small and added no real value, are a waste of token and time without offering any real confidence, that is just over-testing for no real gain.
 - Tests should maximize confidence per test and per fixture token, not maximize test count.
 
+### BookSource fixtures and CI
+- Do not commit or push new complete or real-world BookSource definitions, corpus extracts, raw source objects, or audit output embedding source rules/scripts/headers/cookies/credentials/private endpoints. This applies even when the remote is private.
+- Keep real BookSources under the ignored repository-root `test-booksources/` directory and inspect generated evidence before committing it; a neutral filename does not make embedded source content safe.
+- Default tests and GitHub Actions must pass from a clean checkout without `test-booksources/`, live websites, credentials, cookies, or developer-local state. Repository fixtures must be minimal, synthetic, and deterministic.
+- A test that genuinely requires a complete real source is an optional local compatibility check: it should skip clearly when the ignored fixture is absent, while malformed or unreadable installed fixtures still fail.
+- Do not create a synthetic duplicate for every private compatibility test. Add or extend a deterministic regression only when a real source reveals a reusable NovelReader defect not already covered.
+- Live-source audits remain explicit local workflows and must not become dependencies of `go test ./...`, GitHub Actions, or container publication.
+- Follow `testdata/booksource/README.md` for detailed placement and sanitization rules. Existing historical tracked source material is not precedent for adding more.
+
 ## Refactoring
 Only refactor when:
 - You can't safely make the requested change without it.
