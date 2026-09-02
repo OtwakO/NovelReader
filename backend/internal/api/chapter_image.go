@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/otwako/novelreader/internal/book"
+	"github.com/otwako/novelreader/internal/processor"
 )
 
 func (s *Server) handleGetChapterImage(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +79,7 @@ func (s *Server) handleGetChapterImage(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
@@ -89,7 +91,7 @@ func cachedImageURL(cached *book.CachedChapter, requested int) string {
 	}
 	imageIndex := 0
 	for _, block := range cached.Blocks {
-		if block.Type != "image" {
+		if block.Kind != processor.ProseBlockImage {
 			continue
 		}
 		if imageIndex == requested {

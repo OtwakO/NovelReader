@@ -59,3 +59,37 @@ _Avoid_: Deployment backup, credential export
 **Cold Backup**:
 A complete copy of the stopped deployment’s `data/` directory, including System Data, every Reader Directory, and encrypted source credentials.
 _Avoid_: Portable Export, live database copy
+
+## Reading language
+
+**Content Provider**:
+An implementation that obtains and interprets a readable publication from one origin, such as a BookSource or a future imported file. Provider identity does not determine reading layout.
+_Avoid_: Renderer, content type, BookSource when referring to all origins
+
+**Reading Section**:
+One ordered, addressable part of a readable shelf item, such as a BookSource chapter, EPUB spine item, generated TXT section, manga chapter, or audiobook chapter.
+_Avoid_: Chapter when referring to the cross-format architectural concept
+
+**Reading Document**:
+The normalized, provider-agnostic content opened for one Reading Section, with an explicit reading modality such as prose, image sequence, or audio.
+_Avoid_: Raw source response, provider payload, universal media block list
+
+**Prose Document**:
+A Reading Document whose primary behavior is flowing text, optionally containing semantic inline resources such as illustrations.
+_Avoid_: EPUB document, TXT document, generic chapter content
+
+**Image-Sequence Document**:
+A Reading Document whose ordered images are primary reading units and therefore own page progression, fitting, preloading, and page-oriented location behavior.
+_Avoid_: Prose with many images, gallery block
+
+**Content Resource**:
+Reader-authorized binary material referenced opaquely by a Reading Document and resolved by NovelReader, such as an inline image, manga page, EPUB asset, or future audio stream.
+_Avoid_: Upstream URL, proxy URL, local path
+
+**Reading Session**:
+The frontend workflow that opens Reading Sections, coordinates common Reader navigation and state, selects the renderer for each Reading Document, and persists reading location.
+_Avoid_: Application Session, Source Session
+
+**Reading Location**:
+A modality-specific durable position within a Reading Section, such as prose progression, image page index, or audio time offset.
+_Avoid_: Universal scroll percentage

@@ -51,6 +51,14 @@ Catalog availability is separate from shelf existence.
 
 See the completed [catalog synchronization plan](../plans/2026-08-31-catalog-synchronization.md).
 
+## Reading documents and resources
+
+The current BookSource path opens each chapter as a versioned **Prose Document** containing ordered paragraph and inline-image blocks. This is an explicit current modality, not a universal media-block model: future image-sequence or audio reading should add their own Reading Document and renderer behavior behind [decision 0002](../decisions/0002-reading-documents-and-resources.md).
+
+Inline-image blocks expose only opaque NovelReader-controlled Content Resource references. Source image origins remain backend-only in the bounded chapter cache. Authenticated chapter-image endpoints resolve remote resources from the active Exact Source Binding with source headers, cookies, request options, sessions, and portable decoding; bounded `data:image/...` resources are decoded locally through the same resource path. Existing text-only cached chapters without stored blocks are translated into paragraph blocks at the response seam rather than requiring a cache migration.
+
+The frontend Reading Session owns chapter loading, navigation, common chrome, recovery, and progress coordination. A focused prose renderer owns paragraph and inline-image presentation. Images are responsive and centered; meaningful source alternative text is used accessibly and shown beneath the image as a centered caption. An image failure remains local to its figure and does not replace readable chapter prose.
+
 ## Reader state
 
 Stored books own:
@@ -64,7 +72,7 @@ Stored books own:
 
 The Reader waits on the same catalog synchronization interface as Book Detail and source switching. Generation guards prevent stale catalog/content responses from replacing newer navigation or source state.
 
-The Vue frontend owns presentation and interaction: shelf filtering/sorting/restoration, TOC filtering/ordering/current positioning, keyboard/tap navigation, wake lock, typography, overlays, and responsive behavior. It never crawls or evaluates source rules.
+The Vue frontend owns presentation and interaction: shelf filtering/sorting/restoration, TOC filtering/ordering/current positioning, keyboard/tap navigation, wake lock, typography, overlays, responsive behavior, and modality-specific rendering. It never crawls or evaluates source rules and does not reconstruct provider resource locations.
 
 ## Failure model
 

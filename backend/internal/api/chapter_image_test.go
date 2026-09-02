@@ -18,7 +18,7 @@ func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/novel/chapter/1":
-			_, _ = fmt.Fprint(w, `<article class="content"><p>before</p><img src="../image.bin,{&quot;headers&quot;:{&quot;Referer&quot;:&quot;https://reader.test/chapter&quot;}}"><p>after</p></article>`)
+			_, _ = fmt.Fprint(w, `<article class="content"><p>before</p><img src="../image.bin,{&quot;headers&quot;:{&quot;Referer&quot;:&quot;https://reader.test/chapter&quot;}}" alt="Route map"><p>after</p></article>`)
 		case "/novel/image.bin":
 			if r.Header.Get("X-Image-Token") != "fixture-token" || r.Header.Get("Referer") != "https://reader.test/chapter" {
 				http.Error(w, "missing image headers", http.StatusForbidden)
@@ -58,13 +58,20 @@ func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
 		t.Fatalf("content status=%d body=%s", contentResponse.Code, contentResponse.Body.String())
 	}
 	var content chapterContentResponse
-	if err := json.Unmarshal(contentResponse.Body.Bytes(), &content); err != nil || len(content.Blocks) != 3 || content.Blocks[1].Index == nil || *content.Blocks[1].Index != 0 {
+	if err := json.Unmarshal(contentResponse.Body.Bytes(), &content); err != nil || content.Version != proseDocumentVersion || content.Document.Kind != "prose" || len(content.Document.Blocks) != 3 {
 		t.Fatalf("content=%+v err=%v body=%s", content, err, contentResponse.Body.String())
+	}
+	imageBlock := content.Document.Blocks[1]
+	if imageBlock.Kind != processor.ProseBlockImage || imageBlock.Resource == nil || imageBlock.Resource.Href != "/api/books/image-book/chapters/0/images/0" || imageBlock.Alt != "Route map" {
+		t.Fatalf("image block=%+v body=%s", imageBlock, contentResponse.Body.String())
 	}
 
 	response := performAPIRequest(server, http.MethodGet, "/api/books/image-book/chapters/0/images/0?url=http://127.0.0.1/private", nil)
 	if response.Code != http.StatusOK || !bytes.Equal(response.Body.Bytes(), []byte("IMAGE")) {
 		t.Fatalf("status=%d body=%v", response.Code, response.Body.Bytes())
+	}
+	if response.Header().Get("X-Content-Type-Options") != "nosniff" || response.Header().Get("Content-Security-Policy") != "sandbox; default-src 'none'" {
+		t.Fatalf("security headers=%v", response.Header())
 	}
 }
 
@@ -88,7 +95,7 @@ func TestStoredChapterImageRejectsAndroidBitmapDecoder(t *testing.T) {
 	}
 	if err := server.bookStore.SaveChapterCache(book.CachedChapter{
 		BookID: storedBook.ID, SourceID: source.ID, ChapterIndex: chapter.Index, ChapterURL: chapter.URL,
-		Blocks: []processor.ContentBlock{{Type: "image", Src: "https://source.test/image"}},
+		Blocks: []processor.ProseBlock{{Kind: processor.ProseBlockImage, Src: "https://source.test/image"}},
 	}); err != nil {
 		t.Fatal(err)
 	}

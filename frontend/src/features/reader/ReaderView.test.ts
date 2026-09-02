@@ -5,7 +5,7 @@ import ReaderView from './ReaderView.vue';
 
 const i18n = createI18n({
   legacy: false, globalInjection: true, locale: 'en',
-  messages: { en: { reader: { title: 'Reader', back: 'Book details', readingArea: 'Reading area', loading: 'Loading chapter…', retryCatalog: 'Retry chapter list', recover: 'Switch reading source', bookmarks: { title: 'Bookmarks' }, settings: { wakeLockUnavailable: 'Unavailable' }, errors: { load: 'Load failed', noReadable: 'No readable chapters', chapter: 'Chapter unavailable' } } } },
+  messages: { en: { reader: { title: 'Reader', back: 'Book details', readingArea: 'Reading area', loading: 'Loading chapter…', retryCatalog: 'Retry chapter list', recover: 'Switch reading source', bookmarks: { title: 'Bookmarks' }, settings: { wakeLockUnavailable: 'Unavailable' }, imageAlt: 'Illustration from {title}', imageUnavailable: 'Image unavailable', errors: { load: 'Load failed', noReadable: 'No readable chapters', chapter: 'Chapter unavailable' } } } },
 });
 
 const book = { id: 'book-1', name: 'Fixture Novel', author: 'Author', coverUrl: '', intro: '', kind: '', sourceId: 'source-1', sourceUrl: 'source-1', bookUrl: '/book', origin: 'Source', lastChapter: '', durChapterIndex: 0, durChapterPos: 0, totalChapterNum: 0, stateVersion: 0, alternateSources: [] };

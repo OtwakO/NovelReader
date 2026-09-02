@@ -50,17 +50,25 @@ type ReplaceRule struct {
 	Enabled     bool
 }
 
-// ProcessResult holds the processed content and metadata.
-type ContentBlock struct {
-	Type string `json:"type"`
+const (
+	ProseBlockParagraph = "paragraph"
+	ProseBlockImage     = "image"
+)
+
+// ProseBlock is one ordered unit in a flowing prose document.
+// Src remains backend-only and is replaced by an opaque resource reference at the HTTP seam.
+type ProseBlock struct {
+	Kind string `json:"type"`
 	Text string `json:"text,omitempty"`
 	Src  string `json:"src,omitempty"`
+	Alt  string `json:"alt,omitempty"`
 }
 
+// ProcessResult holds normalized prose and its legacy paragraph representation.
 type ProcessResult struct {
-	Title      string         `json:"title"`
-	Paragraphs []string       `json:"paragraphs"`
-	Blocks     []ContentBlock `json:"blocks,omitempty"`
+	Title      string       `json:"title"`
+	Paragraphs []string     `json:"paragraphs"`
+	Blocks     []ProseBlock `json:"blocks"`
 	// ponytail: ReplaceRulesEffective is omitted — only add when the UI needs to show it.
 }
 
@@ -78,10 +86,14 @@ func New(config Config) *ContentProcessor {
 // Process runs all processing steps on raw content.
 func (p *ContentProcessor) Process(title, rawContent string) ProcessResult {
 	paragraphs := p.processParagraphs(title, rawContent)
+	blocks := p.toBlocks(title, rawContent)
+	if len(blocks) == 0 {
+		blocks = paragraphBlocks(paragraphs)
+	}
 	return ProcessResult{
 		Title:      title,
 		Paragraphs: paragraphs,
-		Blocks:     p.toBlocks(title, rawContent),
+		Blocks:     blocks,
 	}
 }
 
@@ -101,13 +113,26 @@ func (p *ContentProcessor) processParagraphs(title, content string) []string {
 	return p.toParagraphs(title, content)
 }
 
-func (p *ContentProcessor) toBlocks(title, content string) []ContentBlock {
+type proseImage struct {
+	src string
+	alt string
+}
+
+func paragraphBlocks(paragraphs []string) []ProseBlock {
+	blocks := make([]ProseBlock, len(paragraphs))
+	for index, paragraph := range paragraphs {
+		blocks[index] = ProseBlock{Kind: ProseBlockParagraph, Text: paragraph}
+	}
+	return blocks
+}
+
+func (p *ContentProcessor) toBlocks(title, content string) []ProseBlock {
 	if !strings.Contains(strings.ToLower(content), "<img") {
 		return nil
 	}
 	const markerPrefix = "NOVELREADERIMAGEBLOCK"
 	var marked strings.Builder
-	var sources []string
+	var images []proseImage
 	tokenizer := xhtml.NewTokenizer(strings.NewReader(content))
 	for {
 		tokenType := tokenizer.Next()
@@ -120,34 +145,40 @@ func (p *ContentProcessor) toBlocks(title, content string) []ContentBlock {
 		if tokenType == xhtml.StartTagToken || tokenType == xhtml.SelfClosingTagToken {
 			token := tokenizer.Token()
 			if strings.EqualFold(token.Data, "img") {
+				var image proseImage
 				for _, attribute := range token.Attr {
-					if strings.EqualFold(attribute.Key, "src") && strings.TrimSpace(attribute.Val) != "" {
-						index := len(sources)
-						sources = append(sources, strings.TrimSpace(attribute.Val))
-						fmt.Fprintf(&marked, "<br>%s%dTOKEN<br>", markerPrefix, index)
-						break
+					switch {
+					case strings.EqualFold(attribute.Key, "src"):
+						image.src = strings.TrimSpace(attribute.Val)
+					case strings.EqualFold(attribute.Key, "alt"):
+						image.alt = strings.TrimSpace(attribute.Val)
 					}
+				}
+				if image.src != "" {
+					index := len(images)
+					images = append(images, image)
+					fmt.Fprintf(&marked, "<br>%s%dTOKEN<br>", markerPrefix, index)
 				}
 				continue
 			}
 		}
 		marked.Write(tokenizer.Raw())
 	}
-	if len(sources) == 0 {
+	if len(images) == 0 {
 		return nil
 	}
 	paragraphs := p.processParagraphs(title, marked.String())
-	blocks := make([]ContentBlock, 0, len(paragraphs))
+	blocks := make([]ProseBlock, 0, len(paragraphs))
 	for _, paragraph := range paragraphs {
 		trimmed := strings.TrimSpace(paragraph)
 		if strings.HasPrefix(trimmed, markerPrefix) && strings.HasSuffix(trimmed, "TOKEN") {
 			var index int
-			if _, err := fmt.Sscanf(trimmed, markerPrefix+"%dTOKEN", &index); err == nil && index >= 0 && index < len(sources) {
-				blocks = append(blocks, ContentBlock{Type: "image", Src: sources[index]})
+			if _, err := fmt.Sscanf(trimmed, markerPrefix+"%dTOKEN", &index); err == nil && index >= 0 && index < len(images) {
+				blocks = append(blocks, ProseBlock{Kind: ProseBlockImage, Src: images[index].src, Alt: images[index].alt})
 				continue
 			}
 		}
-		blocks = append(blocks, ContentBlock{Type: "text", Text: paragraph})
+		blocks = append(blocks, ProseBlock{Kind: ProseBlockParagraph, Text: paragraph})
 	}
 	return blocks
 }

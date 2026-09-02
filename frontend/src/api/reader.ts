@@ -1,8 +1,12 @@
 import type { Book, Chapter } from './models';
 import { API_BASE, request, requestForm } from './transport';
 export type { Chapter } from './models';
-export type ChapterContentBlock = { type: 'text'; text: string } | { type: 'image'; index: number };
-export interface ChapterContent { title: string; paragraphs: string[]; blocks: ChapterContentBlock[]; offlineCopy: boolean }
+export interface ContentResourceReference { href: string; mediaType?: string }
+export type ProseBlock =
+  | { kind: 'paragraph'; text: string }
+  | { kind: 'image'; resource: ContentResourceReference; alt?: string };
+export interface ProseDocument { kind: 'prose'; title: string; blocks: ProseBlock[] }
+export interface ChapterContent { version: 1; document: ProseDocument; offlineCopy: boolean }
 export interface Bookmark { id: string; bookId: string; chapterIndex: number; chapterTitle: string; position: number; note: string; orphaned: boolean; createdAt: number }
 export interface Font { id: string; name: string; fileName: string; fileSize: number }
 export type CatalogResult = { state: 'ready'; chapters: Chapter[] } | { state: 'syncing' };
@@ -31,19 +35,40 @@ export async function waitForCatalog(bookId: string, options: CatalogPollingOpti
   }
   return result.chapters;
 }
-export function getChapterContent(bookId: string, chapterIdx: number) {
-  return request<Record<string, unknown>>(`/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content`).then((data) => ({
-    title: String(data.title || data.Title || ''),
-    paragraphs: (data.paragraphs || data.Paragraphs || []) as string[],
-    blocks: Array.isArray(data.blocks) ? data.blocks.filter((block: unknown) => {
-      if (!block || typeof block !== 'object') return false;
-      const value = block as Record<string, unknown>;
-      return (value.type === 'text' && typeof value.text === 'string') || (value.type === 'image' && Number.isInteger(value.index) && Number(value.index) >= 0);
-    }) as ChapterContentBlock[] : [],
-    offlineCopy: Boolean(data.offlineCopy),
-  }));
+export function getChapterContent(bookId: string, chapterIdx: number): Promise<ChapterContent> {
+  return request<Record<string, unknown>>(`/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content`).then(parseChapterContent);
 }
-export function getChapterImageUrl(bookId: string, chapterIdx: number, imageIdx: number) { return `${API_BASE}/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/images/${imageIdx}`; }
+
+function parseChapterContent(data: Record<string, unknown>): ChapterContent {
+  if (data.version !== 1 || !data.document || typeof data.document !== 'object') throw new Error('Invalid chapter content response');
+  const document = data.document as Record<string, unknown>;
+  if (document.kind !== 'prose' || typeof document.title !== 'string' || !Array.isArray(document.blocks)) throw new Error('Invalid prose document');
+  return {
+    version: 1,
+    document: {
+      kind: 'prose',
+      title: document.title,
+      blocks: document.blocks.map(parseProseBlock),
+    },
+    offlineCopy: Boolean(data.offlineCopy),
+  };
+}
+
+function parseProseBlock(block: unknown): ProseBlock {
+  if (!block || typeof block !== 'object') throw new Error('Invalid prose block');
+  const value = block as Record<string, unknown>;
+  if (value.kind === 'paragraph' && typeof value.text === 'string') return { kind: 'paragraph', text: value.text };
+  if (value.kind === 'image' && value.resource && typeof value.resource === 'object') {
+    const resource = value.resource as Record<string, unknown>;
+    if (typeof resource.href !== 'string' || !resource.href.startsWith(`${API_BASE}/`)) throw new Error('Invalid content resource');
+    return {
+      kind: 'image',
+      resource: { href: resource.href, ...(typeof resource.mediaType === 'string' ? { mediaType: resource.mediaType } : {}) },
+      ...(typeof value.alt === 'string' && value.alt.trim() ? { alt: value.alt.trim() } : {}),
+    };
+  }
+  throw new Error('Invalid prose block');
+}
 export function switchBookSource(bookId: string, sourceId: string, sourceUrl: string, bookUrl: string) { return request<{ book: Book; mapping: 'title' | 'index' }>(`/books/${encodeURIComponent(bookId)}/source`, { method: 'PUT', body: JSON.stringify({ sourceId, sourceUrl, bookUrl }) }); }
 export function listBookmarks(bookId: string) { return request<Bookmark[]>(`/books/${encodeURIComponent(bookId)}/bookmarks`); }
 export function addBookmark(bookId: string, bookmark: { id: string; sourceId: string; stateVersion: number; chapterIndex: number; position: number; note: string }) { return request<Bookmark>(`/books/${encodeURIComponent(bookId)}/bookmarks`, { method: 'POST', body: JSON.stringify(bookmark) }); }

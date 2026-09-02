@@ -17,7 +17,7 @@ export async function convertReaderDisplay(
 
   const chapterTitleCount = chapters.length;
   const contentTexts = content
-    ? [content.title, ...content.paragraphs, ...content.blocks.filter(block => block.type === 'text').map(block => block.text)]
+    ? [content.document.title, ...content.document.blocks.flatMap(block => block.kind === 'paragraph' ? [block.text] : block.alt ? [block.alt] : [])]
     : [];
   const expectedCount = chapterTitleCount + contentTexts.length;
   const converted = await convertChineseTexts(mode, [...chapters.map(chapter => chapter.title), ...contentTexts]);
@@ -28,11 +28,12 @@ export async function convertReaderDisplay(
   const convertedChapters = chapters.map(chapter => ({ ...chapter, title: converted[cursor++] ?? chapter.title }));
   if (!content) return { chapters: convertedChapters, content: null };
 
-  const title = converted[cursor++] ?? content.title;
-  const paragraphs = content.paragraphs.map(paragraph => converted[cursor++] ?? paragraph);
-  const blocks = content.blocks.map(block => block.type === 'text'
-    ? { ...block, text: converted[cursor++] ?? block.text }
-    : block);
+  const title = converted[cursor++] ?? content.document.title;
+  const blocks = content.document.blocks.map(block => {
+    if (block.kind === 'paragraph') return { ...block, text: converted[cursor++] ?? block.text };
+    if (block.alt) return { ...block, alt: converted[cursor++] ?? block.alt };
+    return block;
+  });
 
-  return { chapters: convertedChapters, content: { ...content, title, paragraphs, blocks } };
+  return { chapters: convertedChapters, content: { ...content, document: { ...content.document, title, blocks } } };
 }

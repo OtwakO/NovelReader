@@ -22,7 +22,7 @@ type CachedChapter struct {
 	ChapterURL   string
 	Title        string
 	Paragraphs   []string
-	Blocks       []processor.ContentBlock
+	Blocks       []processor.ProseBlock
 	CachedAt     int64
 }
 

@@ -711,7 +711,7 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 	result := proc.Process(displayTitle, rawContent)
 	s.saveChapterCache(b, ch, result)
 
-	writeJSON(w, http.StatusOK, chapterContentResponse{Title: result.Title, Paragraphs: result.Paragraphs, Blocks: responseBlocks(result.Blocks)})
+	writeJSON(w, http.StatusOK, newChapterContentResponse(b.ID, ch.Index, result.Title, result.Paragraphs, result.Blocks, false))
 }
 
 // --- Progress ---

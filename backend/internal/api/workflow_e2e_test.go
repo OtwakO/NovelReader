@@ -105,8 +105,9 @@ func TestRawSourceAPIWorkflowReadsFirstMiddleLastChapters(t *testing.T) {
 	}
 	for _, index := range []int{0, 2, 4} {
 		response = performAPIRequest(server, http.MethodGet, fmt.Sprintf("/api/books/book-1/chapters/%d/content", index), nil)
-		var content processor.ProcessResult
-		if err := json.Unmarshal(response.Body.Bytes(), &content); err != nil || response.Code != http.StatusOK || len(content.Paragraphs) == 0 || content.Paragraphs[0] != fmt.Sprintf("content %d begins here with enough meaningful narrative prose to verify this source as readable while preserving deterministic first, middle, and last chapter checks.", index+1) {
+		var content chapterContentResponse
+		expected := fmt.Sprintf("content %d begins here with enough meaningful narrative prose to verify this source as readable while preserving deterministic first, middle, and last chapter checks.", index+1)
+		if err := json.Unmarshal(response.Body.Bytes(), &content); err != nil || response.Code != http.StatusOK || content.Document.Kind != "prose" || len(content.Document.Blocks) != 1 || content.Document.Blocks[0].Kind != processor.ProseBlockParagraph || content.Document.Blocks[0].Text != expected {
 			t.Fatalf("chapter %d status=%d content=%+v err=%v body=%s", index, response.Code, content, err, response.Body.String())
 		}
 	}

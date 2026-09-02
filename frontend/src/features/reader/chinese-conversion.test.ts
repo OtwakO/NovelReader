@@ -8,12 +8,15 @@ vi.mock('../../api/system', () => ({ convertChineseTexts: vi.fn() }));
 
 const chapters: Chapter[] = [{ id: 'chapter-1', bookId: 'book-1', index: 0, title: '软件后台', url: '/1', isVolume: false }];
 const content: ChapterContent = {
-  title: '这里的软件',
-  paragraphs: ['鼠标和硬盘'],
-  blocks: [
-    { type: 'text', text: '数据库连接' },
-    { type: 'image', index: 0 },
-  ],
+  version: 1,
+  document: {
+    kind: 'prose',
+    title: '这里的软件',
+    blocks: [
+      { kind: 'paragraph', text: '数据库连接' },
+      { kind: 'image', resource: { href: '/api/books/book-1/chapters/0/images/0' }, alt: '鼠标和硬盘' },
+    ],
+  },
   offlineCopy: false,
 };
 
@@ -27,20 +30,19 @@ describe('reader Chinese conversion', () => {
   });
 
   it('converts one ordered display-only batch through the backend', async () => {
-    vi.mocked(convertChineseTexts).mockResolvedValue(['軟體後臺', '這裡的軟體', '滑鼠和硬碟', '資料庫連線']);
+    vi.mocked(convertChineseTexts).mockResolvedValue(['軟體後臺', '這裡的軟體', '資料庫連線', '滑鼠和硬碟']);
 
     const display = await convertReaderDisplay(chapters, content, 'traditional');
 
-    expect(convertChineseTexts).toHaveBeenCalledWith('traditional', ['软件后台', '这里的软件', '鼠标和硬盘', '数据库连接']);
+    expect(convertChineseTexts).toHaveBeenCalledWith('traditional', ['软件后台', '这里的软件', '数据库连接', '鼠标和硬盘']);
     expect(display.chapters[0]?.title).toBe('軟體後臺');
-    expect(display.content?.title).toBe('這裡的軟體');
-    expect(display.content?.paragraphs).toEqual(['滑鼠和硬碟']);
-    expect(display.content?.blocks).toEqual([
-      { type: 'text', text: '資料庫連線' },
-      { type: 'image', index: 0 },
+    expect(display.content?.document.title).toBe('這裡的軟體');
+    expect(display.content?.document.blocks).toEqual([
+      { kind: 'paragraph', text: '資料庫連線' },
+      { kind: 'image', resource: { href: '/api/books/book-1/chapters/0/images/0' }, alt: '滑鼠和硬碟' },
     ]);
     expect(chapters[0]?.title).toBe('软件后台');
-    expect(content.paragraphs[0]).toBe('鼠标和硬盘');
+    expect(content.document.blocks[0]).toEqual({ kind: 'paragraph', text: '数据库连接' });
   });
 
   it('rejects incomplete conversion responses instead of mixing modes', async () => {

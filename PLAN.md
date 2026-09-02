@@ -47,6 +47,10 @@ Current architecture:
 - [Discovery, shelf, catalogs, and reading](docs/architecture/discovery-and-reading.md)
 - [Domain language](docs/reference/domain-language.md)
 
+Accepted future-facing architecture:
+
+- [Reading documents, resources, and modality renderers](docs/decisions/0002-reading-documents-and-resources.md)
+
 ## Current State
 
 ### Complete product foundations
@@ -71,18 +75,20 @@ Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for un
 
 ## Active Work
 
-No implementation workstream is currently designated active in repository documentation. The completed [documentation reorganization](docs/plans/2026-09-01-documentation-reorganization.md) records the current document structure and validation.
+No implementation workstream is currently designated active. The completed [reading document foundation](docs/plans/2026-09-02-reading-document-foundation.md) established the versioned prose-document, opaque-resource, and focused prose-renderer seams around the current BookSource text/image path.
 
 ## Immediate Priorities
 
-1. Select the next compatibility slice from current evidence, not from historical unchecked boxes.
-2. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
-3. Finish consistent display of source-provided `updateTime` metadata if that presentation improvement is prioritized.
+1. Select further compatibility slices from current evidence rather than historical unchecked boxes.
+2. Introduce provider capability interfaces only when a first non-BookSource provider is accepted; introduce image-sequence documents and structured locations only when that modality becomes active work.
+3. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
+4. Finish consistent display of source-provided `updateTime` metadata if that presentation improvement is prioritized.
 
 ## Durable Decisions
 
 - **Compatibility:** match documented and observed Legado behavior at shared seams before considering source-specific behavior.
 - **Frontend seam:** Vue consumes typed domain interfaces and never executes BookSource rules or interprets opaque source payloads.
+- **Reading seam:** providers open Reading Sections as modality-specific Reading Documents; documents use opaque Content Resources and the Reading Session delegates to modality renderers. See [decision 0002](docs/decisions/0002-reading-documents-and-resources.md).
 - **Source identity:** immutable NovelReader Source ID; imported `bookSourceUrl` is source data and may duplicate.
 - **Book identity:** normalized title plus author identifies a logical shelf book; exact source bindings live beneath it.
 - **Shelf admission:** Book Info metadata is sufficient for admission; catalog availability is a separate observable state.
@@ -98,6 +104,7 @@ No implementation workstream is currently designated active in repository docume
 Cross-cutting rationale:
 
 - [Local accounts with self-contained reader directories](docs/decisions/0001-user-owned-data-and-local-authentication.md)
+- [Reading documents, resources, and modality renderers](docs/decisions/0002-reading-documents-and-resources.md)
 
 ## Constraints
 

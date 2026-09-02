@@ -24,7 +24,7 @@ func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
 			t.Fatal(err)
 		}
 		for chapter := 0; chapter < 101; chapter++ {
-			entry := CachedChapter{BookID: bookID, SourceID: "source", ChapterIndex: chapter, ChapterURL: fmt.Sprintf("url-%d", chapter), Title: "Title", Paragraphs: []string{fmt.Sprintf("content-%d", chapter)}, Blocks: []processor.ContentBlock{{Type: "image", Src: fmt.Sprintf("image-%d", chapter)}}}
+			entry := CachedChapter{BookID: bookID, SourceID: "source", ChapterIndex: chapter, ChapterURL: fmt.Sprintf("url-%d", chapter), Title: "Title", Paragraphs: []string{fmt.Sprintf("content-%d", chapter)}, Blocks: []processor.ProseBlock{{Kind: processor.ProseBlockImage, Src: fmt.Sprintf("image-%d", chapter)}}}
 			if err := store.SaveChapterCache(entry); err != nil {
 				t.Fatal(err)
 			}
