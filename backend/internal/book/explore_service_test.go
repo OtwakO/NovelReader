@@ -16,7 +16,7 @@ type exploreSourceFixtureStore struct {
 }
 
 func (s exploreSourceFixtureStore) ListEnabled() ([]booksource.BookSource, error) { return nil, nil }
-func (s exploreSourceFixtureStore) GetByID(id string) (*booksource.BookSource, error) {
+func (s exploreSourceFixtureStore) GetExploreEnabledByID(id string) (*booksource.BookSource, error) {
 	sourceID := s.source.ID
 	if sourceID == "" {
 		sourceID = s.source.BookSourceURL

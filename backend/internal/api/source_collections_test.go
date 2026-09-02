@@ -113,3 +113,30 @@ func decodeCollectionResponse(t *testing.T, response *httptest.ResponseRecorder,
 		t.Fatal(err)
 	}
 }
+
+func TestSourceCollectionAvailabilityPatchPreservesMemberSettings(t *testing.T) {
+	server := newCollectionAPIServer(t)
+	created := performCollectionUpload(t, server, http.MethodPost, "/api/source-collections/upload", "Temporary", "sources.json", `[
+		{"bookSourceUrl":"https://off","bookSourceName":"Off","enabled":false,"enabledExplore":true,"exploreUrl":"Books::/books"},
+		{"bookSourceUrl":"https://on","bookSourceName":"On","enabled":true,"enabledExplore":true,"exploreUrl":"Books::/books"}
+	]`)
+	var creation collectionMutationResponse
+	decodeCollectionResponse(t, created, &creation)
+
+	request := httptest.NewRequest(http.MethodPatch, "/api/source-collections/"+creation.Collection.ID, strings.NewReader(`{"enabled":false}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("disable status=%d body=%s", response.Code, response.Body.String())
+	}
+	var collection booksource.Collection
+	decodeCollectionResponse(t, response, &collection)
+	if collection.Enabled {
+		t.Fatalf("collection=%#v", collection)
+	}
+	members, err := server.sourceStore.ListByCollection(collection.ID)
+	if err != nil || len(members) != 2 || members[0].Enabled || !members[1].Enabled {
+		t.Fatalf("members=%#v err=%v", members, err)
+	}
+}

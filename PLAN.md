@@ -58,7 +58,7 @@ Accepted future-facing architecture:
 - Local Reader Accounts, setup, registration policy, recovery, password management, administration, and durable deletion.
 - Per-reader storage with isolated `reader.db`, files, source profile state, and encrypted source credentials.
 - Portable Reader Data backup/restore with scoped automation tokens and staged atomic replacement.
-- Lossless BookSource import/export, Source Collections, manual/scheduled collection synchronization, and duplicate source definitions.
+- Lossless BookSource import/export, Source Collections with independently persisted Search/Explore availability, manual/scheduled collection synchronization, and duplicate source definitions.
 - Shared HTTP/fingerprint/typed-data/WebView execution with bounded source sessions and process capacity.
 - Batched streaming Search and strict single-source Explore.
 - Metadata-first shelf admission: bounded Book Info selects a source; catalog synchronization is separate, single-flight, cached in SQLite, observable, retryable, and atomically published.
@@ -75,7 +75,9 @@ Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for un
 
 ## Active Work
 
-No implementation workstream is currently designated active. The completed [reading document foundation](docs/plans/2026-09-02-reading-document-foundation.md) established the versioned prose-document, opaque-resource, and focused prose-renderer seams around the current BookSource text/image path.
+No substantial implementation workstream is currently active.
+
+The completed [Source Collection availability](docs/plans/2026-09-02-source-collection-availability.md) work added a collection-level Search/Explore gate while preserving every member source's individual settings and existing shelf reading. The completed [reading document foundation](docs/plans/2026-09-02-reading-document-foundation.md) established the versioned prose-document, opaque-resource, and focused prose-renderer seams around the current BookSource text/image path.
 
 ## Immediate Priorities
 
@@ -92,7 +94,7 @@ No implementation workstream is currently designated active. The completed [read
 - **Source identity:** immutable NovelReader Source ID; imported `bookSourceUrl` is source data and may duplicate.
 - **Book identity:** normalized title plus author identifies a logical shelf book; exact source bindings live beneath it.
 - **Shelf admission:** Book Info metadata is sufficient for admission; catalog availability is a separate observable state.
-- **Explore:** one selected BookSource and its native catalog at a time.
+- **Explore:** one selected BookSource and its native catalog at a time; Search/Explore eligibility combines saved source preferences with independently persisted collection availability, without affecting shelf reading.
 - **Storage:** `system.db` plus one self-contained reader home per immutable Reader Account ID.
 - **Schema policy:** pre-public disposable data may be recreated; do not add migration machinery without a real compatibility requirement.
 - **Source interaction:** reader-owned, source-ID-bound state; removing a source deterministically removes its owned state.

@@ -75,6 +75,7 @@ func ColumnDefs() string {
 		origin_url TEXT,
 		origin_filename TEXT,
 		sync_interval TEXT NOT NULL DEFAULT 'manual',
+		enabled INTEGER NOT NULL DEFAULT 1,
 		last_attempt_at INTEGER,
 		last_success_at INTEGER,
 		next_sync_at INTEGER,

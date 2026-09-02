@@ -10,6 +10,7 @@ export interface SourceCollection {
   originUrl?: string;
   originFilename?: string;
   syncInterval: SyncInterval;
+  enabled: boolean;
   sourceCount: number;
   lastAttemptAt?: number;
   lastSuccessAt?: number;
@@ -50,7 +51,7 @@ export function createURLCollection(name: string, url: string, syncInterval: Syn
   });
 }
 
-export function updateSourceCollection(id: string, update: { name?: string; syncInterval?: SyncInterval }) {
+export function updateSourceCollection(id: string, update: { name?: string; syncInterval?: SyncInterval; enabled?: boolean }) {
   return request<SourceCollection>(`/source-collections/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(update),

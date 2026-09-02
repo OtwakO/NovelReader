@@ -298,3 +298,72 @@ func TestCapabilityTagsIncludeSourceFeatures(t *testing.T) {
 		}
 	}
 }
+
+func TestCollectionAvailabilityGatesDiscoveryWithoutChangingSourcePreferences(t *testing.T) {
+	store := newCollectionStore(t)
+	now := time.Unix(100, 0)
+	disabledSource := collectionSource(t, "https://disabled", "Disabled source")
+	disabledSource.Enabled = false
+	disabledSource.EnabledExplore = true
+	enabledSource := collectionSource(t, "https://enabled", "Enabled source")
+	enabledSource.EnabledExplore = true
+	enabledSource.ExploreURL = "Books::/books"
+	collection, _, err := store.CreateCollection(context.Background(), CreateCollection{
+		Name: "Temporary", OriginKind: CollectionOriginUpload, SyncInterval: SyncManual,
+	}, []*BookSource{disabledSource, enabledSource}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	standalone := collectionSource(t, "https://standalone", "Standalone")
+	standalone.ExploreURL = "Books::/books"
+	standalone.EnabledExplore = true
+	if err := store.Upsert(standalone); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.UpdateCollectionEnabled(context.Background(), collection.ID, false, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	enabled, enabledErr := store.ListEnabled()
+	assertSourceURLs(t, enabled, enabledErr, "https://standalone")
+	explore, exploreErr := store.ListExploreEnabled()
+	assertSourceURLs(t, explore, exploreErr, "https://standalone")
+	if source, err := store.GetExploreEnabledByID(enabledSource.ID); err != nil || source != nil {
+		t.Fatalf("disabled collection source=%#v err=%v", source, err)
+	}
+	members, err := store.ListByCollection(collection.ID)
+	if err != nil || len(members) != 2 || members[0].Enabled || !members[1].Enabled {
+		t.Fatalf("member preferences changed: %#v err=%v", members, err)
+	}
+
+	if _, err := store.ReplaceCollection(context.Background(), collection.ID, []*BookSource{disabledSource, enabledSource}, "replacement.json", "", "", now.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	collectionAfterReplace, err := store.GetCollection(collection.ID)
+	if err != nil || collectionAfterReplace == nil || collectionAfterReplace.Enabled {
+		t.Fatalf("replacement changed collection availability: %#v err=%v", collectionAfterReplace, err)
+	}
+
+	if err := store.UpdateCollectionEnabled(context.Background(), collection.ID, true, now.Add(3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	enabled, enabledErr = store.ListEnabled()
+	assertSourceURLs(t, enabled, enabledErr, "https://enabled", "https://standalone")
+	explore, exploreErr = store.ListExploreEnabled()
+	assertSourceURLs(t, explore, exploreErr, "https://enabled", "https://standalone")
+}
+
+func assertSourceURLs(t *testing.T, sources []BookSource, err error, want ...string) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sources) != len(want) {
+		t.Fatalf("sources=%+v want URLs=%v", sources, want)
+	}
+	for index := range want {
+		if sources[index].BookSourceURL != want[index] {
+			t.Fatalf("sources=%+v want URLs=%v", sources, want)
+		}
+	}
+}

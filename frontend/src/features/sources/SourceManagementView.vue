@@ -116,15 +116,15 @@ export default defineComponent({
       return pageRange(this.page, this.pageSize, this.filtered.length);
     },
     enabledCount(): number {
-      return this.sources.filter((source) => source.enabled).length;
+      return this.sources.filter((source) => this.collectionAvailable(source) && source.enabled).length;
     },
     exploreCount(): number {
       return this.sources.filter(
-        (source) => source.enabledExplore && source.exploreUrl,
+        (source) => this.collectionAvailable(source) && source.enabled && source.enabledExplore && source.exploreUrl,
       ).length;
     },
     searchableCount(): number {
-      return this.sources.filter(isSearchEligible).length;
+      return this.sources.filter((source) => this.collectionAvailable(source) && isSearchEligible(source)).length;
     },
     javascriptCount(): number {
       return this.sources.filter(isJavaScriptSource).length;
@@ -148,10 +148,10 @@ export default defineComponent({
       const sources = this.selectedCollectionSources;
       return {
         total: sources.length,
-        enabled: sources.filter((source) => source.enabled).length,
-        searchable: sources.filter(isSearchEligible).length,
+        enabled: sources.filter((source) => this.collectionAvailable(source) && source.enabled).length,
+        searchable: sources.filter((source) => this.collectionAvailable(source) && isSearchEligible(source)).length,
         explore: sources.filter(
-          (source) => source.enabledExplore && source.exploreUrl,
+          (source) => this.collectionAvailable(source) && source.enabled && source.enabledExplore && source.exploreUrl,
         ).length,
         javascript: sources.filter(isJavaScriptSource).length,
         webview: sources.filter(isWebViewSource).length,
@@ -176,6 +176,10 @@ export default defineComponent({
     await this.load();
   },
   methods: {
+    collectionAvailable(source: BookSource): boolean {
+      if (!source.collectionId) return true;
+      return this.collections.find((collection) => collection.id === source.collectionId)?.enabled !== false;
+    },
     refreshExplore(sourceId: string) {
       this.explore.refreshSource(sourceId);
     },
@@ -225,6 +229,20 @@ export default defineComponent({
         await this.load();
       } catch (cause) {
         this.collectionError = cause instanceof Error ? cause.message : this.$t("sources.collections.failed");
+      } finally {
+        this.collectionBusy = false;
+      }
+    },
+    async toggleCollection(collection: SourceCollection) {
+      this.collectionBusy = true;
+      this.error = "";
+      try {
+        const updated = await updateSourceCollection(collection.id, { enabled: !collection.enabled });
+        this.collections = this.collections.map((item) => item.id === updated.id ? updated : item);
+        this.notice = this.$t(updated.enabled ? "sources.collections.enabledNotice" : "sources.collections.disabledNotice", { name: updated.name });
+        await this.explore.loadSources();
+      } catch (cause) {
+        this.error = cause instanceof Error ? cause.message : this.$t("sources.collections.availabilityFailed");
       } finally {
         this.collectionBusy = false;
       }
@@ -415,8 +433,8 @@ export default defineComponent({
         <button :class="{ active: selectedCollectionId === 'all' }" @click="selectedCollectionId = 'all'">
           <strong>{{ $t('sources.collections.all') }}</strong>
         </button>
-        <button v-for="collection in collections" :key="collection.id" :class="{ active: selectedCollectionId === collection.id }" @click="selectedCollectionId = collection.id">
-          <strong>{{ collection.name }}</strong>
+        <button v-for="collection in collections" :key="collection.id" :class="{ active: selectedCollectionId === collection.id, unavailable: !collection.enabled }" @click="selectedCollectionId = collection.id">
+          <strong>{{ collection.name }}</strong><span v-if="!collection.enabled">{{ $t('sources.collections.disabled') }}</span>
         </button>
         <button :class="{ active: selectedCollectionId === 'standalone' }" @click="selectedCollectionId = 'standalone'">
           <strong>{{ $t('sources.collections.standalone') }}</strong>
@@ -428,6 +446,7 @@ export default defineComponent({
             <div class="collection-details">
               <strong>{{ collection.name }}</strong>
               <div class="collection-badges">
+                <span :class="{ 'availability-badge': !collection.enabled }">{{ collection.enabled ? $t('sources.collections.enabled') : $t('sources.collections.disabled') }}</span>
                 <span>{{ collection.originKind === 'url' ? $t('sources.collections.url') : $t('sources.collections.upload') }}</span>
                 <span>{{ $t('sources.stats.total', { count: selectedCollectionStats.total }) }}</span>
                 <span>{{ $t('sources.stats.enabled', { count: selectedCollectionStats.enabled }) }}</span>
@@ -439,10 +458,13 @@ export default defineComponent({
               <small class="collection-address">{{ collection.originUrl || collection.originFilename }}</small>
               <p v-if="collection.lastError" class="collection-error">{{ collection.lastError }}</p>
             </div>
-            <div class="collection-action-buttons">
+            <div class="collection-controls">
+              <label class="collection-availability"><input type="checkbox" :checked="collection.enabled" :disabled="collectionBusy" @change="toggleCollection(collection)"><span><strong>{{ $t('sources.collections.availability') }}</strong><small>{{ $t('sources.collections.availabilityDescription') }}</small></span></label>
+              <div class="collection-action-buttons">
               <AppButton variant="secondary" @click="openCollectionDialog(collection)">{{ $t('sources.collections.renameSettings') }}</AppButton>
               <AppButton variant="secondary" :busy="collectionBusy" @click="collection.originKind === 'url' ? syncCollection(collection) : chooseReplacement(collection)">{{ collection.originKind === 'url' ? $t('sources.collections.syncNow') : $t('sources.collections.replaceFile') }}</AppButton>
               <AppButton variant="danger" @click="pendingCollectionDelete = collection">{{ $t('sources.collections.delete') }}</AppButton>
+              </div>
             </div>
           </template>
         </template>
@@ -477,7 +499,7 @@ export default defineComponent({
         <li
           v-for="source in visibleSources"
           :key="source.sourceId"
-          :class="{ disabled: !source.enabled }"
+          :class="{ disabled: !source.enabled, 'collection-disabled': !collectionAvailable(source) }"
         >
           <div class="identity">
             <div class="name">
@@ -701,6 +723,14 @@ export default defineComponent({
 .collection-strip strong {
   line-height: 1.25;
 }
+.collection-strip button > span {
+  color: var(--color-ink-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.collection-strip button.unavailable:not(.active) {
+  opacity: 0.68;
+}
 .collection-actions small {
   color: var(--color-ink-muted);
   font-size: 0.75rem;
@@ -743,6 +773,35 @@ export default defineComponent({
   padding-top: 0.55rem;
   border-top: 1px solid var(--color-border);
 }
+.collection-controls {
+  display: grid;
+  justify-items: end;
+  gap: 0.75rem;
+}
+.collection-availability {
+  max-width: 25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  text-align: left;
+}
+.collection-availability input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.15rem;
+  flex: 0 0 auto;
+}
+.collection-availability span {
+  display: grid;
+  gap: 0.2rem;
+}
+.collection-availability strong,
+.collection-availability small {
+  display: block;
+}
+.collection-availability small {
+  line-height: 1.4;
+}
 .collection-action-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -750,6 +809,7 @@ export default defineComponent({
   gap: 0.55rem;
 }
 .collection-actions p { margin: 0; }
+.collection-badges .availability-badge { background: #f8e4df; color: var(--color-danger); }
 .collection-error { color:var(--color-danger); font-size:.8rem; }
 .filters {
   padding: 1rem;
@@ -846,7 +906,8 @@ export default defineComponent({
   justify-content: flex-end;
   gap: 0.75rem;
 }
-.source-list li.disabled {
+.source-list li.disabled,
+.source-list li.collection-disabled {
   opacity: 0.68;
 }
 .identity {
@@ -956,6 +1017,9 @@ export default defineComponent({
   .pagination {
     align-items: stretch;
     flex-direction: column;
+  }
+  .collection-controls {
+    justify-items: stretch;
   }
   .collection-action-buttons {
     justify-content: flex-start;

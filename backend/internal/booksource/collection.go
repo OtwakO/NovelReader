@@ -36,6 +36,7 @@ type Collection struct {
 	OriginURL      string           `json:"originUrl,omitempty"`
 	OriginFilename string           `json:"originFilename,omitempty"`
 	SyncInterval   SyncInterval     `json:"syncInterval"`
+	Enabled        bool             `json:"enabled"`
 	SourceCount    int              `json:"sourceCount"`
 	LastAttemptAt  *int64           `json:"lastAttemptAt,omitempty"`
 	LastSuccessAt  *int64           `json:"lastSuccessAt,omitempty"`
@@ -107,7 +108,7 @@ func NextSyncAt(interval SyncInterval, after time.Time) *int64 {
 func (s *Store) ListCollections() ([]Collection, error) {
 	rows, err := s.db.Query(`
 		SELECT c.id, c.name, c.origin_kind, COALESCE(c.origin_url, ''), COALESCE(c.origin_filename, ''),
-			c.sync_interval, c.last_attempt_at, c.last_success_at, c.next_sync_at, c.last_error,
+			c.sync_interval, c.enabled, c.last_attempt_at, c.last_success_at, c.next_sync_at, c.last_error,
 			c.etag, c.last_modified, c.created_at, c.updated_at, COUNT(bs.id)
 		FROM book_source_collections c
 		LEFT JOIN book_sources bs ON bs.collection_id = c.id
@@ -131,7 +132,7 @@ func (s *Store) ListCollections() ([]Collection, error) {
 func (s *Store) ListDueCollections(now time.Time) ([]Collection, error) {
 	rows, err := s.db.Query(`
 		SELECT c.id, c.name, c.origin_kind, COALESCE(c.origin_url, ''), COALESCE(c.origin_filename, ''),
-			c.sync_interval, c.last_attempt_at, c.last_success_at, c.next_sync_at, c.last_error,
+			c.sync_interval, c.enabled, c.last_attempt_at, c.last_success_at, c.next_sync_at, c.last_error,
 			c.etag, c.last_modified, c.created_at, c.updated_at, COUNT(bs.id)
 		FROM book_source_collections c
 		LEFT JOIN book_sources bs ON bs.collection_id = c.id
@@ -155,7 +156,7 @@ func (s *Store) ListDueCollections(now time.Time) ([]Collection, error) {
 func (s *Store) GetCollection(id string) (*Collection, error) {
 	row := s.db.QueryRow(`
 		SELECT c.id, c.name, c.origin_kind, COALESCE(c.origin_url, ''), COALESCE(c.origin_filename, ''),
-			c.sync_interval, c.last_attempt_at, c.last_success_at, c.next_sync_at, c.last_error,
+			c.sync_interval, c.enabled, c.last_attempt_at, c.last_success_at, c.next_sync_at, c.last_error,
 			c.etag, c.last_modified, c.created_at, c.updated_at, COUNT(bs.id)
 		FROM book_source_collections c
 		LEFT JOIN book_sources bs ON bs.collection_id = c.id
@@ -175,7 +176,7 @@ func scanCollection(scanner interface{ Scan(...any) error }) (Collection, error)
 	var origin, interval string
 	err := scanner.Scan(
 		&collection.ID, &collection.Name, &origin, &collection.OriginURL, &collection.OriginFilename,
-		&interval, &collection.LastAttemptAt, &collection.LastSuccessAt, &collection.NextSyncAt,
+		&interval, &collection.Enabled, &collection.LastAttemptAt, &collection.LastSuccessAt, &collection.NextSyncAt,
 		&collection.LastError, &collection.ETag, &collection.LastModified,
 		&collection.CreatedAt, &collection.UpdatedAt, &collection.SourceCount,
 	)
@@ -389,6 +390,18 @@ func (s *Store) RenameCollection(ctx context.Context, id, name string, now time.
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
 			return ErrCollectionNameUsed
 		}
+		return err
+	}
+	count, _ := result.RowsAffected()
+	if count == 0 {
+		return ErrCollectionNotFound
+	}
+	return nil
+}
+
+func (s *Store) UpdateCollectionEnabled(ctx context.Context, id string, enabled bool, now time.Time) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE book_source_collections SET enabled = ?, updated_at = ? WHERE id = ?`, enabled, now.UnixMilli(), id)
+	if err != nil {
 		return err
 	}
 	count, _ := result.RowsAffected()

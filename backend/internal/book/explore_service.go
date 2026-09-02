@@ -11,7 +11,7 @@ import (
 
 type exploreSourceStore interface {
 	ListExploreEnabled() ([]booksource.BookSource, error)
-	GetByID(string) (*booksource.BookSource, error)
+	GetExploreEnabledByID(string) (*booksource.BookSource, error)
 }
 
 type ExploreSource struct {
@@ -110,7 +110,7 @@ func (s *Searcher) OpenExplore(ctx context.Context, sourceID string) (ExploreCat
 	if !ok {
 		return ExploreCatalog{}, newExploreError("source_store_unavailable", "source", "Explore source store unavailable", false, nil)
 	}
-	source, err := store.GetByID(sourceID)
+	source, err := store.GetExploreEnabledByID(sourceID)
 	if err != nil {
 		return ExploreCatalog{}, newExploreError("source_load_failed", "source", "Could not load Explore source", true, err)
 	}

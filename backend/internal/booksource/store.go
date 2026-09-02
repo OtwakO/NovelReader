@@ -41,6 +41,10 @@ var sourceColumns = `id, book_source_url, name, group_name, source_type, book_ur
 	comment, variable_comment, last_update_time, respond_time, weight,
 	created_at, updated_at, source_json, COALESCE(collection_id, ''), collection_position`
 
+const collectionAvailableForDiscovery = `(collection_id IS NULL OR EXISTS (
+	SELECT 1 FROM book_source_collections WHERE id = book_sources.collection_id AND enabled = 1
+))`
+
 // List returns all book sources in deterministic user order.
 func (s *Store) List() ([]BookSource, error) {
 	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources ORDER BY custom_order ASC, name ASC, id ASC`)
@@ -70,7 +74,9 @@ func (s *Store) ListByCollection(collectionID string) ([]*BookSource, error) {
 }
 
 func (s *Store) ListEnabled() ([]BookSource, error) {
-	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources WHERE enabled = 1 ORDER BY custom_order ASC, name ASC, id ASC`)
+	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources
+		WHERE enabled = 1 AND ` + collectionAvailableForDiscovery + `
+		ORDER BY custom_order ASC, name ASC, id ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("booksource: list enabled: %w", err)
 	}
@@ -80,12 +86,30 @@ func (s *Store) ListEnabled() ([]BookSource, error) {
 
 // ListExploreEnabled returns globally enabled sources with enabled Explore definitions.
 func (s *Store) ListExploreEnabled() ([]BookSource, error) {
-	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources WHERE enabled = 1 AND enabled_explore = 1 AND explore_url != '' ORDER BY custom_order ASC, name ASC, id ASC`)
+	rows, err := s.db.Query(`SELECT ` + sourceColumns + ` FROM book_sources
+		WHERE enabled = 1 AND enabled_explore = 1 AND explore_url != ''
+			AND ` + collectionAvailableForDiscovery + `
+		ORDER BY custom_order ASC, name ASC, id ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("booksource: list explore enabled: %w", err)
 	}
 	defer rows.Close()
 	return scanSources(rows)
+}
+
+// GetExploreEnabledByID returns a source only when its source and collection settings allow Explore.
+func (s *Store) GetExploreEnabledByID(id string) (*BookSource, error) {
+	row := s.db.QueryRow(`SELECT `+sourceColumns+` FROM book_sources
+		WHERE id = ? AND enabled = 1 AND enabled_explore = 1 AND explore_url != ''
+			AND `+collectionAvailableForDiscovery, id)
+	src, err := scanSource(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("booksource: get Explore-enabled source %s: %w", id, err)
+	}
+	return src, nil
 }
 
 // GetByID returns one installed source definition by its immutable Source ID.

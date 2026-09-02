@@ -4,7 +4,9 @@
 
 ## Discovery
 
-Search fans out over enabled installed BookSources in deterministic batches and streams source results/failures over SSE. Explore executes one selected source's native catalog, controls, and pagination. Both return typed result metadata and opaque source bindings; the frontend does not inspect source rules or source-specific payloads.
+Search fans out over effectively enabled installed BookSources in deterministic batches and streams source results/failures over SSE. Explore executes one effectively enabled source's native catalog, controls, and pagination. Both return typed result metadata and opaque source bindings; the frontend does not inspect source rules or source-specific payloads.
+
+For discovery, a source is effectively enabled only when its own setting is enabled and either it is standalone or its Source Collection is available. Explore additionally requires the source's Explore setting and capability. Collection availability is a separate persisted policy: pausing a collection removes its members from Search and Explore without rewriting their individual settings, and re-enabling restores those saved states. The gate does not revoke existing shelf bindings or reading access.
 
 A Search/Explore result may represent a logical book already on the shelf. The backend annotates results from SQLite using normalized title/author identity so the frontend routes to the stored book instead of offering a duplicate shelf entry.
 

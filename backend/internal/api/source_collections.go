@@ -23,6 +23,7 @@ type collectionCreateRequest struct {
 type collectionUpdateRequest struct {
 	Name         *string                  `json:"name,omitempty"`
 	SyncInterval *booksource.SyncInterval `json:"syncInterval,omitempty"`
+	Enabled      *bool                    `json:"enabled,omitempty"`
 }
 
 type collectionMutationResponse struct {
@@ -104,12 +105,18 @@ func (s *Server) handleUpdateSourceCollection(w http.ResponseWriter, r *http.Req
 		return
 	}
 	id := r.PathValue("id")
-	if request.Name == nil && request.SyncInterval == nil {
+	if request.Name == nil && request.SyncInterval == nil && request.Enabled == nil {
 		writeError(w, http.StatusBadRequest, "collection update is empty")
 		return
 	}
 	if request.Name != nil {
 		if err := s.sourceStore.RenameCollection(r.Context(), id, *request.Name, time.Now()); err != nil {
+			writeCollectionError(w, err)
+			return
+		}
+	}
+	if request.Enabled != nil {
+		if err := s.sourceStore.UpdateCollectionEnabled(r.Context(), id, *request.Enabled, time.Now()); err != nil {
 			writeCollectionError(w, err)
 			return
 		}
