@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-09-03
+updated: 2026-09-04
 ---
 
 # Source Authentication and Session Foundation
@@ -193,7 +193,10 @@ The current architecture already separates portable Source Profile settings from
 
 Confirmed remaining gaps:
 
-- existing aggregate tests cover control rendering, settings actions, and Explore settings hydration, but not active-device registration, multi-domain browser cookie persistence, or real line status.
+- live verification against the updated ignored aggregate source reports: switch-line probes changed from uniformly offline to HTTP 502, provider-visible active devices remain 0, and Explore category generation still fails;
+- sanitized reproduction showed the latest route page issues a public unauthenticated GET and the exercised server refused the connection identically for Chromium, a browser-header-filtered replay, and a direct replay; the mediator is no longer the cause for that route's unavailability;
+- sanitized latest-source Explore reproduction showed category generation fails only when `source.getVariable()` is empty; a minimally valid current-schema variable produces two categories with or without login info. Legado-E also defines missing variables as the empty string, so the engine must not invent source-specific defaults; the user should reapply the updated source's settings to initialize/migrate its variable document;
+- existing aggregate tests cover control rendering, settings actions, and Explore settings hydration against a substituted synthetic gateway, but are not red-capable for the latest source's real Explore, device-registration, or route-response contracts.
 
 The first implementation slice adds `sourceprofile.Store.RuntimeCookies` and `ReplaceRuntimeCookies` behind the existing credential store. It keeps the deployed URL-scope-to-cookie-header representation, validates bounded HTTP(S) scopes and cookie syntax, returns stable ordering, and replaces only cookies while preserving login information and login headers. This avoids a speculative structured-cookie migration before domain/path attribute fidelity is demonstrated as necessary.
 
@@ -215,7 +218,7 @@ No real credentials have been requested or stored.
 
 ## Next Action
 
-Have the user run the reviewed branch against the ignored local aggregate source and report only sanitized outcomes: login success/failure classification, whether one provider-visible active device appears, whether Explore opens, and whether public route checks stop showing every line offline. Do not request credentials unless reproduction requires direct operator access.
+Complete and verify the shared login-info session lifecycle plus the single-entry cookie editor. Ask the user to apply/save ⚙️ 书源设置 once after the source update, then retest Explore. Treat the active-device count as a separate provider-observability question because authenticated Search and reading already work, proving general qttoken propagation; inspect a sanitized provider status/count request only if the count still matters after functional compatibility is restored.
 
 In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
@@ -250,8 +253,10 @@ Completed implementation verification:
 
 Still needed:
 
-- optional local live login/status/Explore/route verification with sanitized evidence;
-- provider-visible active-device registration remains unverified without that live boundary;
+- confirm whether reapplying the updated source's settings initializes its current variable schema and restores Explore;
+- decide whether route transport failures should be presented as unavailable/transport failure rather than raw HTTP 502 (the exercised upstream currently refuses connections);
+- identify the provider's actual active-device counting trigger if observable count remains a requirement; authenticated Search/reading prove general qttoken propagation works;
+- verify and commit the shared login-info lifecycle and single-entry cookie reveal/edit/save flow;
 - a product decision on whether identity reset/rotation controls belong in this workstream or a later explicit lifecycle feature.
 
 ## Open Questions
