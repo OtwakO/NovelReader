@@ -178,7 +178,7 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 - [ ] Restore provider-visible active-device monitoring through the normal login/status contract.
 - [ ] Define an explicit local device-identity reset/rotation lifecycle without promising provider-limit avoidance.
 - [x] Finalize the initial runtime-cookie representation and typed credential-module interface without changing the deployed authentication document shape.
-- [ ] Implement the current-password-protected runtime-cookie HTTP interface.
+- [x] Implement the current-password-protected runtime-cookie HTTP interface.
 - [ ] Implement and verify cookie-scope-preserving browser synchronization.
 - [ ] Implement runtime-cookie inspection/editing API and UI.
 - [ ] Correct demonstrated runtime identity and Java bridge semantics.
@@ -203,13 +203,13 @@ Confirmed gaps:
 
 The first implementation slice adds `sourceprofile.Store.RuntimeCookies` and `ReplaceRuntimeCookies` behind the existing credential store. It keeps the deployed URL-scope-to-cookie-header representation, validates bounded HTTP(S) scopes and cookie syntax, returns stable ordering, and replaces only cookies while preserving login information and login headers. This avoids a speculative structured-cookie migration before domain/path attribute fidelity is demonstrated as necessary.
 
-Current-password confirmation is accepted for both revealing and saving runtime cookie values. The existing `auth.AccountService.VerifyPassword` seam will remain the sole password verifier; sourceprofile and sourceinteraction will not receive password or account-authentication responsibilities.
+The authenticated HTTP interface exposes masked scope/name metadata through the normal reader session and requires current-password confirmation for both value reveal and complete replacement. It reuses `auth.AccountService.VerifyPassword` through an auth-owned method, prevents credential response caching, and invalidates the affected source runtime after replacement. Sourceprofile and sourceinteraction do not receive password or account-authentication responsibilities.
 
 No real credentials have been requested or stored.
 
 ## Next Action
 
-Implement the authenticated runtime-cookie HTTP interface using the existing current-password verification seam. Keep masked metadata available through the normal reader session, require current-password confirmation for value reveal and replacement, prevent response caching, and invalidate the affected source runtime after replacement.
+Implement the focused runtime-cookie UI inside the existing Source Interaction sheet. Load only masked metadata initially; request the current password when revealing or saving; keep revealed values only in component memory; clear password and revealed values when the sheet closes or after a successful save.
 
 In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
@@ -228,6 +228,7 @@ Still needed:
 
 - historical behavior comparison;
 - runtime-cookie credential module tests pass for stable listing, replacement isolation, and invalid-input rejection;
+- authenticated runtime-cookie HTTP test passes for masked metadata, wrong-password denial, no-store reveal, replacement isolation, and durable storage;
 - red-capable deterministic tests for each remaining implementation slice;
 - focused backend/frontend/WebView verification after changes;
 - optional local live login/status/Explore/route verification with sanitized evidence;

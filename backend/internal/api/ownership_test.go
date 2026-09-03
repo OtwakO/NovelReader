@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +50,70 @@ func TestAuthenticatedServerDeniesAnonymousReaderDataAndIsolatesEqualIDs(t *test
 	bob := authenticatedOwnershipRequest(t, server, sessions, ownershipBob, "/api/books/same-id")
 	if bob.Code != http.StatusNotFound {
 		t.Fatalf("bob status=%d body=%s", bob.Code, bob.Body.String())
+	}
+}
+
+func TestAuthenticatedServerProtectsRuntimeCookieValuesWithCurrentPassword(t *testing.T) {
+	server, sessions, readers, aliceID, closeStores := newOwnershipServer(t)
+	defer closeStores()
+
+	home, err := readers.Open(context.Background(), aliceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources := booksource.NewStore(home.DB())
+	if err := sources.Upsert(&booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", BookSourceName: "Fixture", Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	profiles := sourceprofile.NewStore(home.DB(), home.CredentialsDB())
+	if err := profiles.SaveAuthentication(context.Background(), "source-a", json.RawMessage(`{"loginInfo":{"user":"kept"},"cookies":{"https://source.test/session":"sid=private-value; mode=reader"}}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := home.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	credential, err := sessions.Create(context.Background(), aliceID, time.Now().Unix())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := func(method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: credential.Token})
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, req)
+		return response
+	}
+
+	metadata := request(http.MethodGet, "/api/sources/source-a/interaction/runtime-cookies", "")
+	if metadata.Code != http.StatusOK || strings.Contains(metadata.Body.String(), "private-value") || !strings.Contains(metadata.Body.String(), `"names":["mode","sid"]`) {
+		t.Fatalf("metadata status=%d body=%s", metadata.Code, metadata.Body.String())
+	}
+	wrongPassword := request(http.MethodPost, "/api/sources/source-a/interaction/runtime-cookies/reveal", `{"currentPassword":"wrong password"}`)
+	if wrongPassword.Code != http.StatusUnauthorized || strings.Contains(wrongPassword.Body.String(), "private-value") {
+		t.Fatalf("wrong password status=%d body=%s", wrongPassword.Code, wrongPassword.Body.String())
+	}
+	revealed := request(http.MethodPost, "/api/sources/source-a/interaction/runtime-cookies/reveal", `{"currentPassword":"alice password value"}`)
+	if revealed.Code != http.StatusOK || !strings.Contains(revealed.Body.String(), "private-value") || revealed.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("reveal status=%d cache=%q body=%s", revealed.Code, revealed.Header().Get("Cache-Control"), revealed.Body.String())
+	}
+	updated := request(http.MethodPut, "/api/sources/source-a/interaction/runtime-cookies", `{"currentPassword":"alice password value","cookies":[{"scope":"https://other.test/path","header":"token=replacement"}]}`)
+	if updated.Code != http.StatusOK || strings.Contains(updated.Body.String(), "replacement") {
+		t.Fatalf("update status=%d body=%s", updated.Code, updated.Body.String())
+	}
+
+	home, err = readers.Open(context.Background(), aliceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer home.Close()
+	profile, err := sourceprofile.NewStore(home.DB(), home.CredentialsDB()).Load(context.Background(), "source-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	authentication := sourceprofile.DecodeAuthentication(profile.Authentication)
+	if authentication.LoginInfo["user"] != "kept" || authentication.Cookies["https://other.test/path"] != "token=replacement" || len(authentication.Cookies) != 1 {
+		t.Fatalf("authentication=%+v", authentication)
 	}
 }
 

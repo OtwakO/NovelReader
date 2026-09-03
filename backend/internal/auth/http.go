@@ -205,6 +205,15 @@ func (h *HTTPHandler) ListActiveReaderIDs(ctx context.Context) ([]readerstore.Us
 	return h.accounts.ListActiveReaderIDs(ctx)
 }
 
+// VerifyCurrentPassword reauthenticates the Reader Account already resolved by RequireIdentity.
+func (h *HTTPHandler) VerifyCurrentPassword(ctx context.Context, password string) error {
+	account, ok := IdentityFromContext(ctx)
+	if !ok {
+		return ErrInvalidCredentials
+	}
+	return h.accounts.VerifyPassword(ctx, account.ID, password)
+}
+
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	preventAuthResponseCaching(w)
 	h.mux.ServeHTTP(w, r)
