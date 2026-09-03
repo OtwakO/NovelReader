@@ -39,6 +39,7 @@ data/users/<immutable-reader-id>/
 - Public registration is deployment-controlled and may require an invite code.
 - Administrators can manage ordinary Reader Accounts but cannot disable, reset, or delete other Administrators through the initial web administration interface.
 - Password changes and reset completion revoke existing application sessions.
+- Source JavaScript receives one stable opaque device identity per Reader Account through `java.androidId()` and `java.deviceID()`. It is derived from the immutable Reader ID, shared across that reader's sources, and does not expose the Reader ID itself.
 - Recovery can restore Administrator access without claiming or rewriting Reader Data.
 - Reader deletion is durable, retryable, and coordinated with runtime and filesystem ownership.
 
@@ -47,8 +48,12 @@ data/users/<immutable-reader-id>/
 Each immutable Source ID owns reader-specific state:
 
 - non-secret Source Profile settings in portable Reader Data;
-- encrypted login cookies/headers in the credential store;
+- encrypted login information, login headers, and runtime cookies in the credential store;
 - transient SourceSession and browser state in the reader runtime.
+
+Runtime cookies are managed through a typed source-profile interface, not through raw credential JSON or BookSource definition edits. Ordinary interaction responses expose only cookie scope/name metadata. Revealing or replacing cookie values requires current-password reauthentication, prevents response caching, and invalidates the affected transient source runtime after replacement.
+
+Interactive browser closure preserves each returned cookie's URL/domain scope instead of collapsing multi-domain cookies onto the final browser URL. Browser-generated opaque HTML diagnostics use a bounded fetch/XHR mediator that rejects non-public hostname resolutions and connected server addresses, follows no redirects, and preserves timeout/body limits; Chromium web security remains enabled.
 
 Definition edits preserve owned state. Source removal, collection replacement, restore reconciliation, and explicit reset remove state deterministically when the Source ID disappears. Credentials are never included in portable Reader Data archives.
 
@@ -79,7 +84,8 @@ Scoped hash-only automation tokens expose separate backup-export and backup-rest
 ## Invariants
 
 - Reader Data never crosses Reader Account ownership boundaries.
-- Source credentials never enter portable Reader Data archives.
+- Source credentials never enter portable Reader Data archives or ordinary source-list/interaction responses.
+- Source execution errors exposed to clients use stable secret-safe classifications; raw JavaScript, transport, credential, and response causes remain server-side.
 - One writable `DATA_DIR` has one server owner.
 - Reader-home paths are resolved only by readerstore and reject traversal/symlink escape.
 - A stopped complete-data copy remains restorable.

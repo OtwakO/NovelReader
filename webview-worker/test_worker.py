@@ -17,6 +17,7 @@ from browser import (
     compile_source_regex,
     mediate_data_document_request,
     require_public_host,
+    require_public_response,
 )
 from worker import capacity_settings
 
@@ -253,6 +254,7 @@ class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
         response = MagicMock()
         response.status = 200
         response.headers = {"content-type": "text/plain", "access-control-allow-origin": "https://other.test"}
+        response.server_addr = AsyncMock(return_value={"ipAddress": "8.8.8.8", "port": 443})
         response.body = AsyncMock(return_value=b"online")
         route = MagicMock()
         route.request.url = "https://route.example.test/status"
@@ -287,6 +289,7 @@ class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
     async def test_redirect_response_is_aborted(self) -> None:
         response = MagicMock()
         response.status = 302
+        response.server_addr = AsyncMock(return_value={"ipAddress": "8.8.8.8", "port": 443})
         route = MagicMock()
         route.request.url = "https://route.example.test/status"
         route.request.resource_type = "fetch"
@@ -329,10 +332,16 @@ class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
         route.fetch.assert_not_awaited()
         route.abort.assert_awaited_once_with("failed")
 
+    async def test_response_address_rejects_dns_rebinding(self) -> None:
+        response = MagicMock()
+        response.server_addr = AsyncMock(return_value={"ipAddress": "127.0.0.1", "port": 443})
+        with self.assertRaisesRegex(ValueError, "non-public"):
+            await require_public_response(response)
+
     async def test_public_host_check_rejects_any_non_public_resolution(self) -> None:
         loop = MagicMock()
         loop.getaddrinfo = AsyncMock(return_value=[
-            (None, None, None, None, ("203.0.113.5", 443)),
+            (None, None, None, None, ("8.8.8.8", 443)),
             (None, None, None, None, ("127.0.0.1", 443)),
         ])
         with patch("browser.asyncio.get_running_loop", return_value=loop):
@@ -358,7 +367,7 @@ class DataDocumentChromiumRegressionTest(unittest.IsolatedAsyncioTestCase):
             worker = BrowserWorker(playwright, 1, 1, 1024, 10)
             await worker.start()
             try:
-                with patch("browser.require_public_host", new=AsyncMock()):
+                with patch("browser.require_public_host", new=AsyncMock()), patch("browser.require_public_response", new=AsyncMock()):
                     browser, context, page = await worker._open_interactive_context({"url": target, "timeoutMs": 5000})
                     await page.wait_for_function("document.body.textContent.length > 0", timeout=5000)
                     self.assertEqual(await page.text_content("body"), "online")

@@ -34,6 +34,7 @@ async def mediate_data_document_request(route, max_body_bytes: int, timeout_ms: 
         response = await route.fetch(timeout=timeout_ms, max_redirects=0)
         if 300 <= response.status < 400:
             raise ValueError("mediated request redirects are unsupported")
+        await require_public_response(response)
         body = await response.body()
         if len(body) > max_body_bytes:
             await route.abort("failed")
@@ -54,9 +55,19 @@ async def require_public_host(host: str, port: int) -> None:
     if not addresses:
         raise ValueError("request host did not resolve")
     for address in addresses:
-        ip = ipaddress.ip_address(address[4][0])
-        if not ip.is_global:
-            raise ValueError("request host resolves to a non-public address")
+        require_public_address(address[4][0])
+
+
+async def require_public_response(response) -> None:
+    server = await response.server_addr()
+    if not server or not server.get("ipAddress"):
+        raise ValueError("mediated response server address is unavailable")
+    require_public_address(server["ipAddress"])
+
+
+def require_public_address(address: str) -> None:
+    if not ipaddress.ip_address(address).is_global:
+        raise ValueError("request resolved to a non-public address")
 
 
 class BrowserWorker:
