@@ -15,7 +15,7 @@ Done means:
 - a reader can explicitly inspect and edit the runtime cookies owned by one installed Source ID without editing the imported BookSource definition;
 - cookie values, login headers, tokens, credentials, and private source programs never enter ordinary source-list responses, logs, portable backups, test fixtures, or committed diagnostic evidence;
 - interactive-browser and backend HTTP cookie transfer preserves the scopes needed by real multi-origin login workflows;
-- source runtime identity and required Legado Java bridge behavior are stable and correctly scoped rather than represented by process-global placeholders;
+- source runtime identity and demonstrated Legado Java bridge behavior are stable and correctly scoped rather than represented by process-global placeholders;
 - Explore/login failures expose a useful secret-safe classification instead of collapsing distinct causes into one generic message;
 - source-generated route diagnostics work through a bounded backend-owned browser networking contract, without globally disabling browser security;
 - regressions are covered at shared production seams with minimal synthetic tests, followed by explicit optional live verification using ignored local BookSources.
@@ -105,7 +105,7 @@ Do not use global `--disable-web-security`, unrestricted arbitrary proxying, or 
 
 ### Improve observability without exposing source secrets
 
-Keep raw causes server-side, but classify failures at the owning seam. Useful categories include timeout, transport failure, JavaScript runtime incompatibility, invalid result, and authentication required. Logs and client errors may include operation, stage, source ID, and classification; they must not include cookie/token values, credentials, private URLs, source programs, or response bodies.
+Keep raw causes server-side, but classify failures at the owning seam. Useful demonstrated categories include timeout, transport failure, JavaScript runtime incompatibility, and invalid result. Add authentication-required only when a typed internal producer can prove it; do not infer it from provider text. Logs and client errors may include operation, stage, source ID, and classification; they must not include cookie/token values, credentials, private URLs, source programs, or response bodies.
 
 ### Verification strategy
 
@@ -201,7 +201,7 @@ The authenticated HTTP interface exposes masked scope/name metadata through the 
 
 The Source Interaction sheet now contains a focused session-cookie editor. It loads only scopes and names initially, reveals values only after current-password confirmation, requires a fresh password to save, keeps values in component memory only, clears secret state on close/cancel/save, and immediately returns to masked metadata after replacement. The UI edits the existing complete scope-to-cookie-header document rather than source JSON or global state.
 
-Interactive browser close now imports each returned cookie against its own protocol URL or domain-derived HTTP(S) scope, falling back to the browser URL only for host-only cookies without scope metadata. Multi-domain browser sessions therefore remain separated instead of assigning every cookie to the final page URL. This fixes the demonstrated shared synchronization defect without changing the durable credential document.
+Interactive browser close now imports each returned cookie against its own protocol URL or domain-and-path-derived HTTP(S) scope, falling back to the browser URL only for host-only cookies without scope metadata. Multi-domain/path browser sessions therefore remain separated instead of assigning every cookie to the final page URL. The existing scope-URL storage shape preserves this through capture and hydration without a migration. Source-generated `data:` browser contexts hydrate all stored scoped cookies so their mediated fetch/XHR requests can participate in cookie-authenticated source sessions. They do not receive global source/login headers because an opaque multi-origin page cannot safely scope headers such as `Authorization`; normal HTTP(S) browser sessions retain header hydration.
 
 History establishes that the static `goja-android-id` value existed unchanged from the bridge's July 3 introduction through both the earlier reportedly-counted behavior and the August 30 durable credential split. Provider-visible device counting was never a first-class NovelReader contract, so no single later regression commit can be claimed honestly. The new contract is explicit instead: NovelReader derives one opaque stable device identifier from the immutable Reader ID, shares it across that reader's sources, and injects it into both `java.androidId()` and `java.deviceID()` through reader-scoped analyzer state. This needs no credential schema migration, reveals no Reader UUID, survives runtime recreation, and remains account-neutral across portable restore.
 
@@ -241,6 +241,7 @@ Completed implementation verification:
 - WebView worker suite passes with 31 tests, including hostname and connected-address private-network rejection, mocked policy boundaries, and a real Chromium regression proving opaque-document fetch succeeds through mediation;
 - analyzer, sourceinteraction, and book tests pass for the upstream-compatible `java.timeFormat(milliseconds)` local date formatting;
 - sourceexec, sourceinteraction, book, and API tests pass for failure classification; deterministic API regressions confirm JavaScript failures expose `javascript_runtime` without leaking the raw source cause;
+- review regressions pass for durable browser cookie path scope, scoped-cookie `data:` document session hydration without cross-origin login-header leakage, and current-password denial without false application-session loss;
 - frontend typecheck plus existing API error, Explore store, and Source Interaction sheet tests pass with the additive classification field;
 - full backend `go test ./...` passes;
 - full frontend suite passes: 51 files, 165 tests, followed by production build;

@@ -90,7 +90,7 @@ func TestAuthenticatedServerProtectsRuntimeCookieValuesWithCurrentPassword(t *te
 		t.Fatalf("metadata status=%d body=%s", metadata.Code, metadata.Body.String())
 	}
 	wrongPassword := request(http.MethodPost, "/api/sources/source-a/interaction/runtime-cookies/reveal", `{"currentPassword":"wrong password"}`)
-	if wrongPassword.Code != http.StatusUnauthorized || strings.Contains(wrongPassword.Body.String(), "private-value") {
+	if wrongPassword.Code != http.StatusForbidden || strings.Contains(wrongPassword.Body.String(), "private-value") {
 		t.Fatalf("wrong password status=%d body=%s", wrongPassword.Code, wrongPassword.Body.String())
 	}
 	revealed := request(http.MethodPost, "/api/sources/source-a/interaction/runtime-cookies/reveal", `{"currentPassword":"alice password value"}`)

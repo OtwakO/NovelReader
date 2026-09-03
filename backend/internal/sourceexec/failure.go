@@ -10,11 +10,10 @@ import (
 type FailureClass string
 
 const (
-	FailureTimeout                FailureClass = "timeout"
-	FailureTransport              FailureClass = "transport_failed"
-	FailureJavaScriptRuntime      FailureClass = "javascript_runtime"
-	FailureInvalidResult          FailureClass = "invalid_result"
-	FailureAuthenticationRequired FailureClass = "authentication_required"
+	FailureTimeout           FailureClass = "timeout"
+	FailureTransport         FailureClass = "transport_failed"
+	FailureJavaScriptRuntime FailureClass = "javascript_runtime"
+	FailureInvalidResult     FailureClass = "invalid_result"
 )
 
 // ClassifyFailure preserves typed runtime failures and uses fallback for operation-owned meaning.

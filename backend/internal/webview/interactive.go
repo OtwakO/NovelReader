@@ -20,10 +20,18 @@ func (c *Client) StartInteractive(ctx context.Context, rawURL, title string, vie
 	viewport.Height = min(900, max(470, viewport.Height))
 	viewport.DeviceScaleFactor = min(3, max(1, viewport.DeviceScaleFactor))
 	request := interactiveRequest{URL: rawURL, Viewport: viewport, TimeoutMS: int(c.timeout.Milliseconds())}
-	if session != nil && isNetworkBrowserURL(rawURL) {
-		request.Headers = session.RequestHeaders()
-		for _, cookie := range session.Cookies(rawURL) {
-			request.Cookies = append(request.Cookies, toProtocolCookie(cookie, rawURL))
+	if session != nil {
+		if isNetworkBrowserURL(rawURL) {
+			request.Headers = session.RequestHeaders()
+			for _, cookie := range session.Cookies(rawURL) {
+				request.Cookies = append(request.Cookies, toProtocolCookie(cookie, rawURL))
+			}
+		} else {
+			for _, scope := range session.CookieURLs() {
+				for _, cookie := range session.Cookies(scope) {
+					request.Cookies = append(request.Cookies, toProtocolCookie(cookie, scope))
+				}
+			}
 		}
 	}
 	var result interactiveResult
@@ -92,7 +100,11 @@ func protocolCookieScopeURL(cookie protocolCookie, fallbackURL string) string {
 			scheme = parsed.Scheme
 		}
 	}
-	scope := (&url.URL{Scheme: scheme, Host: domain, Path: "/"}).String()
+	path := cookie.Path
+	if !strings.HasPrefix(path, "/") {
+		path = "/"
+	}
+	scope := (&url.URL{Scheme: scheme, Host: domain, Path: path}).String()
 	if !isNetworkBrowserURL(scope) {
 		return ""
 	}

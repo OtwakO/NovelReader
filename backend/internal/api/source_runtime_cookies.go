@@ -92,7 +92,7 @@ func (s *Server) verifyRuntimeCookiePassword(w http.ResponseWriter, r *http.Requ
 	}
 	if err := s.auth.VerifyCurrentPassword(r.Context(), password); err != nil {
 		if errors.Is(err, auth.ErrInvalidCredentials) {
-			writeError(w, http.StatusUnauthorized, "current password is incorrect")
+			writeError(w, http.StatusForbidden, "current password is incorrect")
 			return false
 		}
 		writeError(w, http.StatusServiceUnavailable, "runtime cookie management unavailable")
