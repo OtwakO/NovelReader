@@ -93,7 +93,9 @@ Do not add browser storage persistence unless the demonstrated login contract re
 
 Replace process-global placeholder device identity only after Git-history and contract analysis establish the earlier behavior and required scope. The likely owner is the reader runtime or Source Authentication module, exposed to JavaScript through SourceSession. It must be stable across restarts and requests, isolated between readers, and not regenerated per action.
 
-Whether identity is per reader or per reader/source remains an open design decision until the historical and upstream contracts are compared.
+The current compatibility target is an identity that the provider can register and report through its normal active-device/status workflow. This gives an observable end-to-end proof that login, token, device identity, and status requests agree. Preserve the exact cause and compatibility switch point once identified so a reader can intentionally reset or rotate NovelReader's local identity and understand that this may register a new provider-side device or require reauthentication.
+
+Whether identity is per reader or per reader/source remains an open design decision until the historical and upstream contracts are compared. Do not add a mode intended to evade an upstream device limit; local identity lifecycle controls must remain explicit account/session management, while provider-side counting and policy stay authoritative.
 
 ### Mediate browser-originated source requests safely
 
@@ -131,6 +133,16 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 
 **Consequences:** Secret reads need an explicit authenticated operation, masked-by-default UI, no client persistence, bounded validation, and session invalidation after changes.
 
+### Restore provider-visible device monitoring first
+
+**Decision:** Make the current login workflow register and appear through the provider's normal active-device/status contract before considering identity reset or rotation controls.
+
+**Why:** A provider-visible device is a stronger end-to-end compatibility signal than successful book reading alone. It proves the source's login, token, device identity, request, persistence, and status paths agree.
+
+**Alternatives:** Keeping the uncounted behavior as the default was rejected because its cause is unknown and may conceal an incorrect login implementation. Treating non-counting as a supported bypass was rejected because NovelReader should not deliberately evade an upstream device limit.
+
+**Consequences:** The workstream must record the regression cause and the exact identity lifecycle behavior. A later reader-facing control may inspect, unregister, reset, or rotate local identity with clear reauthentication/provider-device consequences, but not promise avoidance of provider policy.
+
 ### No source-specific compatibility patch
 
 **Decision:** Fix only demonstrated shared sourceprofile, SourceSession, analyzer, WebView, or sourceinteraction contracts.
@@ -152,7 +164,9 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 - [x] Reproduce the all-offline route symptom at the controlled-browser boundary: cross-origin `fetch` from a `data:` page fails with `TypeError` under Chromium CORS.
 - [x] Verify with a synthetic endpoint that the current aggregate login path can capture qttoken cookies and login information and invalidate later source sessions.
 - [x] Confirm runtime/login cookies currently have no reader-facing inspection or editing interface.
-- [ ] Compare Git history to the earlier implementation that registered as an active device.
+- [ ] Compare Git history to the earlier implementation that registered as an active device and identify the exact behavior change.
+- [ ] Restore provider-visible active-device monitoring through the normal login/status contract.
+- [ ] Define an explicit local device-identity reset/rotation lifecycle without promising provider-limit avoidance.
 - [ ] Finalize the runtime authentication representation and typed management interface.
 - [ ] Implement and verify cookie-scope-preserving browser synchronization.
 - [ ] Implement runtime-cookie inspection/editing API and UI.
@@ -206,6 +220,7 @@ Still needed:
 ## Open Questions
 
 - Should durable device identity be scoped per reader or per reader/source under the upstream Legado contract and historical working behavior?
+- After monitoring is restored, which explicit lifecycle operations are legitimate and useful: inspect identity, unregister/log out, reset, or rotate with reauthentication?
 - Should the authentication document evolve from URL-to-cookie-header strings to structured cookies, or can a normalized scoped-cookie interface preserve compatibility without a storage-shape change?
 - Should explicit secret reveal require only the current authenticated reader session, or current-password reauthentication? This affects UX and security and must be confirmed before implementing the frontend flow.
 - Does the real login/device workflow require browser storage in addition to cookies and login information? Add it only with evidence.
