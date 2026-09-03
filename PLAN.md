@@ -75,16 +75,17 @@ Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for un
 
 ## Active Work
 
-No substantial implementation workstream is currently active.
+- [Source Authentication and Session Foundation](docs/plans/2026-09-03-source-auth-session-foundation.md) — active investigation and implementation of correct shared login/session behavior, scoped runtime-cookie management, secret-safe diagnostics, and bounded controlled-browser networking.
 
 The completed [Source Collection availability](docs/plans/2026-09-02-source-collection-availability.md) work added a collection-level Search/Explore gate while preserving every member source's individual settings and existing shelf reading. The completed [reading document foundation](docs/plans/2026-09-02-reading-document-foundation.md) established the versioned prose-document, opaque-resource, and focused prose-renderer seams around the current BookSource text/image path.
 
 ## Immediate Priorities
 
-1. Select further compatibility slices from current evidence rather than historical unchecked boxes.
-2. Introduce provider capability interfaces only when a first non-BookSource provider is accepted; introduce image-sequence documents and structured locations only when that modality becomes active work.
-3. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
-4. Finish consistent display of source-provided `updateTime` metadata if that presentation improvement is prioritized.
+1. Complete the active source-authentication/session foundation from shared compatibility evidence, without committing private BookSources or authentication material.
+2. Select further compatibility slices from current evidence rather than historical unchecked boxes.
+3. Introduce provider capability interfaces only when a first non-BookSource provider is accepted; introduce image-sequence documents and structured locations only when that modality becomes active work.
+4. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
+5. Finish consistent display of source-provided `updateTime` metadata if that presentation improvement is prioritized.
 
 ## Durable Decisions
 
