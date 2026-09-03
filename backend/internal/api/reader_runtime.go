@@ -97,11 +97,12 @@ func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.U
 		_ = home.Close()
 		return nil, nil, fmt.Errorf("api: reconcile source profiles: %w", err)
 	}
-	readerSearcher := m.searcher.ForkReader(m.jsVM.ForkState(), analyzer.NewCacheManager(), sourceStore, bookStore, m.limits)
+	readerJS := m.jsVM.ForkStateWithDeviceID(readerstore.DeviceID(userID))
+	readerSearcher := m.searcher.ForkReader(readerJS, analyzer.NewCacheManager(), sourceStore, bookStore, m.limits)
 	readerSearcher.SetSourceSessionHydrator(sourceSessionHydrator(sourceProfiles))
 	runtime := &readerRuntime{
 		home: home, sourceStore: sourceStore, bookStore: bookStore, fontStore: fontStore, sourceProfiles: sourceProfiles,
-		sourceInteractions: sourceinteraction.NewDescriber(sourceStore, sourceProfiles, m.jsVM.ForkState()),
+		sourceInteractions: sourceinteraction.NewDescriber(sourceStore, sourceProfiles, readerJS.ForkState()),
 		browserSessions:    sourceinteraction.NewBrowserSessions(m.browser),
 		catalogs:           book.NewCatalogs(bookStore, sourceStore, readerSearcher),
 		searcher:           readerSearcher,

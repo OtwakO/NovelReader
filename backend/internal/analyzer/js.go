@@ -30,6 +30,7 @@ import (
 // Each eval borrows a runtime, executes, and returns it.
 type JSVM struct {
 	executor    *jsExecutor
+	deviceID    string
 	mu          sync.Mutex
 	cacheData   map[string]string      // java.put/java.get storage
 	memoryCache map[string]interface{} // cache.putMemory/cache.getFromMemory
@@ -103,7 +104,16 @@ func (vm *JSVM) ForkState() *JSVM {
 	if vm == nil {
 		return nil
 	}
-	return &JSVM{executor: vm.executor}
+	return &JSVM{executor: vm.executor, deviceID: vm.deviceID}
+}
+
+// ForkStateWithDeviceID shares execution capacity while binding one reader-owned device identity.
+func (vm *JSVM) ForkStateWithDeviceID(deviceID string) *JSVM {
+	fork := vm.ForkState()
+	if fork != nil {
+		fork.deviceID = deviceID
+	}
+	return fork
 }
 
 // LoadLib validates and sets shared JavaScript library code for every fresh runtime.
@@ -261,6 +271,7 @@ Map = function(a) {
 		"t2s":                     h.T2S,
 		"toast":                   toast,
 		"androidId":               h.AndroidId,
+		"deviceID":                h.AndroidId,
 		"log":                     h.Log,
 		"getString":               h.GetString,
 		"getElement":              h.GetElement,
@@ -777,7 +788,10 @@ func (h *jsHelpers) TimeFormat(ts int64) string {
 }
 
 func (h *jsHelpers) AndroidId() string {
-	return "goja-android-id" // ponytail: static value, used for API signing
+	if h.vm.deviceID != "" {
+		return h.vm.deviceID
+	}
+	return "goja-android-id"
 }
 
 func (h *jsHelpers) Log(msg interface{}) interface{} {

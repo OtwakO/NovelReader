@@ -91,11 +91,11 @@ Do not add browser storage persistence unless the demonstrated login contract re
 
 ### Use stable reader-owned runtime identity
 
-Replace process-global placeholder device identity only after Git-history and contract analysis establish the earlier behavior and required scope. The likely owner is the reader runtime or Source Authentication module, exposed to JavaScript through SourceSession. It must be stable across restarts and requests, isolated between readers, and not regenerated per action.
+Replace the process-global placeholder with one reader-owned identity injected through reader-scoped analyzer state. The user selected per-Reader scope shared across that reader's sources: it matches NovelReader's isolation boundary without registering one reader as many provider devices or correlating separate reader accounts. It must be stable across restarts and requests and not regenerated per action.
 
 The current compatibility target is an identity that the provider can register and report through its normal active-device/status workflow. This gives an observable end-to-end proof that login, token, device identity, and status requests agree. Preserve the exact cause and compatibility switch point once identified so a reader can intentionally reset or rotate NovelReader's local identity and understand that this may register a new provider-side device or require reauthentication.
 
-Whether identity is per reader or per reader/source remains an open design decision until the historical and upstream contracts are compared. Do not add a mode intended to evade an upstream device limit; local identity lifecycle controls must remain explicit account/session management, while provider-side counting and policy stay authoritative.
+History shows the static bridge value existed throughout both the earlier reportedly-counted behavior and the later credential split, so no exact active-device regression commit can be claimed. Do not add a mode intended to evade an upstream device limit; local identity lifecycle controls must remain explicit account/session management, while provider-side counting and policy stay authoritative.
 
 ### Mediate browser-originated source requests safely
 
@@ -174,14 +174,14 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 - [x] Reproduce the all-offline route symptom at the controlled-browser boundary: cross-origin `fetch` from a `data:` page fails with `TypeError` under Chromium CORS.
 - [x] Verify with a synthetic endpoint that the current aggregate login path can capture qttoken cookies and login information and invalidate later source sessions.
 - [x] Confirm runtime/login cookies currently have no reader-facing inspection or editing interface.
-- [ ] Compare Git history to the earlier implementation that registered as an active device and identify the exact behavior change.
+- [x] Compare Git history to the earlier implementation and record that no exact active-device regression commit is provable.
 - [ ] Restore provider-visible active-device monitoring through the normal login/status contract.
 - [ ] Define an explicit local device-identity reset/rotation lifecycle without promising provider-limit avoidance.
 - [x] Finalize the initial runtime-cookie representation and typed credential-module interface without changing the deployed authentication document shape.
 - [x] Implement the current-password-protected runtime-cookie HTTP interface.
 - [x] Implement and verify cookie-scope-preserving browser synchronization.
 - [x] Implement runtime-cookie inspection/editing API and UI.
-- [ ] Correct demonstrated runtime identity and Java bridge semantics.
+- [x] Correct demonstrated runtime identity and Java bridge semantics.
 - [ ] Add secret-safe login and Explore failure classifications.
 - [ ] Implement the bounded browser request seam for source-generated route checks.
 - [ ] Run focused deterministic verification and optional sanitized live compatibility checks.
@@ -194,7 +194,6 @@ The current architecture already separates portable Source Profile settings from
 Confirmed remaining gaps:
 
 - controlled Chromium rejects the aggregate route page's cross-origin probes because the page has an opaque `data:` origin;
-- `java.androidId()` is a process-global placeholder rather than a stable reader-owned identity;
 - `java.timeFormat()` returns an unformatted integer and does not satisfy status-panel date formatting;
 - Explore category failures redact the underlying secret cause correctly but provide no safe failure classification;
 - existing aggregate tests cover control rendering, settings actions, and Explore settings hydration, but not active-device registration, multi-domain browser cookie persistence, or real line status.
@@ -207,11 +206,13 @@ The Source Interaction sheet now contains a focused session-cookie editor. It lo
 
 Interactive browser close now imports each returned cookie against its own protocol URL or domain-derived HTTP(S) scope, falling back to the browser URL only for host-only cookies without scope metadata. Multi-domain browser sessions therefore remain separated instead of assigning every cookie to the final page URL. This fixes the demonstrated shared synchronization defect without changing the durable credential document.
 
+History establishes that the static `goja-android-id` value existed unchanged from the bridge's July 3 introduction through both the earlier reportedly-counted behavior and the August 30 durable credential split. Provider-visible device counting was never a first-class NovelReader contract, so no single later regression commit can be claimed honestly. The new contract is explicit instead: NovelReader derives one opaque stable device identifier from the immutable Reader ID, shares it across that reader's sources, and injects it into both `java.androidId()` and `java.deviceID()` through reader-scoped analyzer state. This needs no credential schema migration, reveals no Reader UUID, survives runtime recreation, and remains account-neutral across portable restore.
+
 No real credentials have been requested or stored.
 
 ## Next Action
 
-Finish the historical comparison for provider-visible active-device monitoring, concentrating on device identity scope and persistence across the August 30 credential split. Use that result to define the smallest stable reader-owned identity contract before changing `java.androidId()`.
+Implement bounded mediated requests for interactive browser pages so demonstrated opaque-origin CORS probes can use NovelReader's protected transport without weakening browser security globally. Preserve URL validation, timeout, cookie, redirect, and private-network controls.
 
 In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
@@ -232,11 +233,11 @@ Completed implementation verification:
 - authenticated runtime-cookie HTTP test passes for masked metadata, wrong-password denial, no-store reveal, replacement isolation, and durable storage;
 - focused frontend tests pass for masked initial metadata, password-protected reveal, fresh-password save, and return to masked state;
 - frontend typecheck and production build pass;
-- WebView client tests pass, including a regression proving cookies from two browser-returned domains remain scoped to those domains.
+- WebView client tests pass, including a regression proving cookies from two browser-returned domains remain scoped to those domains;
+- analyzer, readerstore, sourceinteraction, book, and API tests pass for the stable per-reader identity slice, including stable/different-reader derivation and both `java.androidId()`/`java.deviceID()` bindings.
 
 Still needed:
 
-- historical behavior comparison;
 - red-capable deterministic tests for each remaining implementation slice;
 - focused backend/frontend/WebView verification after changes;
 - optional local live login/status/Explore/route verification with sanitized evidence;
@@ -244,7 +245,6 @@ Still needed:
 
 ## Open Questions
 
-- Should durable device identity be scoped per reader or per reader/source under the upstream Legado contract and historical working behavior?
 - After monitoring is restored, which explicit lifecycle operations are legitimate and useful: inspect identity, unregister/log out, reset, or rotate with reauthentication?
 - Should the authentication document evolve from URL-to-cookie-header strings to structured cookies, or can a normalized scoped-cookie interface preserve compatibility without a storage-shape change?
 - Does the real login/device workflow require browser storage in addition to cookies and login information? Add it only with evidence.
