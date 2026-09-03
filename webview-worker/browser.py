@@ -19,7 +19,7 @@ PROTOCOL_VERSION = 4
 DEFAULT_TIMEOUT_MS = 30_000
 
 
-async def mediate_data_document_request(route, max_body_bytes: int, timeout_ms: int) -> None:
+async def mediate_data_document_request(route, context, max_body_bytes: int, timeout_ms: int) -> None:
     """Fulfill data-document fetch/XHR through a bounded public-network request."""
     request = route.request
     parsed = urlparse(request.url)
@@ -31,7 +31,12 @@ async def mediate_data_document_request(route, max_body_bytes: int, timeout_ms: 
         return
     try:
         await require_public_host(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
-        response = await route.fetch(timeout=timeout_ms, max_redirects=0)
+        headers = dict(request.headers)
+        if not any(key.lower() == "cookie" for key in headers):
+            cookies = await context.cookies([request.url])
+            if cookies:
+                headers["cookie"] = "; ".join(f"{cookie['name']}={cookie['value']}" for cookie in cookies)
+        response = await route.fetch(headers=headers, timeout=timeout_ms, max_redirects=0)
         if 300 <= response.status < 400:
             raise ValueError("mediated request redirects are unsupported")
         await require_public_response(response)
@@ -249,7 +254,7 @@ class BrowserWorker:
             if document is not None:
                 await page.route(
                     "**/*",
-                    lambda route: mediate_data_document_request(route, self.max_body_bytes, timeout_ms),
+                    lambda route: mediate_data_document_request(route, context, self.max_body_bytes, timeout_ms),
                 )
             await page.set_viewport_size({
                 "width": min(1920, max(320, int(viewport.get("width") or 390))),

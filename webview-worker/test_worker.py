@@ -250,7 +250,7 @@ class InteractiveConstructionFailureTest(unittest.IsolatedAsyncioTestCase):
 
 
 class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
-    async def test_fetch_request_is_fulfilled_without_browser_cors(self) -> None:
+    async def test_fetch_request_is_fulfilled_with_target_scoped_cookies(self) -> None:
         response = MagicMock()
         response.status = 200
         response.headers = {"content-type": "text/plain", "access-control-allow-origin": "https://other.test"}
@@ -259,17 +259,48 @@ class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
         route = MagicMock()
         route.request.url = "https://route.example.test/status"
         route.request.resource_type = "fetch"
+        route.request.headers = {"user-agent": "Browser"}
         route.fetch = AsyncMock(return_value=response)
         route.fulfill = AsyncMock()
+        context = MagicMock()
+        context.cookies = AsyncMock(return_value=[{"name": "session", "value": "ready"}])
 
         with patch("browser.require_public_host", new=AsyncMock()):
-            await mediate_data_document_request(route, 1024, 3000)
+            await mediate_data_document_request(route, context, 1024, 3000)
 
-        route.fetch.assert_awaited_once_with(timeout=3000, max_redirects=0)
+        context.cookies.assert_awaited_once_with(["https://route.example.test/status"])
+        route.fetch.assert_awaited_once_with(
+            headers={"user-agent": "Browser", "cookie": "session=ready"},
+            timeout=3000,
+            max_redirects=0,
+        )
         fulfilled = route.fulfill.await_args.kwargs
         self.assertEqual(fulfilled["status"], 200)
         self.assertEqual(fulfilled["body"], b"online")
         self.assertEqual(fulfilled["headers"]["access-control-allow-origin"], "null")
+
+    async def test_existing_cookie_header_is_preserved(self) -> None:
+        response = MagicMock()
+        response.status = 200
+        response.headers = {}
+        response.server_addr = AsyncMock(return_value={"ipAddress": "8.8.8.8", "port": 443})
+        response.body = AsyncMock(return_value=b"online")
+        route = MagicMock()
+        route.request.url = "https://route.example.test/status"
+        route.request.resource_type = "fetch"
+        route.request.headers = {"Cookie": "explicit=value"}
+        route.fetch = AsyncMock(return_value=response)
+        route.fulfill = AsyncMock()
+        context = MagicMock()
+        context.cookies = AsyncMock()
+
+        with patch("browser.require_public_host", new=AsyncMock()):
+            await mediate_data_document_request(route, context, 1024, 3000)
+
+        context.cookies.assert_not_awaited()
+        route.fetch.assert_awaited_once_with(
+            headers={"Cookie": "explicit=value"}, timeout=3000, max_redirects=0
+        )
 
     async def test_non_http_and_non_fetch_requests_are_not_mediated(self) -> None:
         for url, resource_type, expected in [
@@ -282,7 +313,7 @@ class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
             route.abort = AsyncMock()
             route.continue_ = AsyncMock()
             with patch("browser.require_public_host", new=AsyncMock()):
-                await mediate_data_document_request(route, 1024, 3000)
+                await mediate_data_document_request(route, MagicMock(), 1024, 3000)
             getattr(route, expected).assert_awaited_once()
             route.fetch.assert_not_called()
 
@@ -293,11 +324,14 @@ class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
         route = MagicMock()
         route.request.url = "https://route.example.test/status"
         route.request.resource_type = "fetch"
+        route.request.headers = {}
         route.fetch = AsyncMock(return_value=response)
         route.abort = AsyncMock()
+        context = MagicMock()
+        context.cookies = AsyncMock(return_value=[])
 
         with patch("browser.require_public_host", new=AsyncMock()):
-            await mediate_data_document_request(route, 1024, 3000)
+            await mediate_data_document_request(route, context, 1024, 3000)
 
         response.body.assert_not_called()
         route.abort.assert_awaited_once_with("failed")
@@ -310,15 +344,17 @@ class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
         route = MagicMock()
         route.request.url = "https://route.example.test/status"
         route.request.resource_type = "xhr"
+        route.request.headers = {}
         route.fetch = AsyncMock(return_value=response)
         route.abort = AsyncMock()
+        context = MagicMock()
+        context.cookies = AsyncMock(return_value=[])
 
         with patch("browser.require_public_host", new=AsyncMock()):
-            await mediate_data_document_request(route, 4, 3000)
+            await mediate_data_document_request(route, context, 4, 3000)
 
         route.abort.assert_awaited_once_with("failed")
         route.fulfill.assert_not_called()
-
 
     async def test_private_network_target_is_aborted_before_fetch(self) -> None:
         route = MagicMock()
@@ -327,7 +363,7 @@ class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
         route.fetch = AsyncMock()
         route.abort = AsyncMock()
 
-        await mediate_data_document_request(route, 1024, 3000)
+        await mediate_data_document_request(route, MagicMock(), 1024, 3000)
 
         route.fetch.assert_not_awaited()
         route.abort.assert_awaited_once_with("failed")
@@ -350,11 +386,16 @@ class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
 
 
 class DataDocumentChromiumRegressionTest(unittest.IsolatedAsyncioTestCase):
-    async def test_opaque_document_fetch_succeeds_through_mediator(self) -> None:
+    async def test_opaque_document_fetch_succeeds_with_target_scoped_cookie(self) -> None:
         async def handler(reader, writer) -> None:
-            await reader.readuntil(b"\r\n\r\n")
-            body = b"online"
-            writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 6\r\nConnection: close\r\n\r\n" + body)
+            request = (await reader.readuntil(b"\r\n\r\n")).lower()
+            body = b"authenticated" if b"cookie: session=ready" in request and b"unrelated=" not in request else b"missing"
+            writer.write(
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
+                + str(len(body)).encode()
+                + b"\r\nConnection: close\r\n\r\n"
+                + body
+            )
             await writer.drain()
             writer.close()
             await writer.wait_closed()
@@ -368,9 +409,16 @@ class DataDocumentChromiumRegressionTest(unittest.IsolatedAsyncioTestCase):
             await worker.start()
             try:
                 with patch("browser.require_public_host", new=AsyncMock()), patch("browser.require_public_response", new=AsyncMock()):
-                    browser, context, page = await worker._open_interactive_context({"url": target, "timeoutMs": 5000})
+                    browser, context, page = await worker._open_interactive_context({
+                        "url": target,
+                        "timeoutMs": 5000,
+                        "cookies": [
+                            {"name": "session", "value": "ready", "url": f"http://127.0.0.1:{port}/"},
+                            {"name": "unrelated", "value": "hidden", "url": "https://example.test/"},
+                        ],
+                    })
                     await page.wait_for_function("document.body.textContent.length > 0", timeout=5000)
-                    self.assertEqual(await page.text_content("body"), "online")
+                    self.assertEqual(await page.text_content("body"), "authenticated")
                 await context.close()
                 await worker._release_browser(browser, False)
             finally:

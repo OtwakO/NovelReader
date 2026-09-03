@@ -142,6 +142,46 @@ func TestClientRejectsWorkerProtocolErrors(t *testing.T) {
 	}
 }
 
+func TestInteractiveDataDocumentHydratesScopedCookiesWithoutGlobalHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request interactiveRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		if len(request.Headers) != 0 {
+			t.Fatalf("data document received global headers: %v", request.Headers)
+		}
+		if len(request.Cookies) != 2 {
+			t.Fatalf("cookies=%v", request.Cookies)
+		}
+		got := map[string]string{}
+		for _, cookie := range request.Cookies {
+			got[cookie.URL+"|"+cookie.Name] = cookie.Value
+		}
+		if got["https://route.example.test/|session"] != "ready" || got["https://identity.example.net/status|identity"] != "stable" {
+			t.Fatalf("scoped cookies=%v", got)
+		}
+		_ = json.NewEncoder(w).Encode(interactiveResult{Version: protocolVersion, InteractiveFrame: InteractiveFrame{SessionID: "session-1"}})
+	}))
+	defer server.Close()
+
+	session := sourceexec.NewSourceSession()
+	session.SetRequestHeaders(map[string]string{"Authorization": "Bearer source"})
+	if err := session.SetCookie("https://route.example.test/", "session", "ready"); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.SetCookie("https://identity.example.net/status", "identity", "stable"); err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(Config{Endpoint: server.URL, Timeout: 3 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.StartInteractive(t.Context(), "data:text/html;base64,PGh0bWw+", "Routes", InteractiveViewport{}, session); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInteractiveClosePreservesReturnedCookieDomains(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
