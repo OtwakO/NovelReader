@@ -237,7 +237,7 @@ Completed implementation verification:
 
 - runtime-cookie credential module tests pass for stable listing, replacement isolation, and invalid-input rejection;
 - authenticated runtime-cookie HTTP test passes for masked metadata, wrong-password denial, no-store reveal, replacement isolation, and durable storage;
-- focused frontend tests pass for masked initial metadata, password-protected reveal, fresh-password save, and return to masked state;
+- focused frontend tests pass for masked initial metadata, one-password reveal/edit/save, failed-save retry, and return to masked state;
 - frontend typecheck and production build pass;
 - WebView client tests pass, including a regression proving cookies from two browser-returned domains remain scoped to those domains;
 - analyzer, readerstore, sourceinteraction, book, and API tests pass for the stable per-reader identity slice, including stable/different-reader derivation and both `java.androidId()`/`java.deviceID()` bindings;
@@ -247,8 +247,8 @@ Completed implementation verification:
 - review regression passes for current-password denial without false application-session loss; later live evidence justified scoped-cookie hydration for opaque-page mediation while global login/source headers remain excluded;
 - frontend typecheck plus existing API error, Explore store, and Source Interaction sheet tests pass with the additive classification field;
 - full backend `go test ./...` passes;
-- full frontend suite passes: 51 files, 165 tests, followed by production build;
-- full WebView worker suite passes: 31 tests, followed by Python bytecode compilation;
+- full frontend suite passes: 51 files, 166 tests, followed by production build;
+- full WebView worker suite passes: 32 tests, followed by Python bytecode compilation;
 - `main...HEAD` has no diff-check errors or changed paths under `test-booksources/`; a branch-added-line credential scan found no token, cookie, authorization, or password value literals (only three translated `currentPassword` field labels).
 
 Deferred, not required for completion:
