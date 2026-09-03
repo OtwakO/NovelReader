@@ -87,6 +87,7 @@ jobs:
         run: |
           uv python install
           uv sync --frozen
+          uv run --frozen --no-sync patchright install chromium --with-deps
           uv run --frozen --no-sync python -m unittest discover -s . -p 'test_*.py'
           uv run --frozen --no-sync python -m py_compile browser.py worker.py
           uv run --frozen --no-sync python -c "import patchright; print('Patchright import passed')"

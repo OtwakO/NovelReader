@@ -183,7 +183,7 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 - [x] Implement runtime-cookie inspection/editing API and UI.
 - [x] Correct demonstrated runtime identity and Java bridge semantics.
 - [ ] Add secret-safe login and Explore failure classifications.
-- [ ] Implement the bounded browser request seam for source-generated route checks.
+- [x] Implement the bounded browser request seam for source-generated route checks.
 - [ ] Run focused deterministic verification and optional sanitized live compatibility checks.
 - [ ] Update current architecture and complete this plan.
 
@@ -193,7 +193,6 @@ The current architecture already separates portable Source Profile settings from
 
 Confirmed remaining gaps:
 
-- controlled Chromium rejects the aggregate route page's cross-origin probes because the page has an opaque `data:` origin;
 - `java.timeFormat()` returns an unformatted integer and does not satisfy status-panel date formatting;
 - Explore category failures redact the underlying secret cause correctly but provide no safe failure classification;
 - existing aggregate tests cover control rendering, settings actions, and Explore settings hydration, but not active-device registration, multi-domain browser cookie persistence, or real line status.
@@ -208,11 +207,13 @@ Interactive browser close now imports each returned cookie against its own proto
 
 History establishes that the static `goja-android-id` value existed unchanged from the bridge's July 3 introduction through both the earlier reportedly-counted behavior and the August 30 durable credential split. Provider-visible device counting was never a first-class NovelReader contract, so no single later regression commit can be claimed honestly. The new contract is explicit instead: NovelReader derives one opaque stable device identifier from the immutable Reader ID, shares it across that reader's sources, and injects it into both `java.androidId()` and `java.deviceID()` through reader-scoped analyzer state. This needs no credential schema migration, reveals no Reader UUID, survives runtime recreation, and remains account-neutral across portable restore.
 
+Controlled base64 HTML `data:` documents now receive a narrow WebView-worker mediator for fetch/XHR probes. It accepts only HTTP(S), rejects hostname resolutions containing any non-public address, follows no redirects, preserves the worker timeout/body limits, and grants access only to the opaque `null` origin. Other browser resources use normal Chromium handling. A real Chromium regression proves a generated opaque document can read a reachable route result through this seam without globally disabling browser security.
+
 No real credentials have been requested or stored.
 
 ## Next Action
 
-Implement bounded mediated requests for interactive browser pages so demonstrated opaque-origin CORS probes can use NovelReader's protected transport without weakening browser security globally. Preserve URL validation, timeout, cookie, redirect, and private-network controls.
+Add secret-safe login and Explore failure classifications, then correct the demonstrated `java.timeFormat()` compatibility gap. Keep client errors actionable without exposing source programs, URLs, headers, cookies, or response bodies.
 
 In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
@@ -234,7 +235,8 @@ Completed implementation verification:
 - focused frontend tests pass for masked initial metadata, password-protected reveal, fresh-password save, and return to masked state;
 - frontend typecheck and production build pass;
 - WebView client tests pass, including a regression proving cookies from two browser-returned domains remain scoped to those domains;
-- analyzer, readerstore, sourceinteraction, book, and API tests pass for the stable per-reader identity slice, including stable/different-reader derivation and both `java.androidId()`/`java.deviceID()` bindings.
+- analyzer, readerstore, sourceinteraction, book, and API tests pass for the stable per-reader identity slice, including stable/different-reader derivation and both `java.androidId()`/`java.deviceID()` bindings;
+- WebView worker suite passes with 30 tests, including mocked policy boundaries and a real Chromium regression proving opaque-document fetch succeeds through mediation.
 
 Still needed:
 

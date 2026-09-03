@@ -32,4 +32,6 @@ Backend and worker versions must be upgraded together when this protocol changes
 
 The same private worker also supports short-lived interactive login contexts. `WEBVIEW_INTERACTIVE_IDLE_SECONDS` (default 120) and `WEBVIEW_INTERACTIVE_ABSOLUTE_SECONDS` (default 600) enforce cleanup even when a client disappears. Interactive contexts share `WEBVIEW_MAX_PAGES` capacity with one-shot requests, are never persisted, and are closed on expiry or worker shutdown.
 
+Base64 HTML `data:` documents receive a narrow request mediator for their `fetch` and XHR probes. The mediator accepts only HTTP(S), rejects any hostname resolution containing non-public addresses, does not follow redirects, bounds timeout and response size, and authorizes only the opaque `null` document origin. Other resource types retain normal browser handling. This avoids globally disabling Chromium web security or exposing a general browser proxy.
+
 Do not expose this worker publicly: `POST /execute` accepts arbitrary navigation URLs by design.

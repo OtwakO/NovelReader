@@ -1,9 +1,12 @@
 """Capacity configuration checks for the headless browser worker."""
 
 import asyncio
+import base64
 import os
 import unittest
 from unittest.mock import AsyncMock, MagicMock, call, patch
+
+from patchright.async_api import async_playwright
 
 from interactive import InteractiveSessions
 
@@ -12,6 +15,8 @@ from browser import (
     await_or_source_match,
     capture_source_match,
     compile_source_regex,
+    mediate_data_document_request,
+    require_public_host,
 )
 from worker import capacity_settings
 
@@ -243,6 +248,128 @@ class InteractiveConstructionFailureTest(unittest.IsolatedAsyncioTestCase):
             await worker.close()
 
 
+class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
+    async def test_fetch_request_is_fulfilled_without_browser_cors(self) -> None:
+        response = MagicMock()
+        response.status = 200
+        response.headers = {"content-type": "text/plain", "access-control-allow-origin": "https://other.test"}
+        response.body = AsyncMock(return_value=b"online")
+        route = MagicMock()
+        route.request.url = "https://route.example.test/status"
+        route.request.resource_type = "fetch"
+        route.fetch = AsyncMock(return_value=response)
+        route.fulfill = AsyncMock()
+
+        with patch("browser.require_public_host", new=AsyncMock()):
+            await mediate_data_document_request(route, 1024, 3000)
+
+        route.fetch.assert_awaited_once_with(timeout=3000, max_redirects=0)
+        fulfilled = route.fulfill.await_args.kwargs
+        self.assertEqual(fulfilled["status"], 200)
+        self.assertEqual(fulfilled["body"], b"online")
+        self.assertEqual(fulfilled["headers"]["access-control-allow-origin"], "null")
+
+    async def test_non_http_and_non_fetch_requests_are_not_mediated(self) -> None:
+        for url, resource_type, expected in [
+            ("data:text/plain,local", "fetch", "abort"),
+            ("https://route.example.test/script.js", "script", "continue_"),
+        ]:
+            route = MagicMock()
+            route.request.url = url
+            route.request.resource_type = resource_type
+            route.abort = AsyncMock()
+            route.continue_ = AsyncMock()
+            with patch("browser.require_public_host", new=AsyncMock()):
+                await mediate_data_document_request(route, 1024, 3000)
+            getattr(route, expected).assert_awaited_once()
+            route.fetch.assert_not_called()
+
+    async def test_redirect_response_is_aborted(self) -> None:
+        response = MagicMock()
+        response.status = 302
+        route = MagicMock()
+        route.request.url = "https://route.example.test/status"
+        route.request.resource_type = "fetch"
+        route.fetch = AsyncMock(return_value=response)
+        route.abort = AsyncMock()
+
+        with patch("browser.require_public_host", new=AsyncMock()):
+            await mediate_data_document_request(route, 1024, 3000)
+
+        response.body.assert_not_called()
+        route.abort.assert_awaited_once_with("failed")
+
+    async def test_oversized_response_is_aborted(self) -> None:
+        response = MagicMock()
+        response.status = 200
+        response.headers = {}
+        response.body = AsyncMock(return_value=b"too large")
+        route = MagicMock()
+        route.request.url = "https://route.example.test/status"
+        route.request.resource_type = "xhr"
+        route.fetch = AsyncMock(return_value=response)
+        route.abort = AsyncMock()
+
+        with patch("browser.require_public_host", new=AsyncMock()):
+            await mediate_data_document_request(route, 4, 3000)
+
+        route.abort.assert_awaited_once_with("failed")
+        route.fulfill.assert_not_called()
+
+
+    async def test_private_network_target_is_aborted_before_fetch(self) -> None:
+        route = MagicMock()
+        route.request.url = "http://127.0.0.1/private"
+        route.request.resource_type = "fetch"
+        route.fetch = AsyncMock()
+        route.abort = AsyncMock()
+
+        await mediate_data_document_request(route, 1024, 3000)
+
+        route.fetch.assert_not_awaited()
+        route.abort.assert_awaited_once_with("failed")
+
+    async def test_public_host_check_rejects_any_non_public_resolution(self) -> None:
+        loop = MagicMock()
+        loop.getaddrinfo = AsyncMock(return_value=[
+            (None, None, None, None, ("203.0.113.5", 443)),
+            (None, None, None, None, ("127.0.0.1", 443)),
+        ])
+        with patch("browser.asyncio.get_running_loop", return_value=loop):
+            with self.assertRaisesRegex(ValueError, "non-public"):
+                await require_public_host("mixed.example", 443)
+
+
+class DataDocumentChromiumRegressionTest(unittest.IsolatedAsyncioTestCase):
+    async def test_opaque_document_fetch_succeeds_through_mediator(self) -> None:
+        async def handler(reader, writer) -> None:
+            await reader.readuntil(b"\r\n\r\n")
+            body = b"online"
+            writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 6\r\nConnection: close\r\n\r\n" + body)
+            await writer.drain()
+            writer.close()
+            await writer.wait_closed()
+
+        server = await asyncio.start_server(handler, "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        document = f"<script>fetch('http://127.0.0.1:{port}/status').then(r=>r.text()).then(v=>document.body.textContent=v).catch(e=>document.body.textContent=e.name)</script>"
+        target = "data:text/html;base64," + base64.b64encode(document.encode()).decode()
+        async with async_playwright() as playwright:
+            worker = BrowserWorker(playwright, 1, 1, 1024, 10)
+            await worker.start()
+            try:
+                with patch("browser.require_public_host", new=AsyncMock()):
+                    browser, context, page = await worker._open_interactive_context({"url": target, "timeoutMs": 5000})
+                    await page.wait_for_function("document.body.textContent.length > 0", timeout=5000)
+                    self.assertEqual(await page.text_content("body"), "online")
+                await context.close()
+                await worker._release_browser(browser, False)
+            finally:
+                await worker.close()
+                server.close()
+                await server.wait_closed()
+
+
 class InteractiveDataURLTest(unittest.IsolatedAsyncioTestCase):
     async def test_html_data_document_is_opened(self) -> None:
         browser = MagicMock()
@@ -253,6 +380,7 @@ class InteractiveDataURLTest(unittest.IsolatedAsyncioTestCase):
         page = MagicMock()
         page.set_viewport_size = AsyncMock()
         page.goto = AsyncMock()
+        page.route = AsyncMock()
         page.set_content = AsyncMock()
         context.new_page = AsyncMock(return_value=page)
         browser.new_context = AsyncMock(return_value=context)
@@ -264,6 +392,7 @@ class InteractiveDataURLTest(unittest.IsolatedAsyncioTestCase):
             target = "data:text/html;base64,PGgxPlNldHRpbmdzPC9oMT4="
             _, opened_context, _ = await worker._open_interactive_context({"url": target, "viewport": {"width": 1200, "height": 800, "deviceScaleFactor": 2}})
             browser.new_context.assert_awaited_once_with(extra_http_headers={}, device_scale_factor=2)
+            page.route.assert_awaited_once()
             page.set_content.assert_awaited_once_with("<h1>Settings</h1>", wait_until="domcontentloaded", timeout=30000)
             page.goto.assert_not_awaited()
             await opened_context.close()

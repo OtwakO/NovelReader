@@ -6,7 +6,9 @@ import asyncio
 import base64
 import binascii
 import contextlib
+import ipaddress
 import re
+import socket
 from urllib.parse import urlparse
 
 from patchright.async_api import async_playwright
@@ -15,6 +17,46 @@ from interactive import InteractiveSessions
 
 PROTOCOL_VERSION = 4
 DEFAULT_TIMEOUT_MS = 30_000
+
+
+async def mediate_data_document_request(route, max_body_bytes: int, timeout_ms: int) -> None:
+    """Fulfill data-document fetch/XHR through a bounded public-network request."""
+    request = route.request
+    parsed = urlparse(request.url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        await route.abort()
+        return
+    if request.resource_type not in {"fetch", "xhr"}:
+        await route.continue_()
+        return
+    try:
+        await require_public_host(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
+        response = await route.fetch(timeout=timeout_ms, max_redirects=0)
+        if 300 <= response.status < 400:
+            raise ValueError("mediated request redirects are unsupported")
+        body = await response.body()
+        if len(body) > max_body_bytes:
+            await route.abort("failed")
+            return
+        headers = {
+            key: value
+            for key, value in response.headers.items()
+            if key.lower() not in {"access-control-allow-origin", "content-length", "content-encoding"}
+        }
+        headers["access-control-allow-origin"] = "null"
+        await route.fulfill(status=response.status, headers=headers, body=body)
+    except Exception:
+        await route.abort("failed")
+
+
+async def require_public_host(host: str, port: int) -> None:
+    addresses = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    if not addresses:
+        raise ValueError("request host did not resolve")
+    for address in addresses:
+        ip = ipaddress.ip_address(address[4][0])
+        if not ip.is_global:
+            raise ValueError("request host resolves to a non-public address")
 
 
 class BrowserWorker:
@@ -191,12 +233,17 @@ class BrowserWorker:
             cookies = browser_cookies(request.get("cookies") or [], target)
             if cookies:
                 await context.add_cookies(cookies)
+            timeout_ms = int(request.get("timeoutMs") or DEFAULT_TIMEOUT_MS)
             page = await context.new_page()
+            if document is not None:
+                await page.route(
+                    "**/*",
+                    lambda route: mediate_data_document_request(route, self.max_body_bytes, timeout_ms),
+                )
             await page.set_viewport_size({
                 "width": min(1920, max(320, int(viewport.get("width") or 390))),
                 "height": min(1440, max(320, int(viewport.get("height") or 720))),
             })
-            timeout_ms = int(request.get("timeoutMs") or DEFAULT_TIMEOUT_MS)
             if document is not None:
                 await page.set_content(document, wait_until="domcontentloaded", timeout=timeout_ms)
             else:
