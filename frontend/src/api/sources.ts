@@ -51,6 +51,16 @@ export interface SourceBrowserInput {
 
 export type SourceInteractionResetScope = 'login' | 'settings' | 'all';
 
+export interface RuntimeCookieMetadata {
+  scope: string;
+  names: string[];
+}
+
+export interface RuntimeCookie {
+  scope: string;
+  header: string;
+}
+
 export interface BookSource {
   sourceId?: string; bookSourceUrl: string; bookSourceName: string; bookSourceGroup?: string; bookSourceType?: number; enabled: boolean; enabledExplore: boolean; collectionId?: string;
   searchUrl?: string; ruleSearch?: unknown; ruleBookInfo?: unknown; ruleToc?: unknown; ruleContent?: unknown; header?: string;
@@ -68,6 +78,15 @@ export function runSourceInteractionAction(sourceId: string, revision: string, a
 export function resetSourceInteraction(sourceId: string, scope: SourceInteractionResetScope) {
   const suffix = scope === 'all' ? '' : `/${scope}`;
   return request<SourceInteractionView>(`/sources/${encodeURIComponent(sourceId)}/interaction${suffix}`, { method: 'DELETE' });
+}
+export function getSourceRuntimeCookies(sourceId: string) {
+  return request<{ cookies: RuntimeCookieMetadata[] }>(`/sources/${encodeURIComponent(sourceId)}/interaction/runtime-cookies`);
+}
+export function revealSourceRuntimeCookies(sourceId: string, currentPassword: string) {
+  return request<{ cookies: RuntimeCookie[] }>(`/sources/${encodeURIComponent(sourceId)}/interaction/runtime-cookies/reveal`, { method: 'POST', body: JSON.stringify({ currentPassword }) });
+}
+export function replaceSourceRuntimeCookies(sourceId: string, currentPassword: string, cookies: RuntimeCookie[]) {
+  return request<{ cookies: RuntimeCookieMetadata[] }>(`/sources/${encodeURIComponent(sourceId)}/interaction/runtime-cookies`, { method: 'PUT', body: JSON.stringify({ currentPassword, cookies }) });
 }
 export function startSourceBrowser(sourceId: string, browserRequestId: string, width: number, height: number, deviceScaleFactor: number) {
   return request<SourceBrowserFrame>(`/sources/${encodeURIComponent(sourceId)}/interaction/browser`, { method: 'POST', body: JSON.stringify({ browserRequestId, width, height, deviceScaleFactor }) });

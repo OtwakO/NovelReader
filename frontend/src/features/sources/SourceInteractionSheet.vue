@@ -13,12 +13,13 @@ import {
 import { ApiError } from "../../api/transport";
 import AppButton from "../../ui/components/AppButton.vue";
 import SourceBrowserSession from "./SourceBrowserSession.vue";
+import RuntimeCookieEditor from "./RuntimeCookieEditor.vue";
 
 type PendingReset = SourceInteractionResetScope | null;
 
 export default defineComponent({
   name: "SourceInteractionSheet",
-  components: { AppButton, SourceBrowserSession },
+  components: { AppButton, RuntimeCookieEditor, SourceBrowserSession },
   props: { source: { type: Object as PropType<BookSource>, required: true } },
   emits: ["close", "refresh-explore"],
   data() {
@@ -163,6 +164,7 @@ export default defineComponent({
               <button v-else-if="control.type === 'unsupported'" class="unsupported" type="button" disabled>{{ control.label }} — {{ $t("sources.interaction.unsupported", { type: control.unsupported }) }}</button>
             </template>
           </form>
+          <RuntimeCookieEditor :key="view.revision" :source-id="source.sourceId!" />
           <section class="maintenance">
             <h3>{{ $t("sources.interaction.maintenance.title") }}</h3>
             <p>{{ $t("sources.interaction.maintenance.description") }}</p>

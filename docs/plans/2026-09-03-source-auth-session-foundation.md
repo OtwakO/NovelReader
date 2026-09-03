@@ -180,7 +180,7 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 - [x] Finalize the initial runtime-cookie representation and typed credential-module interface without changing the deployed authentication document shape.
 - [x] Implement the current-password-protected runtime-cookie HTTP interface.
 - [ ] Implement and verify cookie-scope-preserving browser synchronization.
-- [ ] Implement runtime-cookie inspection/editing API and UI.
+- [x] Implement runtime-cookie inspection/editing API and UI.
 - [ ] Correct demonstrated runtime identity and Java bridge semantics.
 - [ ] Add secret-safe login and Explore failure classifications.
 - [ ] Implement the bounded browser request seam for source-generated route checks.
@@ -191,9 +191,8 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 
 The current architecture already separates portable Source Profile settings from backup-excluded Source Authentication and hydrates both into SourceSession. Source actions capture settings/authentication and API actions invalidate cached source sessions. Interactive-browser Finish captures authentication and invalidates source sessions.
 
-Confirmed gaps:
+Confirmed remaining gaps:
 
-- runtime authentication is not exposed through any typed management interface or UI;
 - interactive browser cookies returned with domain metadata are imported against only one final URL, losing original scope;
 - controlled Chromium rejects the aggregate route page's cross-origin probes because the page has an opaque `data:` origin;
 - `java.androidId()` is a process-global placeholder rather than a stable reader-owned identity;
@@ -205,11 +204,13 @@ The first implementation slice adds `sourceprofile.Store.RuntimeCookies` and `Re
 
 The authenticated HTTP interface exposes masked scope/name metadata through the normal reader session and requires current-password confirmation for both value reveal and complete replacement. It reuses `auth.AccountService.VerifyPassword` through an auth-owned method, prevents credential response caching, and invalidates the affected source runtime after replacement. Sourceprofile and sourceinteraction do not receive password or account-authentication responsibilities.
 
+The Source Interaction sheet now contains a focused session-cookie editor. It loads only scopes and names initially, reveals values only after current-password confirmation, requires a fresh password to save, keeps values in component memory only, clears secret state on close/cancel/save, and immediately returns to masked metadata after replacement. The UI edits the existing complete scope-to-cookie-header document rather than source JSON or global state.
+
 No real credentials have been requested or stored.
 
 ## Next Action
 
-Implement the focused runtime-cookie UI inside the existing Source Interaction sheet. Load only masked metadata initially; request the current password when revealing or saving; keep revealed values only in component memory; clear password and revealed values when the sheet closes or after a successful save.
+Implement and verify cookie-scope-preserving synchronization when an interactive browser returns cookies from multiple domains. Preserve the existing durable scope-to-cookie-header representation and derive each imported scope from the returned cookie domain instead of collapsing all cookies onto the browser's final URL.
 
 In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
@@ -224,11 +225,16 @@ Verified before implementation:
 - a controlled Chromium `data:` page failed a reachable cross-origin CORS fetch with `TypeError`, reproducing the all-offline mechanism;
 - diagnostic probes created no tracked files and printed no credentials, token values, private URLs, or source programs.
 
+Completed implementation verification:
+
+- runtime-cookie credential module tests pass for stable listing, replacement isolation, and invalid-input rejection;
+- authenticated runtime-cookie HTTP test passes for masked metadata, wrong-password denial, no-store reveal, replacement isolation, and durable storage;
+- focused frontend tests pass for masked initial metadata, password-protected reveal, fresh-password save, and return to masked state;
+- frontend typecheck and production build pass.
+
 Still needed:
 
 - historical behavior comparison;
-- runtime-cookie credential module tests pass for stable listing, replacement isolation, and invalid-input rejection;
-- authenticated runtime-cookie HTTP test passes for masked metadata, wrong-password denial, no-store reveal, replacement isolation, and durable storage;
 - red-capable deterministic tests for each remaining implementation slice;
 - focused backend/frontend/WebView verification after changes;
 - optional local live login/status/Explore/route verification with sanitized evidence;
