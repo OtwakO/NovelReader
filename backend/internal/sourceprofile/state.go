@@ -3,7 +3,6 @@ package sourceprofile
 import (
 	"encoding/json"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/otwako/novelreader/internal/sourceexec"
@@ -68,16 +67,12 @@ func ApplyAuthentication(session *sourceexec.SourceSession, authentication Authe
 		session.SetLoginHeader(authentication.LoginHeader)
 	}
 	for rawURL, cookie := range authentication.Cookies {
-		cookiePath := "/"
-		if parsed, err := url.Parse(rawURL); err == nil && strings.HasPrefix(parsed.Path, "/") {
-			cookiePath = parsed.Path
-		}
 		pairs := strings.Split(cookie, ";")
 		cookies := make([]*http.Cookie, 0, len(pairs))
 		for _, pair := range pairs {
 			parts := strings.SplitN(strings.TrimSpace(pair), "=", 2)
 			if len(parts) == 2 {
-				cookies = append(cookies, &http.Cookie{Name: strings.TrimSpace(parts[0]), Value: strings.TrimSpace(parts[1]), Path: cookiePath})
+				cookies = append(cookies, &http.Cookie{Name: strings.TrimSpace(parts[0]), Value: strings.TrimSpace(parts[1]), Path: "/"})
 			}
 		}
 		_ = session.RemoveCookies(rawURL)

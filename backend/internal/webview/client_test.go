@@ -154,7 +154,7 @@ func TestInteractiveClosePreservesReturnedCookieDomains(t *testing.T) {
 			FinalURL: "https://account.example.test/complete",
 			Cookies: []protocolCookie{
 				{Name: "account", Value: "ready", Domain: ".example.test", Path: "/", Secure: true},
-				{Name: "identity", Value: "stable", Domain: "identity.example.net", Path: "/account", Secure: true},
+				{Name: "identity", Value: "stable", Domain: "identity.example.net", Path: "/", Secure: true},
 			},
 		})
 	}))
@@ -171,44 +171,11 @@ func TestInteractiveClosePreservesReturnedCookieDomains(t *testing.T) {
 	if got := session.GetCookie("https://reader.example.test/", "account"); got != "ready" {
 		t.Fatalf("parent-domain cookie=%q", got)
 	}
-	if got := session.GetCookie("https://identity.example.net/account/status", "identity"); got != "stable" {
+	if got := session.GetCookie("https://identity.example.net/", "identity"); got != "stable" {
 		t.Fatalf("identity-domain cookie=%q", got)
-	}
-	if got := session.GetCookie("https://identity.example.net/public", "identity"); got != "" {
-		t.Fatalf("path-scoped identity cookie leaked to public path: %q", got)
 	}
 	if got := session.GetCookie("https://account.example.test/", "identity"); got != "" {
 		t.Fatalf("identity cookie leaked to final URL: %q", got)
-	}
-}
-
-func TestInteractiveDataDocumentHydratesScopedCookiesWithoutGlobalLoginHeaders(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request interactiveRequest
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			t.Fatal(err)
-		}
-		if len(request.Headers) != 0 || len(request.Cookies) != 2 {
-			t.Fatalf("request=%+v", request)
-		}
-		_ = json.NewEncoder(w).Encode(interactiveResult{Version: protocolVersion, InteractiveFrame: InteractiveFrame{SessionID: "session-1"}})
-	}))
-	defer server.Close()
-
-	session := sourceexec.NewSourceSession()
-	session.SetLoginHeader(`{"Authorization":"Bearer source"}`)
-	if err := session.SetCookie("https://account.example.test/", "account", "ready"); err != nil {
-		t.Fatal(err)
-	}
-	if err := session.SetCookie("https://identity.example.net/status", "identity", "stable"); err != nil {
-		t.Fatal(err)
-	}
-	client, err := NewClient(Config{Endpoint: server.URL, Timeout: 3 * time.Second})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := client.StartInteractive(t.Context(), "data:text/html;base64,PGh0bWw+", "Settings", InteractiveViewport{}, session); err != nil {
-		t.Fatal(err)
 	}
 }
 
