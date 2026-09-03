@@ -184,7 +184,7 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 - [x] Correct demonstrated runtime identity and Java bridge semantics.
 - [x] Add secret-safe login and Explore failure classifications.
 - [x] Implement the bounded browser request seam for source-generated route checks.
-- [x] Run deterministic affected-area and full-suite verification; live provider compatibility remains explicitly pending credentials.
+- [x] Run deterministic verification and complete branch-first code/security review; live provider compatibility remains explicitly pending.
 - [ ] Update current architecture and complete this plan.
 
 ## Current State
@@ -215,7 +215,7 @@ No real credentials have been requested or stored.
 
 ## Next Action
 
-If provider-visible active-device monitoring must be proven now, run one explicit ignored local live workflow using credentials supplied outside commands/files and record only sanitized status/count/classification evidence. Otherwise review and merge the deterministic foundation first; do not claim provider registration is verified.
+Have the user run the reviewed branch against the ignored local aggregate source and report only sanitized outcomes: login success/failure classification, whether one provider-visible active device appears, whether Explore opens, and whether public route checks stop showing every line offline. Do not request credentials unless reproduction requires direct operator access.
 
 In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
@@ -250,8 +250,7 @@ Completed implementation verification:
 
 Still needed:
 
-- red-capable deterministic tests for each remaining implementation slice;
-- optional local live login/status/Explore verification with sanitized evidence;
+- optional local live login/status/Explore/route verification with sanitized evidence;
 - provider-visible active-device registration remains unverified without that live boundary;
 - a product decision on whether identity reset/rotation controls belong in this workstream or a later explicit lifecycle feature.
 
