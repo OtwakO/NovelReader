@@ -5,6 +5,34 @@ html { min-width: 20rem; background: var(--color-paper); }
 body { margin: 0; min-width: 20rem; min-height: 100dvh; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-ui); }
 button, input, select, textarea { font: inherit; }
 button, a, input, select { -webkit-tap-highlight-color: transparent; }
+
+@supports (appearance: base-select) {
+  select, ::picker(select) { appearance: base-select; }
+  select:open { border-radius: var(--select-radius, var(--radius-md)) var(--select-radius, var(--radius-md)) 0 0 !important; }
+  ::picker(select) {
+    inset: auto;
+    margin: 0;
+    inline-size: anchor-size(width);
+    max-inline-size: calc(100vw - 2rem);
+    max-block-size: min(22rem, 70dvh);
+    position-area: block-end span-inline-end;
+    position-try-fallbacks: none;
+    border: 1px solid var(--color-border);
+    border-block-start: 0;
+    border-radius: 0 0 var(--select-radius, var(--radius-md)) var(--select-radius, var(--radius-md));
+    overflow: auto;
+    background: var(--color-paper-raised);
+    box-shadow: var(--shadow-card);
+  }
+  select option {
+    min-block-size: 2.75rem;
+    padding: .65rem .75rem;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  select option:checked { background: var(--color-accent-soft); color: var(--color-accent-strong); }
+  select option:hover { background: var(--color-paper-muted); }
+}
 button, a { touch-action: manipulation; }
 a { color: var(--color-accent); }
 img { max-width: 100%; }

@@ -43,11 +43,11 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.result-card { display: grid; grid-template-columns: minmax(0, 1fr) 12.5rem; gap: .5rem .75rem; align-items: center; padding: .8rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
+.result-card { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 12.5rem; gap: .5rem .75rem; align-items: center; padding: .8rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
 .main { grid-column: 1; grid-row: 1 / span 2; min-width: 0; align-self: stretch; display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); gap: .8rem; align-items: center; border: 0; border-radius: var(--radius-md); padding: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .preview-action { grid-column: 2; grid-row: 1; width: 100%; align-self: end; }
-.cover { width: 3.5rem; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-sm); }.placeholder { display: grid; place-items: center; background: linear-gradient(145deg, var(--color-accent), var(--color-accent-strong)); color: white; font: 700 1.3rem var(--font-literary); }
-.info { min-width: 0; display: grid; gap: .2rem; color: var(--color-ink-muted); font-size: .82rem; }.info strong { overflow: hidden; color: var(--color-ink); font: 700 1rem var(--font-literary); text-overflow: ellipsis; white-space: nowrap; }.chapter { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.source { color: var(--color-accent); font-size: .75rem; }
+.cover { width: 3.5rem; border-radius: var(--radius-sm); }
+.info { min-width: 0; display: grid; gap: .2rem; overflow-wrap: anywhere; color: var(--color-ink-muted); font-size: .82rem; }.info strong { overflow: hidden; color: var(--color-ink); font: 700 1rem var(--font-literary); text-overflow: ellipsis; white-space: nowrap; }.chapter { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.source { min-width: 0; color: var(--color-accent); font-size: .75rem; }
 .main:hover .info strong { color: var(--color-accent-strong); }
 .main:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; }
 @media (max-width: 35rem) { .result-card { grid-template-columns: 1fr; }.main { grid-column: 1; grid-row: 1; grid-template-columns: 3.25rem minmax(0, 1fr); }.preview-action { grid-column: 1; grid-row: 2; align-self: auto; } }

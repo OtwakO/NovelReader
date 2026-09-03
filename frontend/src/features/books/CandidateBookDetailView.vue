@@ -214,7 +214,7 @@ export default defineComponent({
 .state-heading { display: grid; gap: .2rem; }.state-heading strong { font-family: var(--font-literary); }.state-heading span { color: var(--color-ink-muted); font-size: .82rem; }
 .state-actions,.hero-actions,.bottom-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }.bottom-actions { margin-top: 1rem; }
 .hero { display: grid; grid-template-columns: 9rem minmax(0,1fr); gap: 1.5rem; align-items: start; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
-.cover { width: 9rem; aspect-ratio: 2/3; object-fit: contain; background: var(--color-paper-muted); }
+.cover { width: 9rem; }
 .copy { min-width: 0; }.author,.meta { color: var(--color-ink-muted); }.author { margin-top: 0; }.meta { display: flex; flex-wrap: wrap; gap: .35rem .75rem; }
 .source { color: var(--color-accent-strong); overflow-wrap: anywhere; }.fallback { max-width: 44rem; border: 1px solid color-mix(in srgb,var(--color-accent) 32%,var(--color-border)); border-radius: var(--radius-md); padding: .55rem .7rem; background: var(--color-accent-soft); color: var(--color-accent-strong); font-size: .82rem; line-height: 1.45; overflow-wrap: anywhere; }
 .intro { max-width: 72ch; line-height: 1.75; white-space: pre-line; overflow-wrap: anywhere; }

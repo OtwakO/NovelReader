@@ -4,13 +4,14 @@ import { listBooks } from "../../api/books";
 import type { Book } from "../../api/models";
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
+import BookCover from "../books/BookCover.vue";
 import { readableChapterLabel } from "../books/book-display";
 import { currentChapterNumber, shelfProgressPercent } from "./shelf-progress";
 import { loadShelfViewState, saveShelfViewState, visibleShelfBooks, type ShelfSort } from "./shelf-view-state";
 
 export default defineComponent({
   name: "ShelfView",
-  components: { AppButton, FeatureScaffold },
+  components: { AppButton, BookCover, FeatureScaffold },
   data() {
     const view = loadShelfViewState();
     return { books: [] as Book[], loading: true, error: "", query: view.query, sort: view.sort as ShelfSort, restoreScrollY: view.scrollY };
@@ -62,9 +63,6 @@ export default defineComponent({
       );
     },
     coverURL(book: Book) { return book.coverDisplayUrl || ''; },
-    coverFailed(event: Event) {
-      (event.currentTarget as HTMLImageElement).classList.add("image-failed");
-    },
   },
 });
 </script>
@@ -104,13 +102,11 @@ export default defineComponent({
             :to="`/books/${encodeURIComponent(continueBook.id)}`"
             :aria-label="$t('shelf.detailsFor', { name: continueBook.name })"
           >
-            <span aria-hidden="true">{{ continueBook.name.slice(0, 1) }}</span>
-            <img
-              v-if="coverURL(continueBook)"
-              :src="coverURL(continueBook)"
+            <BookCover
+              :name="continueBook.name"
+              :url="coverURL(continueBook)"
               :alt="$t('shelf.coverAlt', { name: continueBook.name })"
-              @error="coverFailed"
-            >
+            />
           </RouterLink>
           <div class="continue-copy">
             <div class="continue-heading">
@@ -186,18 +182,11 @@ export default defineComponent({
         <div v-else class="book-grid">
           <article v-for="book in visibleBooks" :key="book.id" class="book-card">
             <RouterLink
-              class="book-cover"
+              class="shelf-cover"
               :to="`/books/${encodeURIComponent(book.id)}`"
               :aria-label="$t('shelf.detailsFor', { name: book.name })"
             >
-              <span aria-hidden="true">{{ book.name.slice(0, 1) }}</span>
-              <img
-                v-if="coverURL(book)"
-                :src="coverURL(book)"
-                alt=""
-                loading="lazy"
-                @error="coverFailed"
-              >
+              <BookCover :name="book.name" :url="coverURL(book)" alt="" lazy />
             </RouterLink>
             <div class="book-copy">
               <RouterLink :to="`/books/${encodeURIComponent(book.id)}`">
@@ -287,7 +276,7 @@ export default defineComponent({
 }
 .continue-panel {
   display: grid;
-  grid-template-columns: 8rem minmax(0, 1fr);
+  grid-template-columns: 11rem minmax(0, 1fr);
   gap: clamp(1.25rem, 3vw, 2rem);
   align-items: stretch;
   padding: clamp(1.1rem, 2.5vw, 1.6rem);
@@ -302,39 +291,24 @@ export default defineComponent({
   box-shadow: var(--shadow-card);
 }
 .continue-cover,
-.book-cover {
-  position: relative;
-  display: grid;
-  place-items: center;
+.shelf-cover {
+  display: block;
   overflow: hidden;
   background: var(--color-accent);
-  color: white;
-  font: 700 1.7rem var(--font-literary);
   text-decoration: none;
 }
 .continue-cover {
-  width: 8rem;
-  aspect-ratio: 2/3;
+  width: 11rem;
+  height: auto;
+  aspect-ratio: 3/4;
+  align-self: center;
   border-radius: 0;
   box-shadow: 0 0.55rem 1.1rem rgb(54 39 26/0.17);
 }
-.continue-cover img,
-.book-cover img {
-  position: absolute;
-  inset: 0;
+.continue-cover :deep(.book-cover),
+.shelf-cover :deep(.book-cover) {
   width: 100%;
   height: 100%;
-}
-.continue-cover img {
-  object-fit: contain;
-  background: var(--color-paper-muted);
-}
-.book-cover img {
-  object-fit: cover;
-}
-.continue-cover img.image-failed,
-.book-cover img.image-failed {
-  display: none;
 }
 .continue-copy {
   min-width: 0;
@@ -436,9 +410,11 @@ export default defineComponent({
   background: color-mix(in srgb, var(--color-accent-soft) 55%, var(--color-paper-raised));
   box-shadow: 0 0.35rem 0.75rem rgb(54 39 26 / 0.12);
 }
-.shelf-tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(11rem, auto); gap: .75rem; align-items: end; margin-bottom: 1rem; padding: .85rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
-.shelf-tools label { display: grid; gap: .3rem; color: var(--color-ink-muted); font-size: .75rem; font-weight: 700; }
-.shelf-tools input, .shelf-tools select { width: 100%; min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .55rem .7rem; background: white; color: var(--color-ink); font: inherit; }
+.shelf-tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(11rem, 18rem); gap: 1rem; align-items: end; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
+.shelf-tools label { min-width: 0; display: grid; gap: .3rem; }
+.shelf-tools label > span { color: var(--color-ink-muted); font-size: .78rem; font-weight: 700; }
+.shelf-tools input, .shelf-tools select { width: 100%; min-width: 0; max-width: 100%; min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .55rem .7rem; background: white; color: var(--color-ink); font: 400 1rem/1.25 var(--font-ui); }
+.shelf-tools select { --select-radius: var(--radius-md); align-items: center; }
 .no-matches { display: grid; justify-items: center; gap: .75rem; padding: 2rem 1rem; border: 1px dashed var(--color-border); color: var(--color-ink-muted); text-align: center; }
 .no-matches p { margin: 0; }
 .book-grid {
@@ -462,17 +438,17 @@ export default defineComponent({
   box-shadow: 0 0.75rem 1.5rem rgb(54 39 26 / 0.12);
   transform: translateY(-0.15rem);
 }
-.book-cover {
+.shelf-cover {
   width: 100%;
-  aspect-ratio: 2/3;
+  aspect-ratio: 3/4;
   border-radius: 0;
   box-shadow: inset 0.22rem 0 rgb(255 255 255 / 0.12), inset -0.08rem 0 rgb(0 0 0 / 0.12), 0 0.5rem 1rem rgb(54 39 26/0.14);
   transition:
     transform 0.2s ease-out,
     box-shadow 0.2s ease-out;
 }
-.book-card:hover .book-cover,
-.book-card:focus-within .book-cover {
+.book-card:hover .shelf-cover,
+.book-card:focus-within .shelf-cover {
   transform: translateY(-0.12rem);
   box-shadow: inset 0.22rem 0 rgb(255 255 255 / 0.14), inset -0.08rem 0 rgb(0 0 0 / 0.14), 0 0.75rem 1.35rem rgb(54 39 26/0.18);
 }
@@ -553,10 +529,10 @@ export default defineComponent({
 }
 @media (max-width: 48rem) {
   .continue-panel {
-    grid-template-columns: 6.5rem minmax(0, 1fr);
+    grid-template-columns: 8rem minmax(0, 1fr);
   }
   .continue-cover {
-    width: 6.5rem;
+    width: 8rem;
   }
   .book-grid {
     grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
@@ -566,11 +542,11 @@ export default defineComponent({
 @media (max-width: 34rem) {
   .shelf-tools { grid-template-columns: 1fr; }
   .continue-panel {
-    grid-template-columns: 5.25rem minmax(0, 1fr);
+    grid-template-columns: 6.25rem minmax(0, 1fr);
     gap: 1rem;
   }
   .continue-cover {
-    width: 5.25rem;
+    width: 6.25rem;
   }
   .continue-heading {
     display: block;

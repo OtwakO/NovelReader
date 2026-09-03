@@ -328,7 +328,7 @@ export default defineComponent({
 }
 .hero {
   display: grid;
-  grid-template-columns: 9rem minmax(0, 1fr);
+  grid-template-columns: 12rem minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
   padding: 1rem;
@@ -337,11 +337,9 @@ export default defineComponent({
   background: var(--color-paper-raised);
 }
 .cover {
-  width: 9rem;
-  aspect-ratio: 2/3;
-  object-fit: contain;
+  width: 12rem;
+  align-self: center;
   border-radius: 0;
-  background: var(--color-paper-muted);
 }
 .identity {
   min-width: 0;
@@ -390,9 +388,10 @@ export default defineComponent({
   font-weight: 700;
 }
 .intro {
-  max-width: 72ch;
+  width: 100%;
   margin: 0;
   line-height: 1.75;
+  overflow-wrap: anywhere;
   white-space: pre-line;
 }
 .confirmation {
@@ -416,11 +415,11 @@ export default defineComponent({
 }
 @media (max-width: 38rem) {
   .hero {
-    grid-template-columns: 6rem minmax(0, 1fr);
+    grid-template-columns: 7rem minmax(0, 1fr);
     gap: 1rem;
   }
   .cover {
-    width: 6rem;
+    width: 7rem;
   }
   .actions {
     grid-column: 1/-1;

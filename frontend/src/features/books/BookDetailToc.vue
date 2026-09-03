@@ -38,7 +38,7 @@ export default defineComponent({
     visibleChapters(): Chapter[] {
       return this.expanded || this.query
         ? this.filteredChapters
-        : this.filteredChapters.slice(0, 80);
+        : this.filteredChapters.slice(0, 40);
     },
     canExpand(): boolean {
       return (
