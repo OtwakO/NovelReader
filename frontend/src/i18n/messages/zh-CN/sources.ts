@@ -9,6 +9,12 @@ export default {
   searchPlaceholder: "名称、网址或分组",
   group: "分组",
   allGroups: "全部分组",
+  enabledFilter: {
+    label: "状态",
+    all: "全部状态",
+    enabled: "已启用",
+    disabled: "已停用",
+  },
   enabled: "启用",
   exploreEnabled: "启用发现",
   edit: "编辑 JSON",

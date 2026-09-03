@@ -146,6 +146,29 @@ func (s *Store) Upsert(src *BookSource) error {
 	return upsertSource(context.Background(), s.db, src, collectionID.String, time.Now())
 }
 
+// UpdatePreferences changes management preferences without replacing the source definition.
+func (s *Store) UpdatePreferences(id string, enabled, enabledExplore *bool) (*BookSource, error) {
+	if enabled == nil && enabledExplore == nil {
+		return nil, fmt.Errorf("booksource: source preference update is empty")
+	}
+	result, err := s.db.Exec(`UPDATE book_sources SET
+		enabled = COALESCE(?, enabled),
+		enabled_explore = COALESCE(?, enabled_explore),
+		updated_at = ?
+		WHERE id = ?`, nullableBoolValue(enabled), nullableBoolValue(enabledExplore), time.Now().Unix(), id)
+	if err != nil {
+		return nil, fmt.Errorf("booksource: update preferences %s: %w", id, err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("booksource: update preferences result %s: %w", id, err)
+	}
+	if count == 0 {
+		return nil, nil
+	}
+	return s.GetByID(id)
+}
+
 // Delete removes an installed source definition by immutable Source ID.
 func (s *Store) Delete(id string) error {
 	_, err := s.db.Exec(`DELETE FROM book_sources WHERE id = ?`, id)

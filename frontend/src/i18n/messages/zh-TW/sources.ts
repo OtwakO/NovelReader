@@ -9,6 +9,12 @@ export default {
   searchPlaceholder: "名稱、網址或群組",
   group: "群組",
   allGroups: "全部群組",
+  enabledFilter: {
+    label: "狀態",
+    all: "全部狀態",
+    enabled: "已啟用",
+    disabled: "已停用",
+  },
   enabled: "啟用",
   exploreEnabled: "啟用發現",
   edit: "編輯 JSON",

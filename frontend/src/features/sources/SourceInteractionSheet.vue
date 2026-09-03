@@ -4,7 +4,7 @@ import {
   getSourceInteraction,
   resetSourceInteraction,
   runSourceInteractionAction,
-  type BookSource,
+  type BookSourceIdentity,
   type SourceInteractionActionResult,
   type SourceInteractionEffect,
   type SourceInteractionResetScope,
@@ -20,7 +20,7 @@ type PendingReset = SourceInteractionResetScope | null;
 export default defineComponent({
   name: "SourceInteractionSheet",
   components: { AppButton, RuntimeCookieEditor, SourceBrowserSession },
-  props: { source: { type: Object as PropType<BookSource>, required: true } },
+  props: { source: { type: Object as PropType<BookSourceIdentity>, required: true } },
   emits: ["close", "refresh-explore"],
   data() {
     return {

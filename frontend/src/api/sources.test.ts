@@ -1,11 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetSourceInteraction, runSourceInteractionAction, startSourceBrowser, updateSource } from './sources';
+import { getSource, resetSourceInteraction, runSourceInteractionAction, startSourceBrowser, updateSource, updateSourcePreferences } from './sources';
 
 const request = vi.fn();
 vi.mock('./transport', () => ({ request: (...args: unknown[]) => request(...args) }));
 
 describe('source transport', () => {
   beforeEach(() => request.mockReset());
+  it('loads one complete definition only when requested', async () => {
+    request.mockResolvedValue({});
+    await getSource('source/id');
+    expect(request).toHaveBeenCalledWith('/sources/source%2Fid');
+  });
+  it('patches source preferences without replacing the definition', async () => {
+    request.mockResolvedValue({});
+    await updateSourcePreferences('source/id', { enabled: false });
+    expect(request).toHaveBeenCalledWith('/sources/source%2Fid', { method: 'PATCH', body: JSON.stringify({ enabled: false }) });
+  });
   it('updates a definition through its immutable Source ID', async () => {
     const source={bookSourceUrl:'https://source.example',bookSourceName:'Source',enabled:true,enabledExplore:false,unknown:'kept'};
     request.mockResolvedValue(source); await updateSource('source-id',source);

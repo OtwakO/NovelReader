@@ -9,6 +9,12 @@ export default {
   searchPlaceholder: "Name, URL, or group",
   group: "Group",
   allGroups: "All groups",
+  enabledFilter: {
+    label: "Status",
+    all: "All statuses",
+    enabled: "Enabled",
+    disabled: "Disabled",
+  },
   enabled: "Enabled",
   exploreEnabled: "Explore enabled",
   edit: "Edit JSON",

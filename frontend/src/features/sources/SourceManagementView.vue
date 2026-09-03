@@ -2,10 +2,13 @@
 import { defineComponent } from "vue";
 import {
   deleteSource,
+  getSource,
   importSources,
   listSources,
   updateSource,
+  updateSourcePreferences,
   type BookSource,
+  type BookSourceSummary,
 } from "../../api/sources";
 import {
   createUploadCollection,
@@ -32,12 +35,8 @@ import {
   pageRange,
 } from "./source-pagination";
 import {
-  isJavaScriptSource,
-  isSearchEligible,
-  isWebViewSource,
   parseSourceImport,
   selectedImportJSON,
-  sourceCapabilities,
   type SourceImportPreview,
 } from "./source-import";
 export default defineComponent({
@@ -52,7 +51,7 @@ export default defineComponent({
   },
   data() {
     return {
-      sources: [] as BookSource[],
+      sources: [] as BookSourceSummary[],
       collections: [] as SourceCollection[],
       selectedCollectionId: "all",
       collectionDialog: false,
@@ -66,15 +65,16 @@ export default defineComponent({
       notice: "",
       query: "",
       group: "",
+      enabledFilter: "all" as "all" | "enabled" | "disabled",
       importItems: [] as SourceImportPreview[],
       importFile: "",
       importing: false,
       importError: "",
       editing: null as BookSource | null,
-      interacting: null as BookSource | null,
+      interacting: null as BookSourceSummary | null,
       editorBusy: false,
       editorError: "",
-      pendingDelete: null as BookSource | null,
+      pendingDelete: null as BookSourceSummary | null,
       busyUrl: "",
       page: 1,
       pageSize: 25,
@@ -91,7 +91,7 @@ export default defineComponent({
         ),
       ].sort((a, b) => a.localeCompare(b));
     },
-    filtered(): BookSource[] {
+    filtered(): BookSourceSummary[] {
       const query = this.query.trim().toLocaleLowerCase();
       return this.sources.filter(
         (source) =>
@@ -100,6 +100,8 @@ export default defineComponent({
               ? !source.collectionId
               : source.collectionId === this.selectedCollectionId)) &&
           (!this.group || source.bookSourceGroup === this.group) &&
+          (this.enabledFilter === "all" ||
+            source.enabled === (this.enabledFilter === "enabled")) &&
           (!query ||
             `${source.bookSourceName}\n${source.bookSourceUrl}\n${source.bookSourceGroup || ""}`
               .toLocaleLowerCase()
@@ -109,7 +111,7 @@ export default defineComponent({
     totalPages(): number {
       return pageCount(this.filtered.length, this.pageSize);
     },
-    visibleSources(): BookSource[] {
+    visibleSources(): BookSourceSummary[] {
       return pageItems(this.filtered, this.page, this.pageSize);
     },
     visibleRange(): { start: number; end: number } {
@@ -124,15 +126,15 @@ export default defineComponent({
       ).length;
     },
     searchableCount(): number {
-      return this.sources.filter((source) => this.collectionAvailable(source) && isSearchEligible(source)).length;
+      return this.sources.filter((source) => this.collectionAvailable(source) && source.searchable).length;
     },
     javascriptCount(): number {
-      return this.sources.filter(isJavaScriptSource).length;
+      return this.sources.filter((source) => source.capabilities.includes("javascript")).length;
     },
     webViewCount(): number {
-      return this.sources.filter(isWebViewSource).length;
+      return this.sources.filter((source) => source.capabilities.includes("webview")).length;
     },
-    selectedCollectionSources(): BookSource[] {
+    selectedCollectionSources(): BookSourceSummary[] {
       return this.sources.filter(
         (source) => source.collectionId === this.selectedCollectionId,
       );
@@ -149,12 +151,12 @@ export default defineComponent({
       return {
         total: sources.length,
         enabled: sources.filter((source) => this.collectionAvailable(source) && source.enabled).length,
-        searchable: sources.filter((source) => this.collectionAvailable(source) && isSearchEligible(source)).length,
+        searchable: sources.filter((source) => this.collectionAvailable(source) && source.searchable).length,
         explore: sources.filter(
           (source) => this.collectionAvailable(source) && source.enabled && source.enabledExplore && source.exploreUrl,
         ).length,
-        javascript: sources.filter(isJavaScriptSource).length,
-        webview: sources.filter(isWebViewSource).length,
+        javascript: sources.filter((source) => source.capabilities.includes("javascript")).length,
+        webview: sources.filter((source) => source.capabilities.includes("webview")).length,
       };
     },
   },
@@ -163,6 +165,9 @@ export default defineComponent({
       this.page = 1;
     },
     group() {
+      this.page = 1;
+    },
+    enabledFilter() {
       this.page = 1;
     },
     selectedCollectionId() {
@@ -176,7 +181,7 @@ export default defineComponent({
     await this.load();
   },
   methods: {
-    collectionAvailable(source: BookSource): boolean {
+    collectionAvailable(source: BookSourceSummary): boolean {
       if (!source.collectionId) return true;
       return this.collections.find((collection) => collection.id === source.collectionId)?.enabled !== false;
     },
@@ -200,12 +205,12 @@ export default defineComponent({
         this.loading = false;
       }
     },
-    collectionName(source: BookSource): string {
+    collectionName(source: BookSourceSummary): string {
       if (!source.collectionId) return this.$t("sources.collections.standalone");
       return this.collections.find((item) => item.id === source.collectionId)?.name || "";
     },
-    capabilities(source: BookSource) {
-      return sourceCapabilities(source);
+    capabilities(source: BookSourceSummary) {
+      return source.capabilities;
     },
     openCollectionDialog(collection: SourceCollection | null = null) {
       this.editingCollection = collection;
@@ -338,6 +343,17 @@ export default defineComponent({
         this.importing = false;
       }
     },
+    async openEditor(source: BookSourceSummary) {
+      this.busyUrl = source.sourceId;
+      this.editorError = "";
+      try {
+        this.editing = await getSource(source.sourceId);
+      } catch (cause) {
+        this.error = cause instanceof Error ? cause.message : this.$t("sources.loadFailed");
+      } finally {
+        this.busyUrl = "";
+      }
+    },
     async saveSource(source: BookSource) {
       if (!this.editing) return;
       this.editorBusy = true;
@@ -356,12 +372,11 @@ export default defineComponent({
         this.editorBusy = false;
       }
     },
-    async toggle(source: BookSource, field: "enabled" | "enabledExplore") {
-      this.busyUrl = source.sourceId!;
+    async toggle(source: BookSourceSummary, field: "enabled" | "enabledExplore") {
+      this.busyUrl = source.sourceId;
       this.error = "";
       try {
-        await updateSource(source.sourceId!, {
-          ...source,
+        await updateSourcePreferences(source.sourceId, {
           [field]: !source[field],
         });
         await this.load();
@@ -474,11 +489,15 @@ export default defineComponent({
             v-model="query"
             type="search"
             :placeholder="$t('sources.searchPlaceholder')"
-></label><label><span>{{ $t("sources.group") }}</span><select v-model="group">
+></label><label class="select-filter"><span>{{ $t("sources.group") }}</span><select v-model="group">
             <option value="">{{ $t("sources.allGroups") }}</option>
             <option v-for="value in groups" :key="value" :value="value">
               {{ value }}
             </option>
+          </select></label><label class="select-filter"><span>{{ $t("sources.enabledFilter.label") }}</span><select v-model="enabledFilter">
+            <option value="all">{{ $t("sources.enabledFilter.all") }}</option>
+            <option value="enabled">{{ $t("sources.enabledFilter.enabled") }}</option>
+            <option value="disabled">{{ $t("sources.enabledFilter.disabled") }}</option>
           </select></label>
       </section>
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
@@ -543,7 +562,7 @@ export default defineComponent({
  </AppButton><AppButton
                variant="secondary"
                :disabled="busyUrl === source.sourceId"
-               @click="editing = source"
+               @click="openEditor(source)"
                >
  {{ $t("sources.edit") }}
  </AppButton><AppButton
@@ -821,7 +840,7 @@ export default defineComponent({
   display: grid;
   gap: 0.3rem;
 }
-.filters label:last-child {
+.filters .select-filter {
   max-width: 18rem;
 }
 .filters span {

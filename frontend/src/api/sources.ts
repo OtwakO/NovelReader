@@ -61,13 +61,24 @@ export interface RuntimeCookie {
   header: string;
 }
 
+export interface BookSourceIdentity {
+  sourceId: string; bookSourceUrl: string; bookSourceName: string;
+}
+
+export interface BookSourceSummary extends BookSourceIdentity {
+  bookSourceGroup?: string; bookSourceType?: number; enabled: boolean; enabledExplore: boolean; collectionId?: string;
+  exploreUrl?: string; bookSourceComment?: string; capabilities: string[]; searchable: boolean;
+}
+
 export interface BookSource {
   sourceId?: string; bookSourceUrl: string; bookSourceName: string; bookSourceGroup?: string; bookSourceType?: number; enabled: boolean; enabledExplore: boolean; collectionId?: string;
-  searchUrl?: string; ruleSearch?: unknown; ruleBookInfo?: unknown; ruleToc?: unknown; ruleContent?: unknown; header?: string;
+  searchUrl?: string; exploreUrl?: string; ruleSearch?: unknown; ruleBookInfo?: unknown; ruleToc?: unknown; ruleContent?: unknown; header?: string;
   [key: string]: unknown;
 }
 
-export function listSources() { return request<BookSource[]>('/sources'); }
+export function listSources() { return request<BookSourceSummary[]>('/sources'); }
+export function getSource(sourceId: string) { return request<BookSource>(`/sources/${encodeURIComponent(sourceId)}`); }
+export function updateSourcePreferences(sourceId: string, update: { enabled?: boolean; enabledExplore?: boolean }) { return request<BookSourceSummary>(`/sources/${encodeURIComponent(sourceId)}`, { method: 'PATCH', body: JSON.stringify(update) }); }
 export function importSources(data: string) { return request<{ imported: number; total: number }>('/sources', { method: 'POST', body: data }); }
 export function updateSource(sourceId: string, source: BookSource) { return request<BookSource>(`/sources?id=${encodeURIComponent(sourceId)}`, { method: 'PUT', body: JSON.stringify(source) }); }
 export function deleteSource(sourceId: string) { return request<{ status: string }>(`/sources?id=${encodeURIComponent(sourceId)}`, { method: 'DELETE' }); }

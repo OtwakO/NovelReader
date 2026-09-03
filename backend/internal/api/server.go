@@ -155,6 +155,8 @@ func (s *Server) registerRoutesWithoutHealth() {
 	// Book sources — URLs with slashes can't go in path segments, use query param
 	s.mux.HandleFunc("GET /api/sources", s.handleListSources)
 	s.mux.HandleFunc("POST /api/sources", s.handleImportSources)
+	s.mux.HandleFunc("GET /api/sources/{id}", s.handleGetSource)
+	s.mux.HandleFunc("PATCH /api/sources/{id}", s.handleUpdateSourcePreferences)
 	s.mux.HandleFunc("GET /api/source-collections", s.handleListSourceCollections)
 	s.mux.HandleFunc("POST /api/source-collections/upload", s.handleCreateUploadCollection)
 	s.mux.HandleFunc("POST /api/source-collections/url", s.handleCreateURLCollection)
@@ -309,12 +311,53 @@ func (s *Server) handleListSources(w http.ResponseWriter, r *http.Request) {
 	if sources == nil {
 		sources = []booksource.BookSource{}
 	}
-	responses, err := sourceManagementResponses(sources)
+	writeJSON(w, http.StatusOK, sourceManagementSummaries(sources))
+}
+
+func (s *Server) handleGetSource(w http.ResponseWriter, r *http.Request) {
+	source, err := s.sourceStore.GetByID(r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, responses)
+	if source == nil {
+		writeError(w, http.StatusNotFound, "source not found")
+		return
+	}
+	response, err := sourceManagementResponseFor(*source)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+type sourcePreferenceUpdateRequest struct {
+	Enabled        *bool `json:"enabled"`
+	EnabledExplore *bool `json:"enabledExplore"`
+}
+
+func (s *Server) handleUpdateSourcePreferences(w http.ResponseWriter, r *http.Request) {
+	var request sourcePreferenceUpdateRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid source preference update")
+		return
+	}
+	if request.Enabled == nil && request.EnabledExplore == nil {
+		writeError(w, http.StatusBadRequest, "source preference update is empty")
+		return
+	}
+	source, err := s.sourceStore.UpdatePreferences(r.PathValue("id"), request.Enabled, request.EnabledExplore)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if source == nil {
+		writeError(w, http.StatusNotFound, "source not found")
+		return
+	}
+	s.closeSourceRuntime(source.ID)
+	writeJSON(w, http.StatusOK, sourceManagementSummaries([]booksource.BookSource{*source})[0])
 }
 
 func (s *Server) handleImportSources(w http.ResponseWriter, r *http.Request) {
