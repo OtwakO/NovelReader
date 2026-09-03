@@ -184,7 +184,7 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 - [x] Correct demonstrated runtime identity and Java bridge semantics.
 - [x] Add secret-safe login and Explore failure classifications.
 - [x] Implement the bounded browser request seam for source-generated route checks.
-- [ ] Run focused deterministic verification and optional sanitized live compatibility checks.
+- [x] Run deterministic affected-area and full-suite verification; live provider compatibility remains explicitly pending credentials.
 - [ ] Update current architecture and complete this plan.
 
 ## Current State
@@ -215,7 +215,7 @@ No real credentials have been requested or stored.
 
 ## Next Action
 
-Run final affected-area verification, inspect the complete branch diff for scope and credential leakage, and perform optional sanitized local compatibility checks only if they can add evidence unavailable from deterministic tests.
+If provider-visible active-device monitoring must be proven now, run one explicit ignored local live workflow using credentials supplied outside commands/files and record only sanitized status/count/classification evidence. Otherwise review and merge the deterministic foundation first; do not claim provider registration is verified.
 
 In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
@@ -241,18 +241,22 @@ Completed implementation verification:
 - WebView worker suite passes with 31 tests, including hostname and connected-address private-network rejection, mocked policy boundaries, and a real Chromium regression proving opaque-document fetch succeeds through mediation;
 - analyzer, sourceinteraction, and book tests pass for the upstream-compatible `java.timeFormat(milliseconds)` local date formatting;
 - sourceexec, sourceinteraction, book, and API tests pass for failure classification; deterministic API regressions confirm JavaScript failures expose `javascript_runtime` without leaking the raw source cause;
-- frontend typecheck plus existing API error, Explore store, and Source Interaction sheet tests pass with the additive classification field.
+- frontend typecheck plus existing API error, Explore store, and Source Interaction sheet tests pass with the additive classification field;
+- full backend `go test ./...` passes;
+- full frontend suite passes: 51 files, 165 tests, followed by production build;
+- full WebView worker suite passes: 31 tests, followed by Python bytecode compilation;
+- `main...HEAD` has no diff-check errors or changed paths under `test-booksources/`; a branch-added-line credential scan found no token, cookie, authorization, or password value literals (only three translated `currentPassword` field labels).
 
 Still needed:
 
 - red-capable deterministic tests for each remaining implementation slice;
-- focused backend/frontend/WebView verification after changes;
-- optional local live login/status/Explore/route verification with sanitized evidence;
-- broader affected-area tests only where shared-session coupling warrants them.
+- optional local live login/status/Explore verification with sanitized evidence;
+- provider-visible active-device registration remains unverified without that live boundary;
+- a product decision on whether identity reset/rotation controls belong in this workstream or a later explicit lifecycle feature.
 
 ## Open Questions
 
 - After monitoring is restored, which explicit lifecycle operations are legitimate and useful: inspect identity, unregister/log out, reset, or rotate with reauthentication?
 - Should the authentication document evolve from URL-to-cookie-header strings to structured cookies, or can a normalized scoped-cookie interface preserve compatibility without a storage-shape change?
 - Does the real login/device workflow require browser storage in addition to cookies and login information? Add it only with evidence.
-- What is the smallest safe request-interception interface that supports source-generated browser diagnostics without becoming an unrestricted browser proxy?
+- Browser storage persistence remains out of scope unless a live workflow demonstrates that cookies/login information are insufficient.
