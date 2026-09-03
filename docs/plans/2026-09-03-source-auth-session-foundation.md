@@ -157,6 +157,16 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 
 **Why:** Most architecture and compatibility behavior can be established without exposing user secrets, and credentials must never become durable repository context.
 
+### Require current-password reauthentication for runtime-cookie access
+
+**Decision:** Revealing or saving runtime cookie values requires current-password confirmation. Ordinary source interaction, login actions, masked cookie metadata, and authentication reset remain available through the normal signed-in session.
+
+**Why:** Runtime cookies are reusable source credentials. An unlocked NovelReader browser session should not be sufficient to silently exfiltrate or replace them.
+
+**Alternatives:** Signed-in-session-only access was rejected as too weak. Password-to-reveal but session-only save was rejected because asymmetric authorization would make the interface harder to understand and audit.
+
+**Consequences:** Reuse the existing account password-verification seam; do not duplicate password hashing or credential checks inside sourceprofile/sourceinteraction. Passwords are request-only, never persisted or logged, and successful confirmation authorizes only the specific credential operation.
+
 ## Progress
 
 - [x] Create isolated workstream branch `feat/source-auth-session-foundation`.
@@ -167,7 +177,8 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 - [ ] Compare Git history to the earlier implementation that registered as an active device and identify the exact behavior change.
 - [ ] Restore provider-visible active-device monitoring through the normal login/status contract.
 - [ ] Define an explicit local device-identity reset/rotation lifecycle without promising provider-limit avoidance.
-- [ ] Finalize the runtime authentication representation and typed management interface.
+- [x] Finalize the initial runtime-cookie representation and typed credential-module interface without changing the deployed authentication document shape.
+- [ ] Implement the current-password-protected runtime-cookie HTTP interface.
 - [ ] Implement and verify cookie-scope-preserving browser synchronization.
 - [ ] Implement runtime-cookie inspection/editing API and UI.
 - [ ] Correct demonstrated runtime identity and Java bridge semantics.
@@ -190,13 +201,17 @@ Confirmed gaps:
 - Explore category failures redact the underlying secret cause correctly but provide no safe failure classification;
 - existing aggregate tests cover control rendering, settings actions, and Explore settings hydration, but not active-device registration, multi-domain browser cookie persistence, or real line status.
 
-The working tree was clean before this workstream. No real credentials have been requested or stored.
+The first implementation slice adds `sourceprofile.Store.RuntimeCookies` and `ReplaceRuntimeCookies` behind the existing credential store. It keeps the deployed URL-scope-to-cookie-header representation, validates bounded HTTP(S) scopes and cookie syntax, returns stable ordering, and replaces only cookies while preserving login information and login headers. This avoids a speculative structured-cookie migration before domain/path attribute fidelity is demonstrated as necessary.
+
+Current-password confirmation is accepted for both revealing and saving runtime cookie values. The existing `auth.AccountService.VerifyPassword` seam will remain the sole password verifier; sourceprofile and sourceinteraction will not receive password or account-authentication responsibilities.
+
+No real credentials have been requested or stored.
 
 ## Next Action
 
-Trace the historical evolution of SourceSession identity, login actions, cookie persistence, and aggregate compatibility to identify when active-device registration stopped working and which shared contract changed. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
+Implement the authenticated runtime-cookie HTTP interface using the existing current-password verification seam. Keep masked metadata available through the normal reader session, require current-password confirmation for value reveal and replacement, prevent response caching, and invalidate the affected source runtime after replacement.
 
-Then propose the smallest authentication representation/interface that supports full cookie scope and explicit credential management while preserving current reader ownership and backup boundaries.
+In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
 ## Verification
 
@@ -212,7 +227,8 @@ Verified before implementation:
 Still needed:
 
 - historical behavior comparison;
-- red-capable deterministic tests for each accepted implementation slice;
+- runtime-cookie credential module tests pass for stable listing, replacement isolation, and invalid-input rejection;
+- red-capable deterministic tests for each remaining implementation slice;
 - focused backend/frontend/WebView verification after changes;
 - optional local live login/status/Explore/route verification with sanitized evidence;
 - broader affected-area tests only where shared-session coupling warrants them.
@@ -222,6 +238,5 @@ Still needed:
 - Should durable device identity be scoped per reader or per reader/source under the upstream Legado contract and historical working behavior?
 - After monitoring is restored, which explicit lifecycle operations are legitimate and useful: inspect identity, unregister/log out, reset, or rotate with reauthentication?
 - Should the authentication document evolve from URL-to-cookie-header strings to structured cookies, or can a normalized scoped-cookie interface preserve compatibility without a storage-shape change?
-- Should explicit secret reveal require only the current authenticated reader session, or current-password reauthentication? This affects UX and security and must be confirmed before implementing the frontend flow.
 - Does the real login/device workflow require browser storage in addition to cookies and login information? Add it only with evidence.
 - What is the smallest safe request-interception interface that supports source-generated browser diagnostics without becoming an unrestricted browser proxy?

@@ -46,6 +46,55 @@ func TestStoreKeepsOneBoundedProfilePerInstalledSource(t *testing.T) {
 	}
 }
 
+func TestStoreManagesRuntimeCookiesWithoutOverwritingOtherAuthentication(t *testing.T) {
+	store, _, closeHome := newTestStore(t)
+	defer closeHome()
+	ctx := context.Background()
+	installSource(t, store.readerDB, "source-a")
+	if err := store.SaveAuthentication(ctx, "source-a", json.RawMessage(`{"loginInfo":{"user":"kept"},"loginHeader":"{\"Authorization\":\"kept\"}","cookies":{"https://second.test/path":"b=2","https://first.test":"a=1"}}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	cookies, err := store.RuntimeCookies(ctx, "source-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cookies) != 2 || cookies[0].Scope != "https://first.test" || cookies[0].Header != "a=1" || cookies[1].Scope != "https://second.test/path" || cookies[1].Header != "b=2" {
+		t.Fatalf("cookies=%+v", cookies)
+	}
+	if err := store.ReplaceRuntimeCookies(ctx, "source-a", []RuntimeCookie{{Scope: "https://third.test/session", Header: "sid=three; mode=reader"}}); err != nil {
+		t.Fatal(err)
+	}
+	profile, err := store.Load(ctx, "source-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	authentication := DecodeAuthentication(profile.Authentication)
+	if authentication.LoginInfo["user"] != "kept" || authentication.LoginHeader != `{"Authorization":"kept"}` {
+		t.Fatalf("authentication metadata was overwritten: %+v", authentication)
+	}
+	if len(authentication.Cookies) != 1 || authentication.Cookies["https://third.test/session"] != "sid=three; mode=reader" {
+		t.Fatalf("authentication cookies=%+v", authentication.Cookies)
+	}
+}
+
+func TestStoreRejectsInvalidRuntimeCookies(t *testing.T) {
+	store, _, closeHome := newTestStore(t)
+	defer closeHome()
+	ctx := context.Background()
+	installSource(t, store.readerDB, "source-a")
+
+	for _, cookies := range [][]RuntimeCookie{
+		{{Scope: "not-a-url", Header: "sid=value"}},
+		{{Scope: "https://source.test", Header: "invalid"}},
+		{{Scope: "https://source.test", Header: "bad name=value"}},
+	} {
+		if err := store.ReplaceRuntimeCookies(ctx, "source-a", cookies); !errors.Is(err, ErrInvalidRuntimeCookies) {
+			t.Fatalf("cookies=%+v error=%v", cookies, err)
+		}
+	}
+}
+
 func TestResetScopesPreserveInstalledSourceDefinition(t *testing.T) {
 	store, _, closeHome := newTestStore(t)
 	defer closeHome()
