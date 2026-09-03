@@ -62,6 +62,22 @@ func TestSourceSessionLoginHeadersOverrideRequestHeadersAndSyncCookie(t *testing
 	}
 }
 
+func TestSourceSessionCopiesLoginInfo(t *testing.T) {
+	session := NewSourceSession()
+	loginInfo := map[string]string{"Mode": "cloud"}
+	session.SetLoginInfo(loginInfo)
+	loginInfo["Mode"] = "mutated"
+
+	if got := session.LoginInfo()["Mode"]; got != "cloud" {
+		t.Fatalf("stored login info=%q", got)
+	}
+	returned := session.LoginInfo()
+	returned["Mode"] = "changed"
+	if got := session.LoginInfo()["Mode"]; got != "cloud" {
+		t.Fatalf("returned login info mutated session: %q", got)
+	}
+}
+
 func TestSourceSessionsDoNotShareState(t *testing.T) {
 	first := NewSourceSession()
 	second := NewSourceSession()
@@ -69,11 +85,15 @@ func TestSourceSessionsDoNotShareState(t *testing.T) {
 
 	_ = first.SetCookie(sourceURL, "session", "one")
 	first.PutVariable("key", "one")
+	first.SetLoginInfo(map[string]string{"account": "one"})
 
 	if got := second.GetCookie(sourceURL, "session"); got != "" {
 		t.Fatalf("cookie leaked between sessions: %q", got)
 	}
 	if got := second.GetVariable("key"); got != "" {
 		t.Fatalf("variable leaked between sessions: %q", got)
+	}
+	if got := second.LoginInfo(); len(got) != 0 {
+		t.Fatalf("login info leaked between sessions: %v", got)
 	}
 }

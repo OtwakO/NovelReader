@@ -449,6 +449,12 @@ func (vm *JSVM) EvalElementsContext(ctx context.Context, script string, content 
 // makeSourceObj creates a JS object with source.key, source.getKey(), source.getVariable(), etc.
 func (vm *JSVM) makeSourceObj(baseURL string, state SourceState) map[string]interface{} {
 	src := &jsSource{baseURL: baseURL, vm: vm, state: state}
+	getLoginInfoMap := func() map[string]string {
+		if source, ok := state.(interface{ LoginInfo() map[string]string }); ok {
+			return source.LoginInfo()
+		}
+		return map[string]string{}
+	}
 	return map[string]interface{}{
 		"key":               baseURL,
 		"getKey":            func() string { return baseURL },
@@ -456,6 +462,28 @@ func (vm *JSVM) makeSourceObj(baseURL string, state SourceState) map[string]inte
 		"putLoginHeader": func(header string) {
 			if target, ok := state.(interface{ SetLoginHeader(string) }); ok {
 				target.SetLoginHeader(header)
+			}
+		},
+		"getLoginInfo": func() string {
+			value, _ := json.Marshal(getLoginInfoMap())
+			return string(value)
+		},
+		"getLoginInfoMap": getLoginInfoMap,
+		"putLoginInfo": func(value string) bool {
+			target, ok := state.(interface{ SetLoginInfo(map[string]string) })
+			if !ok {
+				return false
+			}
+			var loginInfo map[string]string
+			if err := json.Unmarshal([]byte(value), &loginInfo); err != nil {
+				return false
+			}
+			target.SetLoginInfo(loginInfo)
+			return true
+		},
+		"removeLoginInfo": func() {
+			if target, ok := state.(interface{ SetLoginInfo(map[string]string) }); ok {
+				target.SetLoginInfo(nil)
 			}
 		},
 		"getVariable": func() string { return src.GetVariable() },

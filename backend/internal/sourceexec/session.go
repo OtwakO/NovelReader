@@ -24,6 +24,7 @@ type SourceSession struct {
 	headers         map[string]string
 	loginHeader     string
 	loginCookie     string
+	loginInfo       map[string]string
 	lastURL         string
 	responseCookies bool
 	hydrated        bool
@@ -33,7 +34,7 @@ type SourceSession struct {
 func NewSourceSession() *SourceSession {
 	jar, _ := cookiejar.New(nil)
 	return &SourceSession{
-		jar: jar, vars: make(map[string]string), memory: make(map[string]interface{}), cookieURLs: make(map[string]struct{}), headers: make(map[string]string),
+		jar: jar, vars: make(map[string]string), memory: make(map[string]interface{}), cookieURLs: make(map[string]struct{}), headers: make(map[string]string), loginInfo: make(map[string]string),
 		responseCookies: true,
 	}
 }
@@ -268,6 +269,27 @@ func (s *SourceSession) LoginHeader() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.loginHeader
+}
+
+// SetLoginInfo replaces the reader-owned source login values.
+func (s *SourceSession) SetLoginInfo(values map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loginInfo = make(map[string]string, len(values))
+	for key, value := range values {
+		s.loginInfo[key] = value
+	}
+}
+
+// LoginInfo returns a copy of the reader-owned source login values.
+func (s *SourceSession) LoginInfo() map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	values := make(map[string]string, len(s.loginInfo))
+	for key, value := range s.loginInfo {
+		values[key] = value
+	}
+	return values
 }
 
 // PutVariable stores a persistent source variable.

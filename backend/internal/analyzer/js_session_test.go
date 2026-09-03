@@ -4,9 +4,10 @@ package analyzer
 import "testing"
 
 type testSourceState struct {
-	cookies map[string]string
-	vars    map[string]string
-	memory  map[string]interface{}
+	cookies   map[string]string
+	vars      map[string]string
+	memory    map[string]interface{}
+	loginInfo map[string]string
 }
 
 func (s *testSourceState) GetCookie(_, key string) string { return s.cookies[key] }
@@ -24,6 +25,19 @@ func (s *testSourceState) SetLoginHeader(header string)            { s.memory["_
 func (s *testSourceState) LoginHeader() string {
 	value, _ := s.memory["__login_header_text"].(string)
 	return value
+}
+func (s *testSourceState) LoginInfo() map[string]string {
+	result := make(map[string]string, len(s.loginInfo))
+	for key, value := range s.loginInfo {
+		result[key] = value
+	}
+	return result
+}
+func (s *testSourceState) SetLoginInfo(values map[string]string) {
+	s.loginInfo = make(map[string]string, len(values))
+	for key, value := range values {
+		s.loginInfo[key] = value
+	}
 }
 
 func TestJSVMPooledRuntimeDoesNotLeakSourceGlobals(t *testing.T) {
@@ -72,14 +86,23 @@ func TestJSVMSourceHelpersOverrideImportedMetadata(t *testing.T) {
 
 func TestJSVMBindsLegadoObjectsToSourceState(t *testing.T) {
 	state := &testSourceState{
-		cookies: map[string]string{"sid": "fixture"},
-		vars:    map[string]string{},
-		memory:  map[string]interface{}{},
+		cookies:   map[string]string{"sid": "fixture"},
+		vars:      map[string]string{},
+		memory:    map[string]interface{}{},
+		loginInfo: map[string]string{"Mode": "cloud"},
 	}
 	vm := NewJSVM()
 	bindings := map[string]interface{}{"sourceState": state}
 
-	value, err := vm.Eval("cookie.getKey('https://example.test', 'sid')", "", "https://example.test/", bindings)
+	value, err := vm.Eval("source.getLoginInfoMap().Mode + '|' + JSON.parse(source.getLoginInfo()).Mode", "", "https://example.test/", bindings)
+	if err != nil || value != "cloud|cloud" {
+		t.Fatalf("login info binding = %v, err=%v", value, err)
+	}
+	value, err = vm.Eval("source.putLoginInfo(JSON.stringify({Mode:'local'})); source.getLoginInfoMap().Mode", "", "https://example.test/", bindings)
+	if err != nil || value != "local" || state.loginInfo["Mode"] != "local" {
+		t.Fatalf("updated login info = %v state=%v err=%v", value, state.loginInfo, err)
+	}
+	value, err = vm.Eval("cookie.getKey('https://example.test', 'sid')", "", "https://example.test/", bindings)
 	if err != nil || value != "fixture" {
 		t.Fatalf("cookie binding = %v, err=%v", value, err)
 	}

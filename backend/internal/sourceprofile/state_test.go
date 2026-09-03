@@ -7,6 +7,19 @@ import (
 	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
+func TestApplyAuthenticationHydratesLoginInfo(t *testing.T) {
+	session := sourceexec.NewSourceSession()
+	ApplyAuthentication(session, Authentication{LoginInfo: map[string]string{"Mode": "cloud"}})
+	if got := session.LoginInfo()["Mode"]; got != "cloud" {
+		t.Fatalf("login info=%q", got)
+	}
+
+	authentication := CaptureAuthentication(session, Authentication{})
+	if authentication.LoginInfo["Mode"] != "cloud" {
+		t.Fatalf("captured authentication=%+v", authentication)
+	}
+}
+
 func TestApplyAuthenticationReplacesPersistedCookies(t *testing.T) {
 	session := sourceexec.NewSourceSession()
 	if err := session.SetCookie("https://source.test", "stale", "old"); err != nil {

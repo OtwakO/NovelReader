@@ -161,7 +161,9 @@ func (d *Describer) act(ctx context.Context, sourceID string, request ActionRequ
 	if sameValues(authentication.LoginInfo, originalLoginInfo) {
 		authentication.LoginInfo = cloneValues(request.Values)
 	}
+	submittedLoginInfo := cloneValues(authentication.LoginInfo)
 	authentication = sourceprofile.CaptureAuthentication(session, authentication)
+	authentication.LoginInfo = submittedLoginInfo
 	settingsJSON, err := json.Marshal(settings)
 	if err != nil {
 		return ActionResult{}, err

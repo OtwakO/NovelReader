@@ -63,6 +63,7 @@ func ApplyAuthentication(session *sourceexec.SourceSession, authentication Authe
 	if session == nil {
 		return
 	}
+	session.SetLoginInfo(authentication.LoginInfo)
 	if authentication.LoginHeader != "" {
 		session.SetLoginHeader(authentication.LoginHeader)
 	}
@@ -84,6 +85,7 @@ func CaptureAuthentication(session *sourceexec.SourceSession, previous Authentic
 	if session == nil {
 		return previous
 	}
+	previous.LoginInfo = session.LoginInfo()
 	previous.LoginHeader = session.LoginHeader()
 	if previous.Cookies == nil {
 		previous.Cookies = make(map[string]string)
