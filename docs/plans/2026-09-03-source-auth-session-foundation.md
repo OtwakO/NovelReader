@@ -193,7 +193,6 @@ The current architecture already separates portable Source Profile settings from
 
 Confirmed remaining gaps:
 
-- `java.timeFormat()` returns an unformatted integer and does not satisfy status-panel date formatting;
 - Explore category failures redact the underlying secret cause correctly but provide no safe failure classification;
 - existing aggregate tests cover control rendering, settings actions, and Explore settings hydration, but not active-device registration, multi-domain browser cookie persistence, or real line status.
 
@@ -209,11 +208,13 @@ History establishes that the static `goja-android-id` value existed unchanged fr
 
 Controlled base64 HTML `data:` documents now receive a narrow WebView-worker mediator for fetch/XHR probes. It accepts only HTTP(S), rejects hostname resolutions containing any non-public address, follows no redirects, preserves the worker timeout/body limits, and grants access only to the opaque `null` origin. Other browser resources use normal Chromium handling. A real Chromium regression proves a generated opaque document can read a reachable route result through this seam without globally disabling browser security.
 
+The demonstrated Java date compatibility gap is corrected against both repository-local references: `reference/legado-E/app/src/main/java/io/legado/app/help/JsExtensions.kt` delegates epoch milliseconds to the application-local `dateFormat`, while `reference/web-legado-rust/src/parser/js.rs` explicitly specifies `yyyy/MM/dd HH:mm`. NovelReader now implements that shared contract in its process local timezone. No speculative extra overload was added.
+
 No real credentials have been requested or stored.
 
 ## Next Action
 
-Add secret-safe login and Explore failure classifications, then correct the demonstrated `java.timeFormat()` compatibility gap. Keep client errors actionable without exposing source programs, URLs, headers, cookies, or response bodies.
+Add secret-safe login and Explore failure classifications. Keep client errors actionable without exposing source programs, URLs, headers, cookies, or response bodies.
 
 In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
@@ -236,7 +237,8 @@ Completed implementation verification:
 - frontend typecheck and production build pass;
 - WebView client tests pass, including a regression proving cookies from two browser-returned domains remain scoped to those domains;
 - analyzer, readerstore, sourceinteraction, book, and API tests pass for the stable per-reader identity slice, including stable/different-reader derivation and both `java.androidId()`/`java.deviceID()` bindings;
-- WebView worker suite passes with 30 tests, including mocked policy boundaries and a real Chromium regression proving opaque-document fetch succeeds through mediation.
+- WebView worker suite passes with 30 tests, including mocked policy boundaries and a real Chromium regression proving opaque-document fetch succeeds through mediation;
+- analyzer, sourceinteraction, and book tests pass for the upstream-compatible `java.timeFormat(milliseconds)` local date formatting.
 
 Still needed:
 

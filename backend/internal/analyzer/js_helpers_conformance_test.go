@@ -42,6 +42,17 @@ func TestBuildURLUsesJavaEncodeURICharset(t *testing.T) {
 	}
 }
 
+func TestJavaTimeFormatUsesLegadoLocalDateFormat(t *testing.T) {
+	previousLocal := time.Local
+	time.Local = time.FixedZone("UTC+8", 8*60*60)
+	t.Cleanup(func() { time.Local = previousLocal })
+
+	value, err := NewJSVM().Eval(`java.timeFormat(1788011130000)`, "", "https://example.test/")
+	if err != nil || ToString(value) != "2026/08/29 21:45" {
+		t.Fatalf("timeFormat=%q err=%v", ToString(value), err)
+	}
+}
+
 func TestJavaChapterAndToastHelpers(t *testing.T) {
 	vm := NewJSVM()
 	for input, want := range map[string]string{

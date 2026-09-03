@@ -783,8 +783,8 @@ func (h *jsHelpers) Connect(urlStr string, args ...interface{}) interface{} {
 
 // --- Missing bridge methods ---
 
-func (h *jsHelpers) TimeFormat(ts int64) string {
-	return fmt.Sprintf("%d", ts) // ponytail: basic timestamp formatting
+func (h *jsHelpers) TimeFormat(milliseconds int64) string {
+	return time.UnixMilli(milliseconds).In(time.Local).Format("2006/01/02 15:04")
 }
 
 func (h *jsHelpers) AndroidId() string {
