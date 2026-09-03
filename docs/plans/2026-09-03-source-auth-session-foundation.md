@@ -182,7 +182,7 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 - [x] Implement and verify cookie-scope-preserving browser synchronization.
 - [x] Implement runtime-cookie inspection/editing API and UI.
 - [x] Correct demonstrated runtime identity and Java bridge semantics.
-- [ ] Add secret-safe login and Explore failure classifications.
+- [x] Add secret-safe login and Explore failure classifications.
 - [x] Implement the bounded browser request seam for source-generated route checks.
 - [ ] Run focused deterministic verification and optional sanitized live compatibility checks.
 - [ ] Update current architecture and complete this plan.
@@ -193,7 +193,6 @@ The current architecture already separates portable Source Profile settings from
 
 Confirmed remaining gaps:
 
-- Explore category failures redact the underlying secret cause correctly but provide no safe failure classification;
 - existing aggregate tests cover control rendering, settings actions, and Explore settings hydration, but not active-device registration, multi-domain browser cookie persistence, or real line status.
 
 The first implementation slice adds `sourceprofile.Store.RuntimeCookies` and `ReplaceRuntimeCookies` behind the existing credential store. It keeps the deployed URL-scope-to-cookie-header representation, validates bounded HTTP(S) scopes and cookie syntax, returns stable ordering, and replaces only cookies while preserving login information and login headers. This avoids a speculative structured-cookie migration before domain/path attribute fidelity is demonstrated as necessary.
@@ -210,11 +209,13 @@ Controlled base64 HTML `data:` documents now receive a narrow WebView-worker med
 
 The demonstrated Java date compatibility gap is corrected against both repository-local references: `reference/legado-E/app/src/main/java/io/legado/app/help/JsExtensions.kt` delegates epoch milliseconds to the application-local `dateFormat`, while `reference/web-legado-rust/src/parser/js.rs` explicitly specifies `yyyy/MM/dd HH:mm`. NovelReader now implements that shared contract in its process local timezone. No speculative extra overload was added.
 
+Source execution failures now use a small shared secret-safe classification vocabulary. Explore keeps its existing operation code/stage/status while adding a classification; source interaction wraps JavaScript and invalid-result failures in a typed safe error so raw source exceptions are retained only as server-side causes. Typed deadline/network failures override the operation fallback. No provider text is inspected to guess authentication state.
+
 No real credentials have been requested or stored.
 
 ## Next Action
 
-Add secret-safe login and Explore failure classifications. Keep client errors actionable without exposing source programs, URLs, headers, cookies, or response bodies.
+Run final affected-area verification, inspect the complete branch diff for scope and credential leakage, and perform optional sanitized local compatibility checks only if they can add evidence unavailable from deterministic tests.
 
 In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
@@ -238,7 +239,9 @@ Completed implementation verification:
 - WebView client tests pass, including a regression proving cookies from two browser-returned domains remain scoped to those domains;
 - analyzer, readerstore, sourceinteraction, book, and API tests pass for the stable per-reader identity slice, including stable/different-reader derivation and both `java.androidId()`/`java.deviceID()` bindings;
 - WebView worker suite passes with 30 tests, including mocked policy boundaries and a real Chromium regression proving opaque-document fetch succeeds through mediation;
-- analyzer, sourceinteraction, and book tests pass for the upstream-compatible `java.timeFormat(milliseconds)` local date formatting.
+- analyzer, sourceinteraction, and book tests pass for the upstream-compatible `java.timeFormat(milliseconds)` local date formatting;
+- sourceexec, sourceinteraction, book, and API tests pass for failure classification; deterministic API regressions confirm JavaScript failures expose `javascript_runtime` without leaking the raw source cause;
+- frontend typecheck plus existing API error, Explore store, and Source Interaction sheet tests pass with the additive classification field.
 
 Still needed:
 

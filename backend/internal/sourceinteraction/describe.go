@@ -90,11 +90,11 @@ func (d *Describer) describe(ctx context.Context, sourceID string) (description,
 	sourceprofile.ApplySettings(session, source.BookSourceURL, settings)
 	rawControls, err := d.evaluate(ctx, *source, session)
 	if err != nil {
-		return description{}, err
+		return description{}, executionError("interaction_ui_failed", "Could not load source interaction controls", err, sourceexec.FailureJavaScriptRuntime)
 	}
 	controls, err := normalizeControls(rawControls)
 	if err != nil {
-		return description{}, err
+		return description{}, executionError("interaction_ui_invalid", "Source interaction controls are invalid", err, sourceexec.FailureInvalidResult)
 	}
 	revisionInput, err := json.Marshal(struct {
 		SourceID  string

@@ -16,12 +16,13 @@ import (
 const maxExploreRequestBytes = 32 * 1024
 
 type exploreErrorResponse struct {
-	Code      string `json:"code"`
-	Stage     string `json:"stage"`
-	Severity  string `json:"severity"`
-	Retryable bool   `json:"retryable"`
-	Message   string `json:"message"`
-	NextPage  int    `json:"nextPage,omitempty"`
+	Code           string `json:"code"`
+	Stage          string `json:"stage"`
+	Classification string `json:"classification,omitempty"`
+	Severity       string `json:"severity"`
+	Retryable      bool   `json:"retryable"`
+	Message        string `json:"message"`
+	NextPage       int    `json:"nextPage,omitempty"`
 }
 
 func (s *Server) handleExploreSources(w http.ResponseWriter, _ *http.Request) {
@@ -142,7 +143,7 @@ func writeExploreError(w http.ResponseWriter, err error) {
 	}
 	slog.Warn("api: Explore request failed", "code", exploreErr.Code, "stage", exploreErr.Stage, "retryable", exploreErr.Retryable)
 	writeJSON(w, exploreHTTPStatus(exploreErr.Code), exploreErrorResponse{
-		Code: exploreErr.Code, Stage: exploreErr.Stage, Severity: "error", Retryable: exploreErr.Retryable,
+		Code: exploreErr.Code, Stage: exploreErr.Stage, Classification: string(exploreErr.Classification), Severity: "error", Retryable: exploreErr.Retryable,
 		Message: exploreErr.Message, NextPage: exploreErr.ExpectedPage,
 	})
 }

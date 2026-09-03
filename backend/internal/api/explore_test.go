@@ -78,6 +78,19 @@ func TestExploreAPIRoundTripKeepsRulesPrivate(t *testing.T) {
 	}
 }
 
+func TestExploreCategoryScriptFailureIncludesSafeClassification(t *testing.T) {
+	server, sourceStore, closeDB := newExploreAPIServer(t)
+	defer closeDB()
+	source := &booksource.BookSource{BookSourceURL: "https://source.test", BookSourceName: "Fixture", Enabled: true, EnabledExplore: true, ExploreURL: `@js:throw new Error('RAW_PRIVATE_CAUSE')`}
+	if err := sourceStore.Upsert(source); err != nil {
+		t.Fatal(err)
+	}
+	response := performAPIRequest(server, http.MethodPost, "/api/explore/catalog", []byte(`{"sourceId":"`+source.ID+`"}`))
+	if response.Code != http.StatusBadGateway || !strings.Contains(response.Body.String(), `"classification":"javascript_runtime"`) || strings.Contains(response.Body.String(), "RAW_PRIVATE_CAUSE") {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestExploreAPIRejectsInvalidBodiesAndMethods(t *testing.T) {
 	server, _, closeDB := newExploreAPIServer(t)
 	defer closeDB()

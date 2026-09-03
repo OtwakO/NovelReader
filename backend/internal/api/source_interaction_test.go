@@ -45,6 +45,19 @@ func (s apiInteractionSourceStore) GetByID(id string) (*booksource.BookSource, e
 	return &copy, nil
 }
 
+func TestSourceInteractionHTTPClassifiesFailuresWithoutLeakingSourceCause(t *testing.T) {
+	source := &booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", BookSourceName: "Fixture", LoginUI: `@js:throw new Error('RAW_PRIVATE_CAUSE')`}
+	server := NewServer(nil, nil, nil, nil, nil, analyzer.NewJSVM(), nil, processor.DefaultConfig(), "", nil)
+	server.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, &apiInteractionProfileStore{profile: sourceprofile.Profile{
+		SourceID: source.ID, Settings: json.RawMessage(`{}`), Authentication: json.RawMessage(`{}`),
+	}}, analyzer.NewJSVM())
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/sources/source-a/interaction", nil))
+	if response.Code != http.StatusBadGateway || !strings.Contains(response.Body.String(), `"classification":"javascript_runtime"`) || strings.Contains(response.Body.String(), "RAW_PRIVATE_CAUSE") {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestSourceInteractionActionHTTPRejectsStaleRevision(t *testing.T) {
 	source := &booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", BookSourceName: "Fixture",
 		LoginUI: `[{"name":"Save","type":"button","action":"save()"}]`, LoginURL: `function save(){}`}

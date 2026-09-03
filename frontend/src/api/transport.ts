@@ -8,6 +8,7 @@ let authenticationLossListener: AuthenticationLossListener | undefined;
 export interface ApiErrorBody {
   code?: string;
   stage?: string;
+  classification?: string;
   severity?: string;
   retryable?: boolean;
   message?: string;
@@ -22,6 +23,7 @@ export type ExploreErrorBody = ApiErrorBody;
 export class ExploreApiError extends Error {
   code: string;
   stage: string;
+  classification: string;
   severity: string;
   retryable: boolean;
   nextPage?: number;
@@ -31,6 +33,7 @@ export class ExploreApiError extends Error {
     this.name = 'ExploreApiError';
     this.code = body.code || 'internal_error';
     this.stage = body.stage || 'internal';
+    this.classification = body.classification || 'unknown';
     this.severity = body.severity || 'error';
     this.retryable = Boolean(body.retryable);
     this.nextPage = body.nextPage;

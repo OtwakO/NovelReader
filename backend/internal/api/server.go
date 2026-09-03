@@ -374,7 +374,7 @@ func (s *Server) handleSourceInteraction(w http.ResponseWriter, r *http.Request)
 			writeError(w, http.StatusNotFound, "book source not found")
 			return
 		}
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		writeSourceInteractionError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, view)
@@ -400,13 +400,25 @@ func (s *Server) handleSourceInteractionAction(w http.ResponseWriter, r *http.Re
 		case errors.Is(err, sourceinteraction.ErrActionNotFound):
 			writeError(w, http.StatusBadRequest, err.Error())
 		default:
-			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			writeSourceInteractionError(w, err)
 		}
 		return
 	}
 	s.deleteSourceSession(r.PathValue("id"))
 	result.Effects = sourceinteraction.RegisterBrowserRequests(result.Effects, s.browserSessions)
 	writeJSON(w, http.StatusOK, result)
+}
+
+func writeSourceInteractionError(w http.ResponseWriter, err error) {
+	var executionErr *sourceinteraction.ExecutionError
+	if errors.As(err, &executionErr) {
+		slog.Warn("api: source interaction failed", "code", executionErr.Code, "classification", executionErr.Classification)
+		writeJSON(w, http.StatusBadGateway, map[string]interface{}{
+			"code": executionErr.Code, "classification": executionErr.Classification, "error": executionErr.Message,
+		})
+		return
+	}
+	writeError(w, http.StatusUnprocessableEntity, err.Error())
 }
 
 func (s *Server) handleSourceInteractionResetLogin(w http.ResponseWriter, r *http.Request) {

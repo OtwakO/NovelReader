@@ -64,12 +64,13 @@ type ExplorePage struct {
 }
 
 type ExploreError struct {
-	Code         string `json:"code"`
-	Stage        string `json:"stage"`
-	Retryable    bool   `json:"retryable"`
-	ExpectedPage int    `json:"nextPage,omitempty"`
-	Message      string `json:"message"`
-	cause        error
+	Code           string                  `json:"code"`
+	Stage          string                  `json:"stage"`
+	Classification sourceexec.FailureClass `json:"classification,omitempty"`
+	Retryable      bool                    `json:"retryable"`
+	ExpectedPage   int                     `json:"nextPage,omitempty"`
+	Message        string                  `json:"message"`
+	cause          error
 }
 
 func (e *ExploreError) Error() string {
@@ -81,8 +82,12 @@ func (e *ExploreError) Error() string {
 
 func (e *ExploreError) Unwrap() error { return e.cause }
 
-func newExploreError(code, stage, message string, retryable bool, cause error) *ExploreError {
-	return &ExploreError{Code: code, Stage: stage, Retryable: retryable, Message: message, cause: cause}
+func newExploreError(code, stage, message string, retryable bool, cause error, classification ...sourceexec.FailureClass) *ExploreError {
+	err := &ExploreError{Code: code, Stage: stage, Retryable: retryable, Message: message, cause: cause}
+	if len(classification) > 0 {
+		err.Classification = sourceexec.ClassifyFailure(cause, classification[0])
+	}
+	return err
 }
 
 // ExploreSources returns sources eligible independently of normal search.
@@ -125,12 +130,12 @@ func (s *Searcher) OpenExplore(ctx context.Context, sourceID string) (ExploreCat
 	if strings.HasPrefix(strings.ToLower(raw), "@js:") || strings.HasPrefix(strings.ToLower(raw), "<js>") {
 		raw, err = s.evaluateExploreScript(ctx, *source, state, raw)
 		if err != nil {
-			return ExploreCatalog{}, newExploreError("category_script_failed", "category", "Could not generate Explore categories", true, err)
+			return ExploreCatalog{}, newExploreError("category_script_failed", "category", "Could not generate Explore categories", true, err, sourceexec.FailureJavaScriptRuntime)
 		}
 	}
 	kinds, err := parseExploreKinds(raw)
 	if err != nil {
-		return ExploreCatalog{}, newExploreError("category_parse_failed", "category", "Could not parse Explore categories", false, err)
+		return ExploreCatalog{}, newExploreError("category_parse_failed", "category", "Could not parse Explore categories", false, err, sourceexec.FailureInvalidResult)
 	}
 	select {
 	case <-ctx.Done():

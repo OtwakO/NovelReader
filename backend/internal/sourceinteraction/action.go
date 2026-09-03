@@ -153,7 +153,7 @@ func (d *Describer) act(ctx context.Context, sourceID string, request ActionRequ
 					}
 				}
 			}
-			return ActionResult{}, fmt.Errorf("sourceinteraction: execute action: %w", err)
+			return ActionResult{}, executionError("interaction_action_failed", "Source interaction action failed", err, sourceexec.FailureJavaScriptRuntime)
 		}
 	}
 
