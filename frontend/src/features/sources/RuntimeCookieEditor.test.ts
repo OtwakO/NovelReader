@@ -38,7 +38,10 @@ describe('RuntimeCookieEditor', () => {
 
   it('loads only masked metadata before explicit password-protected reveal', async () => {
     const wrapper = mountEditor();
-    await vi.waitFor(() => expect(getSourceRuntimeCookies).toHaveBeenCalledWith('source-a'));
+    await vi.waitFor(() => {
+      expect(getSourceRuntimeCookies).toHaveBeenCalledWith('source-a');
+      expect(wrapper.text()).toContain('device');
+    });
 
     expect(wrapper.text()).toContain('device');
     expect(wrapper.text()).toContain('token');
