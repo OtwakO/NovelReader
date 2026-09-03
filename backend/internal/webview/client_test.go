@@ -142,6 +142,43 @@ func TestClientRejectsWorkerProtocolErrors(t *testing.T) {
 	}
 }
 
+func TestInteractiveClosePreservesReturnedCookieDomains(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodDelete {
+			t.Fatalf("unexpected request %s", r.Method)
+		}
+		_ = json.NewEncoder(w).Encode(interactiveResult{
+			Version:  protocolVersion,
+			Closed:   true,
+			FinalURL: "https://account.example.test/complete",
+			Cookies: []protocolCookie{
+				{Name: "account", Value: "ready", Domain: ".example.test", Path: "/", Secure: true},
+				{Name: "identity", Value: "stable", Domain: "identity.example.net", Path: "/", Secure: true},
+			},
+		})
+	}))
+	defer server.Close()
+
+	session := sourceexec.NewSourceSession()
+	client, err := NewClient(Config{Endpoint: server.URL, Timeout: 3 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.CloseInteractive(t.Context(), "session-1", "data:text/html;base64,PGh0bWw+", true, false, session); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.GetCookie("https://reader.example.test/", "account"); got != "ready" {
+		t.Fatalf("parent-domain cookie=%q", got)
+	}
+	if got := session.GetCookie("https://identity.example.net/", "identity"); got != "stable" {
+		t.Fatalf("identity-domain cookie=%q", got)
+	}
+	if got := session.GetCookie("https://account.example.test/", "identity"); got != "" {
+		t.Fatalf("identity cookie leaked to final URL: %q", got)
+	}
+}
+
 func TestInteractiveClientStartsInputsAndClosesSession(t *testing.T) {
 	requests := []string{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

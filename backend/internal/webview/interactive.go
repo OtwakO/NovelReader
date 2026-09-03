@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -57,18 +58,45 @@ func (c *Client) CloseInteractive(ctx context.Context, sessionID, rawURL string,
 		return InteractiveCloseResult{}, err
 	}
 	if save && session != nil && len(result.Cookies) > 0 {
-		cookieURL := result.FinalURL
-		if !isNetworkBrowserURL(cookieURL) {
-			cookieURL = rawURL
+		fallbackURL := result.FinalURL
+		if !isNetworkBrowserURL(fallbackURL) {
+			fallbackURL = rawURL
 		}
-		if !isNetworkBrowserURL(cookieURL) {
-			return InteractiveCloseResult{HTML: result.HTML}, nil
-		}
-		if err := session.SetCookies(cookieURL, fromProtocolCookies(result.Cookies)); err != nil {
-			return InteractiveCloseResult{}, fmt.Errorf("webview: sync interactive cookies: %w", err)
+		for _, cookie := range result.Cookies {
+			cookieURL := protocolCookieScopeURL(cookie, fallbackURL)
+			if cookieURL == "" {
+				continue
+			}
+			if err := session.SetCookies(cookieURL, fromProtocolCookies([]protocolCookie{cookie})); err != nil {
+				return InteractiveCloseResult{}, fmt.Errorf("webview: sync interactive cookies: %w", err)
+			}
 		}
 	}
 	return InteractiveCloseResult{HTML: result.HTML}, nil
+}
+
+func protocolCookieScopeURL(cookie protocolCookie, fallbackURL string) string {
+	if isNetworkBrowserURL(cookie.URL) {
+		return cookie.URL
+	}
+	domain := strings.TrimPrefix(strings.TrimSpace(cookie.Domain), ".")
+	if domain == "" {
+		if isNetworkBrowserURL(fallbackURL) {
+			return fallbackURL
+		}
+		return ""
+	}
+	scheme := "https"
+	if !cookie.Secure && isNetworkBrowserURL(fallbackURL) {
+		if parsed, err := url.Parse(fallbackURL); err == nil {
+			scheme = parsed.Scheme
+		}
+	}
+	scope := (&url.URL{Scheme: scheme, Host: domain, Path: "/"}).String()
+	if !isNetworkBrowserURL(scope) {
+		return ""
+	}
+	return scope
 }
 
 func isNetworkBrowserURL(rawURL string) bool {

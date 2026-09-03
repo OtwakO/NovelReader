@@ -179,7 +179,7 @@ Do not create a synthetic duplicate of the private aggregate source. Reduce each
 - [ ] Define an explicit local device-identity reset/rotation lifecycle without promising provider-limit avoidance.
 - [x] Finalize the initial runtime-cookie representation and typed credential-module interface without changing the deployed authentication document shape.
 - [x] Implement the current-password-protected runtime-cookie HTTP interface.
-- [ ] Implement and verify cookie-scope-preserving browser synchronization.
+- [x] Implement and verify cookie-scope-preserving browser synchronization.
 - [x] Implement runtime-cookie inspection/editing API and UI.
 - [ ] Correct demonstrated runtime identity and Java bridge semantics.
 - [ ] Add secret-safe login and Explore failure classifications.
@@ -193,7 +193,6 @@ The current architecture already separates portable Source Profile settings from
 
 Confirmed remaining gaps:
 
-- interactive browser cookies returned with domain metadata are imported against only one final URL, losing original scope;
 - controlled Chromium rejects the aggregate route page's cross-origin probes because the page has an opaque `data:` origin;
 - `java.androidId()` is a process-global placeholder rather than a stable reader-owned identity;
 - `java.timeFormat()` returns an unformatted integer and does not satisfy status-panel date formatting;
@@ -206,11 +205,13 @@ The authenticated HTTP interface exposes masked scope/name metadata through the 
 
 The Source Interaction sheet now contains a focused session-cookie editor. It loads only scopes and names initially, reveals values only after current-password confirmation, requires a fresh password to save, keeps values in component memory only, clears secret state on close/cancel/save, and immediately returns to masked metadata after replacement. The UI edits the existing complete scope-to-cookie-header document rather than source JSON or global state.
 
+Interactive browser close now imports each returned cookie against its own protocol URL or domain-derived HTTP(S) scope, falling back to the browser URL only for host-only cookies without scope metadata. Multi-domain browser sessions therefore remain separated instead of assigning every cookie to the final page URL. This fixes the demonstrated shared synchronization defect without changing the durable credential document.
+
 No real credentials have been requested or stored.
 
 ## Next Action
 
-Implement and verify cookie-scope-preserving synchronization when an interactive browser returns cookies from multiple domains. Preserve the existing durable scope-to-cookie-header representation and derive each imported scope from the returned cookie domain instead of collapsing all cookies onto the browser's final URL.
+Finish the historical comparison for provider-visible active-device monitoring, concentrating on device identity scope and persistence across the August 30 credential split. Use that result to define the smallest stable reader-owned identity contract before changing `java.androidId()`.
 
 In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
 
@@ -230,7 +231,8 @@ Completed implementation verification:
 - runtime-cookie credential module tests pass for stable listing, replacement isolation, and invalid-input rejection;
 - authenticated runtime-cookie HTTP test passes for masked metadata, wrong-password denial, no-store reveal, replacement isolation, and durable storage;
 - focused frontend tests pass for masked initial metadata, password-protected reveal, fresh-password save, and return to masked state;
-- frontend typecheck and production build pass.
+- frontend typecheck and production build pass;
+- WebView client tests pass, including a regression proving cookies from two browser-returned domains remain scoped to those domains.
 
 Still needed:
 
