@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 updated: 2026-09-04
 ---
 
@@ -216,11 +216,11 @@ Source execution failures now use a small shared secret-safe classification voca
 
 No real credentials have been requested or stored.
 
-## Next Action
+## Outcome
 
-Run final deterministic gates and have the user retest switch-line on the rebuilt worker; the expected counterfactual is that gateway probes now carry the reader-owned destination-scoped account cookie and stop returning the unauthenticated 502 response. Ask the user to apply/save ⚙️ 书源设置 once after the source update, then retest Explore. Treat active-device count separately if it remains zero after authenticated route probes, because Search and reading already prove general qttoken propagation.
+Completed. User-side live verification against the latest ignored aggregate source confirms Search, reading, user-status WebView, authenticated route switching, and Explore all work. Explore required explicitly saving the updated source settings once so its current variable schema replaced the empty/outdated profile. The runtime-cookie editor uses one current-password entry for reveal/edit/save.
 
-In parallel with later slices, continue narrowing the historical active-device behavior around transient session identity and the August 30 credential split. Record only semantic findings and commit references; do not recover or copy historical private source data into this plan.
+Provider-visible active-device count remains 0, but authenticated operations prove the account cookie is accepted. No NovelReader defect in the count contract is established, and the count is non-blocking; do not add speculative registration calls, provider-specific endpoints, identity rotation, or source-specific behavior. Reopen only if future evidence isolates a reusable compatibility gap.
 
 ## Verification
 
@@ -241,26 +241,17 @@ Completed implementation verification:
 - frontend typecheck and production build pass;
 - WebView client tests pass, including a regression proving cookies from two browser-returned domains remain scoped to those domains;
 - analyzer, readerstore, sourceinteraction, book, and API tests pass for the stable per-reader identity slice, including stable/different-reader derivation and both `java.androidId()`/`java.deviceID()` bindings;
-- WebView worker suite passes with 31 tests, including hostname and connected-address private-network rejection, mocked policy boundaries, and a real Chromium regression proving opaque-document fetch succeeds through mediation;
+- WebView worker suite passes with 32 tests, including hostname and connected-address private-network rejection, mocked policy boundaries, and a real Chromium regression proving an opaque-document mediated fetch receives only the browser-selected destination-scoped cookie;
 - analyzer, sourceinteraction, and book tests pass for the upstream-compatible `java.timeFormat(milliseconds)` local date formatting;
 - sourceexec, sourceinteraction, book, and API tests pass for failure classification; deterministic API regressions confirm JavaScript failures expose `javascript_runtime` without leaking the raw source cause;
-- review regression passes for current-password denial without false application-session loss; review explicitly rejected partial path-attribute persistence and opaque-page credential hydration rather than overstate those contracts;
+- review regression passes for current-password denial without false application-session loss; later live evidence justified scoped-cookie hydration for opaque-page mediation while global login/source headers remain excluded;
 - frontend typecheck plus existing API error, Explore store, and Source Interaction sheet tests pass with the additive classification field;
 - full backend `go test ./...` passes;
 - full frontend suite passes: 51 files, 165 tests, followed by production build;
 - full WebView worker suite passes: 31 tests, followed by Python bytecode compilation;
 - `main...HEAD` has no diff-check errors or changed paths under `test-booksources/`; a branch-added-line credential scan found no token, cookie, authorization, or password value literals (only three translated `currentPassword` field labels).
 
-Still needed:
+Deferred, not required for completion:
 
-- confirm whether reapplying the updated source's settings initializes its current variable schema and restores Explore;
-- decide whether route transport failures should be presented as unavailable/transport failure rather than raw HTTP 502 (the exercised upstream currently refuses connections);
-- identify the provider's actual active-device counting trigger if observable count remains a requirement; authenticated Search/reading prove general qttoken propagation works;
-- verify and commit the shared login-info lifecycle and single-entry cookie reveal/edit/save flow;
-- a product decision on whether identity reset/rotation controls belong in this workstream or a later explicit lifecycle feature.
-
-## Open Questions
-
-- After monitoring is restored, which explicit lifecycle operations are legitimate and useful: inspect identity, unregister/log out, reset, or rotate with reauthentication?
-- Does a demonstrated workflow require structured cookie attributes (path/expiry/SameSite or overlapping same-name cookies) or authenticated opaque-page requests? Add either only as an explicit model/transport contract, not by stretching the current header-map representation.
-- Does the real login/device workflow require browser storage in addition to cookies and login information? Add it only with evidence.
+- provider-visible active-device counting: current count remains 0 but all authenticated functional paths work; investigate only with new evidence that identifies a reusable NovelReader compatibility defect;
+- structured cookie attributes, browser storage, and identity reset/rotation controls: add only when a demonstrated workflow requires them.
