@@ -42,9 +42,9 @@ export default defineComponent({
       try {
         this.revealedCookies = (await revealSourceRuntimeCookies(this.sourceId, this.currentPassword)).cookies;
       } catch {
+        this.currentPassword = "";
         this.error = this.$t("sources.interaction.cookies.passwordFailed");
       } finally {
-        this.currentPassword = "";
         this.busy = "";
       }
     },
@@ -55,12 +55,11 @@ export default defineComponent({
       this.notice = "";
       try {
         this.cookies = (await replaceSourceRuntimeCookies(this.sourceId, this.currentPassword, this.revealedCookies)).cookies;
-        this.revealedCookies = null;
+        this.clearSecrets();
         this.notice = this.$t("sources.interaction.cookies.saved");
       } catch {
         this.error = this.$t("sources.interaction.cookies.saveFailed");
       } finally {
-        this.currentPassword = "";
         this.busy = "";
       }
     },
@@ -97,7 +96,7 @@ export default defineComponent({
       <button class="add-scope" type="button" @click="revealedCookies.push({ scope: '', header: '' })">{{ $t("sources.interaction.cookies.add") }}</button>
     </div>
 
-    <label class="password-field">
+    <label v-if="!revealedCookies" class="password-field">
       <span>{{ $t("sources.interaction.cookies.currentPassword") }}</span>
       <input v-model="currentPassword" type="password" autocomplete="current-password">
     </label>
@@ -106,7 +105,7 @@ export default defineComponent({
       <AppButton v-if="!revealedCookies" data-action="reveal" variant="secondary" :busy="busy === 'reveal'" :disabled="!currentPassword" @click="reveal">{{ $t("sources.interaction.cookies.reveal") }}</AppButton>
       <template v-else>
         <AppButton variant="quiet" :disabled="Boolean(busy)" @click="clearSecrets">{{ $t("sources.cancel") }}</AppButton>
-        <AppButton data-action="save" :busy="busy === 'save'" :disabled="!currentPassword" @click="save">{{ $t("sources.interaction.cookies.save") }}</AppButton>
+        <AppButton data-action="save" :busy="busy === 'save'" @click="save">{{ $t("sources.interaction.cookies.save") }}</AppButton>
       </template>
     </div>
   </section>

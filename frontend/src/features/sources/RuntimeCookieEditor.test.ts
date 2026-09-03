@@ -53,10 +53,10 @@ describe('RuntimeCookieEditor', () => {
 
     await vi.waitFor(() => expect(revealSourceRuntimeCookies).toHaveBeenCalledWith('source-a', 'current-password'));
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('device=stable; token=secret');
-    expect((wrapper.get('input[type="password"]').element as HTMLInputElement).value).toBe('');
+    expect(wrapper.find('input[type="password"]').exists()).toBe(false);
   });
 
-  it('requires a fresh password to save and returns to masked metadata', async () => {
+  it('reuses the reveal password for save and then clears it', async () => {
     const wrapper = mountEditor();
     await vi.waitFor(() => expect(getSourceRuntimeCookies).toHaveBeenCalled());
     await wrapper.get('input[type="password"]').setValue('reveal-password');
@@ -64,15 +64,31 @@ describe('RuntimeCookieEditor', () => {
     await vi.waitFor(() => expect(wrapper.find('textarea').exists()).toBe(true));
 
     await wrapper.get('textarea').setValue('device=stable; token=updated');
-    await wrapper.get('input[type="password"]').setValue('save-password');
     await wrapper.get('[data-action="save"]').trigger('click');
 
-    await vi.waitFor(() => expect(replaceSourceRuntimeCookies).toHaveBeenCalledWith('source-a', 'save-password', [
+    await vi.waitFor(() => expect(replaceSourceRuntimeCookies).toHaveBeenCalledWith('source-a', 'reveal-password', [
       { scope: 'https://reader.example/', header: 'device=stable; token=updated' },
     ]));
     expect(wrapper.find('textarea').exists()).toBe(false);
     expect(wrapper.text()).toContain('device');
     expect(wrapper.text()).not.toContain('updated');
-    expect((wrapper.get('input[type="password"]').element as HTMLInputElement).value).toBe('');
+    expect(wrapper.find('input[type="password"]').exists()).toBe(true);
+  });
+
+  it('keeps the revealed editing session available after a save failure', async () => {
+    replaceSourceRuntimeCookies.mockRejectedValueOnce(new Error('save failed'));
+    const wrapper = mountEditor();
+    await vi.waitFor(() => expect(getSourceRuntimeCookies).toHaveBeenCalled());
+    await wrapper.get('input[type="password"]').setValue('current-password');
+    await wrapper.get('[data-action="reveal"]').trigger('click');
+    await vi.waitFor(() => expect(wrapper.find('textarea').exists()).toBe(true));
+
+    await wrapper.get('[data-action="save"]').trigger('click');
+    await vi.waitFor(() => expect(replaceSourceRuntimeCookies).toHaveBeenCalled());
+
+    expect(wrapper.find('textarea').exists()).toBe(true);
+    expect(wrapper.find('input[type="password"]').exists()).toBe(false);
+    await wrapper.get('[data-action="save"]').trigger('click');
+    expect(replaceSourceRuntimeCookies).toHaveBeenLastCalledWith('source-a', 'current-password', expect.any(Array));
   });
 });
