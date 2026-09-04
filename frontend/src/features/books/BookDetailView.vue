@@ -424,6 +424,10 @@ export default defineComponent({
   .actions {
     grid-column: 1/-1;
   }
+  .actions > * {
+    flex: 1 1 10rem;
+    justify-content: center;
+  }
   .toc-header {
     align-items: baseline;
   }
