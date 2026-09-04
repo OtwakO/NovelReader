@@ -1,4 +1,4 @@
-"""Headless Patchright HTTP server for NovelReader WebView requests."""
+"""Patchright HTTP server for NovelReader WebView requests."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import signal
 from patchright.async_api import async_playwright
 
 from browser import BrowserWorker, PROTOCOL_VERSION
+from runtime import VirtualDisplay, browser_mode, runtime_metadata
 
 MAX_REQUEST_BYTES = 1_048_576
 
@@ -100,28 +101,37 @@ async def main() -> None:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
     host = os.getenv("WEBVIEW_WORKER_HOST", "127.0.0.1")
     port = int(os.getenv("WEBVIEW_WORKER_PORT", "8787"))
+    mode = browser_mode()
+    runtime_info = runtime_metadata()
     max_pages, max_pending, max_body, max_contexts, interactive_idle, interactive_absolute = capacity_settings()
     stop = asyncio.Event()
+    display = VirtualDisplay(mode)
 
-    async with async_playwright() as playwright:
-        worker = BrowserWorker(
-            playwright, max_pages, max_pending, max_body, max_contexts,
-            interactive_idle, interactive_absolute,
-        )
-        await worker.start()
-        server = await asyncio.start_server(
-            lambda reader, writer: serve_connection(reader, writer, worker), host, port
-        )
-        loop = asyncio.get_running_loop()
-        for signum in (signal.SIGINT, signal.SIGTERM):
+    try:
+        await display.start()
+        async with async_playwright() as playwright:
+            worker = BrowserWorker(
+                playwright, max_pages, max_pending, max_body, max_contexts,
+                interactive_idle, interactive_absolute, mode, runtime_info,
+            )
             try:
-                loop.add_signal_handler(signum, stop.set)
-            except NotImplementedError:
-                pass
-        logging.info("Patchright worker listening on %s:%d", host, port)
-        async with server:
-            await stop.wait()
-        await worker.close()
+                await worker.start()
+                server = await asyncio.start_server(
+                    lambda reader, writer: serve_connection(reader, writer, worker), host, port
+                )
+                loop = asyncio.get_running_loop()
+                for signum in (signal.SIGINT, signal.SIGTERM):
+                    try:
+                        loop.add_signal_handler(signum, stop.set)
+                    except NotImplementedError:
+                        pass
+                logging.info("Patchright %s worker listening on %s:%d", mode, host, port)
+                async with server:
+                    await stop.wait()
+            finally:
+                await worker.close()
+    finally:
+        await display.close()
 
 
 if __name__ == "__main__":

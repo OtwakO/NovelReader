@@ -46,6 +46,9 @@ services:
     environment:
       WEBVIEW_WORKER_HOST: 0.0.0.0
 
+      # Worker-wide Chrome mode; headful uses Xvfb and consumes more memory.
+      # WEBVIEW_BROWSER_MODE: "headless" # headless or headful
+
       # Optional browser capacity overrides:
       # WEBVIEW_MAX_PAGES: "2"
       # WEBVIEW_MAX_PENDING: "8"

@@ -87,7 +87,7 @@ jobs:
         run: |
           uv python install
           uv sync --frozen
-          uv run --frozen --no-sync patchright install chromium --with-deps
+          uv run --frozen --no-sync patchright install chrome --with-deps
           uv run --frozen --no-sync python -m unittest discover -s . -p 'test_*.py'
           uv run --frozen --no-sync python -m py_compile browser.py worker.py
           uv run --frozen --no-sync python -c "import patchright; print('Patchright import passed')"
@@ -141,13 +141,25 @@ jobs:
           push: false
           tags: novelreader-webview:e2e
           labels: org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=novelreader-webview
-          cache-to: type=gha,mode=max,scope=novelreader-webview
+          # Resolve fresh Patchright and Chrome; test these exact bytes before promotion.
+          no-cache: true
           provenance: false
           sbom: false
 
-      - name: Verify WebView image imports
-        run: docker run --rm --entrypoint /app/.venv/bin/python novelreader-webview:e2e -c "import browser, interactive, worker"
+      - name: Verify WebView image in both modes
+        run: |
+          docker run --rm novelreader-webview:e2e /app/.venv/bin/python -c "from runtime import runtime_metadata; print(runtime_metadata())"
+          tests=$(mktemp -d)
+          trap 'rm -rf "$tests"' EXIT
+          cp webview-worker/test_*.py "$tests/"
+          chmod -R a+rX "$tests"
+          for mode in headless headful; do
+            docker run --rm --shm-size=512m \
+              -e WEBVIEW_BROWSER_MODE="$mode" -e PYTHONPATH=/app \
+              -v "$tests:/tests:ro" \
+              novelreader-webview:e2e /app/.venv/bin/python \
+              -m unittest discover -s /tests -p 'test_*.py' -q
+          done
 
       - name: Verify exact release images with Compose
         env:

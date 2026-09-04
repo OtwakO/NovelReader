@@ -11,6 +11,8 @@ import re
 import socket
 from urllib.parse import urlparse
 
+from runtime import BROWSER_MODES, close_context
+
 from patchright.async_api import async_playwright
 
 from interactive import InteractiveSessions
@@ -87,8 +89,14 @@ class BrowserWorker:
         max_contexts: int,
         interactive_idle_seconds: float = 120,
         interactive_absolute_seconds: float = 600,
+        browser_mode: str = "headless",
+        runtime_info: dict[str, str] | None = None,
     ):
+        if browser_mode not in BROWSER_MODES:
+            raise ValueError(f"unsupported browser mode: {browser_mode}")
         self.playwright = playwright
+        self.browser_mode = browser_mode
+        self.runtime_info = dict(runtime_info or {})
         self.max_body_bytes = max_body_bytes
         self.max_contexts = max_contexts
         self.queue: asyncio.Queue[tuple[dict, asyncio.Future]] = asyncio.Queue(maxsize=max_pending)
@@ -101,6 +109,7 @@ class BrowserWorker:
         self.failed_requests = 0
         self.busy_rejections = 0
         self.recycled = 0
+        self.browser_tainted = False
         self.closing = False
         self.consumers: list[asyncio.Task] = []
         self.max_pages = max_pages
@@ -204,15 +213,22 @@ class BrowserWorker:
             self.active -= 1
             self.completed += 1
             self.total_completed += 1
+            if browser_failed:
+                self.browser_tainted = True
             should_recycle = (
                 self.active == 0
-                and (browser_failed or self.completed >= self.max_contexts)
+                and (self.browser_tainted or self.completed >= self.max_contexts)
             )
             if should_recycle and self.browser is browser:
                 self.completed = 0
+                self.browser_tainted = False
                 self.recycled += 1
                 await self._close_browser()
         self.capacity.release()
+
+    async def _taint_browser(self) -> None:
+        async with self.state_lock:
+            self.browser_tainted = True
 
     async def _open_interactive_context(self, request: dict):
         target = request.get("url", "")
@@ -266,11 +282,8 @@ class BrowserWorker:
                 await page.goto(target, wait_until="domcontentloaded", timeout=timeout_ms)
             return browser, context, page
         except BaseException:
-            if context is not None:
-                try:
-                    await asyncio.shield(asyncio.wait_for(context.close(), timeout=2))
-                except BaseException:
-                    pass
+            if context is not None and not await close_context(context):
+                await self._taint_browser()
             if acquired:
                 await self._release_browser(browser, not browser.is_connected())
             else:
@@ -278,7 +291,10 @@ class BrowserWorker:
             raise
 
     async def _launch_browser(self) -> None:
-        self.browser = await self.playwright.chromium.launch(headless=True)
+        self.browser = await self.playwright.chromium.launch(
+            channel="chrome",
+            headless=self.browser_mode == "headless",
+        )
 
     async def _close_browser(self) -> None:
         if self.browser is not None:
@@ -411,12 +427,10 @@ class BrowserWorker:
                 "cookies": protocol_cookies(await context.cookies()),
             }
         finally:
-            if context is not None:
-                try:
-                    await asyncio.shield(asyncio.wait_for(context.close(), timeout=2))
-                except BaseException:
-                    # Cancellation must not strand a live browser context.
-                    pass
+            if context is not None and not await close_context(context):
+                # A context that cannot be closed may retain renderer processes. Taint the
+                # shared browser so it is recycled when active work drains.
+                await self._taint_browser()
 
     async def _probe(self, browser, timeout_ms: int) -> dict:
         context = None
@@ -436,11 +450,8 @@ class BrowserWorker:
                 "finalUrl": "about:blank",
             }
         finally:
-            if context is not None:
-                try:
-                    await asyncio.shield(asyncio.wait_for(context.close(), timeout=2))
-                except BaseException:
-                    pass
+            if context is not None and not await close_context(context):
+                await self._taint_browser()
 
     async def health(self) -> dict:
         async with self.state_lock:
@@ -449,6 +460,7 @@ class BrowserWorker:
             )
             return {
                 "version": PROTOCOL_VERSION,
+                **self.runtime_info,
                 "ok": not self.closing and consumers_ready,
                 "queueDepth": self.queue.qsize(),
                 "active": self.active,
@@ -457,6 +469,7 @@ class BrowserWorker:
                 "failedRequests": self.failed_requests,
                 "busyRejections": self.busy_rejections,
                 "browserRecycles": self.recycled,
+                "browserMode": self.browser_mode,
             }
 
     @staticmethod

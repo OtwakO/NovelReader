@@ -9,6 +9,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable
 
+from runtime import close_context
+
 
 @dataclass
 class InteractiveSession:
@@ -68,7 +70,8 @@ class InteractiveSessions:
                 registered = session_id in self._sessions if "session_id" in locals() else False
             if not registered:
                 browser_failed = not browser.is_connected()
-                await self._close_context(context)
+                if not await close_context(context):
+                    browser_failed = True
                 await self._release(browser, browser_failed)
             raise
 
@@ -142,7 +145,8 @@ class InteractiveSessions:
             browser_failed = not browser.is_connected()
             raise
         finally:
-            await self._close_context(session.context)
+            if not await close_context(session.context):
+                browser_failed = True
             await self._release(browser, browser_failed or not browser.is_connected())
         return {"closed": True, "cookies": cookies, "finalUrl": final_url, "html": html}
 
@@ -178,10 +182,3 @@ class InteractiveSessions:
                     or now - session.created_at >= self._absolute_ttl
                 ]
             await asyncio.gather(*(self.close(session_id) for session_id in expired), return_exceptions=True)
-
-    @staticmethod
-    async def _close_context(context: object) -> None:
-        try:
-            await asyncio.shield(asyncio.wait_for(context.close(), timeout=2))
-        except BaseException:
-            pass

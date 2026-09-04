@@ -20,6 +20,7 @@ from browser import (
     require_public_response,
 )
 from worker import capacity_settings
+from runtime import VirtualDisplay, browser_mode
 
 
 class BrowserWorkerHealthTest(unittest.IsolatedAsyncioTestCase):
@@ -386,6 +387,13 @@ class DataDocumentRequestMediationTest(unittest.IsolatedAsyncioTestCase):
 
 
 class DataDocumentChromiumRegressionTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        self.display = VirtualDisplay(browser_mode())
+        await self.display.start()
+
+    async def asyncTearDown(self) -> None:
+        await self.display.close()
+
     async def test_opaque_document_fetch_succeeds_with_target_scoped_cookie(self) -> None:
         async def handler(reader, writer) -> None:
             request = (await reader.readuntil(b"\r\n\r\n")).lower()
@@ -405,7 +413,7 @@ class DataDocumentChromiumRegressionTest(unittest.IsolatedAsyncioTestCase):
         document = f"<script>fetch('http://127.0.0.1:{port}/status').then(r=>r.text()).then(v=>document.body.textContent=v).catch(e=>document.body.textContent=e.name)</script>"
         target = "data:text/html;base64," + base64.b64encode(document.encode()).decode()
         async with async_playwright() as playwright:
-            worker = BrowserWorker(playwright, 1, 1, 1024, 10)
+            worker = BrowserWorker(playwright, 1, 1, 1024, 10, browser_mode=browser_mode())
             await worker.start()
             try:
                 with patch("browser.require_public_host", new=AsyncMock()), patch("browser.require_public_response", new=AsyncMock()):
