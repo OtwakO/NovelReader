@@ -47,9 +47,7 @@ func (s *Server) handleSearchInstalledSource(w http.ResponseWriter, r *http.Requ
 		writeCrawlError(w, "search", err)
 		return
 	}
-	for index := range results {
-		s.addCoverDisplayURL(&results[index])
-	}
+	s.addCoverDisplayURLs(results, s.coverCacheRevision(request.SourceID))
 	writeJSON(w, http.StatusOK, results)
 }
 
@@ -134,9 +132,7 @@ func (s *Server) handleSearchBatchStream(w http.ResponseWriter, r *http.Request)
 			event["message"] = sourceErr.Error()
 		} else {
 			shelf.annotate(results)
-			for index := range results {
-				s.addCoverDisplayURL(&results[index])
-			}
+			s.addCoverDisplayURLs(results, coverCacheRevision{Source: source.UpdatedAt, Profile: s.sourceProfileRevision(source.ID)})
 			batchResults += len(results)
 			event["type"] = "results"
 			event["data"] = results

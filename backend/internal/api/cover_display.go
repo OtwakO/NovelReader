@@ -8,15 +8,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/candidate"
+	"github.com/otwako/novelreader/internal/sourceprofile"
 )
 
-const maxCoverReferenceBytes = 64 * 1024
+const (
+	maxCoverReferenceBytes = 64 * 1024
+	coverCacheControl      = "private, max-age=604800"
+)
 
 var errInvalidCoverReference = errors.New("cover reference is invalid")
 
@@ -25,6 +31,12 @@ type coverReference struct {
 	SourceURL string `json:"sourceUrl"`
 	BookURL   string `json:"bookUrl"`
 	CoverURL  string `json:"coverUrl"`
+	Revision  string `json:"revision"`
+}
+
+type coverCacheRevision struct {
+	Source  int64
+	Profile sourceprofile.CacheRevision
 }
 
 func mustNewCoverReferenceKey() []byte {
@@ -39,16 +51,27 @@ func (s *Server) addCoverDisplayURL(result *book.SearchResult) {
 	if result == nil || strings.TrimSpace(result.CoverURL) == "" {
 		return
 	}
-	result.CoverDisplayURL = s.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL)
+	s.addCoverDisplayURLWithRevision(result, s.coverCacheRevision(result.SourceID))
+}
+
+func (s *Server) addCoverDisplayURLs(results []book.SearchResult, revision coverCacheRevision) {
+	for index := range results {
+		result := &results[index]
+		if strings.TrimSpace(result.CoverURL) != "" {
+			s.addCoverDisplayURLWithRevision(result, revision)
+		}
+	}
+}
+
+func (s *Server) addCoverDisplayURLWithRevision(result *book.SearchResult, revision coverCacheRevision) {
+	result.CoverDisplayURL = s.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL, revision)
 }
 
 func (s *Server) addExploreCoverDisplayURLs(page *book.ExplorePage) {
 	if page == nil {
 		return
 	}
-	for index := range page.Books {
-		s.addCoverDisplayURL(&page.Books[index])
-	}
+	s.addCoverDisplayURLs(page.Books, s.coverCacheRevision(page.SourceID))
 }
 
 func (s *Server) addCandidateCoverDisplayURL(snapshot *candidate.Snapshot) {
@@ -57,16 +80,18 @@ func (s *Server) addCandidateCoverDisplayURL(snapshot *candidate.Snapshot) {
 	}
 	if snapshot.Preview != nil && strings.TrimSpace(snapshot.Preview.Book.CoverURL) != "" {
 		preview := &snapshot.Preview.Book
-		preview.CoverDisplayURL = s.coverDisplayURL(preview.SourceID, preview.SourceURL, preview.BookURL, preview.CoverURL)
+		revision := s.coverCacheRevision(preview.SourceID)
+		preview.CoverDisplayURL = s.coverDisplayURL(preview.SourceID, preview.SourceURL, preview.BookURL, preview.CoverURL, revision)
 	}
-	addStoredCoverDisplayURL(snapshot.StoredBook)
+	s.addStoredCoverDisplayURL(snapshot.StoredBook)
 }
 
-func (s *Server) coverDisplayURL(sourceID, sourceURL, bookURL, coverURL string) string {
+func (s *Server) coverDisplayURL(sourceID, sourceURL, bookURL, coverURL string, revision coverCacheRevision) string {
 	if s == nil || len(s.coverReferenceKey) == 0 || strings.TrimSpace(sourceID) == "" || strings.TrimSpace(sourceURL) == "" || strings.TrimSpace(bookURL) == "" || strings.TrimSpace(coverURL) == "" {
 		return ""
 	}
-	payload, err := json.Marshal(coverReference{SourceID: sourceID, SourceURL: sourceURL, BookURL: bookURL, CoverURL: coverURL})
+	version := coverRevision(s.coverCacheScope, revision, sourceID, sourceURL, bookURL, coverURL)
+	payload, err := json.Marshal(coverReference{SourceID: sourceID, SourceURL: sourceURL, BookURL: bookURL, CoverURL: coverURL, Revision: version})
 	if err != nil || len(payload) > maxCoverReferenceBytes {
 		return ""
 	}
@@ -76,18 +101,105 @@ func (s *Server) coverDisplayURL(sourceID, sourceURL, bookURL, coverURL string) 
 	return "/api/covers/" + base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(signature)
 }
 
-func addStoredCoverDisplayURL(stored *book.Book) {
+func (s *Server) addStoredCoverDisplayURL(stored *book.Book) {
 	if stored == nil || strings.TrimSpace(stored.CoverURL) == "" {
 		return
 	}
-	stored.CoverDisplayURL = storedCoverDisplayURL(stored.ID)
+	stored.CoverDisplayURL = storedCoverDisplayURL(stored, s.coverCacheRevision(stored.SourceID), s.coverCacheScope)
 }
 
-func storedCoverDisplayURL(bookID string) string {
-	if strings.TrimSpace(bookID) == "" {
+func (s *Server) addStoredCoverDisplayURLs(books []book.Book) {
+	revisions := s.coverCacheRevisions()
+	for index := range books {
+		stored := &books[index]
+		if strings.TrimSpace(stored.CoverURL) != "" {
+			stored.CoverDisplayURL = storedCoverDisplayURL(stored, revisions[stored.SourceID], s.coverCacheScope)
+		}
+	}
+}
+
+func storedCoverDisplayURL(stored *book.Book, revision coverCacheRevision, cacheScope string) string {
+	if stored == nil || strings.TrimSpace(stored.ID) == "" {
 		return ""
 	}
-	return "/api/books/" + url.PathEscape(bookID) + "/cover"
+	return versionedCoverURL("/api/books/"+url.PathEscape(stored.ID)+"/cover", coverRevision(cacheScope, revision, stored.SourceID, stored.SourceURL, stored.BookURL, stored.CoverURL, stored.VariableMap))
+}
+
+func coverRevision(cacheScope string, revision coverCacheRevision, values ...string) string {
+	hash := sha256.New()
+	_, _ = hash.Write([]byte(cacheScope))
+	_, _ = hash.Write([]byte{0})
+	_, _ = hash.Write([]byte(strconv.FormatInt(revision.Source, 10)))
+	_, _ = hash.Write([]byte{0})
+	_, _ = hash.Write([]byte(strconv.FormatInt(revision.Profile.Settings, 10)))
+	_, _ = hash.Write([]byte{0})
+	_, _ = hash.Write([]byte(strconv.FormatInt(revision.Profile.Authentication, 10)))
+	for _, value := range values {
+		_, _ = hash.Write([]byte{0})
+		_, _ = hash.Write([]byte(value))
+	}
+	return base64.RawURLEncoding.EncodeToString(hash.Sum(nil)[:12])
+}
+
+func (s *Server) coverCacheRevision(sourceID string) coverCacheRevision {
+	var revision coverCacheRevision
+	if s.sourceStore != nil {
+		var err error
+		revision.Source, err = s.sourceStore.DefinitionRevision(sourceID)
+		if err != nil {
+			slog.Warn("cover: source revision unavailable", "sourceId", sourceID, "err", err)
+		}
+	}
+	revision.Profile = s.sourceProfileRevision(sourceID)
+	return revision
+}
+
+func (s *Server) coverCacheRevisions() map[string]coverCacheRevision {
+	revisions := make(map[string]coverCacheRevision)
+	if s.sourceStore != nil {
+		sourceRevisions, err := s.sourceStore.DefinitionRevisions()
+		if err != nil {
+			slog.Warn("cover: source revisions incomplete", "err", err)
+		}
+		for sourceID, sourceRevision := range sourceRevisions {
+			revisions[sourceID] = coverCacheRevision{Source: sourceRevision}
+		}
+	}
+	for sourceID, profileRevision := range s.sourceProfileRevisions() {
+		revision := revisions[sourceID]
+		revision.Profile = profileRevision
+		revisions[sourceID] = revision
+	}
+	return revisions
+}
+
+func (s *Server) sourceProfileRevision(sourceID string) sourceprofile.CacheRevision {
+	if s.sourceProfiles == nil {
+		return sourceprofile.CacheRevision{}
+	}
+	revision, err := s.sourceProfiles.CacheRevision(sourceID)
+	if err != nil {
+		slog.Warn("cover: source profile revision unavailable", "sourceId", sourceID, "err", err)
+	}
+	return revision
+}
+
+func (s *Server) sourceProfileRevisions() map[string]sourceprofile.CacheRevision {
+	if s.sourceProfiles == nil {
+		return nil
+	}
+	revisions, err := s.sourceProfiles.CacheRevisions()
+	if err != nil {
+		slog.Warn("cover: source profile revisions incomplete", "err", err)
+	}
+	return revisions
+}
+
+func versionedCoverURL(rawURL, revision string) string {
+	if rawURL == "" || revision == "" {
+		return rawURL
+	}
+	return rawURL + "?v=" + url.QueryEscape(revision)
 }
 
 func (s *Server) parseCoverReference(value string) (coverReference, error) {
@@ -109,7 +221,7 @@ func (s *Server) parseCoverReference(value string) (coverReference, error) {
 		return coverReference{}, errInvalidCoverReference
 	}
 	var ref coverReference
-	if err := json.Unmarshal(payload, &ref); err != nil || strings.TrimSpace(ref.SourceID) == "" || strings.TrimSpace(ref.SourceURL) == "" || strings.TrimSpace(ref.BookURL) == "" || strings.TrimSpace(ref.CoverURL) == "" {
+	if err := json.Unmarshal(payload, &ref); err != nil || strings.TrimSpace(ref.SourceID) == "" || strings.TrimSpace(ref.SourceURL) == "" || strings.TrimSpace(ref.BookURL) == "" || strings.TrimSpace(ref.CoverURL) == "" || strings.TrimSpace(ref.Revision) == "" {
 		return coverReference{}, errInvalidCoverReference
 	}
 	return ref, nil
@@ -145,7 +257,8 @@ func (s *Server) handleGetCoverDisplay(w http.ResponseWriter, r *http.Request) {
 
 func writeCoverBytes(w http.ResponseWriter, data []byte, contentType string) {
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("Cache-Control", coverCacheControl)
+	w.Header().Set("Vary", "Cookie")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)

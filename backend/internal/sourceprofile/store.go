@@ -57,6 +57,36 @@ func NewStore(readerDB, credentialsDB *sql.DB) *Store {
 	return &Store{readerDB: readerDB, credentialsDB: credentialsDB}
 }
 
+// CacheRevision identifies persisted settings and authentication generations independently.
+type CacheRevision struct {
+	Settings       int64
+	Authentication int64
+}
+
+// CacheRevision returns one source profile's cache-relevant generations.
+func (s *Store) CacheRevision(sourceID string) (CacheRevision, error) {
+	var revision CacheRevision
+	if err := s.readerDB.QueryRow(`SELECT COALESCE((SELECT updated_at FROM source_profiles WHERE source_id = ?), 0)`, sourceID).Scan(&revision.Settings); err != nil {
+		return revision, fmt.Errorf("sourceprofile: load settings revision: %w", err)
+	}
+	if err := s.credentialsDB.QueryRow(`SELECT COALESCE((SELECT updated_at FROM source_auth_state WHERE source_id = ?), 0)`, sourceID).Scan(&revision.Authentication); err != nil {
+		return revision, fmt.Errorf("sourceprofile: load authentication revision: %w", err)
+	}
+	return revision, nil
+}
+
+// CacheRevisions returns cache-relevant generations for all persisted source profiles.
+func (s *Store) CacheRevisions() (map[string]CacheRevision, error) {
+	revisions := make(map[string]CacheRevision)
+	if err := loadRevisions(s.readerDB, `SELECT source_id, updated_at FROM source_profiles`, revisions, false); err != nil {
+		return revisions, fmt.Errorf("sourceprofile: list settings revisions: %w", err)
+	}
+	if err := loadRevisions(s.credentialsDB, `SELECT source_id, updated_at FROM source_auth_state`, revisions, true); err != nil {
+		return revisions, fmt.Errorf("sourceprofile: list authentication revisions: %w", err)
+	}
+	return revisions, nil
+}
+
 func (s *Store) Load(ctx context.Context, sourceID string) (Profile, error) {
 	if err := s.requireInstalled(ctx, sourceID); err != nil {
 		return Profile{}, err
@@ -193,6 +223,29 @@ func (s *Store) requireInstalled(ctx context.Context, sourceID string) error {
 		return err
 	}
 	return nil
+}
+
+func loadRevisions(db *sql.DB, query string, revisions map[string]CacheRevision, authentication bool) error {
+	rows, err := db.Query(query)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var sourceID string
+		var revision int64
+		if err := rows.Scan(&sourceID, &revision); err != nil {
+			return err
+		}
+		current := revisions[sourceID]
+		if authentication {
+			current.Authentication = revision
+		} else {
+			current.Settings = revision
+		}
+		revisions[sourceID] = current
+	}
+	return rows.Err()
 }
 
 func loadDocument(ctx context.Context, db *sql.DB, query, sourceID string, destination *json.RawMessage) error {

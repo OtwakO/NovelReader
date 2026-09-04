@@ -56,6 +56,7 @@ type Server struct {
 	candidateOperations *candidate.Manager
 	catalogs            *book.Catalogs
 	coverReferenceKey   []byte
+	coverCacheScope     string
 	collectionLoader    *booksource.RemoteLoader
 	collectionScheduler *sourceCollectionScheduler
 	backups             *backupservice.Service
@@ -123,6 +124,7 @@ func NewServer(
 		mux:                 http.NewServeMux(),
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(),
+		coverCacheScope:     "standalone",
 		collectionLoader:    booksource.NewRemoteLoader(),
 	}
 	if bookStore != nil && sourceStore != nil && searcher != nil {
@@ -236,6 +238,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health, webViewProbe: webViewProbe, chineseConversion: conversion,
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(),
+		coverCacheScope:     "standalone",
 		collectionLoader:    booksource.NewRemoteLoader(),
 	}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, 32, limits.SessionTTL)
@@ -278,6 +281,7 @@ func (s *Server) registerAuthenticatedRoutes() {
 		requestServer := *s
 		requestServer.mux = http.NewServeMux()
 		requestServer.runtime = runtime
+		requestServer.coverCacheScope = readerstore.DeviceID(account.ID)
 		requestServer.db = runtime.home.DB()
 		requestServer.sourceStore = runtime.sourceStore
 		requestServer.bookStore = runtime.bookStore
@@ -532,9 +536,7 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 	if books == nil {
 		books = []book.Book{}
 	}
-	for index := range books {
-		addStoredCoverDisplayURL(&books[index])
-	}
+	s.addStoredCoverDisplayURLs(books)
 	writeJSON(w, http.StatusOK, books)
 }
 
@@ -549,7 +551,7 @@ func (s *Server) handleGetBook(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
 		return
 	}
-	addStoredCoverDisplayURL(b)
+	s.addStoredCoverDisplayURL(b)
 	writeJSON(w, http.StatusOK, b)
 }
 
@@ -614,7 +616,7 @@ func (s *Server) handleMergeBookSources(w http.ResponseWriter, r *http.Request) 
 		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to merge book sources")
 		return
 	}
-	addStoredCoverDisplayURL(stored)
+	s.addStoredCoverDisplayURL(stored)
 	writeJSON(w, http.StatusOK, stored)
 }
 
@@ -628,7 +630,7 @@ func (s *Server) handleClearBookSources(w http.ResponseWriter, r *http.Request) 
 		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to clear book sources")
 		return
 	}
-	addStoredCoverDisplayURL(stored)
+	s.addStoredCoverDisplayURL(stored)
 	writeJSON(w, http.StatusOK, stored)
 }
 
@@ -950,7 +952,7 @@ func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "source switched but reload failed")
 		return
 	}
-	addStoredCoverDisplayURL(switched)
+	s.addStoredCoverDisplayURL(switched)
 	writeJSON(w, http.StatusOK, map[string]interface{}{"book": switched, "mapping": mapping})
 }
 

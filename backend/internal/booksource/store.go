@@ -112,6 +112,40 @@ func (s *Store) GetExploreEnabledByID(id string) (*BookSource, error) {
 	return src, nil
 }
 
+// DefinitionRevision returns one installed source's cache revision without loading its definition.
+func (s *Store) DefinitionRevision(id string) (int64, error) {
+	var revision int64
+	if err := s.db.QueryRow(`SELECT updated_at FROM book_sources WHERE id = ?`, id).Scan(&revision); err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("booksource: get definition revision %s: %w", id, err)
+	}
+	return revision, nil
+}
+
+// DefinitionRevisions returns the cache revision of every installed source without loading definitions.
+func (s *Store) DefinitionRevisions() (map[string]int64, error) {
+	rows, err := s.db.Query(`SELECT id, updated_at FROM book_sources`)
+	if err != nil {
+		return nil, fmt.Errorf("booksource: list definition revisions: %w", err)
+	}
+	defer rows.Close()
+	revisions := make(map[string]int64)
+	for rows.Next() {
+		var id string
+		var updatedAt int64
+		if err := rows.Scan(&id, &updatedAt); err != nil {
+			return revisions, fmt.Errorf("booksource: scan definition revision: %w", err)
+		}
+		revisions[id] = updatedAt
+	}
+	if err := rows.Err(); err != nil {
+		return revisions, fmt.Errorf("booksource: list definition revisions: %w", err)
+	}
+	return revisions, nil
+}
+
 // GetByID returns one installed source definition by its immutable Source ID.
 func (s *Store) GetByID(id string) (*BookSource, error) {
 	row := s.db.QueryRow(`SELECT `+sourceColumns+` FROM book_sources WHERE id = ?`, id)
