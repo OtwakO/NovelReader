@@ -58,6 +58,21 @@ the direct version:
 Build for the case in front of you. Generalize once a second real case actually shows up, not
 before.
 
+### Avoid overfitting the implementation
+Implement the real contract and invariant, not just the current examples, fixtures, dataset, or one
+failing case.
+
+- Do not special-case exact values, IDs, ordering, sample inputs, or test fixtures unless the
+  contract genuinely requires it.
+- A bug fix should correct the rule that was violated, not merely make the observed reproduction
+  case pass.
+- Prefer logic that remains correct for other valid inputs of the same kind without adding
+  speculative generality for cases that do not exist.
+- If several exceptions or patches are accumulating around the same behavior, stop and reconsider
+  the underlying data flow, ownership, interface, or abstraction before adding another condition.
+- Tests should verify the intended contract; production code should not be shaped around quirks of
+  the current test suite.
+
 Do not add defensive branches, error handling, configurability, or extension points for scenarios
 the actual contract makes impossible. Validate and handle failure at real boundaries — untrusted
 input, network, disk, external services — rather than inventing hypothetical states deep inside
@@ -80,7 +95,10 @@ Signs a fix is a patch instead of a real fix:
 - It's landing right next to another recent fix in the same area.
 
 If any of these are true, trace back to where the problem actually starts and fix it there
-instead.
+instead. If the root cause is a bad boundary, ownership rule, data flow, interface, or other design
+decision, prefer the smallest architectural/design correction that removes the cause over another
+downstream workaround. Do not use “stay in scope” as a reason to stack patches when the requested
+behavior cannot be made correct without fixing the underlying design.
 
 Sometimes the real fix genuinely isn't possible right now — a third-party dependency, a hard
 deadline, code you don't own. When that happens: say so explicitly and mark the workaround clearly
