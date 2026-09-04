@@ -38,6 +38,7 @@ Out of scope:
 - Keep the current direct `BrowserWorker` interface until a second production engine is accepted. A browser adapter abstraction now would be speculative.
 - Do not hide `HeadlessChrome` by independently overriding headers or JavaScript properties. A coherent runtime change is preferable to fingerprint lies that detectors can cross-check.
 - Patchright's full-Chromium new-headless path is not current work: it crashes before navigation in the tested Linux environment, and successful Google Chrome headless runs still scored 100/100.
+- Patchright headful under Xvfb is rejected as a production mode: repeated scores were 51.5–56.5/100 with substantially higher RAM, and explicitly enabling coherent SwiftShader WebGL raised the score to 100/100. Further header/property injection would be detector-specific patch stacking rather than a coherent runtime fix.
 
 ## Current State
 
@@ -50,13 +51,13 @@ Measured on 2026-09-04:
 - The optimized compact image uses a multi-stage build, installs only the headless shell, and excludes build-only uv. Its content-addressed size is **343 MB** (44% smaller), with `/ms-playwright` reduced from ~656 MB to ~267 MB unpacked.
 - Optimized compact runtime behavior is unchanged: **153 MiB idle**, two concurrent scanner requests complete, and fingerprint-scan remains **100/100**. Short Docker-stats samples observed 414–451 MiB peak, so no RAM change is claimed from a disk-only packaging correction.
 - Patchright maps `chromium` and `chromium-headless-shell` dependency installation to the same Linux package set; the Dockerfile uses the precise artifact name but claims no package-size saving from it.
-- CloakBrowser research is recorded at [CloakBrowser fit for NovelReader's WebView worker](../research/cloakbrowser-webview-fit.md). It is not yet proven better for NovelReader and has distribution/licensing constraints.
+- CloakBrowser research is recorded at [CloakBrowser fit for NovelReader's WebView worker](../research/cloakbrowser-webview-fit.md). The freely downloadable v146 build is rejected: the official image scored **100/100** across three headless and three headful launches on the same scanner, is about **625 MB** content-addressed, and cannot validate the normal two-session capacity. Current v151 still requires a license-backed one-session proof before it can be evaluated.
 
 ## Next Action
 
-Evaluate a bounded headful Patchright image/runtime as a separate build/runtime candidate, preserving the same shared-browser/per-context isolation model. Measure score, image size, idle/two-context RAM, and latency before deciding whether it is an acceptable production mode.
+Run the current CloakBrowser v151 one-session proof described in the research note using a locally supplied free license key. If it materially improves the same-host score and preserves NovelReader's security-critical APIs, a fair two-context adoption benchmark then requires an entitlement that permits two concurrent sessions.
 
-Do not add an automatic per-request fallback: retrying a blocked request through a second engine doubles work and complicates state. If the headful frontier remains unacceptable, prepare the separate pinned CloakBrowser benchmark described in the research note.
+Do not add an automatic per-request fallback: retrying a blocked request through a second engine doubles work and complicates state. Do not change the production worker engine until the proof of concept passes NovelReader's routing/security regressions and demonstrates a materially better success/resource frontier.
 
 ## Verification
 
@@ -72,7 +73,7 @@ For packaging changes:
 For runtime/engine changes:
 
 - all packaging gates above;
-- repeated fingerprint-scan runs under the same host/IP;
+- repeated fingerprint-scan runs under the same host/IP: Patchright headless 100/100; headful Xvfb 51.5–56.5/100; headful SwiftShader WebGL 100/100; CloakBrowser v146 official image headless and headful 100/100 across three launches each;
 - representative protected public pages and optional ignored private BookSource compatibility checks;
 - route mediation, destination-scoped cookie, redirect, body-size, private-network, and connected-address regressions;
 - no credential or private BookSource material in code, logs, fixtures, or captured evidence.
