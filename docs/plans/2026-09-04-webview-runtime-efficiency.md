@@ -29,7 +29,7 @@ Out of scope:
 2. Remove proven packaging waste without changing browser behavior.
 3. Evaluate the smallest coherent Patchright runtime modes. Reject modes that do not materially improve successful execution or that require inconsistent fingerprint injection.
 4. Keep browser-engine choice inside the worker implementation; the backend-owned protocol remains unchanged.
-5. Evaluate CloakBrowser only as a separate pinned proof of concept if Patchright cannot reach an acceptable success/resource frontier. Adoption requires licensing clarity and all security-critical worker regressions to pass against the real binary.
+5. Evaluate alternate engines only as separate pinned proofs of concept if Patchright cannot reach an acceptable success/resource frontier. Adoption requires acceptable distribution terms and all security-critical worker regressions to pass against the real binary.
 
 ## Decisions
 
@@ -52,18 +52,19 @@ Measured on 2026-09-04:
 - Optimized compact runtime behavior is unchanged: **153 MiB idle**, two concurrent scanner requests complete, and fingerprint-scan remains **100/100**. Short Docker-stats samples observed 414–451 MiB peak, so no RAM change is claimed from a disk-only packaging correction.
 - Patchright maps `chromium` and `chromium-headless-shell` dependency installation to the same Linux package set; the Dockerfile uses the precise artifact name but claims no package-size saving from it.
 - CloakBrowser research is recorded at [CloakBrowser fit for NovelReader's WebView worker](../research/cloakbrowser-webview-fit.md). The freely downloadable v146 build is rejected: the official image scored **100/100** across three headless and three headful launches on the same scanner, is about **625 MB** content-addressed, and cannot validate the normal two-session capacity. Current v151 still requires a license-backed one-session proof before it can be evaluated.
+- Camoufox research is recorded at [Camoufox fit for NovelReader's WebView worker](../research/camoufox-webview-fit.md). Current stable `152.0.4-beta.29` produced two valid native-headless scanner scores of **22/100** and **7/100**, and reached Planet Minecraft's normal login page where Patchright received Cloudflare HTTP 403. Its embedded Turnstile did not issue a token, one combined trial closed unexpectedly, and Firefox `route.fetch()` responses lack the `server_addr()` seam required for NovelReader's post-connect DNS-rebinding check. Camoufox is promising but not adoptable without an equally strong connected-address boundary.
 
 ## Next Action
 
-Run the current CloakBrowser v151 one-session proof described in the research note using a locally supplied free license key. If it materially improves the same-host score and preserves NovelReader's security-critical APIs, a fair two-context adoption benchmark then requires an entitlement that permits two concurrent sessions.
+Keep the optimized Patchright worker as production default. The next implementation question is whether Camoufox can expose an equally strong, testable actual-connected-address check after routed fetches; do not build an adapter until that boundary is proven possible. Current CloakBrowser v151 remains an optional license-gated one-session comparison, not a prerequisite to close this workstream.
 
-Do not add an automatic per-request fallback: retrying a blocked request through a second engine doubles work and complicates state. Do not change the production worker engine until the proof of concept passes NovelReader's routing/security regressions and demonstrates a materially better success/resource frontier.
+Do not add an automatic per-request fallback: retrying a blocked request through a second engine doubles work and complicates state. Do not change the production worker engine until an alternate proof passes NovelReader's routing/security regressions and demonstrates a materially better success/resource frontier.
 
 ## Verification
 
 For packaging changes:
 
-- worker unit and Chromium regression tests: **32 passed**;
+- worker unit and Chromium regression tests: **32 passed**; optional Planet Minecraft live test is skipped by default;
 - Python bytecode/import checks: **passed**;
 - built-image import and health checks: **passed**;
 - exact Compose WebView E2E path with the current atomic app/worker pair: **passed**;
@@ -73,7 +74,8 @@ For packaging changes:
 For runtime/engine changes:
 
 - all packaging gates above;
-- repeated fingerprint-scan runs under the same host/IP: Patchright headless 100/100; headful Xvfb 51.5–56.5/100; headful SwiftShader WebGL 100/100; CloakBrowser v146 official image headless and headful 100/100 across three launches each;
+- repeated fingerprint-scan runs under the same host/IP: Patchright headless 100/100; headful Xvfb 51.5–56.5/100; headful SwiftShader WebGL 100/100; CloakBrowser v146 official image headless and headful 100/100 across three launches each; Camoufox native headless 22/100 and 7/100 on two completed collections, with later uncompleted collections excluded;
+- opt-in Planet Minecraft live test: Patchright fails at HTTP 403 Cloudflare block; Camoufox reaches HTTP 200 normal login UI in native-headless and virtual-display modes but fails the strict completion criterion because the embedded Turnstile token remains empty and submit disabled;
 - representative protected public pages and optional ignored private BookSource compatibility checks;
 - route mediation, destination-scoped cookie, redirect, body-size, private-network, and connected-address regressions;
 - no credential or private BookSource material in code, logs, fixtures, or captured evidence.

@@ -34,4 +34,17 @@ The same private worker also supports short-lived interactive login contexts. `W
 
 Base64 HTML `data:` documents receive a narrow request mediator for their `fetch` and XHR probes. The mediator accepts only HTTP(S), rejects any hostname resolution containing non-public addresses, verifies the connected server address before exposing the response, does not follow redirects, bounds timeout and response size, and authorizes only the opaque `null` document origin. Other resource types retain normal browser handling. This avoids globally disabling Chromium web security or exposing a general browser proxy.
 
+## Optional live Cloudflare check
+
+`test_live_cloudflare.py` checks Planet Minecraft's public sign-in page without using real credentials or submitting the form. It requires both the normal login UI and a completed embedded Turnstile token. The test is skipped by default because Cloudflare policy, IP reputation, and the third-party page can change independently of NovelReader.
+
+Run it explicitly against the production Patchright environment:
+
+```bash
+WEBVIEW_LIVE_CLOUDFLARE=1 uv run --frozen --no-sync \
+  python -m unittest test_live_cloudflare.py
+```
+
+For an isolated Camoufox comparison, install Camoufox and its browser outside the project environment, then set `WEBVIEW_LIVE_BROWSER=camoufox`; `WEBVIEW_LIVE_CAMOUFOX_MODE` accepts `headless` or `virtual`. Do not add Camoufox to the locked production dependencies merely to run this optional benchmark.
+
 Do not expose this worker publicly: `POST /execute` accepts arbitrary navigation URLs by design.
