@@ -17,6 +17,10 @@ on:
       - 'compose.e2e.yaml'
       - 'docker-e2e.sh'
       - 'testdata/docker/**'
+      # Documentation inside watched source trees does not require a release.
+      - '!backend/**/*.md'
+      - '!frontend/**/*.md'
+      - '!webview-worker/**/*.md'
   workflow_dispatch:
 
 permissions:
@@ -66,7 +70,7 @@ jobs:
       - name: Test and build frontend
         working-directory: frontend
         run: |
-          npm ci
+          npm ci --no-audit --no-fund
           npm test
           npm run build
 
@@ -182,8 +186,22 @@ jobs:
             docker buildx imagetools inspect "$target" --format '{{.Manifest.Digest}}'
           }
 
-          app_digest=$(stage_local novelreader:e2e "$APP_IMAGE")
-          worker_digest=$(stage_local novelreader-webview:e2e "$WORKER_IMAGE")
+          digests=$(mktemp -d)
+          trap 'rm -rf "$digests"' EXIT
+          stage_local novelreader:e2e "$APP_IMAGE" > "$digests/app" &
+          app_pid=$!
+          stage_local novelreader-webview:e2e "$WORKER_IMAGE" > "$digests/worker" &
+          worker_pid=$!
+
+          # Drain both uploads even if one fails; never promote a partial pair.
+          status=0
+          wait "$app_pid" || status=1
+          wait "$worker_pid" || status=1
+          if [[ "$status" != 0 ]]; then
+            exit "$status"
+          fi
+          app_digest=$(< "$digests/app")
+          worker_digest=$(< "$digests/worker")
           printf 'app_digest=%s\nworker_digest=%s\n' \
             "$app_digest" "$worker_digest" | tee -a "$GITHUB_OUTPUT"
 

@@ -87,8 +87,10 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 
 ## Active Work
 
-No accepted feature implementation plan remains unfinished. Select new work from the priorities below;
-completed handoffs are historical context, not active backlogs.
+[GitHub Actions runtime](docs/plans/github-actions-runtime.md) — conservative workflow optimizations:
+documentation-only path exclusions, lean npm installation, and concurrent verified-image staging.
+Local validation passed; hosted timing and registry integration remain to be measured.
+Completed handoffs above are historical context, not active backlogs.
 
 ## Immediate Priorities
 
