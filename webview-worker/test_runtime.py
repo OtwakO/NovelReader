@@ -67,3 +67,10 @@ class RuntimeTest(unittest.IsolatedAsyncioTestCase):
                     await worker.close()
         finally:
             await display.close()
+
+    async def test_optional_benchmark_uses_installed_chrome_without_network(self):
+        from test_live_cloudflare import launch_browser
+
+        async with launch_browser("patchright") as browser:
+            self.assertTrue(browser.is_connected())
+        self.assertFalse(browser.is_connected())

@@ -19,12 +19,22 @@ async def launch_browser(engine: str):
     if engine == "patchright":
         from patchright.async_api import async_playwright
 
-        async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(headless=True)
-            try:
-                yield browser
-            finally:
-                await browser.close()
+        from runtime import VirtualDisplay, browser_mode
+
+        mode = browser_mode()
+        display = VirtualDisplay(mode)
+        try:
+            await display.start()
+            async with async_playwright() as playwright:
+                browser = await playwright.chromium.launch(
+                    channel="chrome", headless=mode == "headless",
+                )
+                try:
+                    yield browser
+                finally:
+                    await browser.close()
+        finally:
+            await display.close()
         return
 
     if engine == "camoufox":

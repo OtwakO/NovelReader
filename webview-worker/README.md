@@ -52,7 +52,8 @@ Base64 HTML `data:` documents receive a narrow request mediator for their `fetch
 
 `test_live_cloudflare.py` checks Planet Minecraft's public sign-in page without using real credentials or submitting the form. It requires both the normal login UI and a completed embedded Turnstile token. The test is skipped by default because Cloudflare policy, IP reputation, and the third-party page can change independently of NovelReader.
 
-Run it explicitly against the production Patchright environment:
+Run it explicitly against the production Patchright environment. It uses branded Chrome and
+honors `WEBVIEW_BROWSER_MODE` (including Xvfb lifecycle for headful mode):
 
 ```bash
 WEBVIEW_LIVE_CLOUDFLARE=1 uv run --frozen --no-sync \

@@ -1,6 +1,6 @@
 # WebView Runtime Efficiency
 
-**Status:** Active
+**Status:** Completed
 
 **Branch:** `feat/webview-runtime-efficiency`
 
@@ -49,7 +49,7 @@ Release builds refresh stable Patchright/Chrome, test the exact image in both mo
 through the existing atomic-pair workflow. `/healthz` reports resolved versions. No runtime updates,
 secondary engine, stealth flags, UA spoofing, or source-specific behavior were added.
 
-Latest-image verification: Patchright **1.62.3**, Chrome **152.0.7977.82**; **35 tests passed and
+Latest-image verification: Patchright **1.62.3**, Chrome **152.0.7977.82**; **36 tests passed and
 1 optional live check skipped per mode**. Production headful startup/readiness/SIGTERM passed,
 including Xvfb startup without ownership warnings. Workflow actionlint and patch whitespace checks
 passed. Compose verification with the existing `novelreader:e2e` app image and new worker passed
@@ -57,6 +57,11 @@ passed. Compose verification with the existing `novelreader:e2e` app image and n
 AFT/Pyright reports 23 dynamic-typing diagnostics in existing browser/interactive call sites
 (e.g. `object`-typed pages/contexts); this is not a clean static-typecheck claim. Runtime verification
 above passed; unrelated typing cleanup was not folded into this slice.
+The current Chrome/Xvfb image measures approximately **487 MB** locally versus **343 MB** for the
+older shell-only image; selecting headless does not remove installed headful dependencies.
+The optional live benchmark now uses installed Chrome and the worker mode; its launch/close path
+was verified without accessing a live website. No private BookSources or credential material were
+found in the branch changes.
 The live detector and resource measurements below are historical; they were not rerun on Chrome 152.
 
 
@@ -79,7 +84,7 @@ Measured on 2026-09-04:
 
 ## Next Action
 
-Accepted after clarification: use one pinned branded Chrome binary with worker-wide `WEBVIEW_BROWSER_MODE=headless|headful` (headless default), applying only to requests delegated to WebView. Keep fresh non-persistent contexts, existing capacity and viewport, and no fallback engine. Final user choice: resolve latest stable Patchright and Chrome on each release build, with no runtime auto-updates. Keep a locked local baseline, bypass release-image build cache, verify both modes against the exact image, and report resolved versions. Rollback uses a previously verified image digest; rebuilding an older commit is not dependency-reproducible. Worker mode/release-update slice is complete and verified. Await user direction on merging/deployment or further live measurements; do not push or deploy automatically. Previous packaging measurements describe the old headless-shell image, not this new runtime. Live compatibility/resource remeasurement is separate evidence-gated follow-up, not a claim of this implementation.
+Accepted after clarification: use one branded Chrome binary fixed within each built image with worker-wide `WEBVIEW_BROWSER_MODE=headless|headful` (headless default), applying only to requests delegated to WebView. Keep fresh non-persistent contexts, existing capacity and viewport, and no fallback engine. Final user choice: resolve latest stable Patchright and Chrome on each release build, with no runtime auto-updates. Keep a locked local baseline, bypass release-image build cache, verify both modes against the exact image, and report resolved versions. Rollback uses a previously verified image digest; rebuilding an older commit is not dependency-reproducible. The accepted implementation is complete and approved for local merge to main. Further live measurements or package-level footprint work require a separately accepted follow-up; do not push or deploy automatically. Previous packaging measurements describe the old headless-shell image, not this new runtime. Live compatibility/resource remeasurement is separate evidence-gated follow-up, not a claim of this implementation.
 
 Camoufox still requires an equally strong, testable actual-connected-address check after routed fetches; do not build an adapter until that boundary is proven possible. Current CloakBrowser v151 remains an optional license-gated one-session comparison, not a prerequisite to close this workstream.
 
