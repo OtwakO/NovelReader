@@ -1,6 +1,6 @@
 # Parallel image-build benchmark
 
-**Status:** Active
+**Status:** Completed
 
 ## Goal
 
@@ -28,20 +28,43 @@ Initial run [33957263031](https://github.com/OtwakO/NovelReader/actions/runs/339
 but the default Git context ignored the injected cache marker: app was fully cached (8s).
 Build totals of 95s sequential / 89s parallel are a warm-app observation only, not the intended
 source-change comparison. Both runners had 4 CPUs/~16 GB RAM and Patchright 1.62.3 / Chrome 152.0.7977.82.
-The benchmark now explicitly selects the checkout directory; a corrected run is pending.
+The benchmark now explicitly selects the checkout directory. Corrected run
+[33957509840](https://github.com/OtwakO/NovelReader/actions/runs/33957509840) at `584f289` passed both cases.
+Production workflow changes have not been made.
 Production `.github/workflows/publish.yml` and Dockerfiles are unchanged.
 
 ## Next action
 
-Push the context correction and inspect the resulting run. Verify that the native app build actually
-executes rather than hitting the complete cache. Compare
-build-step totals and total job time, inspect cache hits and concurrent overlap, and report evidence
-before proposing a production change. Keep baseline and candidate results separate from prior runs.
+Seek approval before adapting the release workflow to one concurrent Bake invocation. Preserve its
+revision labels, cache export, exact-image verification, and publication gates. Do not merge the
+branch-only benchmark scaffolding as a production implementation; measure the real release afterward.
+
+## Result
+
+| Measurement | Sequential | Parallel |
+| --- | ---: | ---: |
+| App build | 70s | overlaps worker |
+| Worker build | 109s | overlaps app |
+| Combined build steps (including Docker export/load) | 179s | 117s |
+| Native Go test/build layer | 47.6s | 70.4s |
+| Full benchmark job | 250s | 181s |
+| Worker-mode tests | 10s | 11s |
+| Compose E2E | 34s | 38s |
+
+Both corrected cases used 4 CPUs/~16 GB RAM, Patchright 1.62.3, and Chrome 152.0.7977.82.
+Native Go compilation executed in both cases, confirming the intended source-change scenario.
+Both integration gates passed. Builds saved 62s (~35%); the total job saved 69s, including runner
+setup variation. Parallel contention slowed the Go layer, but overlap still improved total time.
+
+Recommendation: a production parallel-build trial is justified. This does not promise an identical
+release speedup: the benchmark omits cache export and registry staging, and retains one sample per
+case. The warm-app first run showed only a 6s build improvement, so benefits depend on changed inputs.
 
 ## Verification and interpretation
 
 `actionlint` 1.7.12 passed. `docker buildx bake --print` parsed both targets; assertions confirmed
-Docker-only output, no cache exports, and an uncached worker. Hosted verification remains pending.
+Docker-only output, no cache exports, and an uncached worker. Corrected hosted verification passed
+native tests, both worker modes, and Compose E2E for both scheduling modes.
 
 One pair is directional evidence, not a stable performance guarantee: separate runners,
 shared-runner resource contention, network throughput, and cache availability can affect results.

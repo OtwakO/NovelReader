@@ -79,6 +79,10 @@ Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for un
 
 ### Completed workstream handoffs
 
+[Parallel image-build benchmark](docs/plans/parallel-build-benchmark.md) — source-change builds took
+179s sequential vs 117s concurrent on matched GitHub runner classes; both worker-mode and Compose
+checks passed. This branch-only experiment has not changed production build scheduling.
+
 [GitHub Actions runtime](docs/plans/github-actions-runtime.md) records the conservative build/release
 optimizations and successful hosted verification: the first comparison improved 7m42s to 6m35s,
 without removing tests or weakening release gates. Timings vary by runner/cache/network state.
@@ -91,10 +95,8 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 
 ## Active Work
 
-[Parallel image-build benchmark](docs/plans/parallel-build-benchmark.md) — approved non-publishing
-GitHub experiment comparing sequential and concurrent builds on one runner per case. Production
-workflow changes are not yet accepted; local validation passed and hosted measurement is next.
-Completed handoffs above are historical context, not active backlogs.
+No accepted implementation workstream remains unfinished. Production adoption of parallel builds
+requires a separate decision; the completed benchmark above records evidence and limits.
 
 ## Immediate Priorities
 
