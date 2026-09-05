@@ -1,6 +1,6 @@
 # GitHub Actions runtime
 
-**Status:** Active
+**Status:** Completed
 
 ## Goal and scope
 
@@ -43,20 +43,38 @@ following tests fell from 386 to 82 (`go build -x` diagnostic output). Test time
 This demonstrates dependency reuse and a 31% local layer improvement, not a hosted workflow speedup.
 No generated logs, private input, or benchmarking instrumentation is part of the production change.
 
+## Hosted result
+
+Run [33953863150](https://github.com/OtwakO/NovelReader/actions/runs/33953863150) at `d6f5894`
+passed all verification and publication steps. Compared with baseline run 33952229227:
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Creation to final job completion | 462s | 395s |
+| App image build | 114s | 66s |
+| Native Go test/build layer | 82.5s | 43.7s |
+| Worker image build | 111s | 96s |
+| Verified-image staging | 54s | 43s |
+| Backend verification job | 96s | 107s |
+
+Overall improvement was 67s (14.5%) in this single comparison. Native compilation savings agree
+with the controlled local result. Worker/network/runner variation also contributes; do not attribute
+every timing change to these edits or promise a fixed duration. Worker build/export and backend
+verification remain substantial, but no further optimization is accepted in this workstream.
+
 ## Current state
 
 The three workflow changes are committed and locally verified. Native test/build flags now match;
 the controlled cold-compilation-cache comparison passed and demonstrated less duplicate compilation.
 Worker permission changes were rejected based on layer evidence. The full production app image builds,
 and its native libraries resolve. Test coverage, jobs, browser freshness settings, Compose gates,
-and alias-promotion ordering are unchanged.
+and alias-promotion ordering are unchanged. Hosted verification and publication passed; the workstream
+is complete.
 
 ## Next action
 
-Merge and push are approved. Check the first resulting main-branch workflow run for successful
-image verification/staging/promotion, then compare native-layer and upload timings with the baseline.
-Local pre-merge lint, path filters, and concurrent-staging success/failure checks passed again.
-Hosted verification remains pending; close this plan after recording the observed result.
+No implementation or verification remains pending. Retain these measurements as a baseline if
+future runs justify another focused optimization.
 
 ## Verification
 
@@ -70,8 +88,8 @@ Hosted verification remains pending; close this plan after recording the observe
   `internal/chineseconv` and `internal/api` package tests in the baseline and candidate image stages;
   both passed. The actual production Dockerfile also built successfully, including its native tests;
   the resulting binary resolves OpenCC and its other dynamic libraries. No reader data was mounted.
-- Real GHCR upload behavior and hosted timing remain unverified. Do not launch or publish a benchmark
-  release without approval.
+- Hosted run 33953863150 passed exact-image Compose verification, both WebView modes, concurrent
+  GHCR staging, and immutable-reference/alias promotion. Timing evidence is recorded above.
 
 ## Compatibility and rollback
 

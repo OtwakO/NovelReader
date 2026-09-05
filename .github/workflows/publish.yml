@@ -12,6 +12,7 @@ on:
       - 'build/**'
       - '.dockerignore'
       - 'Dockerfile'
+      - 'docker-bake.hcl'
       - 'docker-entrypoint.sh'
       - 'docker-compose.yml'
       - 'compose.e2e.yaml'
@@ -122,33 +123,16 @@ jobs:
           docker compose -f docker-compose.yml config --quiet
           docker compose -f compose.e2e.yaml --profile webview --profile e2e config --quiet
 
-      - name: Build app image
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+      - name: Build app and WebView images concurrently
+        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7
         with:
-          context: .
-          platforms: linux/amd64
-          load: true
-          push: false
-          tags: novelreader:e2e
-          labels: org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=novelreader
-          cache-to: type=gha,mode=max,scope=novelreader
-          provenance: false
-          sbom: false
-
-      - name: Build WebView image
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
-          context: ./webview-worker
-          platforms: linux/amd64
-          load: true
-          push: false
-          tags: novelreader-webview:e2e
-          labels: org.opencontainers.image.revision=${{ github.sha }}
-          # Resolve fresh Patchright and Chrome; test these exact bytes before promotion.
-          no-cache: true
-          provenance: false
-          sbom: false
+          source: .
+          files: docker-bake.hcl
+          targets: |
+            app
+            worker
+          set: |
+            *.labels.org.opencontainers.image.revision=${{ github.sha }}
 
       - name: Verify WebView image in both modes
         run: |

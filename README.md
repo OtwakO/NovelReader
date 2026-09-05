@@ -205,8 +205,8 @@ The deployment uses a jointly verified app/worker pair:
 - `ghcr.io/otwako/novelreader:latest`
 - `ghcr.io/otwako/novelreader-webview:latest`
 
-CI tests the built worker in headless and headful modes and runs Compose against the exact app/worker
-images before publishing their digests without rebuilding. Main-branch releases update `latest` and
+CI builds the app and worker concurrently using `docker-bake.hcl`, tests the worker in headless and
+headful modes, and runs Compose against the exact images before publishing their digests without rebuilding. Main-branch releases update `latest` and
 `edge`; each image also gets an immutable `sha-<full commit SHA>` reference. Alias updates are sequential
 (worker first, app last), not a registry-wide atomic operation. To pin or roll back, keep both verified
 image digests together. Rebuilding an old commit may resolve newer WebView dependencies.
