@@ -53,9 +53,10 @@ and alias-promotion ordering are unchanged.
 
 ## Next action
 
-Await merge/push approval and compare a subsequent hosted run against the baseline, including
-native-layer timings and real image staging behavior.
-No hosted run has exercised these edits yet.
+Merge and push are approved. Check the first resulting main-branch workflow run for successful
+image verification/staging/promotion, then compare native-layer and upload timings with the baseline.
+Local pre-merge lint, path filters, and concurrent-staging success/failure checks passed again.
+Hosted verification remains pending; close this plan after recording the observed result.
 
 ## Verification
 
