@@ -4,6 +4,7 @@
 .playwright-cli
 reference
 data
+backend/data
 *.db
 *.db-*
 backend/server

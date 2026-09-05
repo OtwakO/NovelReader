@@ -1,12 +1,15 @@
-name: novelreader
+name: novelreader-local
 
 services:
   app:
-    container_name: novelreader
-    image: ghcr.io/otwako/novelreader:latest
+    container_name: novelreader-local
+    image: novelreader-local:app
+    pull_policy: build
+    build:
+      context: .
     restart: unless-stopped
     ports:
-      - "8888:8888"
+      - "127.0.0.1:8888:8888"
     volumes:
       - ./data:/data
     environment:
@@ -14,9 +17,10 @@ services:
       PUID: "1000"
       PGID: "1000"
       PUBLIC_URL: ""
-      ADMIN_BOOTSTRAP_TOKEN: "change-this-before-first-start"
+      # Set a private setup token only when creating the first administrator.
+      ADMIN_BOOTSTRAP_TOKEN: ""
       ADMIN_RECOVERY_TOKEN: ""
-      REGISTRATION_ENABLED: "false"
+      REGISTRATION_ENABLED: "true"
       REGISTRATION_INVITE_CODE: ""
       WEBVIEW_ENDPOINT: http://webview-worker:8787
 
@@ -32,20 +36,22 @@ services:
       webview-worker:
         condition: service_healthy
     networks:
-      - novelreader
+      - novelreader-local
 
     # Optional container resource limits:
     # cpus: 2.0
     # mem_limit: 4g
 
   webview-worker:
-    container_name: novelreader-webview
-    image: ghcr.io/otwako/novelreader-webview:latest
+    container_name: novelreader-local-webview
+    image: novelreader-local:webview
+    pull_policy: build
+    build:
+      context: ./webview-worker
     restart: unless-stopped
     shm_size: 512m
     environment:
       WEBVIEW_WORKER_HOST: 0.0.0.0
-
       # Applies to all WebView requests. Headful uses Xvfb; no automatic fallback.
       WEBVIEW_BROWSER_MODE: "headless" # headless or headful
 
@@ -55,12 +61,12 @@ services:
       # WEBVIEW_MAX_CONTEXTS_PER_BROWSER: "100"
       # WEBVIEW_MAX_BODY_BYTES: "10485760"
     networks:
-      - novelreader
+      - novelreader-local
 
     # Optional container resource limits:
     # cpus: 2.0
     # mem_limit: 4g
 
 networks:
-  novelreader:
-    name: novelreader
+  novelreader-local:
+    name: novelreader-local

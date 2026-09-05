@@ -117,6 +117,43 @@ You can also set `REGISTRATION_INVITE_CODE` to require an invite code.
 
 ## Local development
 
+### Docker Compose from the checkout
+
+Run from the repository root with Docker Desktop using Linux containers (or Docker Engine + Compose):
+
+```bash
+docker compose -f docker-compose.local.yml up --build -d
+docker compose -f docker-compose.local.yml logs -f
+docker compose -f docker-compose.local.yml down
+```
+
+This builds both services from the current checkout, including uncommitted code, rather than pulling
+published NovelReader images. Open `http://localhost:8888`. Base images and build dependencies still
+require downloads; code changes require another `up --build`. The WebView worker stays private.
+
+Data is bind-mounted from `./data` by default. Edit `volumes`, `ports`, and `environment` directly in
+`docker-compose.local.yml`, following the same style as the deployment Compose file. To use another
+Windows directory, for example, change the bind mount to `"D:/NovelReader/data:/data"`. Check that the
+selected directory contains your existing data before starting: Docker creates missing bind-mount
+directories, which would result in a fresh installation. Never commit locally entered credentials.
+
+**Before reusing data:** stop any native server or other deployment using that directory, and back
+up the complete data root, including credential keys. Existing `run-local.bat` data lives under
+`./backend/data`; either change the bind mount to `./backend/data:/data` or use your intended `./data` directory. Nothing
+is moved automatically. Do not open the same databases in two instances. Experimental branches can
+have incompatible storage schemas; restore the backup before returning to an incompatible version.
+On Linux, use `PUID`/`PGID` matching the directory's owner (default 1000); the entrypoint adjusts the
+mount root's ownership. `down` removes containers, not the bind-mounted data.
+
+Existing accounts remain usable. A fresh installation additionally needs a non-empty
+`ADMIN_BOOTSTRAP_TOKEN` for first-administrator setup. Registration defaults on for this localhost-only
+configuration. Both Compose files expose `WEBVIEW_BROWSER_MODE: "headless"`; change it to
+`"headful"` for Chrome under Xvfb. This applies to all WebView requests with no automatic mode fallback.
+Local builds reuse dependency layers; to explicitly refresh Patchright and Chrome, run
+`docker compose -f docker-compose.local.yml build --no-cache webview-worker` before `up --build`.
+
+### Native tools
+
 Requirements: Go, Node.js, and npm.
 
 ```bash
