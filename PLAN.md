@@ -79,6 +79,10 @@ Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for un
 
 ### Completed workstream handoffs
 
+[GitHub Actions runtime](docs/plans/github-actions-runtime.md) records the conservative build/release
+optimizations and successful hosted verification: the first comparison improved 7m42s to 6m35s,
+without removing tests or weakening release gates. Timings vary by runner/cache/network state.
+
 [Reader navigation performance](docs/plans/reader-navigation-performance.md) records the navigation/cache/conversion lifecycle and controlled timing evidence. Live-source timing remains unverified.
 
 The completed [WebView Runtime Efficiency](docs/plans/2026-09-04-webview-runtime-efficiency.md) workstream provides worker-wide Chrome headless/headful selection, leaner packaging, and latest-stable release-image verification while preserving per-request reader isolation and the bounded WebView security seam. Further live compatibility and footprint measurements remain optional, evidence-gated follow-up.
@@ -87,11 +91,8 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 
 ## Active Work
 
-[GitHub Actions runtime](docs/plans/github-actions-runtime.md) — conservative workflow optimizations:
-documentation-only path exclusions, lean npm installation, concurrent verified-image staging,
-and native Go compilation reuse through matching test/build flags.
-Local validation passed; hosted timing and registry integration remain to be measured.
-Completed handoffs above are historical context, not active backlogs.
+No accepted implementation workstream remains unfinished. Completed handoffs above are historical
+context, not active backlogs.
 
 ## Immediate Priorities
 
