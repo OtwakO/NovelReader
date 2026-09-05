@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChapterContent } from '../../api/reader';
 import type { Chapter } from '../../api/models';
 import { convertChineseTexts } from '../../api/system';
-import { convertReaderDisplay } from './chinese-conversion';
+import { convertReaderDisplay, createReaderDisplayConverter } from './chinese-conversion';
 
 vi.mock('../../api/system', () => ({ convertChineseTexts: vi.fn() }));
 
@@ -20,7 +20,7 @@ const content: ChapterContent = {
   offlineCopy: false,
 };
 
-beforeEach(() => vi.mocked(convertChineseTexts).mockReset());
+beforeEach(() => { vi.mocked(convertChineseTexts).mockReset(); });
 
 describe('reader Chinese conversion', () => {
   it('returns canonical data unchanged in original mode', async () => {
@@ -54,4 +54,21 @@ describe('reader Chinese conversion', () => {
     vi.mocked(convertChineseTexts).mockResolvedValue([]);
     await expect(convertReaderDisplay(chapters, null, 'traditional')).rejects.toThrow('response length');
   });
+});
+
+it('reuses catalog conversion and recent documents, with mode and catalog identity isolation', async () => {
+  vi.mocked(convertChineseTexts).mockReset().mockImplementation(async (_mode, texts) => [...texts]);
+  const convert = createReaderDisplayConverter();
+  const first = { version: 1 as const, offlineCopy: false, document: { kind: 'prose' as const, title: 'First', blocks: [] } };
+  const second = { ...first, document: { ...first.document, title: 'Second' } };
+  const chapters = [{ id: 'chapter', bookId: 'book', index: 0, title: 'Catalog title', url: '/chapter', isVolume: false }];
+  await convert(chapters, first, 'traditional');
+  await convert(chapters, second, 'traditional');
+  await convert(chapters, first, 'traditional');
+  expect(convertChineseTexts).toHaveBeenCalledTimes(3);
+  expect(vi.mocked(convertChineseTexts).mock.calls.filter(call => call[1].includes('Catalog title'))).toHaveLength(1);
+  await convert(chapters, first, 'simplified');
+  expect(convertChineseTexts).toHaveBeenCalledTimes(5);
+  await convert([...chapters], first, 'traditional');
+  expect(convertChineseTexts).toHaveBeenCalledTimes(6);
 });

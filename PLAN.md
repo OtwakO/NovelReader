@@ -53,6 +53,10 @@ Accepted future-facing architecture:
 
 ## Current State
 
+Completed: [Reader navigation performance](docs/plans/reader-navigation-performance.md) — bounded
+session chapter reuse, default-on next-chapter prefetch, non-blocking ordered progress saves,
+conversion reuse, and a reader actions menu with explicit refetch and source-switch invalidation.
+
 ### Complete product foundations
 
 - Local Reader Accounts, setup, registration policy, recovery, password management, administration, and durable deletion.

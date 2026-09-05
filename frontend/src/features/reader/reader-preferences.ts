@@ -11,6 +11,7 @@ export interface ReaderPreferences {
   chineseConversion: ChineseConversionMode;
   keepScreenAwake: boolean;
   showImages: boolean;
+  prefetchNextChapter: boolean;
 }
 
 const key = 'novelreader.reader.preferences.v1';
@@ -19,7 +20,7 @@ export const readerPreferenceRanges = {
   lineHeight: { min: 1, max: 3.5, step: 0.05 },
   pageWidth: { min: 280, max: 1600, step: 20 },
 } as const;
-export const defaultReaderPreferences: ReaderPreferences = { fontSize: 19, lineHeight: 1.85, fontWeight: 400, pageWidth: 720, background: '#f4eedc', textColor: '#24333a', fontId: 'system', chineseConversion: 'original', keepScreenAwake: false, showImages: true };
+export const defaultReaderPreferences: ReaderPreferences = { fontSize: 19, lineHeight: 1.85, fontWeight: 400, pageWidth: 720, background: '#f4eedc', textColor: '#24333a', fontId: 'system', chineseConversion: 'original', keepScreenAwake: false, showImages: true, prefetchNextChapter: true };
 
 function storage(): Storage | null {
   try { return typeof window === 'undefined' ? null : window.localStorage; } catch { return null; }
@@ -33,7 +34,7 @@ export function loadReaderPreferences(): ReaderPreferences {
   try {
     const parsed = JSON.parse(storage()?.getItem(key) || '{}') as Partial<ReaderPreferences>;
     const chineseConversion = parsed.chineseConversion === 'simplified' || parsed.chineseConversion === 'traditional' ? parsed.chineseConversion : 'original';
-    return { fontSize: bounded(parsed.fontSize, 19, readerPreferenceRanges.fontSize.min, readerPreferenceRanges.fontSize.max), lineHeight: bounded(parsed.lineHeight, 1.85, readerPreferenceRanges.lineHeight.min, readerPreferenceRanges.lineHeight.max), fontWeight: bounded(parsed.fontWeight, 400, 300, 700), pageWidth: bounded(parsed.pageWidth, 720, readerPreferenceRanges.pageWidth.min, readerPreferenceRanges.pageWidth.max), background: /^#[0-9a-f]{6}$/i.test(parsed.background || '') ? String(parsed.background) : defaultReaderPreferences.background, textColor: /^#[0-9a-f]{6}$/i.test(parsed.textColor || '') ? String(parsed.textColor) : defaultReaderPreferences.textColor, fontId: typeof parsed.fontId === 'string' ? parsed.fontId : 'system', chineseConversion, keepScreenAwake: parsed.keepScreenAwake === true, showImages: parsed.showImages !== false };
+    return { fontSize: bounded(parsed.fontSize, 19, readerPreferenceRanges.fontSize.min, readerPreferenceRanges.fontSize.max), lineHeight: bounded(parsed.lineHeight, 1.85, readerPreferenceRanges.lineHeight.min, readerPreferenceRanges.lineHeight.max), fontWeight: bounded(parsed.fontWeight, 400, 300, 700), pageWidth: bounded(parsed.pageWidth, 720, readerPreferenceRanges.pageWidth.min, readerPreferenceRanges.pageWidth.max), background: /^#[0-9a-f]{6}$/i.test(parsed.background || '') ? String(parsed.background) : defaultReaderPreferences.background, textColor: /^#[0-9a-f]{6}$/i.test(parsed.textColor || '') ? String(parsed.textColor) : defaultReaderPreferences.textColor, fontId: typeof parsed.fontId === 'string' ? parsed.fontId : 'system', chineseConversion, keepScreenAwake: parsed.keepScreenAwake === true, showImages: parsed.showImages !== false, prefetchNextChapter: parsed.prefetchNextChapter !== false };
   } catch { return { ...defaultReaderPreferences }; }
 }
 

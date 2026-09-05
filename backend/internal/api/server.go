@@ -750,7 +750,7 @@ func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request)
 			break
 		}
 	}
-	rawContent, contentTitle, err := s.searcher.GetChapterContentForBook(*src, b, ch, next)
+	rawContent, contentTitle, err := s.searcher.GetChapterContentForBookContext(r.Context(), *src, b, ch, next)
 	if err == nil && strings.TrimSpace(rawContent) == "" {
 		err = errors.New("content: empty extraction")
 	}

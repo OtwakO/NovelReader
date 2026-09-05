@@ -37,3 +37,28 @@ export async function convertReaderDisplay(
 
   return { chapters: convertedChapters, content: { ...content, document: { ...content.document, title, blocks } } };
 }
+
+/** Reader-owned memoization: canonical objects stay unchanged; discarded chapters are collectible. */
+export function createReaderDisplayConverter() {
+  const catalogs = new WeakMap<Chapter[], Map<ChineseConversionMode, Promise<ConvertedReaderDisplay>>>();
+  const documents = new WeakMap<ChapterContent, Map<ChineseConversionMode, Promise<ConvertedReaderDisplay>>>();
+
+  function cached<T extends object>(cache: WeakMap<T, Map<ChineseConversionMode, Promise<ConvertedReaderDisplay>>>, key: T, mode: ChineseConversionMode, convert: () => Promise<ConvertedReaderDisplay>) {
+    let modes = cache.get(key);
+    if (!modes) { modes = new Map(); cache.set(key, modes); }
+    const existing = modes.get(mode);
+    if (existing) return existing;
+    const pending = convert().catch(error => { modes.delete(mode); throw error; });
+    modes.set(mode, pending);
+    return pending;
+  }
+
+  return async (chapters: Chapter[], content: ChapterContent | null, mode: ChineseConversionMode): Promise<ConvertedReaderDisplay> => {
+    if (mode === 'original') return { chapters, content };
+    const [catalog, document] = await Promise.all([
+      cached(catalogs, chapters, mode, () => convertReaderDisplay(chapters, null, mode)),
+      content ? cached(documents, content, mode, () => convertReaderDisplay([], content, mode)) : null,
+    ]);
+    return { chapters: catalog.chapters, content: document?.content ?? null };
+  };
+}

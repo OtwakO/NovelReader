@@ -12,6 +12,7 @@ Your books, sources, reading progress, bookmarks, settings, and cached chapters 
 - **Source Collections** — Install sources from a JSON file or public URL, update them together, and temporarily hide a whole collection from Search and Explore.
 - **Personal shelf** — Save books and keep their selected source binding.
 - **Web reader** — Read prose and inline images with adjustable typography, reading width, Chinese conversion, image visibility, keyboard controls, and wake lock.
+- **Chapter navigation** — Reuse recent chapters and preload the next readable chapter (enabled by default; disable under Typography). The reader's top-right three-dot menu opens Bookmarks or refetches the current chapter. Source switching clears session reuse; refetch still shows an explicit offline copy if the source is unavailable.
 - **Progress and bookmarks** — Save chapter position and annotated bookmarks.
 - **Offline chapter fallback** — Keep bounded cached copies of previously loaded chapters.
 - **Source recovery** — Switch a saved book to another matching source when needed.

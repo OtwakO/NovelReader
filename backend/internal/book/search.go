@@ -914,13 +914,13 @@ func (s *Searcher) GetChapterContent(src booksource.BookSource, chapterURL strin
 // GetChapterContentForBook fetches content with the complete book/current/next context.
 // Script JSON is considered only when the source declares no content rule.
 func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, current, next *Chapter) (string, string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), s.sourceTimeout())
-	defer cancel()
-	return s.GetChapterContentForBookContext(ctx, src, b, current, next)
+	return s.GetChapterContentForBookContext(context.Background(), src, b, current, next)
 }
 
-// GetChapterContentForBookContext resolves chapter content within the caller-owned workflow deadline.
+// GetChapterContentForBookContext honors caller cancellation and the configured workflow timeout.
 func (s *Searcher) GetChapterContentForBookContext(ctx context.Context, src booksource.BookSource, b *Book, current, next *Chapter) (string, string, error) {
+	ctx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
+	defer cancel()
 	if current == nil || current.URL == "" {
 		return "", "", fmt.Errorf("content: current chapter is required")
 	}

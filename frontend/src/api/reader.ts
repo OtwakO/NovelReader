@@ -35,8 +35,8 @@ export async function waitForCatalog(bookId: string, options: CatalogPollingOpti
   }
   return result.chapters;
 }
-export function getChapterContent(bookId: string, chapterIdx: number): Promise<ChapterContent> {
-  return request<Record<string, unknown>>(`/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content`).then(parseChapterContent);
+export function getChapterContent(bookId: string, chapterIdx: number, signal?: AbortSignal): Promise<ChapterContent> {
+  return request<Record<string, unknown>>(`/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content`, { signal }).then(parseChapterContent);
 }
 
 function parseChapterContent(data: Record<string, unknown>): ChapterContent {
