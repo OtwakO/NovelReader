@@ -51,13 +51,14 @@ The menu preserves Back and the existing Bookmarks panel; refetch has a visible 
 Disabling prefetch stops future speculation; already-started work may finish.
 
 ## Next Action
-Await user review/merge instructions. No automatic merge, push, or deployment. Live-source timing
-remains unverified; source compatibility failures from diagnosis are outside this workstream.
+No implementation work remains. Live-source timing remains unverified; source compatibility
+failures from diagnosis are outside this workstream. Push and deployment require separate approval.
 
 ## Verification
 - Reader/API/i18n slice: 17 test files, 46 tests passed; frontend typecheck and production build passed.
-- Backend: targeted chapter/content/progress tests in `internal/api` and `internal/book` passed,
-  including an in-flight request-cancellation regression (not a full backend suite).
+- Pre-merge verification: complete `internal/api` and `internal/book` package tests passed,
+  including the in-flight request-cancellation regression (not a full backend suite).
+- Both deployment/local Compose configurations validate. Containers were not started against reader data.
 - Browser: production frontend with synthetic 100 ms progress and 200 ms content responses,
   2,000 catalog entries and 40 paragraphs. After one-chapter prefetch warmed, A/B navigation displayed
   in 13–28 ms (prior controlled baseline 319–328 ms). No foreground content request on cache hits;
