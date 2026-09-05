@@ -22,9 +22,8 @@ Configure the backend with `WEBVIEW_ENDPOINT=http://127.0.0.1:8787`.
 
 For local Windows/macOS testing, use [checkout-built Docker Compose](../README.md#docker-compose-from-the-checkout).
 The native runtime currently invokes `google-chrome --version` and assumes X11/Xvfb for headful mode;
-it does not discover native Windows/macOS Chrome installations or desktop displays. The existing
-`run-webview-worker.bat` also still installs Chromium rather than the required branded Chrome and is
-not a working self-contained launcher for this runtime. Changing only that installer is insufficient.
+it does not discover native Windows/macOS Chrome installations or desktop displays. The native
+Windows batch launcher has been retired; Compose provides the Linux browser environment instead.
 
 ## Container
 

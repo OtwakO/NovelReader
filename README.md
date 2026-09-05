@@ -139,7 +139,7 @@ selected directory contains your existing data before starting: Docker creates m
 directories, which would result in a fresh installation. Never commit locally entered credentials.
 
 **Before reusing data:** stop any native server or other deployment using that directory, and back
-up the complete data root, including credential keys. Existing `run-local.bat` data lives under
+up the complete data root, including credential keys. Data from the retired Windows app launcher lives under
 `./backend/data`; either change the bind mount to `./backend/data:/data` or use your intended `./data`
 directory. Nothing is moved automatically. Do not open the same databases in two instances. Experimental branches can
 have incompatible storage schemas; restore the backup before returning to an incompatible version.
@@ -165,12 +165,12 @@ cd ..
 ./dev.sh run
 ```
 
-On Windows, run `run-local.bat`.
+For Windows testing, use [local Docker Compose](#docker-compose-from-the-checkout); the native Windows
+batch launchers have been retired.
 
 The server uses port `8888` by default. Native Linux WebView setup additionally requires `uv` and
 branded Chrome; see the [worker setup and platform limitations](webview-worker/README.md#local-process).
-For Windows/macOS WebView testing, prefer the local Compose setup above. `run-webview-worker.bat`
-is not compatible with the current Chrome runtime; it has not been repaired or retired.
+For Windows/macOS WebView testing, use the local Compose setup above.
 
 ## Tests
 
