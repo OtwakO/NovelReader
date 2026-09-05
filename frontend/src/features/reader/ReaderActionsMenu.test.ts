@@ -8,6 +8,9 @@ it('supports keyboard dismissal, bookmark action, and disabled refetch', async (
     const trigger=wrapper.get('.trigger');
     await trigger.trigger('click');
     expect(trigger.attributes('aria-expanded')).toBe('true');
+    expect(wrapper.findAll('[role="menuitem"] .icon[aria-hidden="true"]')).toHaveLength(2);
+    expect(wrapper.find('.icon-bookmark svg').exists()).toBe(true);
+    expect(wrapper.find('.icon-refresh svg').exists()).toBe(true);
     expect(wrapper.findAll('[role="menuitem"]')[1]!.attributes('disabled')).toBeDefined();
     await wrapper.get('[role="menu"]').trigger('keydown',{key:'Escape'});
     expect(wrapper.find('[role="menu"]').exists()).toBe(false);
