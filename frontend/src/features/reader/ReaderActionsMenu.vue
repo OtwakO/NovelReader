@@ -45,7 +45,7 @@ export default defineComponent({
 <style scoped>
 .reader-actions{position:relative}
 .trigger{display:grid;place-items:center;width:2.75rem;height:2.75rem;border:0;border-radius:var(--radius-md);background:transparent;color:inherit;cursor:pointer}
-.actions-panel{position:absolute;inset-block-start:calc(100% + .4rem);inset-inline-end:0;z-index:1;display:grid;min-width:13rem;max-width:calc(100vw - 2rem);padding:.35rem;border:1px solid color-mix(in srgb,var(--reader-text) 20%,transparent);border-radius:var(--radius-md);background:var(--reader-bg);box-shadow:0 .5rem 1.5rem color-mix(in srgb,var(--reader-text) 16%,transparent)}
+.actions-panel{position:absolute;inset-block-start:calc(100% + .4rem);inset-inline-end:0;z-index:1;display:grid;width:max-content;max-width:calc(100vw - 2rem);padding:.35rem;border:1px solid color-mix(in srgb,var(--reader-text) 20%,transparent);border-radius:var(--radius-md);background:var(--reader-bg);box-shadow:0 .5rem 1.5rem color-mix(in srgb,var(--reader-text) 16%,transparent)}
 .actions-panel button{display:flex;align-items:center;gap:.55rem;min-height:2.75rem;padding:.65rem .8rem;border:0;border-radius:var(--radius-md);background:transparent;color:inherit;font:inherit;text-align:start;cursor:pointer}
 button:hover:not(:disabled),button:focus-visible{background:color-mix(in srgb,var(--reader-text) 10%,transparent)}
 button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
