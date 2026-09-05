@@ -129,8 +129,8 @@ func (s *Store) ListCollections() ([]Collection, error) {
 	return collections, rows.Err()
 }
 
-func (s *Store) ListDueCollections(now time.Time) ([]Collection, error) {
-	rows, err := s.db.Query(`
+func (s *Store) ListDueCollections(ctx context.Context, now time.Time) ([]Collection, error) {
+	rows, err := s.db.QueryContext(ctx, `
 		SELECT c.id, c.name, c.origin_kind, COALESCE(c.origin_url, ''), COALESCE(c.origin_filename, ''),
 			c.sync_interval, c.enabled, c.last_attempt_at, c.last_success_at, c.next_sync_at, c.last_error,
 			c.etag, c.last_modified, c.created_at, c.updated_at, COUNT(bs.id)

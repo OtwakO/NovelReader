@@ -218,7 +218,7 @@ For every phase:
 - [ ] Improve Reader frontend cohesion.
 - [ ] Improve Source Management frontend cohesion.
 - [x] Consolidate authenticated-session deadline handling.
-- [ ] Improve scheduled Source Collection error handling and deadlines.
+- [x] Improve scheduled Source Collection error handling and deadlines.
 - [ ] Remove individually verified obsolete interfaces.
 - [ ] Add and run SourceSession registry benchmarks; optimize only if justified.
 - [ ] Add and run JavaScript evaluation benchmarks; optimize only if justified.
@@ -232,11 +232,13 @@ F01 is implemented: the five violating Vue components now follow the declared Op
 
 F08 is implemented: login, registration, setup, and recovery now call one package-local authenticated-session deadline operation. Late-session revocation, retry bounds, callback timing, and flow-specific diagnostics have one owner in `backend/internal/auth/session_deadline.go`; handler-specific pass-through methods were removed.
 
+F09 is implemented without adding concurrency: the scheduler now owns a cancelable lifecycle context, bounds reader listing, runtime acquisition, each remote sync, and sync-result recording, and logs previously discarded acquisition, listing, and record failures. `ListDueCollections` now accepts a context so its query participates in the scheduler deadline. Shutdown cancellation propagates through in-flight work.
+
 Broader frontend and backend refactors remain tracked and evidence-gated.
 
 ## Next Action
 
-Review and commit the completed F08 phase. Then address F09 as a localized reliability improvement: define scheduler operation deadlines and make acquisition, listing, sync-recording, and shutdown failures observable without adding concurrency. F02 and F03 are larger design changes and should be discussed before choosing component boundaries.
+Review and commit the completed F09 phase. Before starting F02 or F03, discuss which frontend responsibility boundary should be addressed first; those changes affect module ownership and are more expensive to reverse than the completed localized fixes. Performance findings F06 and F07 remain measurement-only.
 
 ## Verification
 
@@ -268,6 +270,14 @@ F08 verification completed on 2026-09-05:
 - The existing login, recovery, and setup late-session tests exercise the shared operation, including deadline return and retry after transient session-guard contention.
 - AFT no longer reports the three-handler authenticated-session duplication group.
 - `git diff --check` passed.
+
+F09 verification completed on 2026-09-05:
+
+- `go test ./internal/api ./internal/booksource` passed.
+- `go test -race ./internal/api ./internal/booksource` passed.
+- AFT reports no diagnostics for the changed scope; Go diagnostics remain incomplete because `gopls` is unavailable, so the Go test runs are authoritative.
+- `git diff --check` passed.
+- Scheduler processing remains sequential by design; no concurrency was added without timing evidence.
 
 Still needed:
 
