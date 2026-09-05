@@ -136,6 +136,15 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         await self.sessions.close_all()
 
+    async def test_failed_initial_frame_releases_acquired_context_once(self) -> None:
+        self.page.screenshot.side_effect = RuntimeError("screenshot failed")
+        with self.assertRaisesRegex(RuntimeError, "screenshot failed"):
+            await self.sessions.create({"url": "https://example.test"})
+        self.context.close.assert_awaited_once()
+        self.release.assert_awaited_once()
+        await self.sessions.close_all()
+        self.release.assert_awaited_once()
+
     async def test_frame_uses_high_quality_device_scale_jpeg(self) -> None:
         created = await self.sessions.create({"url": "https://example.test"})
         self.page.screenshot.assert_awaited_with(type="jpeg", quality=95, scale="device")

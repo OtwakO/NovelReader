@@ -50,11 +50,11 @@ Branch: `review/architecture-code-audit`. Audit baseline: merge-base `4456b1bf5f
 
 The independent review reproduced account-state leakage, cancellation bypass in candidate shelving, worker double-release, browser UI post-unmount creation, and a context-free collection read bypassing cancellation. It also traced source-lifecycle, upload, font-persistence and identity-contract defects. Evidence, severity, recommendations and limits have one canonical home: the linked audit.
 
-No production fixes were made during the independent audit. Temporary synthetic probes were removed. Second verification has reconfirmed the browser ownership and candidate transition defects. Corrective implementation is now in progress; completed slices and their actual verification will be recorded here.
+No production fixes were made during the independent audit. Temporary synthetic probes were removed. Second verification has reconfirmed the browser ownership and candidate transition defects. Corrective implementation is in progress. A03/A04 are fixed: the worker transfers capacity ownership at registration; the browser component marks its lifetime closed before teardown, closes late-created sessions and prevents stale polling/close continuations. The missing test i18n injection is corrected. Verification: 3 browser-component tests, TypeScript checking and changed-file ESLint pass; 11 worker interaction/health tests pass (mocked browser, not real Chrome).
 
 ## Next action
 
-Implement browser resource ownership (A03/A04), restoring the SourceBrowserSession test gate with behavioral teardown regressions. Then correct candidate transitions and account-state ownership. Promote only the relevant diagnostic reproductions into maintained tests; do not resume cosmetic decomposition automatically.
+Correct candidate transitions (A02), then frontend account-state ownership (A01). Browser ownership and its test gate are complete. Promote only the relevant diagnostic reproductions into maintained tests; do not resume cosmetic decomposition automatically.
 
 ## Verification
 

@@ -36,8 +36,11 @@ export default defineComponent({
     void this.start();
   },
   beforeUnmount() {
+    const needsClose = !this.closed;
+    this.closed = true;
+    this.frameRequest++;
     window.clearTimeout(this.timer);
-    if (!this.closed && this.frame) {
+    if (needsClose && this.frame) {
       void closeSourceBrowser(this.sourceId, this.frame.sessionId, false).catch(() => undefined);
     }
   },
@@ -46,19 +49,25 @@ export default defineComponent({
     async start() {
       try {
         await nextTick();
+        if (this.closed) return;
         const bounds = (this.$refs.viewport as HTMLElement | undefined)?.getBoundingClientRect();
         const viewport = sourceBrowserViewport(
           bounds?.width || window.innerWidth - 32,
           bounds?.height || window.innerHeight - 260,
           window.devicePixelRatio,
         );
-        this.frame = await startSourceBrowser(
+        const frame = await startSourceBrowser(
           this.sourceId,
           this.browserRequestId,
           viewport.width,
           viewport.height,
           viewport.deviceScaleFactor,
         );
+        if (this.closed) {
+          await closeSourceBrowser(this.sourceId, frame.sessionId, false);
+          return;
+        }
+        this.frame = frame;
         this.schedule();
       } catch (cause) {
         this.error = cause instanceof Error ? cause.message : this.$t('sources.interaction.browser.startFailed');
@@ -167,7 +176,7 @@ export default defineComponent({
     async finish(save: boolean) {
       if (this.closed) return;
       this.closed = true;
-      this.frameRequest++;
+      const request = ++this.frameRequest;
       window.clearTimeout(this.timer);
       let resumed: SourceInteractionActionResult | undefined;
       if (this.frame) {
@@ -175,13 +184,14 @@ export default defineComponent({
         try {
           ({ resumed } = await closeSourceBrowser(this.sourceId, this.frame.sessionId, save));
         } catch (cause) {
+          if (request !== this.frameRequest) return;
           this.error = cause instanceof Error ? cause.message : this.$t('sources.interaction.browser.closeFailed');
           this.closed = false;
           this.busy = false;
           return;
         }
       }
-      this.$emit('close', save, resumed);
+      if (request === this.frameRequest) this.$emit('close', save, resumed);
     },
   },
 });

@@ -52,7 +52,6 @@ class InteractiveSessions:
         if self._closing:
             raise ValueError("browser worker is shutting down")
         browser, context, page = await self._acquire(request)
-        browser_failed = False
         try:
             now = time.monotonic()
             session_id = secrets.token_urlsafe(24)
@@ -60,19 +59,18 @@ class InteractiveSessions:
                 if self._closing:
                     raise ValueError("browser worker is shutting down")
                 self._sessions[session_id] = InteractiveSession(context, page, now, now)
-            try:
-                return await self.frame(session_id)
-            except BaseException:
-                await self.close(session_id)
-                raise
         except BaseException:
-            async with self._lock:
-                registered = session_id in self._sessions if "session_id" in locals() else False
-            if not registered:
-                browser_failed = not browser.is_connected()
-                if not await close_context(context):
-                    browser_failed = True
-                await self._release(browser, browser_failed)
+            browser_failed = not browser.is_connected()
+            if not await close_context(context):
+                browser_failed = True
+            await self._release(browser, browser_failed)
+            raise
+
+        # Once registered, the session owns the context and its capacity slot.
+        try:
+            return await self.frame(session_id)
+        except BaseException:
+            await self.close(session_id)
             raise
 
     async def frame(self, session_id: str) -> dict:
