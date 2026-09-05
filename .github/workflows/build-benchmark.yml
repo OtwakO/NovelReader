@@ -1,0 +1,88 @@
+name: Benchmark sequential and parallel builds
+
+on:
+  push:
+    branches: [perf/parallel-build-benchmark]
+    paths:
+      - '.github/workflows/build-benchmark.yml'
+      - 'benchmarks/parallel-builds.hcl'
+      - 'Dockerfile'
+      - 'webview-worker/Dockerfile'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: Build benchmark (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [sequential, parallel]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Prepare comparable backend cache miss
+        run: |
+          test ! -e test-booksources
+          # Both cases get the same harmless COPY input change, like a backend edit.
+          # This avoids measuring a fully cached app against a fresh worker.
+          printf 'parallel-build-benchmark\n' > backend/.build-benchmark
+          printf 'Runner CPUs: '; nproc
+          free -m
+
+      - name: Build app sequentially
+        if: matrix.mode == 'sequential'
+        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7
+        with:
+          files: benchmarks/parallel-builds.hcl
+          targets: app
+
+      - name: Build worker sequentially
+        if: matrix.mode == 'sequential'
+        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7
+        with:
+          files: benchmarks/parallel-builds.hcl
+          targets: worker
+
+      - name: Build app and worker concurrently
+        if: matrix.mode == 'parallel'
+        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7
+        with:
+          files: benchmarks/parallel-builds.hcl
+          targets: |
+            app
+            worker
+
+      - name: Verify worker image in both modes
+        run: |
+          docker run --rm novelreader-webview:benchmark-worker /app/.venv/bin/python \
+            -c "from runtime import runtime_metadata; print(runtime_metadata())"
+          tests=$(mktemp -d)
+          trap 'rm -rf "$tests"' EXIT
+          cp webview-worker/test_*.py "$tests/"
+          chmod -R a+rX "$tests"
+          for mode in headless headful; do
+            docker run --rm --shm-size=512m \
+              -e WEBVIEW_BROWSER_MODE="$mode" -e PYTHONPATH=/app \
+              -v "$tests:/tests:ro" \
+              novelreader-webview:benchmark-worker /app/.venv/bin/python \
+              -m unittest discover -s /tests -p 'test_*.py' -q
+          done
+
+      - name: Verify benchmark images with Compose
+        env:
+          E2E_SKIP_BUILD: '1'
+          NOVELREADER_IMAGE: novelreader:benchmark-app
+          NOVELREADER_WEBVIEW_IMAGE: novelreader-webview:benchmark-worker
+        run: ./docker-e2e.sh

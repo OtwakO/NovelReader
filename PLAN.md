@@ -91,8 +91,10 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 
 ## Active Work
 
-No accepted implementation workstream remains unfinished. Completed handoffs above are historical
-context, not active backlogs.
+[Parallel image-build benchmark](docs/plans/parallel-build-benchmark.md) — approved non-publishing
+GitHub experiment comparing sequential and concurrent builds on one runner per case. Production
+workflow changes are not yet accepted; local validation passed and hosted measurement is next.
+Completed handoffs above are historical context, not active backlogs.
 
 ## Immediate Priorities
 
