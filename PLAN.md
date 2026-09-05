@@ -94,11 +94,11 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 
 ## Active Work
 
-[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — the repository-wide audit has been verified and classified. Frontend lint, auth-session deadlines, and scheduled Source Collection reliability are addressed; the next phase requires choosing a frontend cohesion boundary, while performance work remains measurement-gated.
+[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — an [independent audit of `33b9a1f`](docs/verification/independent-architecture-code-audit.md) supersedes the earlier completeness/prioritization claims. The auth deadline extraction is sound; frontend tests have one branch regression, and scheduler cancellation remains partial. Isolation, state-transition and resource-ownership fixes are recommended before cosmetic decomposition; corrective implementation is approved and starts with browser ownership, candidate transitions and frontend account-state isolation.
 
 ## Immediate Priorities
 
-1. Complete the active [architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) in independently verified phases; measure performance hypotheses before redesign.
+1. Implement verified corrective slices from the [independent architecture/code audit](docs/verification/independent-architecture-code-audit.md), starting with the failing frontend gate and demonstrated lifecycle/isolation defects; track progress in the [active plan](docs/plans/2026-09-05-architecture-code-quality-improvements.md). Measure performance hypotheses before redesign.
 2. Select further compatibility slices from current evidence rather than historical unchecked boxes.
 3. Introduce provider capability interfaces only when a first non-BookSource provider is accepted; introduce image-sequence documents and structured locations only when that modality becomes active work.
 4. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
