@@ -10,7 +10,7 @@ Independently identify reusable engine mismatches against documented/observed Le
 
 ## Scope
 
-Review shared rule, JavaScript, request, transport and session semantics. First live slice is page-1 Search → first credible Book Info; no live catalog/content crawl. Inspect adjacent workflows when a shared contract requires it. No production fixes without presenting the verified findings and accepted scope. No automatic captcha/WAF bypass or source-specific patches.
+Review shared rule, JavaScript, request, transport and session semantics. First live slice is page-1 Search → first credible Book Info; no live catalog/content crawl. Inspect adjacent workflows when a shared contract requires it. The user has approved re-verification followed by fundamental fixes for confirmed findings; unsupported features and unresolved observations are not automatically implementation scope. No automatic captcha/WAF bypass or source-specific patches.
 
 ## Accepted approach
 
@@ -22,7 +22,15 @@ Review shared rule, JavaScript, request, transport and session semantics. First 
 - Keep complete source objects, scripts, HTTP bodies/headers and raw diagnostics under ignored `test-booksources/engine-audit/`. Commit only sanitized findings and minimal invented regression fixtures. Do not refresh historical raw audit artifacts.
 - For a suspected shared gap, isolate a failing production-seam example and verify expected semantics. Separate proven live impact, deterministic semantic mismatch with unknown live impact, upstream failure, blocking/authentication, stale source and unresolved evidence.
 
+## Corrective implementation approach
+
+Re-verify each reported contract before changing production code. Implement E04 at the shared source bridge so source identity and source variables do not vary with the current response URL; retain standalone evaluator behavior when no source definition exists. Then make source metadata and workflow RuleData explicit at the URL/page evaluation seam (E01/E03), preserving independent book/chapter/source lifetimes across Search, Explore, detail, TOC and content. Implement E02 in the shared response parser rather than a search-handler workaround. E05 is an independent URL phase-order correction, verified in an isolated worktree and reviewed before integration. No new cache, parser framework, arbitrary JVM emulation or source-specific exceptions.
+
+Use small synthetic regressions that fail first, then package/boundary tests and only affected live identities. Keep the frozen initial evidence intact. Source-variable key correction changes previously incorrect page-keyed state; no automatic state migration, data reset, or schema change is planned. Rollback is reverting the relevant logical commit; values written under the corrected source key will not be visible to the old page-keyed implementation. Core context changes must preserve per-installed-source and per-reader isolation.
+
 ## Current state
+
+Corrective progress: E04 re-verified red→green and fixed in the shared source bridge. Prepared source metadata supplies the stable key for helpers and source-variable storage; independently supplied source states remain isolated even for identical source URLs. Standalone evaluations without source metadata retain their existing caller-provided identity. Analyzer, book and sourceexec package tests pass. E01/E03 context propagation is still required before every URL caller supplies this metadata. E05's isolated change is ready for parent integration review; its investigation also found a separate adjacent-brace template scanner defect that must be verified before claiming complete interpolation support.
 
 Frozen sample and manifest are under ignored `test-booksources/engine-audit/`. Added a small explicit production-Searcher audit command and v5 freeze/run scripts; old conformance search is not used because it reconstructs execution and omits production dynamic-header evaluation. Initial 50-source run: 19 search errors, 3 detail errors, 28 search/detail returns (not yet all validated as credible). All 22 non-passes replayed sequentially with the same coarse outcomes. One missing-browser observation was rerun with an isolated worker and returned HTTP 403; that worker was removed without touching the running app.
 
@@ -32,7 +40,7 @@ The canonical findings and recommended boundaries are in [the initial audit repo
 
 ## Next action
 
-Continue the bounded classification of remaining failures/suspicious returns and the unexamined engine rule families, or obtain approval to prioritize the proven context/search-boundary corrections first. Preserve the original sample and observations before post-fix reruns. No full compatibility claim is justified. Any accepted structural correction needs an explicit ownership approach and public-seam regressions before production edits.
+Re-verify and implement the accepted corrections, starting with shared source identity and context ownership. Unsupported UA/JVM helpers still require separate contract verification and a bounded implementation decision. Preserve the original sample and observations before post-fix reruns. No full compatibility claim is justified. Any accepted structural correction needs an explicit ownership approach and public-seam regressions before production edits.
 
 ## Verification
 

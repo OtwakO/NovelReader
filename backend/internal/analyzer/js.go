@@ -329,7 +329,13 @@ Map = function(a) {
 			}
 		}
 	}
-	for key, value := range vm.makeSourceObj(baseURL, sourceState) {
+	// Source identity is not the current document URL. Standalone evaluations
+	// without a source definition retain their caller-provided identity.
+	sourceKey, _ := sourceObj["bookSourceUrl"].(string)
+	if sourceKey == "" {
+		sourceKey = baseURL
+	}
+	for key, value := range vm.makeSourceObj(sourceKey, sourceState) {
 		sourceObj[key] = value
 	}
 	if bridge != nil {
@@ -447,8 +453,8 @@ func (vm *JSVM) EvalElementsContext(ctx context.Context, script string, content 
 }
 
 // makeSourceObj creates a JS object with source.key, source.getKey(), source.getVariable(), etc.
-func (vm *JSVM) makeSourceObj(baseURL string, state SourceState) map[string]interface{} {
-	src := &jsSource{baseURL: baseURL, vm: vm, state: state}
+func (vm *JSVM) makeSourceObj(sourceKey string, state SourceState) map[string]interface{} {
+	src := &jsSource{sourceKey: sourceKey, vm: vm, state: state}
 	getLoginInfoMap := func() map[string]string {
 		if source, ok := state.(interface{ LoginInfo() map[string]string }); ok {
 			return source.LoginInfo()
@@ -456,8 +462,8 @@ func (vm *JSVM) makeSourceObj(baseURL string, state SourceState) map[string]inte
 		return map[string]string{}
 	}
 	return map[string]interface{}{
-		"key":               baseURL,
-		"getKey":            func() string { return baseURL },
+		"key":               sourceKey,
+		"getKey":            func() string { return sourceKey },
 		"getLoginHeaderMap": func() interface{} { return loginHeaderMap(state) },
 		"putLoginHeader": func(header string) {
 			if target, ok := state.(interface{ SetLoginHeader(string) }); ok {
@@ -1263,23 +1269,23 @@ func (h *jsHelpers) EncodeURI(str string, charset ...string) (string, error) {
 // --- source.* bridge ---
 
 type jsSource struct {
-	baseURL string
-	vm      *JSVM
-	state   SourceState
-	data    map[string]string
-	mu      sync.Mutex
+	sourceKey string
+	vm        *JSVM
+	state     SourceState
+	data      map[string]string
+	mu        sync.Mutex
 }
 
-func (s *jsSource) GetKey() string { return s.baseURL }
-func (s *jsSource) Key() string    { return s.baseURL }
+func (s *jsSource) GetKey() string { return s.sourceKey }
+func (s *jsSource) Key() string    { return s.sourceKey }
 
 func (s *jsSource) GetVariable() string {
 	if s.state != nil {
-		return s.state.GetVariable(s.baseURL)
+		return s.state.GetVariable(s.sourceKey)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	key := "sourceVariable_" + s.baseURL
+	key := "sourceVariable_" + s.sourceKey
 	if s.vm != nil && s.vm.cacheData != nil {
 		return s.vm.cacheData[key]
 	}
@@ -1288,7 +1294,7 @@ func (s *jsSource) GetVariable() string {
 
 func (s *jsSource) PutVariable(v string) {
 	if s.state != nil {
-		s.state.PutVariable(s.baseURL, v)
+		s.state.PutVariable(s.sourceKey, v)
 		return
 	}
 	if s.vm == nil {
@@ -1299,7 +1305,7 @@ func (s *jsSource) PutVariable(v string) {
 	if s.vm.cacheData == nil {
 		s.vm.cacheData = make(map[string]string)
 	}
-	s.vm.cacheData["sourceVariable_"+s.baseURL] = v
+	s.vm.cacheData["sourceVariable_"+s.sourceKey] = v
 }
 
 func (s *jsSource) Get(key string) string {
