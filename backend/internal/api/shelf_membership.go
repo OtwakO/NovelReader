@@ -8,7 +8,7 @@ import (
 
 type shelfMembership map[string]string
 
-func (s *Server) loadShelfMembership() shelfMembership {
+func (s *readerAPI) loadShelfMembership() shelfMembership {
 	if s.bookStore == nil {
 		return nil
 	}

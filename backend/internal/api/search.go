@@ -19,7 +19,7 @@ import (
 
 const maxTargetedSearchRequestBytes = 8 << 10
 
-func (s *Server) handleSearchInstalledSource(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleSearchInstalledSource(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		SourceID string `json:"sourceId"`
 		Query    string `json:"query"`
@@ -51,7 +51,7 @@ func (s *Server) handleSearchInstalledSource(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, results)
 }
 
-func (s *Server) handleSearchBatchStream(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleSearchBatchStream(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	if query == "" {
 		writeError(w, http.StatusBadRequest, "missing query param q")

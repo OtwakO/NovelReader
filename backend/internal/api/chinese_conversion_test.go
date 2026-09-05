@@ -28,8 +28,7 @@ func TestChineseConversionCapabilityAndBatch(t *testing.T) {
 		capability: chineseconv.Capability{Available: true, Engine: "BYVoid/OpenCC", Version: "1.4.2", Presets: map[string]string{"simplified": "tw2sp_jieba.json", "traditional": "s2twp_jieba.json"}, Modes: []string{"simplified", "traditional"}},
 		converted:  []string{"軟體", "滑鼠"},
 	}
-	server := &Server{chineseConversion: service, mux: http.NewServeMux()}
-	server.registerRoutesWithoutHealth()
+	server := newReaderAPI(&readerRuntime{}, &readerServices{chineseConversion: service})
 
 	capability := httptest.NewRecorder()
 	server.ServeHTTP(capability, httptest.NewRequest(http.MethodGet, "/api/system/chinese-conversion", nil))
@@ -45,8 +44,7 @@ func TestChineseConversionCapabilityAndBatch(t *testing.T) {
 }
 
 func TestChineseConversionUnavailableIsExplicit(t *testing.T) {
-	server := &Server{chineseConversion: conversionStub{capability: chineseconv.Capability{Available: false, Modes: []string{}}, err: errors.New("unused")}, mux: http.NewServeMux()}
-	server.registerRoutesWithoutHealth()
+	server := newReaderAPI(&readerRuntime{}, &readerServices{chineseConversion: conversionStub{capability: chineseconv.Capability{Available: false, Modes: []string{}}, err: errors.New("unused")}})
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/system/chinese-conversion", strings.NewReader(`{"mode":"traditional","texts":["软件"]}`)))
 	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), `"code":"chinese_conversion_unavailable"`) {
@@ -55,8 +53,7 @@ func TestChineseConversionUnavailableIsExplicit(t *testing.T) {
 }
 
 func TestChineseConversionRejectsTrailingJSON(t *testing.T) {
-	server := &Server{chineseConversion: conversionStub{capability: chineseconv.Capability{Available: true, Modes: []string{"simplified", "traditional"}}}, mux: http.NewServeMux()}
-	server.registerRoutesWithoutHealth()
+	server := newReaderAPI(&readerRuntime{}, &readerServices{chineseConversion: conversionStub{capability: chineseconv.Capability{Available: true, Modes: []string{"simplified", "traditional"}}}})
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/system/chinese-conversion", strings.NewReader(`{"mode":"traditional","texts":[]} {}`)))
 	if response.Code != http.StatusBadRequest {
@@ -65,8 +62,7 @@ func TestChineseConversionRejectsTrailingJSON(t *testing.T) {
 }
 
 func TestChineseConversionRejectsUnknownMode(t *testing.T) {
-	server := &Server{chineseConversion: conversionStub{capability: chineseconv.Capability{Available: true, Modes: []string{"simplified", "traditional"}}}, mux: http.NewServeMux()}
-	server.registerRoutesWithoutHealth()
+	server := newReaderAPI(&readerRuntime{}, &readerServices{chineseConversion: conversionStub{capability: chineseconv.Capability{Available: true, Modes: []string{"simplified", "traditional"}}}})
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/system/chinese-conversion", strings.NewReader(`{"mode":"regional","texts":[]}`)))
 	if response.Code != http.StatusBadRequest {

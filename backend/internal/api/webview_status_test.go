@@ -25,8 +25,7 @@ func TestWebViewStatusDistinguishesConfigurationAndExecution(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			server := &Server{webViewProbe: test.probe, mux: http.NewServeMux()}
-			server.registerRoutesWithoutHealth()
+			server := newReaderAPI(&readerRuntime{}, &readerServices{webViewProbe: test.probe})
 			response := httptest.NewRecorder()
 			server.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/system/webview-status", nil))
 			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), test.want) || !strings.Contains(response.Body.String(), `"checkedAt":`) {

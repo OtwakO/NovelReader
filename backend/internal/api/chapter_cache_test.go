@@ -35,15 +35,15 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 	if response := performAPIRequest(server, http.MethodPost, "/api/sources", raw); response.Code != http.StatusOK {
 		t.Fatalf("import status=%d body=%s", response.Code, response.Body.String())
 	}
-	sources, err := server.sourceStore.ListEnabled()
+	sources, err := server.standalone.sourceStore.ListEnabled()
 	if err != nil || len(sources) != 1 {
 		t.Fatalf("sources=%+v err=%v", sources, err)
 	}
-	if err := server.bookStore.AddBook(&book.Book{ID: "book", Name: "Book", SourceID: sources[0].ID, SourceURL: upstream.URL, BookURL: upstream.URL}); err != nil {
+	if err := server.standalone.bookStore.AddBook(&book.Book{ID: "book", Name: "Book", SourceID: sources[0].ID, SourceURL: upstream.URL, BookURL: upstream.URL}); err != nil {
 		t.Fatal(err)
 	}
 	chapter := book.Chapter{Index: 0, Title: "Chapter", URL: upstream.URL + "/chapter"}
-	if err := server.bookStore.SaveChapters("book", []book.Chapter{chapter}); err != nil {
+	if err := server.standalone.bookStore.SaveChapters("book", []book.Chapter{chapter}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -61,7 +61,7 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 		}
 	}
 	chapter.URL = upstream.URL + "/changed"
-	if err := server.bookStore.SaveChapters("book", []book.Chapter{chapter}); err != nil {
+	if err := server.standalone.bookStore.SaveChapters("book", []book.Chapter{chapter}); err != nil {
 		t.Fatal(err)
 	}
 	if response := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content", nil); response.Code == http.StatusOK {

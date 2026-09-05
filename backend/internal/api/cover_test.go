@@ -38,11 +38,11 @@ func TestStoredBookCoverUsesSourceHeadersAndDecodeScript(t *testing.T) {
 		JSLib:          `function decodeCover(bytes) { return bytes.map(function(value) { return value ^ 90; }); }`,
 		CoverDecodeJS:  `decodeCover(result)`,
 	}
-	if err := server.sourceStore.Upsert(&src); err != nil {
+	if err := server.standalone.sourceStore.Upsert(&src); err != nil {
 		t.Fatal(err)
 	}
 	b := book.Book{ID: "cover-book", Name: "Cover Fixture", SourceID: src.ID, SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover"}
-	if err := server.bookStore.AddBook(&b); err != nil {
+	if err := server.standalone.bookStore.AddBook(&b); err != nil {
 		t.Fatal(err)
 	}
 
@@ -77,12 +77,12 @@ func TestStoredBookCoverAppliesURLScopedHeaders(t *testing.T) {
 	server, closeDB := newWorkflowAPIServer(t)
 	defer closeDB()
 	src := booksource.BookSource{BookSourceURL: upstream.URL, BookSourceName: "URL header fixture"}
-	if err := server.sourceStore.Upsert(&src); err != nil {
+	if err := server.standalone.sourceStore.Upsert(&src); err != nil {
 		t.Fatal(err)
 	}
 	coverURL := upstream.URL + `/cover,{"headers":{"Referer":"https://reader.fixture/book"}}`
 	b := book.Book{ID: "header-cover", Name: "Header", SourceID: src.ID, SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: coverURL}
-	if err := server.bookStore.AddBook(&b); err != nil {
+	if err := server.standalone.bookStore.AddBook(&b); err != nil {
 		t.Fatal(err)
 	}
 
@@ -103,11 +103,11 @@ func TestStoredBookCoverPreservesOriginalBytesWhenDecoderReturnsNull(t *testing.
 	server, closeDB := newWorkflowAPIServer(t)
 	defer closeDB()
 	src := booksource.BookSource{BookSourceURL: upstream.URL, BookSourceName: "null decoder", CoverDecodeJS: `null`}
-	if err := server.sourceStore.Upsert(&src); err != nil {
+	if err := server.standalone.sourceStore.Upsert(&src); err != nil {
 		t.Fatal(err)
 	}
 	b := book.Book{ID: "null-cover", Name: "Null", SourceID: src.ID, SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover"}
-	if err := server.bookStore.AddBook(&b); err != nil {
+	if err := server.standalone.bookStore.AddBook(&b); err != nil {
 		t.Fatal(err)
 	}
 
@@ -142,11 +142,11 @@ func TestCandidateCoverReferenceFetchesHTTPImageThroughSameOriginEndpoint(t *tes
 	server, closeDB := newWorkflowAPIServer(t)
 	defer closeDB()
 	src := booksource.BookSource{BookSourceURL: upstream.URL, BookSourceName: "HTTP cover fixture"}
-	if err := server.sourceStore.Upsert(&src); err != nil {
+	if err := server.standalone.sourceStore.Upsert(&src); err != nil {
 		t.Fatal(err)
 	}
 	result := book.SearchResult{SourceID: src.ID, SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover.jpg"}
-	server.addCoverDisplayURL(&result)
+	server.standalone.addCoverDisplayURL(&result)
 	if !strings.HasPrefix(result.CoverDisplayURL, "/api/covers/") || result.CoverDisplayURL == result.CoverURL {
 		t.Fatalf("display URL=%q, want opaque same-origin API URL", result.CoverDisplayURL)
 	}
@@ -171,11 +171,11 @@ func TestStoredBookResponsesUseVersionedSameOriginCoverURL(t *testing.T) {
 	bookStore := book.NewStore(db)
 	server := NewServer(sourceStore, bookStore, nil, nil, nil, nil, nil, processor.Config{}, "", db)
 	source := booksource.BookSource{BookSourceURL: "https://source.test", BookSourceName: "Display source"}
-	if err := server.sourceStore.Upsert(&source); err != nil {
+	if err := server.standalone.sourceStore.Upsert(&source); err != nil {
 		t.Fatal(err)
 	}
 	stored := &book.Book{ID: "display-book", Name: "Display", SourceID: source.ID, SourceURL: source.BookSourceURL, BookURL: "https://source.test/book", CoverURL: "http://images.test/cover.jpg"}
-	if err := server.bookStore.AddBook(stored); err != nil {
+	if err := server.standalone.bookStore.AddBook(stored); err != nil {
 		t.Fatal(err)
 	}
 	var firstURL string
@@ -227,8 +227,8 @@ func TestCandidateCoverURLChangesWithSourceRevision(t *testing.T) {
 	server, closeDB := newWorkflowAPIServer(t)
 	defer closeDB()
 	result := book.SearchResult{SourceID: "source-test", SourceURL: "https://source.test", BookURL: "https://source.test/book", CoverURL: "https://images.test/cover.jpg"}
-	first := server.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL, coverCacheRevision{Source: 1})
-	second := server.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL, coverCacheRevision{Source: 2})
+	first := server.standalone.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL, coverCacheRevision{Source: 1})
+	second := server.standalone.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL, coverCacheRevision{Source: 2})
 	if first == second {
 		t.Fatalf("candidate cover URL did not change with source revision: %q", first)
 	}
@@ -238,8 +238,8 @@ func TestCandidateCoverURLChangesWithSourceProfileRevision(t *testing.T) {
 	server, closeDB := newWorkflowAPIServer(t)
 	defer closeDB()
 	result := book.SearchResult{SourceID: "source-test", SourceURL: "https://source.test", BookURL: "https://source.test/book", CoverURL: "https://images.test/cover.jpg"}
-	first := server.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL, coverCacheRevision{Source: 1, Profile: sourceprofile.CacheRevision{Settings: 1, Authentication: 3}})
-	second := server.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL, coverCacheRevision{Source: 1, Profile: sourceprofile.CacheRevision{Settings: 2, Authentication: 3}})
+	first := server.standalone.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL, coverCacheRevision{Source: 1, Profile: sourceprofile.CacheRevision{Settings: 1, Authentication: 3}})
+	second := server.standalone.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL, coverCacheRevision{Source: 1, Profile: sourceprofile.CacheRevision{Settings: 2, Authentication: 3}})
 	if first == second {
 		t.Fatalf("candidate cover URL did not change with source profile revision: %q", first)
 	}
@@ -267,7 +267,7 @@ func TestCandidateCoverReferenceRejectsTampering(t *testing.T) {
 	server, closeDB := newWorkflowAPIServer(t)
 	defer closeDB()
 	result := book.SearchResult{SourceID: "source-test", SourceURL: "https://source.test", BookURL: "https://source.test/book", CoverURL: "http://images.test/cover.jpg"}
-	server.addCoverDisplayURL(&result)
+	server.standalone.addCoverDisplayURL(&result)
 	parsed, err := url.Parse(result.CoverDisplayURL)
 	if err != nil {
 		t.Fatal(err)

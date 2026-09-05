@@ -47,14 +47,14 @@ func mustNewCoverReferenceKey() []byte {
 	return key
 }
 
-func (s *Server) addCoverDisplayURL(result *book.SearchResult) {
+func (s *readerAPI) addCoverDisplayURL(result *book.SearchResult) {
 	if result == nil || strings.TrimSpace(result.CoverURL) == "" {
 		return
 	}
 	s.addCoverDisplayURLWithRevision(result, s.coverCacheRevision(result.SourceID))
 }
 
-func (s *Server) addCoverDisplayURLs(results []book.SearchResult, revision coverCacheRevision) {
+func (s *readerAPI) addCoverDisplayURLs(results []book.SearchResult, revision coverCacheRevision) {
 	for index := range results {
 		result := &results[index]
 		if strings.TrimSpace(result.CoverURL) != "" {
@@ -63,18 +63,18 @@ func (s *Server) addCoverDisplayURLs(results []book.SearchResult, revision cover
 	}
 }
 
-func (s *Server) addCoverDisplayURLWithRevision(result *book.SearchResult, revision coverCacheRevision) {
+func (s *readerAPI) addCoverDisplayURLWithRevision(result *book.SearchResult, revision coverCacheRevision) {
 	result.CoverDisplayURL = s.coverDisplayURL(result.SourceID, result.SourceURL, result.BookURL, result.CoverURL, revision)
 }
 
-func (s *Server) addExploreCoverDisplayURLs(page *book.ExplorePage) {
+func (s *readerAPI) addExploreCoverDisplayURLs(page *book.ExplorePage) {
 	if page == nil {
 		return
 	}
 	s.addCoverDisplayURLs(page.Books, s.coverCacheRevision(page.SourceID))
 }
 
-func (s *Server) addCandidateCoverDisplayURL(snapshot *candidate.Snapshot) {
+func (s *readerAPI) addCandidateCoverDisplayURL(snapshot *candidate.Snapshot) {
 	if snapshot == nil {
 		return
 	}
@@ -86,7 +86,7 @@ func (s *Server) addCandidateCoverDisplayURL(snapshot *candidate.Snapshot) {
 	s.addStoredCoverDisplayURL(snapshot.StoredBook)
 }
 
-func (s *Server) coverDisplayURL(sourceID, sourceURL, bookURL, coverURL string, revision coverCacheRevision) string {
+func (s *readerAPI) coverDisplayURL(sourceID, sourceURL, bookURL, coverURL string, revision coverCacheRevision) string {
 	if s == nil || len(s.coverReferenceKey) == 0 || strings.TrimSpace(sourceID) == "" || strings.TrimSpace(sourceURL) == "" || strings.TrimSpace(bookURL) == "" || strings.TrimSpace(coverURL) == "" {
 		return ""
 	}
@@ -101,14 +101,14 @@ func (s *Server) coverDisplayURL(sourceID, sourceURL, bookURL, coverURL string, 
 	return "/api/covers/" + base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(signature)
 }
 
-func (s *Server) addStoredCoverDisplayURL(stored *book.Book) {
+func (s *readerAPI) addStoredCoverDisplayURL(stored *book.Book) {
 	if stored == nil || strings.TrimSpace(stored.CoverURL) == "" {
 		return
 	}
 	stored.CoverDisplayURL = storedCoverDisplayURL(stored, s.coverCacheRevision(stored.SourceID), s.coverCacheScope)
 }
 
-func (s *Server) addStoredCoverDisplayURLs(books []book.Book) {
+func (s *readerAPI) addStoredCoverDisplayURLs(books []book.Book) {
 	revisions := s.coverCacheRevisions()
 	for index := range books {
 		stored := &books[index]
@@ -141,7 +141,7 @@ func coverRevision(cacheScope string, revision coverCacheRevision, values ...str
 	return base64.RawURLEncoding.EncodeToString(hash.Sum(nil)[:12])
 }
 
-func (s *Server) coverCacheRevision(sourceID string) coverCacheRevision {
+func (s *readerAPI) coverCacheRevision(sourceID string) coverCacheRevision {
 	var revision coverCacheRevision
 	if s.sourceStore != nil {
 		var err error
@@ -154,7 +154,7 @@ func (s *Server) coverCacheRevision(sourceID string) coverCacheRevision {
 	return revision
 }
 
-func (s *Server) coverCacheRevisions() map[string]coverCacheRevision {
+func (s *readerAPI) coverCacheRevisions() map[string]coverCacheRevision {
 	revisions := make(map[string]coverCacheRevision)
 	if s.sourceStore != nil {
 		sourceRevisions, err := s.sourceStore.DefinitionRevisions()
@@ -173,7 +173,7 @@ func (s *Server) coverCacheRevisions() map[string]coverCacheRevision {
 	return revisions
 }
 
-func (s *Server) sourceProfileRevision(sourceID string) sourceprofile.CacheRevision {
+func (s *readerAPI) sourceProfileRevision(sourceID string) sourceprofile.CacheRevision {
 	if s.sourceProfiles == nil {
 		return sourceprofile.CacheRevision{}
 	}
@@ -184,7 +184,7 @@ func (s *Server) sourceProfileRevision(sourceID string) sourceprofile.CacheRevis
 	return revision
 }
 
-func (s *Server) sourceProfileRevisions() map[string]sourceprofile.CacheRevision {
+func (s *readerAPI) sourceProfileRevisions() map[string]sourceprofile.CacheRevision {
 	if s.sourceProfiles == nil {
 		return nil
 	}
@@ -202,7 +202,7 @@ func versionedCoverURL(rawURL, revision string) string {
 	return rawURL + "?v=" + url.QueryEscape(revision)
 }
 
-func (s *Server) parseCoverReference(value string) (coverReference, error) {
+func (s *readerAPI) parseCoverReference(value string) (coverReference, error) {
 	payloadValue, signatureValue, ok := strings.Cut(value, ".")
 	if !ok || payloadValue == "" || signatureValue == "" {
 		return coverReference{}, errInvalidCoverReference
@@ -227,7 +227,7 @@ func (s *Server) parseCoverReference(value string) (coverReference, error) {
 	return ref, nil
 }
 
-func (s *Server) handleGetCoverDisplay(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleGetCoverDisplay(w http.ResponseWriter, r *http.Request) {
 	if s.sourceStore == nil || s.searcher == nil {
 		writeError(w, http.StatusServiceUnavailable, "cover service unavailable")
 		return

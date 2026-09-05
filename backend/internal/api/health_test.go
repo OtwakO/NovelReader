@@ -16,8 +16,8 @@ func TestHealthReportsSQLiteReadinessWithoutLeakingFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := &Server{db: db, mux: http.NewServeMux()}
-	server.registerRoutes()
+	server := &Server{health: db, mux: http.NewServeMux()}
+	server.mux.HandleFunc("GET /api/healthz", server.handleHealth)
 
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/healthz", nil))

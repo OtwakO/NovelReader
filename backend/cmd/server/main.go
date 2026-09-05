@@ -116,9 +116,6 @@ func main() {
 		slog.Info("Chinese conversion unavailable in this build")
 	}
 
-	// Set up time function for API
-	api.TimeNowMillis = func() int64 { return time.Now().UnixMilli() }
-
 	// Mount public authentication/setup/recovery and protect every Reader Data route.
 	authHandler, err := auth.NewHTTPHandler(systemStore, auth.HTTPConfig{
 		PublicURL: cfg.PublicURL, Readers: readers,

@@ -75,10 +75,10 @@ func TestHandleSearchInstalledSourceUsesOpaqueQuery(t *testing.T) {
 	source.ID = "target-source"
 	store := &apiSourceStore{sources: []booksource.BookSource{source}}
 	searcher := book.NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), nil, store, nil)
-	server := &Server{searcher: searcher}
+	server := newReaderTestServer(&readerRuntime{searcher: searcher})
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/search/source", strings.NewReader(`{"sourceId":"target-source","query":"fixture@provider"}`))
-	server.handleSearchInstalledSource(response, request)
+	server.standalone.handleSearchInstalledSource(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d, want 200; body=%s", response.Code, response.Body.String())
@@ -97,7 +97,7 @@ func TestHandleSearchInstalledSourceRejectsUnavailableSource(t *testing.T) {
 	defer closeSource()
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/search/source", strings.NewReader(`{"sourceId":"missing","query":"fixture"}`))
-	apiServer.handleSearchInstalledSource(response, request)
+	apiServer.standalone.handleSearchInstalledSource(response, request)
 	if response.Code != http.StatusNotFound || calls.Load() != 0 {
 		t.Fatalf("status=%d calls=%d, want 404 without source work; body=%s", response.Code, calls.Load(), response.Body.String())
 	}
@@ -139,7 +139,7 @@ func newSearchAPIFixture(t *testing.T, count int) (*Server, *apiSourceStore, *at
 		store.sources = append(store.sources, source)
 	}
 	searcher := book.NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), nil, store, nil)
-	return &Server{searcher: searcher}, store, calls, sourceServer.Close
+	return newReaderTestServer(&readerRuntime{searcher: searcher}), store, calls, sourceServer.Close
 }
 
 func apiSource(sourceURL, name string, order int) booksource.BookSource {
@@ -155,7 +155,7 @@ func apiSource(sourceURL, name string, order int) booksource.BookSource {
 func performSearch(t *testing.T, server *Server, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	response := httptest.NewRecorder()
-	server.handleSearchBatchStream(response, httptest.NewRequest(http.MethodGet, path, nil))
+	server.standalone.handleSearchBatchStream(response, httptest.NewRequest(http.MethodGet, path, nil))
 	return response
 }
 

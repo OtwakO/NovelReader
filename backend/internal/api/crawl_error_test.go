@@ -38,7 +38,7 @@ func TestHandleGetChaptersExposesTypedPaginationFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	started := invokeBookRoute(server.handleGetChapters, "book-1", "")
+	started := invokeBookRoute(server.standalone.handleGetChapters, "book-1", "")
 	if started.Code != http.StatusAccepted {
 		t.Fatalf("start status=%d body=%s", started.Code, started.Body.String())
 	}
@@ -70,7 +70,7 @@ func TestHandleGetChaptersStartsAndReturnsSynchronizedCatalog(t *testing.T) {
 	if err := store.bookStore.AddBook(&book.Book{ID: "book-1", Name: "Fixture", SourceID: source.ID, SourceURL: sourceServer.URL, BookURL: sourceServer.URL + "/book", TocURL: sourceServer.URL}); err != nil {
 		t.Fatal(err)
 	}
-	started := invokeBookRoute(server.handleGetChapters, "book-1", "")
+	started := invokeBookRoute(server.standalone.handleGetChapters, "book-1", "")
 	if started.Code != http.StatusAccepted || started.Header().Get("Retry-After") != "1" {
 		t.Fatalf("start status=%d headers=%v body=%s", started.Code, started.Header(), started.Body.String())
 	}
@@ -101,10 +101,10 @@ func TestHandleRetryChaptersRestartsRetainedFailure(t *testing.T) {
 	if err := store.bookStore.AddBook(&book.Book{ID: "book-1", Name: "Fixture", SourceID: source.ID, SourceURL: sourceServer.URL, BookURL: sourceServer.URL + "/book", TocURL: sourceServer.URL}); err != nil {
 		t.Fatal(err)
 	}
-	invokeBookRoute(server.handleGetChapters, "book-1", "")
+	invokeBookRoute(server.standalone.handleGetChapters, "book-1", "")
 	waitForCatalogResponse(t, server, "book-1", http.StatusBadGateway)
 	fail.Store(false)
-	retry := invokeBookRoute(server.handleRetryChapters, "book-1", "")
+	retry := invokeBookRoute(server.standalone.handleRetryChapters, "book-1", "")
 	if retry.Code != http.StatusAccepted {
 		t.Fatalf("retry status=%d body=%s", retry.Code, retry.Body.String())
 	}
@@ -136,7 +136,7 @@ func TestHandleGetChapterContentExposesTypedPaginationFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	response := invokeBookRoute(server.handleGetChapterContent, "book-1", "0")
+	response := invokeBookRoute(server.standalone.handleGetChapterContent, "book-1", "0")
 	var payload crawlErrorResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
@@ -155,11 +155,11 @@ func TestHandlersDistinguishNotFoundFromStorageFailure(t *testing.T) {
 	initializeBookAPITestSchema(t, db)
 	sourceStore := booksource.NewStore(db)
 	searcher := book.NewSearcher(fetcher.NewInsecure(time.Second), analyzer.NewJSVM(), nil, sourceStore, bookStore)
-	server := &Server{bookStore: bookStore, sourceStore: sourceStore, searcher: searcher}
-	server.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
-	defer server.catalogs.Close()
+	server := newReaderTestServer(&readerRuntime{bookStore: bookStore, sourceStore: sourceStore, searcher: searcher})
+	server.standalone.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
+	defer server.standalone.catalogs.Close()
 
-	missing := invokeBookRoute(server.handleGetChapters, "missing", "")
+	missing := invokeBookRoute(server.standalone.handleGetChapters, "missing", "")
 	if missing.Code != http.StatusAccepted {
 		t.Fatalf("missing book start status=%d, want 202", missing.Code)
 	}
@@ -167,7 +167,7 @@ func TestHandlersDistinguishNotFoundFromStorageFailure(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	storageFailure := invokeBookRoute(server.handleGetChapters, "other", "")
+	storageFailure := invokeBookRoute(server.standalone.handleGetChapters, "other", "")
 	if storageFailure.Code != http.StatusInternalServerError {
 		t.Fatalf("storage failure status=%d, want 500; body=%s", storageFailure.Code, storageFailure.Body.String())
 	}
@@ -188,9 +188,9 @@ func newCrawlAPIServer(t *testing.T) (*Server, crawlStores, func()) {
 	bookStore := book.NewStore(db)
 	initializeBookAndSourceAPITestSchema(t, db)
 	searcher := book.NewSearcher(fetcher.NewInsecure(2*time.Second), analyzer.NewJSVM(), nil, sourceStore, bookStore)
-	server := &Server{sourceStore: sourceStore, bookStore: bookStore, searcher: searcher}
-	server.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
-	return server, crawlStores{sourceStore, bookStore}, func() { server.catalogs.Close(); _ = db.Close() }
+	server := newReaderTestServer(&readerRuntime{sourceStore: sourceStore, bookStore: bookStore, searcher: searcher})
+	server.standalone.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
+	return server, crawlStores{sourceStore, bookStore}, func() { server.standalone.catalogs.Close(); _ = db.Close() }
 }
 
 func waitForCatalogRoute(t *testing.T, server *Server, bookID string) *httptest.ResponseRecorder {
@@ -203,7 +203,7 @@ func waitForCatalogResponse(t *testing.T, server *Server, bookID string, status 
 	deadline := time.Now().Add(2 * time.Second)
 	var response *httptest.ResponseRecorder
 	for time.Now().Before(deadline) {
-		response = invokeBookRoute(server.handleGetChapters, bookID, "")
+		response = invokeBookRoute(server.standalone.handleGetChapters, bookID, "")
 		if response.Code == status {
 			return response
 		}

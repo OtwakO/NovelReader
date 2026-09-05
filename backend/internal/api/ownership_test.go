@@ -51,6 +51,45 @@ func TestAuthenticatedServerDeniesAnonymousReaderDataAndIsolatesEqualIDs(t *test
 	if bob.Code != http.StatusNotFound {
 		t.Fatalf("bob status=%d body=%s", bob.Code, bob.Body.String())
 	}
+	bobHome, err := readers.Open(t.Context(), ownershipBob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := book.NewStore(bobHome.DB()).AddBook(&book.Book{ID: "same-id", Name: "Bob Book", SourceURL: "source", BookURL: "book"}); err != nil {
+		bobHome.Close()
+		t.Fatal(err)
+	}
+	bobHome.Close()
+	start := make(chan struct{})
+	type result struct {
+		name     string
+		response *httptest.ResponseRecorder
+	}
+	results := make(chan result, 2)
+	for _, reader := range []struct {
+		id   readerstore.UserID
+		name string
+	}{{aliceID, "Alice Book"}, {ownershipBob, "Bob Book"}} {
+		credential, err := sessions.Create(t.Context(), reader.id, time.Now().Unix())
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := httptest.NewRequest(http.MethodGet, "/api/books/same-id", nil)
+		request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: credential.Token})
+		go func() {
+			<-start
+			response := httptest.NewRecorder()
+			server.ServeHTTP(response, request)
+			results <- result{reader.name, response}
+		}()
+	}
+	close(start)
+	for range 2 {
+		result := <-results
+		if result.response.Code != http.StatusOK || !containsJSONName(result.response.Body.Bytes(), result.name) {
+			t.Errorf("concurrent reader %s: status=%d body=%s", result.name, result.response.Code, result.response.Body.String())
+		}
+	}
 }
 
 func TestAuthenticatedServerProtectsRuntimeCookieValuesWithCurrentPassword(t *testing.T) {

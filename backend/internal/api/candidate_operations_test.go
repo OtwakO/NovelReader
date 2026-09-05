@@ -70,7 +70,7 @@ func TestCandidateOperationSSEPublishesAutomaticCommit(t *testing.T) {
 	response := httptest.NewRecorder()
 	done := make(chan struct{})
 	go func() {
-		server.handleStreamCandidateResolution(response, request)
+		server.standalone.handleStreamCandidateResolution(response, request)
 		close(done)
 	}()
 	select {

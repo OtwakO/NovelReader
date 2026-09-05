@@ -26,7 +26,7 @@ func (uploadPadding) Read(p []byte) (int, error) {
 func TestSourceReplacementRejectsOversizedBody(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPut, "/api/sources?id=source", io.LimitReader(uploadPadding{}, booksource.MaxCollectionDocumentBytes+1))
 	response := httptest.NewRecorder()
-	(&Server{}).handleUpdateSource(response, request)
+	(&readerAPI{}).handleUpdateSource(response, request)
 	if response.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -53,7 +53,7 @@ func TestFontUploadRejectsOversizedFileAndRequest(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/api/fonts", body)
 			request.Header.Set("Content-Type", writer.FormDataContentType())
 			response := httptest.NewRecorder()
-			(&Server{}).handleUploadFont(response, request)
+			(&readerAPI{}).handleUploadFont(response, request)
 			entries, err := os.ReadDir(tempDir)
 			if err != nil || len(entries) != 0 {
 				t.Fatalf("temporary files retained: %v, %v", entries, err)
@@ -79,7 +79,7 @@ func TestFontUploadPersistsWithinLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer home.Close()
-	server := &Server{fontStore: fontstore.NewStore(home.DB(), home.Files())}
+	server := newReaderAPI(&readerRuntime{fontStore: fontstore.NewStore(home.DB(), home.Files())}, &readerServices{})
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	file, err := writer.CreateFormFile("file", "fixture.woff2")

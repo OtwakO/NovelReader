@@ -12,7 +12,9 @@ Describe the current ownership, storage, authentication, credential, and backup 
 - `system.db` owns accounts, roles, password hashes, application sessions, setup/recovery state, reset tokens, backup automation tokens, and deletion jobs.
 - Each immutable Reader Account ID owns one self-contained reader home under `data/users/<id>/`.
 - HTTP input never supplies the authoritative Reader Account ID for Reader Data access. Authentication resolves identity first; readerstore resolves the home.
-- Every authenticated Reader Data operation acquires the target reader runtime. Feature modules do not construct reader paths.
+- Ordinary authenticated Reader Data requests acquire the target reader runtime. Feature modules do not construct reader paths; backup/restore uses the separate boundary described below.
+
+`api.Server` owns authentication, health, backup/restore and process shutdown. Each `readerRuntime` owns one `readerAPI` with routes registered at runtime construction; the handler binds directly to that runtime and borrows explicitly assembled `readerServices`. Authenticated requests acquire a lease, invoke the cached handler and release the lease—no Server copy or per-request dependency replacement. A replacement runtime gets a new handler and reader-specific cover scope. Candidate operations acquire their own additional lease so they can outlive the starting request. Standalone `NewServer` binds one reader explicitly and preserves its existing HTTP wrapper.
 
 ## Reader home
 

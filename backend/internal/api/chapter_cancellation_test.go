@@ -25,14 +25,14 @@ func TestChapterRequestCancellationStopsUpstream(t *testing.T) {
 	if r := performAPIRequest(server, http.MethodPost, "/api/sources", raw); r.Code != http.StatusOK {
 		t.Fatal(r.Code)
 	}
-	sources, err := server.sourceStore.ListEnabled()
+	sources, err := server.standalone.sourceStore.ListEnabled()
 	if err != nil || len(sources) != 1 {
 		t.Fatal("source setup", err)
 	}
-	if err := server.bookStore.AddBook(&book.Book{ID: "book", Name: "Book", SourceID: sources[0].ID, SourceURL: upstream.URL, BookURL: upstream.URL}); err != nil {
+	if err := server.standalone.bookStore.AddBook(&book.Book{ID: "book", Name: "Book", SourceID: sources[0].ID, SourceURL: upstream.URL, BookURL: upstream.URL}); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.bookStore.SaveChapters("book", []book.Chapter{{Index: 0, Title: "Chapter", URL: upstream.URL + "/chapter"}}); err != nil {
+	if err := server.standalone.bookStore.SaveChapters("book", []book.Chapter{{Index: 0, Title: "Chapter", URL: upstream.URL + "/chapter"}}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

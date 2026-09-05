@@ -26,13 +26,13 @@ func TestHandleMergeBookSourcesPreservesCurrentSource(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	server := &Server{bookStore: bookStore}
+	server := newReaderTestServer(&readerRuntime{bookStore: bookStore})
 	request := httptest.NewRequest(http.MethodPost, "/api/books/book-1/sources", bytes.NewBufferString(`{
 		"sources":[{"sourceId":"source-b","sourceUrl":"source-b","bookUrl":"/b","sourceName":"Source B"}]
 	}`))
 	request.SetPathValue("id", "book-1")
 	response := httptest.NewRecorder()
-	server.handleMergeBookSources(response, request)
+	server.standalone.handleMergeBookSources(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -61,11 +61,11 @@ func TestHandleClearBookSourcesPreservesCurrentSource(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	server := &Server{bookStore: bookStore}
+	server := newReaderTestServer(&readerRuntime{bookStore: bookStore})
 	request := httptest.NewRequest(http.MethodDelete, "/api/books/book-1/sources", nil)
 	request.SetPathValue("id", "book-1")
 	response := httptest.NewRecorder()
-	server.handleClearBookSources(response, request)
+	server.standalone.handleClearBookSources(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}

@@ -13,7 +13,7 @@ type webViewStatusResponse struct {
 	CheckedAt int64  `json:"checkedAt"`
 }
 
-func (s *Server) handleWebViewStatus(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleWebViewStatus(w http.ResponseWriter, r *http.Request) {
 	checkedAt := time.Now().UnixMilli()
 	if s.webViewProbe == nil {
 		writeJSON(w, http.StatusOK, webViewStatusResponse{Status: "not_configured", CheckedAt: checkedAt})

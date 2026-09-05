@@ -31,7 +31,7 @@ type collectionMutationResponse struct {
 	Changes    booksource.ReplaceResult `json:"changes"`
 }
 
-func (s *Server) handleListSourceCollections(w http.ResponseWriter, _ *http.Request) {
+func (s *readerAPI) handleListSourceCollections(w http.ResponseWriter, _ *http.Request) {
 	collections, err := s.sourceStore.ListCollections()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -43,7 +43,7 @@ func (s *Server) handleListSourceCollections(w http.ResponseWriter, _ *http.Requ
 	writeJSON(w, http.StatusOK, collections)
 }
 
-func (s *Server) handleCreateUploadCollection(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleCreateUploadCollection(w http.ResponseWriter, r *http.Request) {
 	name, filename, document, err := readCollectionUpload(w, r)
 	if err != nil {
 		writeCollectionError(w, err)
@@ -67,7 +67,7 @@ func (s *Server) handleCreateUploadCollection(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusCreated, collectionMutationResponse{Collection: collection, Changes: changes})
 }
 
-func (s *Server) handleCreateURLCollection(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleCreateURLCollection(w http.ResponseWriter, r *http.Request) {
 	var request collectionCreateRequest
 	if err := decodeCollectionJSON(r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -98,7 +98,7 @@ func (s *Server) handleCreateURLCollection(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusCreated, collectionMutationResponse{Collection: *created, Changes: changes})
 }
 
-func (s *Server) handleUpdateSourceCollection(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleUpdateSourceCollection(w http.ResponseWriter, r *http.Request) {
 	var request collectionUpdateRequest
 	if err := decodeCollectionJSON(r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -144,7 +144,7 @@ func (s *Server) handleUpdateSourceCollection(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, collection)
 }
 
-func (s *Server) handleReplaceUploadCollection(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleReplaceUploadCollection(w http.ResponseWriter, r *http.Request) {
 	_, filename, document, err := readCollectionUpload(w, r)
 	if err != nil {
 		writeCollectionError(w, err)
@@ -173,7 +173,7 @@ func (s *Server) handleReplaceUploadCollection(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, collectionMutationResponse{Collection: *collection, Changes: changes})
 }
 
-func (s *Server) handleSyncSourceCollection(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleSyncSourceCollection(w http.ResponseWriter, r *http.Request) {
 	collection, err := s.sourceStore.GetCollection(r.PathValue("id"))
 	if err != nil || collection == nil {
 		writeCollectionError(w, booksource.ErrCollectionNotFound)
@@ -213,7 +213,7 @@ func (s *Server) handleSyncSourceCollection(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, collectionMutationResponse{Collection: *collection, Changes: changes})
 }
 
-func (s *Server) handleDeleteSourceCollection(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleDeleteSourceCollection(w http.ResponseWriter, r *http.Request) {
 	if err := deleteSourceCollection(r.Context(), s.sourceStore, s.sourceProfiles, s.closeSourceRuntime, r.PathValue("id")); err != nil {
 		writeCollectionError(w, err)
 		return

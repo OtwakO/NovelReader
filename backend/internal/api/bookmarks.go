@@ -15,7 +15,7 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 )
 
-func (s *Server) handleListBookmarks(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleListBookmarks(w http.ResponseWriter, r *http.Request) {
 	bookID := r.PathValue("id")
 	stored, err := s.bookStore.GetBook(bookID)
 	if err != nil {
@@ -34,7 +34,7 @@ func (s *Server) handleListBookmarks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, marks)
 }
 
-func (s *Server) handleAddBookmark(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleAddBookmark(w http.ResponseWriter, r *http.Request) {
 	bookID := r.PathValue("id")
 	var req struct {
 		ID           string   `json:"id"`
@@ -114,7 +114,7 @@ func (s *Server) handleAddBookmark(w http.ResponseWriter, r *http.Request) {
 	writeErrorCode(w, http.StatusInternalServerError, "storage_error", "bookmark saved but not found")
 }
 
-func (s *Server) handleDeleteBookmark(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleDeleteBookmark(w http.ResponseWriter, r *http.Request) {
 	if err := s.bookStore.DeleteBookmark(r.PathValue("id"), r.PathValue("bookmarkID")); err != nil {
 		if errors.Is(err, book.ErrBookmarkNotFound) {
 			writeErrorCode(w, http.StatusNotFound, "bookmark_not_found", "bookmark not found")

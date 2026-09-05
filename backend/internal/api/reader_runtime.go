@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"time"
@@ -16,6 +17,8 @@ import (
 )
 
 type readerRuntime struct {
+	api                *readerAPI
+	db                 *sql.DB
 	home               *readerstore.Home
 	sourceStore        *booksource.Store
 	bookStore          *book.Store
@@ -50,12 +53,14 @@ func (m *readerRuntimeManager) openRuntime(ctx context.Context, userID readersto
 	readerJS := m.jsVM.ForkStateWithDeviceID(readerstore.DeviceID(userID))
 	readerSearcher := m.searcher.ForkReader(readerJS, analyzer.NewCacheManager(), sourceStore, bookStore, m.limits)
 	readerSearcher.SetSourceSessionHydrator(sourceSessionHydrator(sourceProfiles))
-	return &readerRuntime{
+	runtime := &readerRuntime{db: home.DB(),
 		home: home, sourceStore: sourceStore, bookStore: bookStore, fontStore: fontStore, sourceProfiles: sourceProfiles,
 		sourceInteractions: sourceinteraction.NewDescriber(sourceStore, sourceProfiles, readerJS.ForkState()),
 		browserSessions:    sourceinteraction.NewBrowserSessions(m.browser),
 		catalogs:           book.NewCatalogs(bookStore, sourceStore, readerSearcher), searcher: readerSearcher,
-	}, nil
+	}
+	runtime.api = newReaderAPI(runtime, m.services)
+	return runtime, nil
 }
 
 func (r *readerRuntime) close() error {

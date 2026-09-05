@@ -9,7 +9,7 @@ import (
 	"github.com/otwako/novelreader/internal/processor"
 )
 
-func (s *Server) handleGetChapterImage(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleGetChapterImage(w http.ResponseWriter, r *http.Request) {
 	if s.bookStore == nil || s.sourceStore == nil || s.searcher == nil {
 		writeError(w, http.StatusServiceUnavailable, "chapter image service unavailable")
 		return

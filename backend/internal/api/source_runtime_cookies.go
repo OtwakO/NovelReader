@@ -28,7 +28,7 @@ type runtimeCookieMetadata struct {
 	Names []string `json:"names"`
 }
 
-func (s *Server) handleRuntimeCookieMetadata(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleRuntimeCookieMetadata(w http.ResponseWriter, r *http.Request) {
 	cookies, err := s.sourceProfiles.RuntimeCookies(r.Context(), r.PathValue("id"))
 	if err != nil {
 		s.writeRuntimeCookieError(w, err)
@@ -42,7 +42,7 @@ func (s *Server) handleRuntimeCookieMetadata(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, map[string]any{"cookies": metadata})
 }
 
-func (s *Server) handleRevealRuntimeCookies(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleRevealRuntimeCookies(w http.ResponseWriter, r *http.Request) {
 	var request runtimeCookiePasswordRequest
 	if !decodeRuntimeCookieRequest(w, r, &request) {
 		return
@@ -59,7 +59,7 @@ func (s *Server) handleRevealRuntimeCookies(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"cookies": cookies})
 }
 
-func (s *Server) handleReplaceRuntimeCookies(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleReplaceRuntimeCookies(w http.ResponseWriter, r *http.Request) {
 	var request replaceRuntimeCookiesRequest
 	if !decodeRuntimeCookieRequest(w, r, &request) {
 		return
@@ -85,7 +85,7 @@ func (s *Server) handleReplaceRuntimeCookies(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, map[string]any{"cookies": metadata})
 }
 
-func (s *Server) verifyRuntimeCookiePassword(w http.ResponseWriter, r *http.Request, password string) bool {
+func (s *readerAPI) verifyRuntimeCookiePassword(w http.ResponseWriter, r *http.Request, password string) bool {
 	if s.auth == nil {
 		writeError(w, http.StatusNotImplemented, "current-password verification is unavailable")
 		return false
@@ -101,7 +101,7 @@ func (s *Server) verifyRuntimeCookiePassword(w http.ResponseWriter, r *http.Requ
 	return true
 }
 
-func (s *Server) writeRuntimeCookieError(w http.ResponseWriter, err error) {
+func (s *readerAPI) writeRuntimeCookieError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, sourceprofile.ErrSourceNotInstalled):
 		writeError(w, http.StatusNotFound, "book source not found")

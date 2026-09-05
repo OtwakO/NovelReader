@@ -36,7 +36,7 @@ type chapterContentResponse struct {
 	OfflineCopy bool          `json:"offlineCopy,omitempty"`
 }
 
-func (s *Server) writeChapterCacheFallback(w http.ResponseWriter, storedBook *book.Book, chapter *book.Chapter) bool {
+func (s *readerAPI) writeChapterCacheFallback(w http.ResponseWriter, storedBook *book.Book, chapter *book.Chapter) bool {
 	cached, err := s.bookStore.GetChapterCache(storedBook.ID, storedBook.SourceID, chapter.Index, chapter.URL)
 	if err != nil {
 		slog.Warn("api: chapter cache lookup failed", "book_id", storedBook.ID, "chapter_index", chapter.Index, "error", err)
@@ -49,7 +49,7 @@ func (s *Server) writeChapterCacheFallback(w http.ResponseWriter, storedBook *bo
 	return true
 }
 
-func (s *Server) saveChapterCache(storedBook *book.Book, chapter *book.Chapter, result processor.ProcessResult) {
+func (s *readerAPI) saveChapterCache(storedBook *book.Book, chapter *book.Chapter, result processor.ProcessResult) {
 	if err := s.bookStore.SaveChapterCache(book.CachedChapter{
 		BookID: storedBook.ID, SourceID: storedBook.SourceID, ChapterIndex: chapter.Index,
 		ChapterURL: chapter.URL, Title: result.Title, Paragraphs: result.Paragraphs, Blocks: result.Blocks,

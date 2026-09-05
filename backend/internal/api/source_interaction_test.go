@@ -21,7 +21,7 @@ func TestSourceInteractionHTTPReturnsNormalizedControlsWithoutAuthentication(t *
 	source := &booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", BookSourceName: "Fixture",
 		LoginUI: `[{"name":"账号","type":"text"},{"name":"登录","type":"button","action":"login()"}]`}
 	server := NewServer(nil, nil, nil, nil, nil, analyzer.NewJSVM(), nil, processor.DefaultConfig(), "", nil)
-	server.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, &apiInteractionProfileStore{profile: sourceprofile.Profile{
+	server.standalone.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, &apiInteractionProfileStore{profile: sourceprofile.Profile{
 		SourceID: source.ID, Settings: json.RawMessage(`{}`), Authentication: json.RawMessage(`{"token":"secret"}`),
 	}}, analyzer.NewJSVM())
 	request := httptest.NewRequest(http.MethodGet, "/api/sources/source-a/interaction", nil)
@@ -48,7 +48,7 @@ func (s apiInteractionSourceStore) GetByID(id string) (*booksource.BookSource, e
 func TestSourceInteractionHTTPClassifiesFailuresWithoutLeakingSourceCause(t *testing.T) {
 	source := &booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", BookSourceName: "Fixture", LoginUI: `@js:throw new Error('RAW_PRIVATE_CAUSE')`}
 	server := NewServer(nil, nil, nil, nil, nil, analyzer.NewJSVM(), nil, processor.DefaultConfig(), "", nil)
-	server.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, &apiInteractionProfileStore{profile: sourceprofile.Profile{
+	server.standalone.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, &apiInteractionProfileStore{profile: sourceprofile.Profile{
 		SourceID: source.ID, Settings: json.RawMessage(`{}`), Authentication: json.RawMessage(`{}`),
 	}}, analyzer.NewJSVM())
 	response := httptest.NewRecorder()
@@ -63,7 +63,7 @@ func TestSourceInteractionActionHTTPRejectsStaleRevision(t *testing.T) {
 		LoginUI: `[{"name":"Save","type":"button","action":"save()"}]`, LoginURL: `function save(){}`}
 	profiles := &apiInteractionProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: json.RawMessage(`{}`), Authentication: json.RawMessage(`{}`)}}
 	server := NewServer(nil, nil, nil, nil, nil, analyzer.NewJSVM(), nil, processor.DefaultConfig(), "", nil)
-	server.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, profiles, analyzer.NewJSVM())
+	server.standalone.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, profiles, analyzer.NewJSVM())
 	request := httptest.NewRequest(http.MethodPost, "/api/sources/source-a/interaction/actions", strings.NewReader(`{"revision":"stale","actionId":"action-0","values":{}}`))
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, request)
@@ -76,7 +76,7 @@ func TestSourceInteractionResetLoginKeepsSettings(t *testing.T) {
 	source := &booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", LoginUI: `[]`}
 	profiles := &apiInteractionProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: json.RawMessage(`{"variable":"kept"}`), Authentication: json.RawMessage(`{"loginInfo":{"user":"clear"}}`)}}
 	server := NewServer(nil, nil, nil, nil, nil, analyzer.NewJSVM(), nil, processor.DefaultConfig(), "", nil)
-	server.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, profiles, analyzer.NewJSVM())
+	server.standalone.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, profiles, analyzer.NewJSVM())
 	request := httptest.NewRequest(http.MethodDelete, "/api/sources/source-a/interaction/login", nil)
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, request)
@@ -121,9 +121,9 @@ func TestSourceInteractionAwaitBrowserActionReturnsLaunchReference(t *testing.T)
 	source := &booksource.BookSource{ID: "source-a", BookSourceURL: "https://source.test", LoginUI: `[{"name":"Register","type":"button","action":"register()"}]`, LoginURL: `function register(){java.startBrowserAwait('https://register.test','Register')}`}
 	profiles := &apiInteractionProfileStore{profile: sourceprofile.Profile{SourceID: source.ID, Settings: json.RawMessage(`{}`), Authentication: json.RawMessage(`{}`)}}
 	server := NewServer(nil, nil, nil, nil, nil, analyzer.NewJSVM(), nil, processor.DefaultConfig(), "", nil)
-	server.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, profiles, analyzer.NewJSVM())
-	server.browserSessions = sourceinteraction.NewBrowserSessions(&apiBrowserFixture{})
-	view, err := server.sourceInteractions.Describe(t.Context(), source.ID)
+	server.standalone.sourceInteractions = sourceinteraction.NewDescriber(apiInteractionSourceStore{source}, profiles, analyzer.NewJSVM())
+	server.standalone.browserSessions = sourceinteraction.NewBrowserSessions(&apiBrowserFixture{})
+	view, err := server.standalone.sourceInteractions.Describe(t.Context(), source.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

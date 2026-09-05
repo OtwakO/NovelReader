@@ -66,9 +66,13 @@ A08 is implemented: reader schema epoch 8 includes font-owned pending cleanup. M
 
 A09 is fixed: frontend identity normalization follows the existing backend contract, including exact author labels, Unicode whitespace and context-independent lowercase. Six shared synthetic vectors pass in both languages; backend stored identities are unchanged. Frontend book/candidate suites pass (42 tests across 7 files); identity/candidate/account-state tests, lint, typecheck and production build pass. Backend book and API packages pass. Docker's frontend stage explicitly copies the shared fixture for typechecking; the Docker image itself was not built. Latest AFT inspection timed out; tests/typechecking remain authoritative.
 
+A10 is complete: root `Server` owns lifecycle/auth/backup; runtime-owned `readerAPI` binds reader stores directly and borrows explicit process services. Routes are constructed once per runtime, not per request. Request leases, candidate-operation lifetime leases, reader cover scopes, standalone serving and backup/restore routing are preserved. Fixtures now name the reader/shared dependency boundary. The obsolete font-ID clock hook left after A08 was removed from command wiring. Endpoint bodies were otherwise moved mechanically, not redesigned.
+
+Verification: API suite passes, including the full API package under the race detector. A focused cached-handler/extra-candidate-lease/quiesce/replacement test and concurrent equal-ID reader requests pass. Backup and server-command package tests pass; all backend packages compile (`go test ./... -run '^$'`, not a full backend test run). AFT inspection timed out and supplies no fresh diagnostic evidence. No frontend, Docker, real-worker or live-source tests were run for A10. No schema/HTTP contract change; rollback is code-only.
+
 ## Next action
 
-A01–A09 and the original frontend test regression are complete. Reassess the remaining request/workflow boundary proposals against current code before proposing the next bounded refactor. Do not resume cosmetic decomposition or unmeasured performance work automatically.
+A01–A10 and the original frontend test regression are complete. Remaining frontend workflow decomposition and performance proposals are deferred until a concrete feature/change or measurement justifies them. Do not resume cosmetic decomposition or unmeasured performance work automatically.
 
 ## Verification
 

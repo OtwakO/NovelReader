@@ -3,19 +3,11 @@ package api
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"math"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/auth"
@@ -29,55 +21,32 @@ import (
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/sourceinteraction"
-	"github.com/otwako/novelreader/internal/sourceprofile"
 )
 
-// Server holds API dependencies.
+// Server owns process services and the authentication/backup boundary.
+// Reader endpoints live in runtime-owned readerAPI handlers.
 type Server struct {
-	db                  *sql.DB
-	sourceStore         *booksource.Store
-	bookStore           *book.Store
-	searcher            *book.Searcher
-	fontStore           *fontstore.Store
-	sourceProfiles      *sourceprofile.Store
-	sourceInteractions  *sourceinteraction.Describer
-	browserSessions     *sourceinteraction.BrowserSessions
-	fetcher             *fetcher.Client
-	jsVM                *analyzer.JSVM
-	cache               *analyzer.CacheManager
-	processorCfg        processor.Config
-	dataDir             string
 	mux                 *http.ServeMux
 	auth                *auth.HTTPHandler
 	runtimes            *readerRuntimeManager
-	runtime             *readerRuntime
+	services            *readerServices
+	standalone          *readerAPI
 	health              interface{ PingContext(context.Context) error }
-	webViewProbe        interface{ Probe(context.Context) error }
-	chineseConversion   chineseconv.Service
-	candidateOperations *candidate.Manager
-	catalogs            *book.Catalogs
-	coverReferenceKey   []byte
-	coverCacheScope     string
-	collectionLoader    *booksource.RemoteLoader
 	collectionScheduler *sourceCollectionScheduler
 	backups             *backupservice.Service
 }
 
-// Mux exposes the underlying ServeMux for static file mounting.
-func (s *Server) Mux() *http.ServeMux {
-	return s.mux
-}
+func (s *Server) Mux() *http.ServeMux { return s.mux }
 
-// Close releases cached reader-home leases owned by the authenticated server.
 func (s *Server) Close() error {
 	if s == nil {
 		return nil
 	}
-	if s.candidateOperations != nil {
-		s.candidateOperations.Close()
+	if s.services != nil && s.services.candidateOperations != nil {
+		s.services.candidateOperations.Close()
 	}
-	if s.catalogs != nil {
-		s.catalogs.Close()
+	if s.standalone != nil && s.standalone.catalogs != nil {
+		s.standalone.catalogs.Close()
 	}
 	if s.backups != nil {
 		if err := s.backups.Close(); err != nil {
@@ -87,8 +56,8 @@ func (s *Server) Close() error {
 	if s.collectionScheduler != nil {
 		s.collectionScheduler.Close()
 	}
-	if s.chineseConversion != nil {
-		if err := s.chineseConversion.Close(); err != nil {
+	if s.services != nil && s.services.chineseConversion != nil {
+		if err := s.services.chineseConversion.Close(); err != nil {
 			return err
 		}
 	}
@@ -98,166 +67,55 @@ func (s *Server) Close() error {
 	return s.runtimes.Close()
 }
 
-// NewServer creates and wires up the API server.
-func NewServer(
-	sourceStore *booksource.Store,
-	bookStore *book.Store,
-	searcher *book.Searcher,
-	fontStore *fontstore.Store,
-	fetcher *fetcher.Client,
-	jsVM *analyzer.JSVM,
-	cache *analyzer.CacheManager,
-	processorCfg processor.Config,
-	dataDir string,
-	db *sql.DB,
-) *Server {
-	s := &Server{
-		db:                  db,
-		sourceStore:         sourceStore,
-		bookStore:           bookStore,
-		searcher:            searcher,
-		fontStore:           fontStore,
-		fetcher:             fetcher,
-		jsVM:                jsVM,
-		cache:               cache,
-		processorCfg:        processorCfg,
-		dataDir:             dataDir,
-		mux:                 http.NewServeMux(),
+// NewServer binds one standalone reader. The signature is retained for existing
+// callers; source execution state is owned by the supplied Searcher.
+func NewServer(sourceStore *booksource.Store, bookStore *book.Store, searcher *book.Searcher, fontStore *fontstore.Store, fetcher *fetcher.Client, jsVM *analyzer.JSVM, cache *analyzer.CacheManager, processorCfg processor.Config, dataDir string, db *sql.DB) *Server {
+	services := &readerServices{fetcher: fetcher, processorCfg: processorCfg,
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
-		coverReferenceKey:   mustNewCoverReferenceKey(),
-		coverCacheScope:     "standalone",
-		collectionLoader:    booksource.NewRemoteLoader(),
-	}
+		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
+	runtime := &readerRuntime{db: db, sourceStore: sourceStore, bookStore: bookStore, searcher: searcher, fontStore: fontStore}
 	if bookStore != nil && sourceStore != nil && searcher != nil {
-		s.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
+		runtime.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
 	}
-	s.registerRoutes()
+	runtime.api = newReaderAPI(runtime, services)
+	s := &Server{mux: runtime.api.mux, services: services, standalone: runtime.api}
+	if db != nil {
+		s.health = db
+	}
+	s.mux.HandleFunc("GET /api/healthz", s.handleHealth)
 	return s
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Recover from panics to avoid crashing the entire server
 	defer func() {
 		if rec := recover(); rec != nil {
-			slog.Error("server: panic recovered",
-				"path", r.URL.Path,
-				"method", r.Method,
-				"panic", fmt.Sprintf("%v", rec))
+			slog.Error("server: panic recovered", "path", r.URL.Path, "method", r.Method, "panic", fmt.Sprintf("%v", rec))
 			writeError(w, http.StatusInternalServerError, "internal server error")
 		}
 	}()
 	s.mux.ServeHTTP(w, r)
 }
 
-func (s *Server) registerRoutes() {
-	s.mux.HandleFunc("GET /api/healthz", s.handleHealth)
-	s.registerRoutesWithoutHealth()
-}
-
-func (s *Server) registerRoutesWithoutHealth() {
-	// Book sources — URLs with slashes can't go in path segments, use query param
-	s.mux.HandleFunc("GET /api/sources", s.handleListSources)
-	s.mux.HandleFunc("POST /api/sources", s.handleImportSources)
-	s.mux.HandleFunc("GET /api/sources/{id}", s.handleGetSource)
-	s.mux.HandleFunc("PATCH /api/sources/{id}", s.handleUpdateSourcePreferences)
-	s.mux.HandleFunc("GET /api/source-collections", s.handleListSourceCollections)
-	s.mux.HandleFunc("POST /api/source-collections/upload", s.handleCreateUploadCollection)
-	s.mux.HandleFunc("POST /api/source-collections/url", s.handleCreateURLCollection)
-	s.mux.HandleFunc("PATCH /api/source-collections/{id}", s.handleUpdateSourceCollection)
-	s.mux.HandleFunc("POST /api/source-collections/{id}/replace", s.handleReplaceUploadCollection)
-	s.mux.HandleFunc("POST /api/source-collections/{id}/sync", s.handleSyncSourceCollection)
-	s.mux.HandleFunc("DELETE /api/source-collections/{id}", s.handleDeleteSourceCollection)
-	s.mux.HandleFunc("DELETE /api/sources", s.handleDeleteSource)
-	s.mux.HandleFunc("PUT /api/sources", s.handleUpdateSource)
-	s.mux.HandleFunc("GET /api/sources/{id}/interaction", s.handleSourceInteraction)
-	s.mux.HandleFunc("POST /api/sources/{id}/interaction/actions", s.handleSourceInteractionAction)
-	s.mux.HandleFunc("GET /api/sources/{id}/interaction/runtime-cookies", s.handleRuntimeCookieMetadata)
-	s.mux.HandleFunc("POST /api/sources/{id}/interaction/runtime-cookies/reveal", s.handleRevealRuntimeCookies)
-	s.mux.HandleFunc("PUT /api/sources/{id}/interaction/runtime-cookies", s.handleReplaceRuntimeCookies)
-	s.mux.HandleFunc("POST /api/sources/{id}/interaction/browser", s.handleStartSourceBrowser)
-	s.mux.HandleFunc("GET /api/sources/{id}/interaction/browser/{sessionID}", s.handleSourceBrowserFrame)
-	s.mux.HandleFunc("POST /api/sources/{id}/interaction/browser/{sessionID}/input", s.handleSourceBrowserInput)
-	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction/browser/{sessionID}", s.handleCloseSourceBrowser)
-	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction/login", s.handleSourceInteractionResetLogin)
-	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction/settings", s.handleSourceInteractionResetSettings)
-	s.mux.HandleFunc("DELETE /api/sources/{id}/interaction", s.handleSourceInteractionResetAll)
-
-	// Books
-	s.mux.HandleFunc("GET /api/books", s.handleListBooks)
-	s.mux.HandleFunc("GET /api/books/{id}", s.handleGetBook)
-	s.mux.HandleFunc("GET /api/books/{id}/cover", s.handleGetBookCover)
-	s.mux.HandleFunc("GET /api/covers/{reference}", s.handleGetCoverDisplay)
-	s.mux.HandleFunc("POST /api/candidate-resolutions", s.handleStartCandidateResolution)
-	s.mux.HandleFunc("GET /api/candidate-resolutions/{id}", s.handleGetCandidateResolution)
-	s.mux.HandleFunc("GET /api/candidate-resolutions/{id}/events", s.handleStreamCandidateResolution)
-	s.mux.HandleFunc("DELETE /api/candidate-resolutions/{id}", s.handleCancelCandidateResolution)
-	s.mux.HandleFunc("POST /api/candidate-resolutions/{id}/shelve", s.handleCommitCandidateResolution)
-	s.mux.HandleFunc("POST /api/books/{id}/sources", s.handleMergeBookSources)
-	s.mux.HandleFunc("DELETE /api/books/{id}/sources", s.handleClearBookSources)
-	s.mux.HandleFunc("DELETE /api/books", s.handleDeleteBook)
-
-	// Search
-	s.mux.HandleFunc("GET /api/search/stream", s.handleSearchBatchStream)
-	s.mux.HandleFunc("POST /api/search/source", s.handleSearchInstalledSource)
-
-	// Explore
-	s.mux.HandleFunc("GET /api/explore/sources", s.handleExploreSources)
-	s.mux.HandleFunc("POST /api/explore/catalog", s.handleExploreCatalog)
-	s.mux.HandleFunc("POST /api/explore/control", s.handleExploreControl)
-	s.mux.HandleFunc("POST /api/explore/page", s.handleExplorePage)
-	s.mux.HandleFunc("POST /api/explore/action", s.handleExploreAction)
-
-	// Chapters
-	s.mux.HandleFunc("GET /api/books/{id}/chapters", s.handleGetChapters)
-	s.mux.HandleFunc("POST /api/books/{id}/chapters/sync", s.handleRetryChapters)
-	s.mux.HandleFunc("GET /api/books/{id}/chapters/{idx}/content", s.handleGetChapterContent)
-	s.mux.HandleFunc("GET /api/books/{id}/chapters/{idx}/images/{imageIdx}", s.handleGetChapterImage)
-
-	// Progress
-	s.mux.HandleFunc("PUT /api/books/{id}/progress", s.handleUpdateProgress)
-
-	// Source switching and bookmarks
-	s.mux.HandleFunc("PUT /api/books/{id}/source", s.handleSwitchSource)
-	s.mux.HandleFunc("GET /api/books/{id}/bookmarks", s.handleListBookmarks)
-	s.mux.HandleFunc("POST /api/books/{id}/bookmarks", s.handleAddBookmark)
-	s.mux.HandleFunc("DELETE /api/books/{id}/bookmarks/{bookmarkID}", s.handleDeleteBookmark)
-
-	// Fonts — IDs are simple UUIDs/timestamps, path-safe
-	s.mux.HandleFunc("GET /api/fonts", s.handleListFonts)
-	s.mux.HandleFunc("POST /api/fonts", s.handleUploadFont)
-	s.mux.HandleFunc("DELETE /api/fonts/{id}", s.handleDeleteFont)
-	s.mux.HandleFunc("GET /api/fonts/{id}/file", s.handleGetFontFile)
-	s.mux.HandleFunc("GET /api/system/webview-status", s.handleWebViewStatus)
-	s.mux.HandleFunc("GET /api/system/chinese-conversion", s.handleChineseConversionCapability)
-	s.mux.HandleFunc("POST /api/system/chinese-conversion", s.handleChineseConversion)
-}
-
 // NewAuthenticatedServer creates the production Reader Data boundary.
 func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, dataRoot string, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, browser sourceinteraction.Browser, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) (*Server, error) {
-	s := &Server{
-		fetcher: rootSearcherFetcher(rootSearcher), jsVM: jsVM, cache: analyzer.NewCacheManager(),
-		processorCfg: processorCfg, mux: http.NewServeMux(), auth: authHandler, health: health, webViewProbe: webViewProbe, chineseConversion: conversion,
+	services := &readerServices{fetcher: rootSearcher.SharedFetcher(), processorCfg: processorCfg, auth: authHandler,
+		webViewProbe: webViewProbe, chineseConversion: conversion,
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
-		coverReferenceKey:   mustNewCoverReferenceKey(),
-		coverCacheScope:     "standalone",
-		collectionLoader:    booksource.NewRemoteLoader(),
-	}
-	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, 32, limits.SessionTTL)
+		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
+	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services}
+	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, 32, limits.SessionTTL, services)
+	services.runtimes = s.runtimes
 	backups, err := backupservice.NewService(readers, dataRoot, s.runtimes.quiesce, s.runtimes.resume)
 	if err != nil {
 		_ = s.runtimes.Close()
 		return nil, fmt.Errorf("initialize backup service: %w", err)
 	}
 	s.backups = backups
-	s.collectionScheduler = newSourceCollectionScheduler(s.runtimes, s.collectionLoader, authHandler.ListActiveReaderIDs)
+	s.collectionScheduler = newSourceCollectionScheduler(s.runtimes, services.collectionLoader, authHandler.ListActiveReaderIDs)
 	s.collectionScheduler.Start()
 	authHandler.ConfigureDeletionQuiescer(readers, s.runtimes.quiesce)
 	s.registerAuthenticatedRoutes()
 	return s, nil
-}
-
-func rootSearcherFetcher(searcher *book.Searcher) *fetcher.Client {
-	return searcher.SharedFetcher()
 }
 
 func (s *Server) registerAuthenticatedRoutes() {
@@ -279,804 +137,9 @@ func (s *Server) registerAuthenticatedRoutes() {
 			return
 		}
 		defer release()
-		requestServer := *s
-		requestServer.mux = http.NewServeMux()
-		requestServer.runtime = runtime
-		requestServer.coverCacheScope = readerstore.DeviceID(account.ID)
-		requestServer.db = runtime.home.DB()
-		requestServer.sourceStore = runtime.sourceStore
-		requestServer.bookStore = runtime.bookStore
-		requestServer.searcher = runtime.searcher
-		requestServer.fontStore = runtime.fontStore
-		requestServer.sourceProfiles = runtime.sourceProfiles
-		requestServer.sourceInteractions = runtime.sourceInteractions
-		requestServer.browserSessions = runtime.browserSessions
-		requestServer.catalogs = runtime.catalogs
-		requestServer.registerRoutesWithoutHealth()
-		requestServer.mux.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), readerHomeContextKey{}, runtime.home)))
+		runtime.api.ServeHTTP(w, r)
 	})))
 }
-
-type readerHomeContextKey struct{}
-
-func (s *Server) deleteSourceSession(sourceID string) {
-	if s.searcher != nil {
-		s.searcher.DeleteSourceSession(sourceID)
-	}
-}
-
-// --- Book Sources ---
-
-func (s *Server) handleListSources(w http.ResponseWriter, r *http.Request) {
-	sources, err := s.sourceStore.List()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if sources == nil {
-		sources = []booksource.BookSource{}
-	}
-	writeJSON(w, http.StatusOK, sourceManagementSummaries(sources))
-}
-
-func (s *Server) handleGetSource(w http.ResponseWriter, r *http.Request) {
-	source, err := s.sourceStore.GetByID(r.PathValue("id"))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if source == nil {
-		writeError(w, http.StatusNotFound, "source not found")
-		return
-	}
-	response, err := sourceManagementResponseFor(*source)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, response)
-}
-
-type sourcePreferenceUpdateRequest struct {
-	Enabled        *bool `json:"enabled"`
-	EnabledExplore *bool `json:"enabledExplore"`
-}
-
-func (s *Server) handleUpdateSourcePreferences(w http.ResponseWriter, r *http.Request) {
-	var request sourcePreferenceUpdateRequest
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&request); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid source preference update")
-		return
-	}
-	if request.Enabled == nil && request.EnabledExplore == nil {
-		writeError(w, http.StatusBadRequest, "source preference update is empty")
-		return
-	}
-	source, err := s.sourceStore.UpdatePreferences(r.PathValue("id"), request.Enabled, request.EnabledExplore)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if source == nil {
-		writeError(w, http.StatusNotFound, "source not found")
-		return
-	}
-	s.closeSourceRuntime(source.ID)
-	writeJSON(w, http.StatusOK, sourceManagementSummaries([]booksource.BookSource{*source})[0])
-}
-
-func (s *Server) handleImportSources(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, 50*1024*1024))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "read body: "+err.Error())
-		return
-	}
-	defer r.Body.Close()
-
-	sources, err := booksource.ImportSources(body)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	count, err := s.sourceStore.ImportBatch(sources)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"imported": count,
-		"total":    len(sources),
-	})
-}
-
-func (s *Server) closeSourceRuntime(sourceID string) {
-	invalidateSourceRuntime(s.searcher, s.browserSessions, sourceID)
-}
-
-func (s *Server) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
-	sourceID := r.URL.Query().Get("id")
-	if sourceID == "" {
-		writeError(w, http.StatusBadRequest, "missing query param id")
-		return
-	}
-	if err := deleteSourceDefinition(r.Context(), s.sourceStore, s.sourceProfiles, s.closeSourceRuntime, sourceID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
-}
-
-func (s *Server) handleSourceInteraction(w http.ResponseWriter, r *http.Request) {
-	if s.sourceInteractions == nil {
-		writeError(w, http.StatusNotImplemented, "source interaction is unavailable")
-		return
-	}
-	view, err := s.sourceInteractions.Describe(r.Context(), r.PathValue("id"))
-	if err != nil {
-		if errors.Is(err, sourceprofile.ErrSourceNotInstalled) {
-			writeError(w, http.StatusNotFound, "book source not found")
-			return
-		}
-		writeSourceInteractionError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, view)
-}
-
-func (s *Server) handleSourceInteractionAction(w http.ResponseWriter, r *http.Request) {
-	if s.sourceInteractions == nil {
-		writeError(w, http.StatusNotImplemented, "source interaction is unavailable")
-		return
-	}
-	var request sourceinteraction.ActionRequest
-	if err := json.NewDecoder(io.LimitReader(r.Body, 256*1024)).Decode(&request); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid action request")
-		return
-	}
-	result, err := s.sourceInteractions.Act(r.Context(), r.PathValue("id"), request)
-	if err != nil {
-		switch {
-		case errors.Is(err, sourceprofile.ErrSourceNotInstalled):
-			writeError(w, http.StatusNotFound, "book source not found")
-		case errors.Is(err, sourceinteraction.ErrStaleRevision):
-			writeError(w, http.StatusConflict, err.Error())
-		case errors.Is(err, sourceinteraction.ErrActionNotFound):
-			writeError(w, http.StatusBadRequest, err.Error())
-		default:
-			writeSourceInteractionError(w, err)
-		}
-		return
-	}
-	s.deleteSourceSession(r.PathValue("id"))
-	result.Effects = sourceinteraction.RegisterBrowserRequests(result.Effects, s.browserSessions)
-	writeJSON(w, http.StatusOK, result)
-}
-
-func writeSourceInteractionError(w http.ResponseWriter, err error) {
-	var executionErr *sourceinteraction.ExecutionError
-	if errors.As(err, &executionErr) {
-		slog.Warn("api: source interaction failed", "code", executionErr.Code, "classification", executionErr.Classification)
-		writeJSON(w, http.StatusBadGateway, map[string]interface{}{
-			"code": executionErr.Code, "classification": executionErr.Classification, "error": executionErr.Message,
-		})
-		return
-	}
-	writeError(w, http.StatusUnprocessableEntity, err.Error())
-}
-
-func (s *Server) handleSourceInteractionResetLogin(w http.ResponseWriter, r *http.Request) {
-	s.handleSourceInteractionReset(w, r, sourceinteraction.ResetLogin)
-}
-
-func (s *Server) handleSourceInteractionResetSettings(w http.ResponseWriter, r *http.Request) {
-	s.handleSourceInteractionReset(w, r, sourceinteraction.ResetSettings)
-}
-
-func (s *Server) handleSourceInteractionResetAll(w http.ResponseWriter, r *http.Request) {
-	s.handleSourceInteractionReset(w, r, sourceinteraction.ResetAll)
-}
-
-func (s *Server) handleSourceInteractionReset(w http.ResponseWriter, r *http.Request, scope sourceinteraction.ResetScope) {
-	if s.sourceInteractions == nil {
-		writeError(w, http.StatusNotImplemented, "source interaction is unavailable")
-		return
-	}
-	view, err := s.sourceInteractions.Reset(r.Context(), r.PathValue("id"), scope)
-	if err != nil {
-		if errors.Is(err, sourceprofile.ErrSourceNotInstalled) {
-			writeError(w, http.StatusNotFound, "book source not found")
-			return
-		}
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	s.closeSourceRuntime(r.PathValue("id"))
-	writeJSON(w, http.StatusOK, view)
-}
-
-func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
-	sourceID := r.URL.Query().Get("id")
-	if sourceID == "" {
-		writeError(w, http.StatusBadRequest, "missing query param id")
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, booksource.MaxCollectionDocumentBytes)
-	defer r.Body.Close()
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			writeError(w, http.StatusRequestEntityTooLarge, "source document exceeds 50 MiB")
-		} else {
-			writeError(w, http.StatusBadRequest, err.Error())
-		}
-		return
-	}
-
-	src, err := booksource.NewFromJSON(body)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	src.ID = sourceID
-	if err := s.sourceStore.Upsert(src); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	s.closeSourceRuntime(sourceID)
-	writeJSON(w, http.StatusOK, src)
-}
-
-// --- Books ---
-
-func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
-	books, err := s.bookStore.ListBooks()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if books == nil {
-		books = []book.Book{}
-	}
-	s.addStoredCoverDisplayURLs(books)
-	writeJSON(w, http.StatusOK, books)
-}
-
-func (s *Server) handleGetBook(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	b, err := s.bookStore.GetBook(id)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load book failed")
-		return
-	}
-	if b == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-	s.addStoredCoverDisplayURL(b)
-	writeJSON(w, http.StatusOK, b)
-}
-
-func (s *Server) handleGetBookCover(w http.ResponseWriter, r *http.Request) {
-	if s.bookStore == nil || s.sourceStore == nil || s.searcher == nil {
-		writeError(w, http.StatusServiceUnavailable, "cover service unavailable")
-		return
-	}
-	b, err := s.bookStore.GetBook(r.PathValue("id"))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load book failed")
-		return
-	}
-	if b == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-	if b.CoverURL == "" {
-		writeErrorCode(w, http.StatusNotFound, "cover_not_found", "book cover not found")
-		return
-	}
-	src, err := s.sourceStore.GetByID(b.SourceID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load source failed")
-		return
-	}
-	if src == nil {
-		writeErrorCode(w, http.StatusNotFound, "source_not_found", "book source not found")
-		return
-	}
-	data, contentType, err := s.searcher.GetBookCover(r.Context(), *src, b)
-	if err != nil {
-		slog.Warn("cover: fetch failed", "bookId", b.ID, "source", b.SourceURL, "err", err)
-		writeErrorCode(w, http.StatusBadGateway, "cover_fetch_failed", "book cover unavailable")
-		return
-	}
-	writeCoverBytes(w, data, contentType)
-}
-
-func (s *Server) handleMergeBookSources(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Sources []book.AltSource `json:"sources"`
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
-	defer r.Body.Close()
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&req); err != nil {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_book_sources", "invalid book sources request")
-		return
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF || len(req.Sources) == 0 {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_book_sources", "at least one source is required")
-		return
-	}
-	stored, err := s.bookStore.MergeBookSources(r.PathValue("id"), req.Sources)
-	if errors.Is(err, book.ErrBookNotFound) {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to merge book sources")
-		return
-	}
-	s.addStoredCoverDisplayURL(stored)
-	writeJSON(w, http.StatusOK, stored)
-}
-
-func (s *Server) handleClearBookSources(w http.ResponseWriter, r *http.Request) {
-	stored, err := s.bookStore.ClearBookSources(r.PathValue("id"))
-	if errors.Is(err, book.ErrBookNotFound) {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to clear book sources")
-		return
-	}
-	s.addStoredCoverDisplayURL(stored)
-	writeJSON(w, http.StatusOK, stored)
-}
-
-func (s *Server) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	if s.catalogs != nil {
-		s.catalogs.Invalidate(id)
-	}
-	if err := s.bookStore.DeleteBook(id); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
-}
-
-// --- Search ---
-
-// --- Chapters ---
-
-func (s *Server) handleGetChapters(w http.ResponseWriter, r *http.Request) {
-	if s.catalogs == nil {
-		writeErrorCode(w, http.StatusServiceUnavailable, "catalog_unavailable", "catalog synchronization is unavailable")
-		return
-	}
-	writeCatalogResult(w, s.catalogs.Get(r.PathValue("id")))
-}
-
-func (s *Server) handleRetryChapters(w http.ResponseWriter, r *http.Request) {
-	if s.catalogs == nil {
-		writeErrorCode(w, http.StatusServiceUnavailable, "catalog_unavailable", "catalog synchronization is unavailable")
-		return
-	}
-	writeCatalogResult(w, s.catalogs.Retry(r.PathValue("id")))
-}
-
-func writeCatalogResult(w http.ResponseWriter, result book.CatalogResult) {
-	switch result.State {
-	case book.CatalogReady:
-		writeJSON(w, http.StatusOK, result.Chapters)
-	case book.CatalogSyncing:
-		w.Header().Set("Retry-After", "1")
-		writeJSON(w, http.StatusAccepted, map[string]string{"state": string(book.CatalogSyncing)})
-	case book.CatalogFailed:
-		switch result.Failure {
-		case book.CatalogFailureBookNotFound:
-			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		case book.CatalogFailureSourceNotFound:
-			writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
-		case book.CatalogFailureStorage:
-			writeErrorCode(w, http.StatusInternalServerError, "storage_error", "catalog storage unavailable")
-		case book.CatalogFailureUpstream:
-			if result.Err != nil {
-				writeCrawlError(w, "toc", result.Err)
-				return
-			}
-			writeErrorCode(w, http.StatusBadGateway, "catalog_sync_failed", "catalog synchronization failed")
-		default:
-			writeErrorCode(w, http.StatusBadGateway, "catalog_sync_failed", "catalog synchronization failed")
-		}
-	default:
-		writeErrorCode(w, http.StatusInternalServerError, "catalog_state_invalid", "invalid catalog synchronization state")
-	}
-}
-
-func (s *Server) handleGetChapterContent(w http.ResponseWriter, r *http.Request) {
-	bookID := r.PathValue("id")
-	idx := r.PathValue("idx")
-
-	b, err := s.bookStore.GetBook(bookID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load book failed")
-		return
-	}
-	if b == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-
-	chapters, err := s.bookStore.GetChapters(bookID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load chapters failed")
-		return
-	}
-
-	var ch *book.Chapter
-	for i := range chapters {
-		if fmt.Sprint(chapters[i].Index) == idx {
-			ch = &chapters[i]
-			break
-		}
-	}
-	if ch == nil {
-		writeErrorCode(w, http.StatusNotFound, "chapter_not_found", "chapter not found")
-		return
-	}
-
-	src, err := s.sourceStore.GetByID(b.SourceID)
-	if err != nil {
-		if s.writeChapterCacheFallback(w, b, ch) {
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "load source failed")
-		return
-	}
-	if src == nil {
-		if s.writeChapterCacheFallback(w, b, ch) {
-			return
-		}
-		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
-		return
-	}
-
-	var next *book.Chapter
-	for i := range chapters {
-		if &chapters[i] == ch && i+1 < len(chapters) {
-			next = &chapters[i+1]
-			break
-		}
-	}
-	rawContent, contentTitle, err := s.searcher.GetChapterContentForBookContext(r.Context(), *src, b, ch, next)
-	if err == nil && strings.TrimSpace(rawContent) == "" {
-		err = errors.New("content: empty extraction")
-	}
-	if err != nil {
-		if s.writeChapterCacheFallback(w, b, ch) {
-			return
-		}
-		writeCrawlError(w, "content", err)
-		return
-	}
-
-	displayTitle := ch.Title
-	if contentTitle != "" {
-		displayTitle = contentTitle
-	}
-
-	proc := processor.New(s.processorCfg)
-	result := proc.Process(displayTitle, rawContent)
-	s.saveChapterCache(b, ch, result)
-
-	writeJSON(w, http.StatusOK, newChapterContentResponse(b.ID, ch.Index, result.Title, result.Paragraphs, result.Blocks, false))
-}
-
-// --- Progress ---
-
-func (s *Server) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
-	bookID := r.PathValue("id")
-	var req struct {
-		SourceID     *string  `json:"sourceId"`
-		StateVersion *int64   `json:"stateVersion"`
-		ChapterIndex *int     `json:"chapterIndex"`
-		Position     *float64 `json:"position"`
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, 4096)
-	defer r.Body.Close()
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&req); err != nil {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "invalid progress request")
-		return
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "invalid progress request")
-		return
-	}
-	if req.SourceID == nil || *req.SourceID == "" || req.StateVersion == nil || *req.StateVersion < 0 || req.ChapterIndex == nil || req.Position == nil || *req.ChapterIndex < 0 || math.IsNaN(*req.Position) || math.IsInf(*req.Position, 0) || *req.Position < 0 || *req.Position > 1 {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "sourceId, stateVersion, chapterIndex, and position are required and must be valid")
-		return
-	}
-	chapterIndex, position := *req.ChapterIndex, *req.Position
-	storedBook, err := s.bookStore.GetBook(bookID)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load book")
-		return
-	}
-	if storedBook == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-	if storedBook.SourceID != *req.SourceID || storedBook.StateVersion != *req.StateVersion {
-		writeErrorCode(w, http.StatusConflict, "state_changed", "book state changed before progress was saved")
-		return
-	}
-	chapters, err := s.bookStore.GetChapters(bookID)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load chapters")
-		return
-	}
-	validChapter := false
-	for _, chapter := range chapters {
-		if chapter.Index == chapterIndex && !chapter.IsVolume {
-			validChapter = true
-			break
-		}
-	}
-	if !validChapter {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "chapterIndex is not a readable chapter")
-		return
-	}
-	stateVersion, err := s.bookStore.UpdateProgress(bookID, *req.SourceID, *req.StateVersion, chapterIndex, position)
-	if err != nil {
-		if errors.Is(err, book.ErrBookNotFound) {
-			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-			return
-		}
-		if errors.Is(err, book.ErrBookStateChanged) {
-			writeErrorCode(w, http.StatusConflict, "state_changed", "book state changed before progress was saved")
-			return
-		}
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to save progress")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "saved", "stateVersion": stateVersion})
-}
-
-func (s *Server) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
-	bookID := r.PathValue("id")
-	var req struct {
-		SourceID   string `json:"sourceId"`
-		SourceURL  string `json:"sourceUrl"`
-		BookURL    string `json:"bookUrl"`
-		SourceName string `json:"sourceName,omitempty"` // accepted for older clients; the imported source is authoritative
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, 4096)
-	defer r.Body.Close()
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&req); err != nil {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_source_switch", "invalid source switch request")
-		return
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF || req.SourceID == "" || req.SourceURL == "" || req.BookURL == "" {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_source_switch", "sourceId, sourceUrl, and bookUrl are required")
-		return
-	}
-
-	current, err := s.bookStore.GetBook(bookID)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load book")
-		return
-	}
-	if current == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-	isAlternate := false
-	for _, alternate := range current.AlternateSources {
-		if alternate.SourceID == req.SourceID && alternate.BookURL == req.BookURL {
-			isAlternate = true
-			break
-		}
-	}
-	if !isAlternate {
-		writeErrorCode(w, http.StatusBadRequest, "source_not_alternate", "source is not an alternate for this book")
-		return
-	}
-
-	currentChapters, err := s.bookStore.GetChapters(bookID)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load chapters")
-		return
-	}
-	currentTitle := ""
-	for _, chapter := range currentChapters {
-		if chapter.Index == current.DurChapterIndex && !chapter.IsVolume {
-			currentTitle = chapter.Title
-			break
-		}
-	}
-
-	src, err := s.sourceStore.GetByID(req.SourceID)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load source")
-		return
-	}
-	if src == nil {
-		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
-		return
-	}
-	target, err := s.searcher.GetBookInfoForBook(*src, &book.Book{
-		Name: current.Name, Author: current.Author,
-	}, req.BookURL)
-	if err != nil {
-		writeCrawlError(w, "book_info", err)
-		return
-	}
-	target.ID = bookID
-	target.SourceID = req.SourceID
-	target.SourceURL = req.SourceURL
-	target.BookURL = req.BookURL
-	target.Origin = src.BookSourceName
-	targetChapters, err := s.searcher.GetChapterListForBook(*src, target, target.TocURL)
-	if err != nil {
-		writeCrawlError(w, "toc", err)
-		return
-	}
-	chapterIndex, mapping := book.MigrateChapterIndex(targetChapters, currentTitle, current.DurChapterIndex)
-	if chapterIndex < 0 {
-		writeErrorCode(w, http.StatusBadGateway, "source_toc_empty", "target source has no readable chapters")
-		return
-	}
-	if s.catalogs != nil {
-		s.catalogs.Invalidate(bookID)
-	}
-	if err := s.bookStore.SwitchSource(bookID, current.StateVersion, *target, targetChapters, chapterIndex, current.DurChapterPos); err != nil {
-		if errors.Is(err, book.ErrBookStateChanged) {
-			writeErrorCode(w, http.StatusConflict, "state_changed", "reading position changed during source validation; try again")
-			return
-		}
-		if errors.Is(err, book.ErrSourceNotAlternate) {
-			writeErrorCode(w, http.StatusConflict, "source_changed", "book sources changed during switch")
-			return
-		}
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to switch source")
-		return
-	}
-	switched, err := s.bookStore.GetBook(bookID)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "source switched but reload failed")
-		return
-	}
-	s.addStoredCoverDisplayURL(switched)
-	writeJSON(w, http.StatusOK, map[string]interface{}{"book": switched, "mapping": mapping})
-}
-
-// --- Fonts ---
-
-func (s *Server) handleListFonts(w http.ResponseWriter, r *http.Request) {
-	fonts, err := s.fontStore.List()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if fonts == nil {
-		fonts = []fontstore.Font{}
-	}
-	writeJSON(w, http.StatusOK, fonts)
-}
-
-func (s *Server) handleUploadFont(w http.ResponseWriter, r *http.Request) {
-	const maxFontBytes = 20 << 20
-	r.Body = http.MaxBytesReader(w, r.Body, maxFontBytes+(1<<20))
-	defer r.Body.Close()
-	defer func() {
-		if r.MultipartForm != nil {
-			if err := r.MultipartForm.RemoveAll(); err != nil {
-				slog.Warn("font upload temporary-file cleanup failed", "error", err)
-			}
-		}
-	}()
-	if err := r.ParseMultipartForm(maxFontBytes); err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			writeError(w, http.StatusRequestEntityTooLarge, "font upload request is too large")
-		} else {
-			writeError(w, http.StatusBadRequest, err.Error())
-		}
-		return
-	}
-
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "missing file field")
-		return
-	}
-	defer file.Close()
-	// FileHeader.Size is measured by the bounded multipart parser, not supplied by the client.
-	if header.Size > maxFontBytes {
-		writeError(w, http.StatusRequestEntityTooLarge, "font file exceeds 20 MiB")
-		return
-	}
-
-	data, err := io.ReadAll(file)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	name := r.FormValue("name")
-	if name == "" {
-		name = strings.TrimSuffix(header.Filename, filepath.Ext(header.Filename))
-	}
-
-	id := rand.Text()
-	f, err := s.fontStore.Add(name, id, data)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	writeJSON(w, http.StatusCreated, f)
-}
-
-func (s *Server) handleDeleteFont(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if err := s.fontStore.Delete(id); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
-}
-
-func (s *Server) handleGetFontFile(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	font, data, err := s.fontStore.Read(id)
-	if err != nil || data == nil {
-		writeError(w, http.StatusNotFound, "font not found")
-		return
-	}
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename=%q`, font.Name))
-	w.Header().Set("Content-Type", http.DetectContentType(data))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
-}
-
-// --- Static files (frontend) ---
-
-// ServeStatic serves the frontend build output.
-// Should be mounted at / with a fallback to index.html for SPA routing.
-func (s *Server) ServeStatic(mux *http.ServeMux, staticDir string, fs http.Handler) {
-	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			w.Header().Set("Allow", "GET, HEAD")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		path := filepath.Join(staticDir, r.URL.Path)
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			if strings.HasPrefix(r.URL.Path, "/assets/") {
-				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-			} else {
-				w.Header().Set("Cache-Control", "no-cache")
-			}
-			fs.ServeHTTP(w, r)
-			return
-		}
-		w.Header().Set("Cache-Control", "no-cache")
-		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
-	}))
-}
-
-// --- Helpers ---
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
@@ -1086,9 +149,4 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
-}
-
-// ponytail: simple millis, non-atomic. Fine for single-server.
-var TimeNowMillis = func() int64 {
-	return time.Now().UnixMilli()
 }

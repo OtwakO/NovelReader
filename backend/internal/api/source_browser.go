@@ -19,7 +19,7 @@ type startSourceBrowserRequest struct {
 	DeviceScaleFactor float64 `json:"deviceScaleFactor"`
 }
 
-func (s *Server) handleStartSourceBrowser(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleStartSourceBrowser(w http.ResponseWriter, r *http.Request) {
 	if s.browserSessions == nil || s.sourceProfiles == nil || s.sourceStore == nil {
 		writeError(w, http.StatusNotImplemented, "interactive browser is unavailable")
 		return
@@ -50,7 +50,7 @@ func (s *Server) handleStartSourceBrowser(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusCreated, frame)
 }
 
-func (s *Server) handleSourceBrowserFrame(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleSourceBrowserFrame(w http.ResponseWriter, r *http.Request) {
 	if s.browserSessions == nil {
 		writeError(w, http.StatusNotImplemented, "interactive browser is unavailable")
 		return
@@ -63,7 +63,7 @@ func (s *Server) handleSourceBrowserFrame(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, frame)
 }
 
-func (s *Server) handleSourceBrowserInput(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleSourceBrowserInput(w http.ResponseWriter, r *http.Request) {
 	if s.browserSessions == nil {
 		writeError(w, http.StatusNotImplemented, "interactive browser is unavailable")
 		return
@@ -81,7 +81,7 @@ func (s *Server) handleSourceBrowserInput(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, frame)
 }
 
-func (s *Server) handleCloseSourceBrowser(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleCloseSourceBrowser(w http.ResponseWriter, r *http.Request) {
 	if s.browserSessions == nil {
 		writeError(w, http.StatusNotImplemented, "interactive browser is unavailable")
 		return

@@ -25,7 +25,7 @@ type exploreErrorResponse struct {
 	NextPage       int    `json:"nextPage,omitempty"`
 }
 
-func (s *Server) handleExploreSources(w http.ResponseWriter, _ *http.Request) {
+func (s *readerAPI) handleExploreSources(w http.ResponseWriter, _ *http.Request) {
 	sources, err := s.searcher.ExploreSources()
 	if err != nil {
 		writeExploreError(w, err)
@@ -34,7 +34,7 @@ func (s *Server) handleExploreSources(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, sources)
 }
 
-func (s *Server) handleExploreCatalog(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleExploreCatalog(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		SourceID string `json:"sourceId"`
 	}
@@ -53,7 +53,7 @@ func (s *Server) handleExploreCatalog(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, catalog)
 }
 
-func (s *Server) handleExploreControl(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleExploreControl(w http.ResponseWriter, r *http.Request) {
 	var request book.ExploreControlRequest
 	if !decodeExploreJSON(w, r, &request) {
 		return
@@ -70,7 +70,7 @@ func (s *Server) handleExploreControl(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, catalog)
 }
 
-func (s *Server) handleExploreAction(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleExploreAction(w http.ResponseWriter, r *http.Request) {
 	var request book.ExploreActionRequest
 	if !decodeExploreJSON(w, r, &request) {
 		return
@@ -92,7 +92,7 @@ func (s *Server) handleExploreAction(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"sourceId": result.SourceID, "effects": effects})
 }
 
-func (s *Server) handleExplorePage(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleExplorePage(w http.ResponseWriter, r *http.Request) {
 	var request book.ExplorePageRequest
 	if !decodeExploreJSON(w, r, &request) {
 		return

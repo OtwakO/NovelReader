@@ -10,9 +10,6 @@ import (
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	health := s.health
-	if health == nil && s.db != nil {
-		health = s.db
-	}
 	if health == nil {
 		writeError(w, http.StatusServiceUnavailable, "service not ready")
 		return

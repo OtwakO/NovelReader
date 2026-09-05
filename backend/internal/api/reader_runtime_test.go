@@ -31,7 +31,7 @@ func TestReaderRuntimeQuiesceDrainsWorkPurgesStateAndRejectsNewAcquisitions(t *t
 	}
 	limits := book.DefaultSearcherLimits()
 	root := book.NewSearcherWithLimits(fetcher.New(), analyzer.NewJSVM(), analyzer.NewCacheManager(), nil, nil, limits)
-	manager := newReaderRuntimeManager(readers, root, analyzer.NewJSVM(), nil, limits, 2, time.Hour)
+	manager := newReaderRuntimeManager(readers, root, analyzer.NewJSVM(), nil, limits, 2, time.Hour, &readerServices{})
 	defer manager.Close()
 	runtime, release, err := manager.acquire(context.Background(), runtimeTestUser)
 	if err != nil {
@@ -101,7 +101,7 @@ func TestRuntimeEvictionKeepsOwnershipWithoutBlockingOtherReaders(t *testing.T) 
 	limits := book.DefaultSearcherLimits()
 	js := analyzer.NewJSVM()
 	root := book.NewSearcherWithLimits(fetcher.New(), js, analyzer.NewCacheManager(), nil, nil, limits)
-	manager := newReaderRuntimeManager(readers, root, js, browser, limits, 2, time.Hour)
+	manager := newReaderRuntimeManager(readers, root, js, browser, limits, 2, time.Hour, &readerServices{})
 	defer manager.Close()
 	defer close(browser.resume)
 	first, releaseFirst, err := manager.acquire(t.Context(), runtimeTestUser)

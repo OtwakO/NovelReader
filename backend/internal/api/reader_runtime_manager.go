@@ -20,6 +20,7 @@ var (
 )
 
 type readerRuntimeManager struct {
+	services *readerServices
 	readers  *readerstore.Manager
 	searcher *book.Searcher
 	jsVM     *analyzer.JSVM
@@ -35,7 +36,7 @@ type readerRuntimeManager struct {
 	closed   bool
 }
 
-func newReaderRuntimeManager(readers *readerstore.Manager, searcher *book.Searcher, jsVM *analyzer.JSVM, browser sourceinteraction.Browser, limits book.SearcherLimits, capacity int, idleTTL time.Duration) *readerRuntimeManager {
+func newReaderRuntimeManager(readers *readerstore.Manager, searcher *book.Searcher, jsVM *analyzer.JSVM, browser sourceinteraction.Browser, limits book.SearcherLimits, capacity int, idleTTL time.Duration, services *readerServices) *readerRuntimeManager {
 	if capacity < 1 {
 		capacity = 32
 	}
@@ -43,7 +44,7 @@ func newReaderRuntimeManager(readers *readerstore.Manager, searcher *book.Search
 		idleTTL = 30 * time.Minute
 	}
 	limits.MaxSessions = max(1, limits.MaxSessions/capacity)
-	return &readerRuntimeManager{readers: readers, searcher: searcher, jsVM: jsVM, browser: browser, limits: limits,
+	return &readerRuntimeManager{services: services, readers: readers, searcher: searcher, jsVM: jsVM, browser: browser, limits: limits,
 		capacity: capacity, idleTTL: idleTTL, now: time.Now, changed: make(chan struct{}),
 		runtimes: make(map[readerstore.UserID]*readerRuntime), deleting: make(map[readerstore.UserID]bool)}
 }

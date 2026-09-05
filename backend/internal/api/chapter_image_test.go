@@ -42,14 +42,14 @@ func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
 		BookSourceURL: upstream.URL, BookSourceName: "chapter image fixture",
 		Header: `{"X-Image-Token":"fixture-token"}`, RuleContent: string(ruleContent),
 	}
-	if err := server.sourceStore.Upsert(&source); err != nil {
+	if err := server.standalone.sourceStore.Upsert(&source); err != nil {
 		t.Fatal(err)
 	}
 	storedBook := book.Book{ID: "image-book", Name: "Image", SourceID: source.ID, SourceURL: source.BookSourceURL, BookURL: upstream.URL + "/novel/book"}
-	if err := server.bookStore.AddBook(&storedBook); err != nil {
+	if err := server.standalone.bookStore.AddBook(&storedBook); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.bookStore.SaveChapters(storedBook.ID, []book.Chapter{{Index: 0, Title: "Chapter", URL: upstream.URL + "/novel/chapter/1"}}); err != nil {
+	if err := server.standalone.bookStore.SaveChapters(storedBook.ID, []book.Chapter{{Index: 0, Title: "Chapter", URL: upstream.URL + "/novel/chapter/1"}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -82,18 +82,18 @@ func TestStoredChapterImageRejectsAndroidBitmapDecoder(t *testing.T) {
 		BookSourceURL: "https://source.test", BookSourceName: "bitmap fixture",
 		RuleContent: `{"content":"body@html","imageDecode":"Packages.android.graphics.BitmapFactory.decodeByteArray(result, 0, result.length)"}`,
 	}
-	if err := server.sourceStore.Upsert(&source); err != nil {
+	if err := server.standalone.sourceStore.Upsert(&source); err != nil {
 		t.Fatal(err)
 	}
 	storedBook := book.Book{ID: "bitmap-book", Name: "Bitmap", SourceID: source.ID, SourceURL: source.BookSourceURL, BookURL: "https://source.test/book"}
-	if err := server.bookStore.AddBook(&storedBook); err != nil {
+	if err := server.standalone.bookStore.AddBook(&storedBook); err != nil {
 		t.Fatal(err)
 	}
 	chapter := book.Chapter{Index: 0, Title: "Chapter", URL: "https://source.test/chapter"}
-	if err := server.bookStore.SaveChapters(storedBook.ID, []book.Chapter{chapter}); err != nil {
+	if err := server.standalone.bookStore.SaveChapters(storedBook.ID, []book.Chapter{chapter}); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.bookStore.SaveChapterCache(book.CachedChapter{
+	if err := server.standalone.bookStore.SaveChapterCache(book.CachedChapter{
 		BookID: storedBook.ID, SourceID: source.ID, ChapterIndex: chapter.Index, ChapterURL: chapter.URL,
 		Blocks: []processor.ProseBlock{{Kind: processor.ProseBlockImage, Src: "https://source.test/image"}},
 	}); err != nil {

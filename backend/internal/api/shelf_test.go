@@ -16,16 +16,16 @@ func TestListBooksIncludesStoredCurrentChapterTitle(t *testing.T) {
 		ID: "book-1", Name: "Fixture Novel", Author: "Fixture Author",
 		SourceID: "source-test", SourceURL: "https://source.test", BookURL: "https://source.test/book",
 	}
-	if err := server.bookStore.AddBook(stored); err != nil {
+	if err := server.standalone.bookStore.AddBook(stored); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.bookStore.SaveChapters(stored.ID, []book.Chapter{
+	if err := server.standalone.bookStore.SaveChapters(stored.ID, []book.Chapter{
 		{Index: 0, Title: "Chapter One", URL: "/1"},
 		{Index: 1, Title: "Chapter Two", URL: "/2"},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := server.bookStore.UpdateProgress(stored.ID, stored.SourceID, 0, 1, 0.4); err != nil {
+	if _, err := server.standalone.bookStore.UpdateProgress(stored.ID, stored.SourceID, 0, 1, 0.4); err != nil {
 		t.Fatal(err)
 	}
 

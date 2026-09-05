@@ -24,18 +24,18 @@ type chineseConversionResponse struct {
 	Texts []string `json:"texts"`
 }
 
-func (s *Server) conversionCapability() chineseconv.Capability {
+func (s *readerAPI) conversionCapability() chineseconv.Capability {
 	if s.chineseConversion == nil {
 		return chineseconv.Capability{Available: false, Modes: []string{}}
 	}
 	return s.chineseConversion.Capability()
 }
 
-func (s *Server) handleChineseConversionCapability(w http.ResponseWriter, _ *http.Request) {
+func (s *readerAPI) handleChineseConversionCapability(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.conversionCapability())
 }
 
-func (s *Server) handleChineseConversion(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleChineseConversion(w http.ResponseWriter, r *http.Request) {
 	if !s.conversionCapability().Available {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
 			"code":  "chinese_conversion_unavailable",

@@ -11,7 +11,7 @@ import (
 	"github.com/otwako/novelreader/internal/candidate"
 )
 
-func (s *Server) handleStartCandidateResolution(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleStartCandidateResolution(w http.ResponseWriter, r *http.Request) {
 	var input candidate.Input
 	if !decodeCandidateOperationJSON(w, r, &input, 1<<20) {
 		return
@@ -34,7 +34,7 @@ func (s *Server) handleStartCandidateResolution(w http.ResponseWriter, r *http.R
 	writeJSON(w, http.StatusAccepted, snapshot)
 }
 
-func (s *Server) handleGetCandidateResolution(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleGetCandidateResolution(w http.ResponseWriter, r *http.Request) {
 	snapshot, ok := s.candidateOperations.Get(candidateOperationOwner(r), r.PathValue("id"))
 	if !ok {
 		writeErrorCode(w, http.StatusNotFound, "candidate_operation_not_found", "candidate resolution not found")
@@ -44,7 +44,7 @@ func (s *Server) handleGetCandidateResolution(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, snapshot)
 }
 
-func (s *Server) handleStreamCandidateResolution(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleStreamCandidateResolution(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeErrorCode(w, http.StatusInternalServerError, "streaming_not_supported", "streaming not supported")
@@ -83,7 +83,7 @@ func (s *Server) handleStreamCandidateResolution(w http.ResponseWriter, r *http.
 	}
 }
 
-func (s *Server) handleCancelCandidateResolution(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleCancelCandidateResolution(w http.ResponseWriter, r *http.Request) {
 	if !s.candidateOperations.Cancel(candidateOperationOwner(r), r.PathValue("id")) {
 		writeErrorCode(w, http.StatusNotFound, "candidate_operation_not_found", "candidate resolution not found")
 		return
@@ -91,7 +91,7 @@ func (s *Server) handleCancelCandidateResolution(w http.ResponseWriter, r *http.
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) handleCommitCandidateResolution(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleCommitCandidateResolution(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		BookID string `json:"bookId"`
 	}
@@ -121,7 +121,7 @@ func (s *Server) handleCommitCandidateResolution(w http.ResponseWriter, r *http.
 	writeJSON(w, status, snapshot)
 }
 
-func (s *Server) acquireCandidateRuntime(r *http.Request, ownerID string) (candidate.Runtime, error) {
+func (s *readerAPI) acquireCandidateRuntime(r *http.Request, ownerID string) (candidate.Runtime, error) {
 	if s.runtimes == nil {
 		return candidate.Runtime{Sources: s.sourceStore, Books: s.bookStore, Searcher: s.searcher}, nil
 	}

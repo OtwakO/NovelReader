@@ -31,7 +31,7 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 		}
 	}
 
-	sources, err := server.sourceStore.ListEnabled()
+	sources, err := server.standalone.sourceStore.ListEnabled()
 	if err != nil || len(sources) != 3 {
 		t.Fatalf("sources=%+v err=%v", sources, err)
 	}
@@ -52,7 +52,7 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 			{SourceID: sourceID(bad.URL), SourceURL: bad.URL, BookURL: bad.URL + "/book", SourceName: "Bad"},
 		},
 	}
-	if err := server.bookStore.AddBook(stored); err != nil {
+	if err := server.standalone.bookStore.AddBook(stored); err != nil {
 		t.Fatal(err)
 	}
 	if response := waitForCatalogRoute(t, server, "book-1"); response.Code != http.StatusOK {
@@ -117,7 +117,7 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 		t.Fatalf("switch back status=%d body=%s", response.Code, response.Body.String())
 	}
 	assertStoredSource(t, server, primary.URL, 1, 0.65, 3, 3)
-	restored, err := server.bookStore.GetBook("book-1")
+	restored, err := server.standalone.bookStore.GetBook("book-1")
 	if err != nil || restored.ActiveSource == nil || restored.ActiveSource.DiscoveryQuery != "Fixture@primary" || len(restored.AlternateSources) != 2 || restored.AlternateSources[0].DiscoveryQuery != "Fixture@target" {
 		t.Fatalf("A-B-A binding metadata was not preserved: book=%+v err=%v", restored, err)
 	}
@@ -154,11 +154,11 @@ func newSwitchFixture(t *testing.T, titles []string) *httptest.Server {
 
 func assertStoredSource(t *testing.T, server *Server, sourceURL string, index int, position float64, version int64, chapterCount int) {
 	t.Helper()
-	stored, err := server.bookStore.GetBook("book-1")
+	stored, err := server.standalone.bookStore.GetBook("book-1")
 	if err != nil || stored.SourceURL != sourceURL || stored.DurChapterIndex != index || stored.DurChapterPos != position || stored.StateVersion != version {
 		t.Fatalf("stored=%+v err=%v", stored, err)
 	}
-	chapters, err := server.bookStore.GetChapters("book-1")
+	chapters, err := server.standalone.bookStore.GetChapters("book-1")
 	if err != nil || len(chapters) != chapterCount {
 		t.Fatalf("chapters=%d err=%v", len(chapters), err)
 	}
