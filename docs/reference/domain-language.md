@@ -53,7 +53,7 @@ A temporary deployment secret that authorizes disaster recovery of Administrator
 _Avoid_: Password Reset Token, master password
 
 **Portable Export**:
-A credential-free bundle of one Reader Account’s plaintext `reader.db` and ordinary files that becomes owned by the destination account on import.
+A bundle of one Reader Account’s plaintext `reader.db` and ordinary files that becomes owned by the destination account on import. It excludes the separate source credential store and account authority, but does not sanitize secrets embedded in losslessly preserved source definitions; see [backup boundaries](../architecture/authentication-and-reader-storage.md#backup-boundaries).
 _Avoid_: Deployment backup, credential export
 
 **Cold Backup**:

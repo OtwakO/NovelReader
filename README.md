@@ -2,7 +2,8 @@
 
 NovelReader is a self-hosted web app for finding, saving, and reading web novels with Legado-compatible BookSources.
 
-Your books, sources, reading progress, bookmarks, settings, and cached chapters stay in your own NovelReader data folder.
+Your books, sources, reading progress, bookmarks, source settings, and server-cached chapters stay in
+your own NovelReader data folder. Reader appearance and prefetch preferences are stored in the browser.
 
 ## Features
 
@@ -12,7 +13,7 @@ Your books, sources, reading progress, bookmarks, settings, and cached chapters 
 - **Source Collections** — Install sources from a JSON file or public URL, update them together, and temporarily hide a whole collection from Search and Explore.
 - **Personal shelf** — Save books and keep their selected source binding.
 - **Web reader** — Read prose and inline images with adjustable typography, reading width, Chinese conversion, image visibility, keyboard controls, and wake lock.
-- **Chapter navigation** — Reuse recent chapters and preload the next readable chapter (enabled by default; disable under Typography). The reader's top-right three-dot menu opens Bookmarks or refetches the current chapter. Source switching clears session reuse; refetch still shows an explicit offline copy if the source is unavailable.
+- **Chapter navigation** — Reuse recent chapters and preload the next readable chapter (enabled by default; disable under Typography). The reader's top-right three-dot menu offers Bookmarks and Refresh. Source switching clears session reuse; refetch still shows an explicit offline copy if the source is unavailable.
 - **Progress and bookmarks** — Save chapter position and annotated bookmarks.
 - **Offline chapter fallback** — Keep bounded cached copies of previously loaded chapters.
 - **Source recovery** — Switch a saved book to another matching source when needed.
@@ -139,8 +140,8 @@ directories, which would result in a fresh installation. Never commit locally en
 
 **Before reusing data:** stop any native server or other deployment using that directory, and back
 up the complete data root, including credential keys. Existing `run-local.bat` data lives under
-`./backend/data`; either change the bind mount to `./backend/data:/data` or use your intended `./data` directory. Nothing
-is moved automatically. Do not open the same databases in two instances. Experimental branches can
+`./backend/data`; either change the bind mount to `./backend/data:/data` or use your intended `./data`
+directory. Nothing is moved automatically. Do not open the same databases in two instances. Experimental branches can
 have incompatible storage schemas; restore the backup before returning to an incompatible version.
 On Linux, use `PUID`/`PGID` matching the directory's owner (default 1000); the entrypoint adjusts the
 mount root's ownership. `down` removes containers, not the bind-mounted data.
@@ -166,7 +167,10 @@ cd ..
 
 On Windows, run `run-local.bat`.
 
-The server uses port `8888` by default. The optional WebView worker additionally requires `uv`; see [`webview-worker/`](webview-worker/) for its locked environment.
+The server uses port `8888` by default. Native Linux WebView setup additionally requires `uv` and
+branded Chrome; see the [worker setup and platform limitations](webview-worker/README.md#local-process).
+For Windows/macOS WebView testing, prefer the local Compose setup above. `run-webview-worker.bat`
+is not compatible with the current Chrome runtime; it has not been repaired or retired.
 
 ## Tests
 
@@ -196,10 +200,16 @@ For container verification:
 
 ## Container images
 
-The deployment uses:
+The deployment uses a jointly verified app/worker pair:
 
 - `ghcr.io/otwako/novelreader:latest`
 - `ghcr.io/otwako/novelreader-webview:latest`
+
+CI tests the built worker in headless and headful modes and runs Compose against the exact app/worker
+images before publishing their digests without rebuilding. Main-branch releases update `latest` and
+`edge`; each image also gets an immutable `sha-<full commit SHA>` reference. Alias updates are sequential
+(worker first, app last), not a registry-wide atomic operation. To pin or roll back, keep both verified
+image digests together. Rebuilding an old commit may resolve newer WebView dependencies.
 
 If the packages are private, sign in before pulling:
 

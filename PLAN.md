@@ -11,7 +11,7 @@ NovelReader must:
 - preserve imported BookSource definitions losslessly, including unknown fields;
 - execute source-defined requests, rules, JavaScript, sessions, cookies, typed data, and WebView work on the backend;
 - expose typed Search, Explore, Book Detail, catalog, source-recovery, and Reader workflows to the Vue frontend;
-- isolate every Reader Account's sources, books, progress, files, settings, and source interaction state;
+- isolate every Reader Account's sources, books, progress, files, server-owned settings, and source interaction state;
 - fail explicitly without source-specific production patches, captcha solving, or automatic WAF bypass.
 
 ## System Map
@@ -39,7 +39,8 @@ Repository ownership:
 - `backend/internal/backup/` — portable Reader Data archive and staged restore workflows.
 - `backend/internal/webview/` and `webview-worker/` — versioned Go/Patchright browser seam.
 - `frontend/src/features/` — feature-owned Vue workflows and presentation.
-- `testdata/booksource/` — deterministic conformance fixtures and immutable live-audit evidence.
+- `testdata/booksource/` — minimal synthetic conformance fixtures and sanitized dated evidence; historical tracked source material is not precedent for new fixtures.
+- `test-booksources/` — ignored private local corpora, never committed or required by CI.
 
 Current architecture:
 
@@ -53,10 +54,6 @@ Accepted future-facing architecture:
 
 ## Current State
 
-Completed: [Reader navigation performance](docs/plans/reader-navigation-performance.md) — bounded
-session chapter reuse, default-on next-chapter prefetch, non-blocking ordered progress saves,
-conversion reuse, and a reader actions menu with explicit refetch and source-switch invalidation.
-
 ### Complete product foundations
 
 - Local Reader Accounts, setup, registration policy, recovery, password management, administration, and durable deletion.
@@ -67,9 +64,12 @@ conversion reuse, and a reader actions menu with explicit refetch and source-swi
 - Batched streaming Search and strict single-source Explore.
 - Metadata-first shelf admission: bounded Book Info selects a source; catalog synchronization is separate, single-flight, cached in SQLite, observable, retryable, and atomically published.
 - Logical-book identity by normalized title/author with exact `(SourceID, BookURL)` source bindings, unified source recovery, and atomic source switching.
-- Reader progress, bookmarks, chapter cache, source migration, Chinese conversion, responsive controls, keyboard navigation, TOC filtering/ordering, wake lock, and shelf filtering/restoration.
+- Reader progress and bookmarks, bounded session chapter reuse, default-on next-chapter prefetch, ordered non-blocking progress saves, Chinese conversion reuse, explicit Refresh, and source-switch invalidation.
+- Browser-local typography/image/wake-lock preferences, responsive reader controls, keyboard navigation, TOC filtering/ordering/current positioning, and shelf filtering/restoration.
+- Compact source-management summaries with on-demand lossless editing, plus shared full-cover presentation and reader-scoped seven-day cover caching.
 - Reader-owned source interaction, settings, login state, controlled browser sessions, and bounded `startBrowserAwait` continuation replay.
-- Installable Vue PWA, Docker Compose production deployment, deterministic Compose E2E, and GHCR publication.
+- Installable Vue PWA; production GHCR Compose, checkout-built local Compose with bind-mounted data, and separate deterministic Compose E2E.
+- Worker-wide Chrome headless/headful selection and paired app/worker release publication with exact-image verification.
 
 ### Compatibility position
 
@@ -77,11 +77,18 @@ The major text-reading journeys are operational. Remaining compatibility work is
 
 Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for unresolved capability families and [archived compatibility tracker](docs/archive/audits/legado-compatibility-tracker-2026-08.md) for the completed 2026-08 audit queue.
 
-## Active Work
+### Completed workstream handoffs
+
+[Reader navigation performance](docs/plans/reader-navigation-performance.md) records the navigation/cache/conversion lifecycle and controlled timing evidence. Live-source timing remains unverified.
 
 The completed [WebView Runtime Efficiency](docs/plans/2026-09-04-webview-runtime-efficiency.md) workstream provides worker-wide Chrome headless/headful selection, leaner packaging, and latest-stable release-image verification while preserving per-request reader isolation and the bounded WebView security seam. Further live compatibility and footprint measurements remain optional, evidence-gated follow-up.
 
 The completed [Source Authentication and Session Foundation](docs/plans/2026-09-03-source-auth-session-foundation.md) work established reader-owned login/session state, scoped runtime-cookie management, secret-safe diagnostics, and bounded authenticated controlled-browser networking. The completed [Source Collection availability](docs/plans/2026-09-02-source-collection-availability.md) work added a collection-level Search/Explore gate while preserving every member source's individual settings and existing shelf reading. The completed [reading document foundation](docs/plans/2026-09-02-reading-document-foundation.md) established the versioned prose-document, opaque-resource, and focused prose-renderer seams around the current BookSource text/image path.
+
+## Active Work
+
+No accepted feature implementation plan remains unfinished. Select new work from the priorities below;
+completed handoffs are historical context, not active backlogs.
 
 ## Immediate Priorities
 
@@ -105,7 +112,7 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 - **Browser runtime:** private bounded Patchright worker behind a versioned backend-owned interface.
 - **Errors:** explicit typed failures; never convert parser/transport failures into successful empty results.
 - **Source health:** user-triggered diagnostics only; no continuous broad monitoring.
-- **Deployment:** standalone production Compose plus a separate deterministic E2E Compose contract.
+- **Deployment:** production Compose pulls the published app/worker pair; local Compose builds the checkout; E2E Compose remains a separate deterministic verification contract. All use one server owner per writable data root.
 
 Cross-cutting rationale:
 

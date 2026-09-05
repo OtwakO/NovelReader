@@ -27,7 +27,8 @@ data/users/<immutable-reader-id>/
     chapter-assets/
 ```
 
-`reader.db` and ordinary files are portable plaintext Reader Data: BookSources, shelf books, chapters, progress, bookmarks, caches, preferences, source profiles, and file metadata. They remain inspectable without an application secret.
+`reader.db` and ordinary files are portable plaintext Reader Data: BookSources, shelf books, chapters, progress, bookmarks, caches, preferences, source profiles, and file metadata. They remain inspectable without an application secret. Browser-only Reader preferences are outside
+this storage/backup boundary; see [Reader state](discovery-and-reading.md#reader-state).
 
 `credentials.db` is separate. Reversible source credentials are encrypted using the installation-level credential key configured by NovelReader. Losing that key requires source reauthentication but must not make Reader Data unreadable.
 
@@ -53,9 +54,11 @@ Each immutable Source ID owns reader-specific state:
 
 Runtime cookies are managed through a typed source-profile interface, not through raw credential JSON or BookSource definition edits. Ordinary interaction responses expose only cookie scope/name metadata. Revealing or replacing cookie values requires current-password reauthentication, prevents response caching, and invalidates the affected transient source runtime after replacement.
 
-Interactive browser closure preserves each returned cookie's URL/domain scope instead of collapsing multi-domain cookies onto the final browser URL. The current durable URL-to-cookie-header representation does not claim complete path, expiry, SameSite, or overlapping-cookie fidelity; those require an explicit structured-cookie model if a real workflow demonstrates the need. Source-generated opaque HTML contexts hydrate stored cookie scopes into Chromium but receive no global source/login headers. For each mediated fetch/XHR, the worker asks Chromium for cookies applicable to the exact target URL and forwards only those destination-scoped cookies unless the source supplied an explicit Cookie header. Normal HTTP(S) browser sessions retain source cookie/header hydration. Browser-generated opaque HTML diagnostics use a bounded fetch/XHR mediator that rejects non-public hostname resolutions and connected server addresses, follows no redirects, and preserves timeout/body limits; Chromium web security remains enabled.
+Interactive browser closure preserves each returned cookie's URL/domain scope instead of collapsing multi-domain cookies onto the final browser URL. The current durable URL-to-cookie-header representation does not claim complete path, expiry, SameSite, or overlapping-cookie fidelity; those require an explicit structured-cookie model if a real workflow demonstrates the need. Source-generated opaque HTML contexts hydrate stored cookie scopes into Chrome but receive no global source/login headers. For each mediated fetch/XHR, the worker asks Chrome for cookies applicable to the exact target URL and forwards only those destination-scoped cookies unless the source supplied an explicit Cookie header. Normal HTTP(S) browser sessions retain source cookie/header hydration. Browser-generated opaque HTML diagnostics use a bounded fetch/XHR mediator that rejects non-public hostname resolutions and connected server addresses, follows no redirects, and preserves timeout/body limits; Chrome's Chromium web security remains enabled.
 
-Definition edits preserve owned state. Source removal, collection replacement, restore reconciliation, and explicit reset remove state deterministically when the Source ID disappears. Credentials are never included in portable Reader Data archives.
+Definition edits preserve owned state. Source removal, collection replacement, restore reconciliation, and explicit reset remove state deterministically when the Source ID disappears. Separately stored source authentication is never included in portable Reader Data archives.
+Imported BookSource definitions remain lossless and may themselves contain sensitive headers,
+scripts, or embedded values; portable archives are not secret-sanitized source distributions.
 
 See the completed [source interaction plan](../plans/2026-08-30-source-interaction.md) for implementation history.
 
@@ -67,7 +70,8 @@ With NovelReader stopped, copying the complete configured `DATA_DIR` is the disa
 
 ### Portable Reader Data backup
 
-The authenticated backup module exports a versioned `.tar.gz` archive containing a consistent SQLite backup of `reader.db`, ordinary reader files, a manifest, and restore instructions. It excludes account authority, passwords, sessions, automation tokens, and source credentials.
+The authenticated backup module exports a versioned `.tar.gz` archive containing a consistent SQLite backup of `reader.db`, ordinary reader files, a manifest, and restore instructions. It excludes account authority, passwords, sessions, automation tokens, and the separate source
+credential store. The imported-definition caveat above still applies.
 
 Restore behavior:
 
@@ -84,7 +88,7 @@ Scoped hash-only automation tokens expose separate backup-export and backup-rest
 ## Invariants
 
 - Reader Data never crosses Reader Account ownership boundaries.
-- Source credentials never enter portable Reader Data archives or ordinary source-list/interaction responses.
+- Separately managed source credentials never enter portable Reader Data archives or ordinary source-list/interaction responses.
 - Source execution errors exposed to clients use stable secret-safe classifications; raw JavaScript, transport, credential, and response causes remain server-side.
 - One writable `DATA_DIR` has one server owner.
 - Reader-home paths are resolved only by readerstore and reject traversal/symlink escape.

@@ -16,7 +16,10 @@ Offer a small fixed set of device-local presets—such as Day, Night, Parchment,
 
 ### Reader top/bottom and return actions
 
-Consider compact overflow actions for chapter top, chapter bottom, and return to the last persisted position after temporary navigation. Do not expand the primary mobile control bar without evidence that these actions need permanent prominence.
+The existing overflow menu already provides Bookmarks and Refresh. Consider extending it with
+chapter top, chapter bottom, and return to the last persisted position after temporary navigation.
+Keyboard top/bottom navigation already exists; the remaining opportunity is explicit pointer/touch
+actions. Do not expand the primary mobile control bar without evidence of need.
 
 ### Consistent source update-time presentation
 
@@ -24,7 +27,9 @@ Consider compact overflow actions for chapter top, chapter bottom, and return to
 
 ### Automatically reveal current rows
 
-When opening the TOC or known-source list, bring the current row into view where practical and preserve its relative position across local filtering/ordering. This should remain frontend-local.
+The TOC already centers/focuses the current chapter on opening, order changes, and clearing search,
+and provides an explicit current-chapter action. Remaining opportunities are equivalent known-source
+list behavior and relative-position preservation where useful. Keep any extension frontend-local.
 
 ## Moderate product decisions
 
@@ -42,11 +47,16 @@ Requires a source selector and a backend interface that validates a source-speci
 
 ### BookSource export
 
-Must preserve unknown imported fields and clearly exclude or separately handle source credentials, cookies, tokens, and reader-owned interaction state.
+A dedicated user-facing export flow remains an opportunity; lossless definition serialization and
+single-definition retrieval already exist. Export must distinguish imported definition content
+(which may itself contain sensitive values) from reader-owned credentials and interaction state,
+and define explicit handling of secrets rather than claiming every lossless export is credential-free.
 
 ### Cache/offline management
 
-Needs a product model distinguishing remote-only content, server-cached chapters, and browser/device availability, including ownership, counts, refresh, and deletion semantics.
+Recent session reuse, one-chapter prefetch, explicit chapter Refresh, and server outage fallback are
+already implemented. Broader offline management still needs a product model distinguishing these
+from durable browser/device downloads, including ownership, counts, bulk refresh, and deletion semantics.
 
 ### Full-book text search
 

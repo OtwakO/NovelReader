@@ -1,13 +1,16 @@
 # Patchright WebView worker
 
 This private sidecar provides the browser boundary used by NovelReader's Go backend. Python and
-its virtual environment are managed with [uv](https://docs.astral.sh/uv/). `uv.lock` pins the local
-baseline; release builds deliberately resolve the latest stable Patchright and branded Chrome,
-then CI tests that exact image in both modes before publication. There are no runtime auto-updates.
+its virtual environment are managed with [uv](https://docs.astral.sh/uv/). `uv.lock` pins local
+Python dependencies, not the separately installed Chrome binary. Release builds deliberately resolve
+the latest stable Patchright and branded Chrome, then CI tests that exact image in both modes before publication. There are no runtime auto-updates.
 
 ## Local process
 
+Run from the repository root on Linux, with `google-chrome` available on `PATH` after installation:
+
 ```bash
+cd webview-worker
 uv python install
 uv sync --frozen
 uv run --frozen --no-sync patchright install chrome --with-deps
@@ -16,6 +19,12 @@ WEBVIEW_WORKER_PORT=8787 uv run --frozen --no-sync python worker.py
 
 `uv sync` installs the Python version selected by `.python-version` when needed and creates or updates `.venv` automatically. Direct runs bind `127.0.0.1` by default.
 Configure the backend with `WEBVIEW_ENDPOINT=http://127.0.0.1:8787`.
+
+For local Windows/macOS testing, use [checkout-built Docker Compose](../README.md#docker-compose-from-the-checkout).
+The native runtime currently invokes `google-chrome --version` and assumes X11/Xvfb for headful mode;
+it does not discover native Windows/macOS Chrome installations or desktop displays. The existing
+`run-webview-worker.bat` also still installs Chromium rather than the required branded Chrome and is
+not a working self-contained launcher for this runtime. Changing only that installer is insufficient.
 
 ## Container
 
@@ -26,7 +35,7 @@ local build, use `docker build --no-cache -t novelreader-webview ./webview-worke
 Rebuilding the same source revision may resolve newer dependencies; roll back using a previously
 verified image digest, not by rebuilding an old source commit.
 The image binds `0.0.0.0:8787` internally for container networking, runs as UID 10001, and reports
-readiness at `GET /healthz`. Use the root Compose deployment rather than publishing its port.
+readiness at `GET /healthz`. Use the production or local Compose file rather than publishing its port.
 
 `WEBVIEW_BROWSER_MODE=headless|headful` selects the mode for **all WebView requests**, including
 interactive sessions; normal backend HTTP requests are unaffected. The default is `headless`.

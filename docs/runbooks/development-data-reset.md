@@ -1,8 +1,9 @@
 # Development data reset and cold copy
 
-NovelReader has no production users yet. The old global SQLite layout is development-only and is
-not migrated into the per-reader architecture. Start fresh when the server reports a legacy data
-root.
+This procedure is only for intentionally disposable development data. The legacy global SQLite
+layout is not migrated into the current per-reader architecture. A legacy-root or schema-mismatch
+error is not permission to delete valuable data: stop, preserve a complete cold copy, then choose
+whether to use a compatible version or explicitly start fresh.
 
 ## Reset old development data
 
@@ -13,7 +14,7 @@ root.
    directory).
 4. Start NovelReader. It creates the current root metadata and `users/` directory.
 5. Re-import the BookSource JSON used for the test through the normal import interface after the
-   per-user cutover is available.
+   fresh Reader Account is created.
 
 Do not copy `novelreader.db`, global font files, or other old state into a new reader directory.
 There is intentionally no legacy migration, reset flag, dual-write mode, or automatic attachment.
@@ -26,12 +27,13 @@ For the current layout, a stopped copy of the complete `data/` directory is the 
 deployment backup:
 
 1. Stop NovelReader and wait for the process to exit.
-2. Copy/archive the complete configured `DATA_DIR`, preserving every file and name.
+2. Copy/archive the complete configured `DATA_DIR`, preserving every file and name, including
+   installation credential keys needed to decrypt saved source credentials.
 3. Restore by stopping NovelReader, replacing the complete `DATA_DIR`, and starting a compatible
    NovelReader version.
 
 If NovelReader crashed and cannot restart, copy everything as-is, including SQLite `-wal` and
 `-shm` files. Never copy only a main `.db` file or manually delete WAL/SHM files from the copy.
 Per-reader portable backup/restore is a separate implemented feature and is not a replacement for this
-complete stopped deployment copy. Portable archives exclude account authority and source credentials;
+complete stopped deployment copy. Portable archives exclude account authority and the separate source credential store;
 use the complete stopped deployment copy when those deployment-owned records must also be preserved.

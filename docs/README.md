@@ -21,4 +21,9 @@ Historical documents carry an archive notice and should not be maintained as cur
 
 ## External behavioral evidence
 
-Deterministic and live BookSource evidence lives under [`../testdata/booksource/`](../testdata/booksource/), not in this documentation tree. Reference implementations used for compatibility analysis live under `reference/` at repository root where present.
+Minimal synthetic fixtures and sanitized dated observations live under
+[`../testdata/booksource/`](../testdata/booksource/). Complete real BookSources and private audit inputs
+belong only in ignored repository-root `test-booksources/`; do not add raw definitions or sensitive
+request state to committed evidence. See the [fixture policy](../testdata/booksource/README.md).
+Reference implementations used for compatibility analysis live under `reference/` at repository root
+where present.

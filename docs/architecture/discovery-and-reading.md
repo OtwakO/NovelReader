@@ -10,6 +10,27 @@ For discovery, a source is effectively enabled only when its own setting is enab
 
 A Search/Explore result may represent a logical book already on the shelf. The backend annotates results from SQLite using normalized title/author identity so the frontend routes to the stored book instead of offering a duplicate shelf entry.
 
+## Source management
+
+The source list returns compact management summaries, not full rule/script/header definitions.
+Opening the raw editor fetches one lossless definition through `GET /api/sources/{id}`. Enable and
+Explore toggles use a narrow `PATCH`; full `PUT` remains deliberate definition replacement. A list
+summary must never be submitted as a replacement definition, because omitted rules would be lost.
+
+## Covers
+
+Cover display URLs are backend-issued and reader-scoped. Stored-book URLs carry a version query;
+transient discovery references carry a signed revision. Revisions change with cover inputs, the
+installed source definition, and independent source settings/authentication generations. Shelf lists
+batch revision lookup rather than loading a source definition per book.
+
+Responses use `Cache-Control: private, max-age=604800`, `Vary: Cookie`, and `nosniff`, without
+`immutable`. Invalidation changes newly issued URLs; previously issued valid signed references remain
+servable. Upstream bytes changing at an otherwise unchanged URL may remain cached for seven days.
+
+The shared `BookCover.vue` keeps the full cover visible in a 3:4 frame. Nonstandard aspect ratios get
+a subdued image-derived backdrop; callers own sizing/framing rather than duplicating cover rendering.
+
 ## Logical books and source bindings
 
 - Normalized `(title, author)` identifies one logical shelf book.
@@ -69,10 +90,32 @@ Stored books own:
 - chapter/index and normalized in-chapter progress;
 - bookmarks, including explicit orphan state after source migration;
 - bounded server-side processed chapter cache;
-- source-provided latest chapter/update metadata;
-- display-only Chinese conversion preferences and device-local Reader settings.
+- source-provided latest chapter/update metadata.
 
-The Reader waits on the same catalog synchronization interface as Book Detail and source switching. Generation guards prevent stale catalog/content responses from replacing newer navigation or source state.
+Typography, Chinese conversion mode, image visibility, wake lock, and prefetch preferences are
+browser-local settings shared across books, not fields on a stored book or part of its portable
+backup. Their current localStorage key is not Reader Account-specific; do not describe these UI
+preferences as server-synchronized or account-isolated.
+
+The Reader waits on the same catalog synchronization interface as Book Detail and source switching.
+Generation guards prevent stale catalog/content responses from replacing newer navigation or source
+state. Converted text and its chapter identity commit together, so progress describes visible content.
+
+The Reading Session retains up to five recent online chapter documents and deduplicates pending
+loads. Default-on prefetch requests only the next readable chapter after display; it does not recurse,
+load images, or save progress. Speculative and foreground fetches are serialized because source
+scripts share mutable session state. Offline fallback documents are not retained in this session cache.
+
+Progress writes remain ordered but their acknowledgements no longer block chapter display. Bookmarks
+and source switching retain progress barriers. Source switching and explicit Refresh discard chapter
+and conversion reuse and drain started requests before loading new content, preventing late source
+state writes. Unmount aborts outstanding requests; cancellation reaches the backend chapter workflow.
+Refresh preserves position and still reports an explicit offline copy if the upstream source fails.
+
+Catalog/chapter display conversion is memoized by original object identity and conversion mode within
+the Reading Session, without mutating canonical content or introducing a cross-reader cache. The
+three-dot menu contains Bookmarks and Refresh; the settings sheet owns the prefetch toggle. Disabling
+images removes their figures, captions, placeholders, and image requests rather than merely hiding pixels.
 
 The Vue frontend owns presentation and interaction: shelf filtering/sorting/restoration, TOC filtering/ordering/current positioning, keyboard/tap navigation, wake lock, typography, overlays, responsive behavior, and modality-specific rendering. It never crawls or evaluates source rules and does not reconstruct provider resource locations.
 
