@@ -194,7 +194,7 @@ func initSchema(db schemaDatabase) error {
 			cached INTEGER DEFAULT 0,
 			FOREIGN KEY (book_id) REFERENCES books(id)
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_chapters_book_id ON chapters(book_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_chapters_book_id ON chapters(book_id, idx)`,
 		`CREATE TABLE IF NOT EXISTS bookmarks (
 			id TEXT PRIMARY KEY,
 			book_id TEXT NOT NULL,

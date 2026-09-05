@@ -7,8 +7,8 @@ import (
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
-// Compare the current full-TOC read with narrow SQL prototypes, before and
-// after a composite index. This measures warm local storage, not HTTP latency.
+// Compare full-TOC reads with production narrow queries on the current schema.
+// This measures warm local storage, not HTTP latency.
 func BenchmarkChapterLookup(b *testing.B) {
 	for _, count := range []int{100, 1000, 10000} {
 		b.Run(fmt.Sprint(count), func(b *testing.B) {
@@ -47,39 +47,24 @@ func BenchmarkChapterLookup(b *testing.B) {
 					}
 				}
 			})
-			for _, indexed := range []bool{false, true} {
-				label := "existing_index"
-				if indexed {
-					if _, err := home.DB().Exec(`CREATE INDEX benchmark_chapters_book_index ON chapters(book_id, idx)`); err != nil {
-						b.Fatal(err)
+			b.Run("chapter_pair", func(b *testing.B) {
+				b.ReportAllocs()
+				for b.Loop() {
+					chapter, next, err := store.GetChapterWithNext(b.Context(), "fixture", target)
+					if err != nil || chapter == nil || chapter.Index != target || next == nil || next.Index != target+1 {
+						b.Fatalf("chapter pair: %+v %+v %v", chapter, next, err)
 					}
-					label = "composite_index"
 				}
-				b.Run(label+"/chapter_pair", func(b *testing.B) {
-					b.ReportAllocs()
-					for b.Loop() {
-						rows, err := home.DB().QueryContext(b.Context(), `SELECT `+chapterColumns+` FROM chapters WHERE book_id = ? AND idx >= ? ORDER BY idx LIMIT 2`, "fixture", target)
-						if err != nil {
-							b.Fatal(err)
-						}
-						pair, err := scanChapters(rows)
-						closeErr := rows.Close()
-						if err != nil || closeErr != nil || len(pair) != 2 || pair[0].Index != target {
-							b.Fatalf("chapter pair: %v %v %v", pair, err, closeErr)
-						}
+			})
+			b.Run("readable_chapter", func(b *testing.B) {
+				b.ReportAllocs()
+				for b.Loop() {
+					readable, err := store.HasReadableChapter(b.Context(), "fixture", target)
+					if err != nil || !readable {
+						b.Fatalf("readability: %v %v", readable, err)
 					}
-				})
-				b.Run(label+"/readable_chapter", func(b *testing.B) {
-					b.ReportAllocs()
-					for b.Loop() {
-						var readable bool
-						err := home.DB().QueryRowContext(b.Context(), `SELECT EXISTS(SELECT 1 FROM chapters WHERE book_id = ? AND idx = ? AND is_volume = 0)`, "fixture", target).Scan(&readable)
-						if err != nil || !readable {
-							b.Fatalf("readability: %v %v", readable, err)
-						}
-					}
-				})
-			}
+				}
+			})
 		})
 	}
 }

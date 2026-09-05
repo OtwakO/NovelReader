@@ -70,9 +70,9 @@ A10 is complete: root `Server` owns lifecycle/auth/backup; runtime-owned `reader
 
 Verification: API suite passes, including the full API package under the race detector. A focused cached-handler/extra-candidate-lease/quiesce/replacement test and concurrent equal-ID reader requests pass. Backup and server-command package tests pass; all backend packages compile (`go test ./... -run '^$'`, not a full backend test run). AFT inspection timed out and supplies no fresh diagnostic evidence. No frontend, Docker, real-worker or live-source tests were run for A10. No schema/HTTP contract change; rollback is code-only.
 
-### A12 measurement checkpoint
+### A12 initial measurement (benchmark commit `3d9c559`)
 
-At `b9a2344`, the chapter-content and progress handlers still materialize the full catalog. An optional synthetic benchmark (`backend/internal/book/chapter_lookup_benchmark_test.go`) compares that storage read with chapter-pair and readability SQL prototypes, using both the current book-only index and a prototype `(book_id, idx)` index. Production behavior/schema are unchanged.
+At `b9a2344`, the chapter-content and progress handlers materialized the full catalog. The initial optional synthetic benchmark compared that storage read with chapter-pair and readability SQL prototypes, using the book-only index and a prototype `(book_id, idx)` index. Production behavior/schema were unchanged during that initial measurement. The current benchmark now calls production store methods on the current schema.
 
 Run: `cd backend && go test ./internal/book -run '^$' -bench '^BenchmarkChapterLookup$' -benchmem -benchtime=100ms -count=2`.
 
@@ -88,9 +88,15 @@ At 10,000 chapters, allocation falls from 8.3 MiB/full read to about 2.8 KiB/pai
 
 Bounded branch check: reused per-slice review/test evidence and checked the corrective commit sequence plus selected ownership transitions. No new blocker was found in those examined paths. This was not a new exhaustive audit; manual browser smoke and exact-image/Docker verification remain unperformed.
 
+### A12 implementation outcome
+
+Context-aware `GetChapterWithNext` and `HasReadableChapter` replace full-catalog reads in content/progress handlers. The existing chapter index now covers `(book_id, idx)`; no redundant index or cache was added. Exact chapter-path matching, missing indices, immediate successors including volumes, progress state guards and other full-catalog consumers are preserved. Reader epoch is now 9 because home validation checks index definitions; no migration or automatic reset was added.
+
+Book, API, reader-store and backup package tests pass. Existing chapter-context coverage now checks gaps, volumes, last chapters and book scoping; the existing content-cache test also checks noncanonical/missing indices. The optional benchmark calls production methods: at 10,000 chapters, pairs take 0.0346–0.0348 ms / about 2.8 KiB and readability 0.0222–0.0230 ms / about 1 KiB. Full-catalog reads on the new index take 16.35–16.84 ms / 8.3 MiB. Same warm local setup and two 100ms runs as above; no end-to-end speed claim. No broader test suite or frontend change was needed.
+
 ## Next action
 
-A01–A10 and the original frontend test regression are complete. Confirm the A12 implementation scope: narrow chapter-pair/readability queries and a composite index, preserving HTTP behavior with focused existing tests and one gap/volume regression. Frontend workflow decomposition remains deferred until a concrete change justifies it. No merge, data reset or deployment has been performed.
+A01–A10 and A12 are complete. Review/land the corrective branch when requested. A11 frontend workflow decomposition remains deferred until a concrete change justifies it. Manual browser smoke and exact-image verification remain unperformed; no merge, data reset or deployment has been performed.
 
 ## Verification
 
@@ -106,4 +112,4 @@ Earlier clean-test claims are not the current verification state. See the [audit
 
 ## Compatibility and rollback
 
-Initial slices change no schema or HTTP payload contract and can be reverted independently. Browser cleanup must preserve explicit save/continuation behavior; candidate cancellation/expiry must reject new writes without breaking idempotent completed commits or retryable persistence failures. Account cleanup must preserve browser-owned appearance settings while removing reader-owned state. Source-state/runtime work must preserve credential separation, source identity and lease draining. A08 intentionally changes the fresh reader schema to epoch 8 without a migration, as accepted for developer-only data; reverting requires matching code/data versions or a deliberate development reset. No reset was performed. Preserve the branch's working auth extraction.
+Initial slices change no schema or HTTP payload contract and can be reverted independently. Browser cleanup must preserve explicit save/continuation behavior; candidate cancellation/expiry must reject new writes without breaking idempotent completed commits or retryable persistence failures. Account cleanup must preserve browser-owned appearance settings while removing reader-owned state. Source-state/runtime work must preserve credential separation, source identity and lease draining. A08/A12 intentionally change the fresh reader schema (currently epoch 9) without migrations, as accepted for developer-only data; reverting requires matching code/data versions or a deliberate development reset. No reset was performed. Preserve the branch's working auth extraction.

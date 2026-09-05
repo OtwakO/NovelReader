@@ -94,7 +94,7 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 
 ## Active Work
 
-[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — verified corrective slices A01–A10 are complete, including lifecycle/isolation fixes, upload/font/identity contracts and runtime-owned reader HTTP handlers. Authenticated requests retain their leases without copying Server or rebuilding routes. The plan records verification, schema compatibility and remaining limitations; the [independent audit](docs/verification/independent-architecture-code-audit.md) remains baseline evidence, not the current completion checklist. A12's optional benchmark now demonstrates unnecessary full-catalog read cost; a narrow query/index implementation awaits scope confirmation. Frontend decomposition remains evidence-gated.
+[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — verified corrective slices A01–A10 are complete, including lifecycle/isolation fixes, upload/font/identity contracts and runtime-owned reader HTTP handlers. Authenticated requests retain their leases without copying Server or rebuilding routes. The plan records verification, schema compatibility and remaining limitations; the [independent audit](docs/verification/independent-architecture-code-audit.md) remains baseline evidence, not the current completion checklist. A12's measured narrow chapter/progress queries and composite index are implemented and verified (reader schema epoch 9). Frontend decomposition remains evidence-gated.
 
 ## Immediate Priorities
 

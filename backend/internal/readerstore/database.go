@@ -11,7 +11,7 @@ import (
 const (
 	// CurrentReaderSchemaVersion is one epoch for the complete current reader schema.
 	// Versions 1-4 belonged to the removed development migration history.
-	CurrentReaderSchemaVersion      = 8
+	CurrentReaderSchemaVersion      = 9
 	CurrentCredentialsSchemaVersion = 2
 )
 

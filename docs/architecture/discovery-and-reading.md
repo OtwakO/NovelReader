@@ -133,3 +133,7 @@ The Vue frontend owns presentation and interaction: shelf filtering/sorting/rest
 Shelf identity and frontend recovery matching follow backend `NormalizeBookIdentity`: lowercase individual Unicode characters, trim Unicode whitespace, remove the exact author prefixes/suffixes in that implementation, then retain letters and numbers. Whitespace before the author-label colon is not accepted as a prefix. Browser locale and contextual casing must not change this identity. Discovery's looser result grouping remains a separate contract.
 
 Both implementations run the shared synthetic cases in `testdata/book-identity.json`. The backend's persisted identity behavior is unchanged.
+
+## Narrow chapter lookups
+
+Chapter content reads fetch the exact chapter and its immediate catalog successor (including volume headings); progress validation checks readable-chapter existence directly. Both queries use the `(book_id, idx)` chapter index. Full-catalog reads remain for catalog display and workflows that need the complete list. Missing indices are not silently advanced to a later chapter, and existing source/state-version progress checks remain unchanged.

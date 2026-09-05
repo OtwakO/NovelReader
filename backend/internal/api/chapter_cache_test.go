@@ -52,6 +52,12 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &fresh); err != nil || response.Code != http.StatusOK || fresh.OfflineCopy || fresh.Version != proseDocumentVersion || fresh.Document.Kind != "prose" || len(fresh.Document.Blocks) != 2 || fresh.Document.Blocks[1].Resource == nil {
 		t.Fatalf("fresh status=%d result=%+v err=%v body=%s", response.Code, fresh, err, response.Body.String())
 	}
+	for _, index := range []string{"00", "1"} {
+		response := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/"+index+"/content", nil)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("non-exact chapter %q: status=%d", index, response.Code)
+		}
+	}
 	var cached chapterContentResponse
 	for _, upstreamMode := range []int32{2, 1} {
 		mode.Store(upstreamMode)

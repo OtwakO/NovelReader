@@ -11,6 +11,7 @@ import (
 	"math"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/otwako/novelreader/internal/book"
@@ -435,18 +436,16 @@ func (s *readerAPI) handleGetChapterContent(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	chapters, err := s.bookStore.GetChapters(bookID)
+	index, err := strconv.Atoi(idx)
+	// Preserve the previous exact decimal match (e.g. "01" is not chapter 1).
+	if err != nil || strconv.Itoa(index) != idx {
+		writeErrorCode(w, http.StatusNotFound, "chapter_not_found", "chapter not found")
+		return
+	}
+	ch, next, err := s.bookStore.GetChapterWithNext(r.Context(), bookID, index)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "load chapters failed")
 		return
-	}
-
-	var ch *book.Chapter
-	for i := range chapters {
-		if fmt.Sprint(chapters[i].Index) == idx {
-			ch = &chapters[i]
-			break
-		}
 	}
 	if ch == nil {
 		writeErrorCode(w, http.StatusNotFound, "chapter_not_found", "chapter not found")
@@ -469,13 +468,6 @@ func (s *readerAPI) handleGetChapterContent(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var next *book.Chapter
-	for i := range chapters {
-		if &chapters[i] == ch && i+1 < len(chapters) {
-			next = &chapters[i+1]
-			break
-		}
-	}
 	rawContent, contentTitle, err := s.searcher.GetChapterContentForBookContext(r.Context(), *src, b, ch, next)
 	if err == nil && strings.TrimSpace(rawContent) == "" {
 		err = errors.New("content: empty extraction")
@@ -540,17 +532,10 @@ func (s *readerAPI) handleUpdateProgress(w http.ResponseWriter, r *http.Request)
 		writeErrorCode(w, http.StatusConflict, "state_changed", "book state changed before progress was saved")
 		return
 	}
-	chapters, err := s.bookStore.GetChapters(bookID)
+	validChapter, err := s.bookStore.HasReadableChapter(r.Context(), bookID, chapterIndex)
 	if err != nil {
 		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load chapters")
 		return
-	}
-	validChapter := false
-	for _, chapter := range chapters {
-		if chapter.Index == chapterIndex && !chapter.IsVolume {
-			validChapter = true
-			break
-		}
 	}
 	if !validChapter {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "chapterIndex is not a readable chapter")
