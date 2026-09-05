@@ -45,6 +45,7 @@ jobs:
         if: matrix.mode == 'sequential'
         uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7
         with:
+          source: .
           files: benchmarks/parallel-builds.hcl
           targets: app
 
@@ -52,6 +53,7 @@ jobs:
         if: matrix.mode == 'sequential'
         uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7
         with:
+          source: .
           files: benchmarks/parallel-builds.hcl
           targets: worker
 
@@ -59,6 +61,7 @@ jobs:
         if: matrix.mode == 'parallel'
         uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7
         with:
+          source: .
           files: benchmarks/parallel-builds.hcl
           targets: |
             app
