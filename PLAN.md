@@ -79,6 +79,10 @@ Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for un
 
 ### Completed workstream handoffs
 
+[Parallel release builds](docs/plans/parallel-release-builds.md) — concurrent production builds are
+merged and verified. The first release passed in 5m21s with a cached app layer; source-change timing
+and comparison limits are recorded in the plan. All verification and publication gates remain.
+
 [GitHub Actions runtime](docs/plans/github-actions-runtime.md) records the initial conservative
 optimizations and successful hosted verification (7m42s → 6m35s in the first comparison).
 
@@ -90,9 +94,8 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 
 ## Active Work
 
-[Parallel release builds](docs/plans/parallel-release-builds.md) — adopt the measured same-runner
-build overlap while retaining cache policy, exact-image verification, and all publication gates.
-Local validation passed; the approved main-branch release run is next.
+No accepted implementation workstream remains unfinished. Completed handoffs above are historical
+context, not active backlogs.
 
 ## Immediate Priorities
 

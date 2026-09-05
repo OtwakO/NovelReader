@@ -1,6 +1,6 @@
 # Parallel release builds
 
-**Status:** Active
+**Status:** Completed
 
 ## Goal and accepted approach
 
@@ -32,14 +32,14 @@ Benchmark-only workflow, cache marker, and HCL scaffolding stay off main.
 
 ## Current state
 
-Production Bake targets and workflow wiring implemented and locally verified. No benchmark workflow,
-cache marker, or benchmark target file is included. Main-branch publication verification is pending.
+Implemented as `505cbd7`, merged and pushed to main. Production run
+[33958362843](https://github.com/OtwakO/NovelReader/actions/runs/33958362843) passed all gates and publication.
+No benchmark workflow, cache marker, or benchmark target file was included.
 
 ## Next action
 
-Validate resolved targets against the old build-step contract, lint the workflow, review the diff,
-commit and fast-forward merge to main, then push as approved. Inspect the resulting release before
-claiming completion or a timing improvement.
+No implementation or verification remains pending. Keep this result as a baseline; further
+optimization requires measured evidence rather than removing release gates.
 
 ## Verification
 
@@ -49,8 +49,17 @@ claiming completion or a timing improvement.
 - Parsed YAML comparison confirmed every other container-job step, prerequisite job, publication lock,
   and permission remains unchanged. The new HCL file is included in release path triggers.
 - Existing staging-shell success/app-failure/worker-failure checks and path-filter cases passed.
-- Unchanged application suites were not rerun locally. Actual images, integration, cache export, and
-  registry publication will be verified by the approved main-branch release run.
+- Unchanged application suites were not rerun locally. Hosted run 33958362843 passed backend/frontend/
+  worker prerequisites, both image browser modes, exact-image Compose verification, concurrent staging,
+  and immutable-reference/alias promotion. Build logs confirmed GHA cache export.
+
+## Hosted timing
+
+The first production run finished in 321s (5m21s): backend verification 107s; concurrent build step
+94s; image worker-mode checks 10s; Compose 39s; staging 46s; promotion 5s.
+The app native layer was cached, so this is not an apples-to-apples comparison with the prior 395s
+run that compiled it. Do not attribute the entire 74s difference to scheduling. The separate
+source-change benchmark above remains the controlled evidence for build overlap.
 
 ## Rollback
 
