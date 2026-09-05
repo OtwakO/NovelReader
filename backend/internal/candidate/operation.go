@@ -27,7 +27,7 @@ func (op *operation) run() {
 		go func() { results <- op.validate(index, queue[index]) }()
 	}
 	if len(queue) == 0 {
-		op.finish(StateFailed, "candidate has no source bindings")
+		op.finishRunning(StateFailed, "candidate has no source bindings")
 		op.release()
 		return
 	}
@@ -43,7 +43,7 @@ func (op *operation) run() {
 			if errors.Is(op.ctx.Err(), context.DeadlineExceeded) {
 				stoppingState = StateExhausted
 				stoppingMessage = "candidate resolution reached its operation deadline"
-				op.finish(stoppingState, stoppingMessage)
+				op.finishRunning(stoppingState, stoppingMessage)
 			}
 			ctxDone = nil
 		case result := <-results:
@@ -80,32 +80,10 @@ func (op *operation) run() {
 				}
 			}
 			if selected >= 0 && winner == nil && stoppingState == "" {
-				winner = successes[selected]
-				preview := previewFromResolved(winner)
-				op.update(func(s *Snapshot) {
-					op.resolved = winner
-					for i := range s.Attempts {
-						if i == selected {
-							s.Attempts[i].State = "verified"
-							continue
-						}
-						if s.Attempts[i].State == "queued" || s.Attempts[i].State == "ready" {
-							s.Attempts[i].State = "skipped"
-						}
-					}
-					s.State = StateVerified
-					s.Preview = &preview
-					s.Message = "book metadata verified"
-				})
-				if op.commitID != "" {
-					if _, err := op.commit(op.commitID); err != nil {
-						op.update(func(s *Snapshot) {
-							s.State = StateFailed
-							s.CommitPending = true
-							s.Message = "verified candidate could not be added to the shelf"
-						})
-						op.markTerminal()
-					}
+				if op.acceptCandidate(selected, successes[selected]) {
+					winner = successes[selected]
+				} else {
+					stoppingState = StateCancelled
 				}
 				op.cancel()
 				ctxDone = nil
@@ -116,7 +94,7 @@ func (op *operation) run() {
 			}
 			if stoppingState != "" && active == 0 {
 				if op.current().State == StateRunning {
-					op.finish(stoppingState, stoppingMessage)
+					op.finishRunning(stoppingState, stoppingMessage)
 				}
 				op.release()
 				return
@@ -133,7 +111,7 @@ func (op *operation) run() {
 		}
 	}
 	if op.current().State == StateRunning {
-		op.finish(StateExhausted, "no known source produced usable book metadata")
+		op.finishRunning(StateExhausted, "no known source produced usable book metadata")
 	}
 	op.release()
 }
@@ -171,64 +149,6 @@ func (op *operation) stage(index int, stage Stage) {
 	op.update(func(s *Snapshot) { s.Attempts[index].Stage = stage })
 }
 
-func (op *operation) commit(bookID string) (Snapshot, error) {
-	op.commitMu.Lock()
-	defer op.commitMu.Unlock()
-	if bookID == "" {
-		return op.current(), ErrInvalidBookID
-	}
-	op.mu.Lock()
-	if op.commitResult != nil {
-		snap := cloneSnapshot(op.snapshot)
-		op.mu.Unlock()
-		return snap, nil
-	}
-	resolved := op.resolved
-	op.mu.Unlock()
-	if resolved == nil {
-		return op.current(), errNotVerified
-	}
-	candidate := *resolved.book
-	candidate.ID = bookID
-	stored, created, err := op.runtime.Books.AddOrMergeBook(&candidate)
-	if err != nil {
-		return op.current(), err
-	}
-	op.mu.Lock()
-	op.commitResult = stored
-	op.snapshot.State = StateCommitted
-	op.snapshot.StoredBook = stored
-	op.snapshot.Created = created
-	op.snapshot.CommitPending = false
-	op.snapshot.Message = "book added to shelf"
-	op.snapshot.UpdatedAt = time.Now()
-	op.broadcastLocked()
-	op.mu.Unlock()
-	op.markTerminal()
-	return op.current(), nil
-}
-
-func (op *operation) expirePending() {
-	timer := time.NewTimer(op.policy.Retention)
-	defer timer.Stop()
-	<-timer.C
-	op.mu.Lock()
-	if (op.snapshot.State == StateVerified || op.snapshot.CommitPending) && op.commitResult == nil {
-		op.snapshot.State = StateFailed
-		op.snapshot.CommitPending = false
-		op.snapshot.Message = "verified candidate expired before it was added to the shelf"
-		op.snapshot.UpdatedAt = time.Now()
-		op.broadcastLocked()
-		if op.terminalAt.IsZero() {
-			op.terminalAt = time.Now()
-		}
-		op.mu.Unlock()
-		op.release()
-		return
-	}
-	op.mu.Unlock()
-}
-
 func (op *operation) finish(state State, message string) {
 	op.update(func(s *Snapshot) { s.State = state; s.Message = message; s.Active = 0 })
 	op.markTerminal()
@@ -242,7 +162,7 @@ func (op *operation) markTerminal() {
 }
 func (op *operation) release() { op.releaseOnce.Do(func() { release(op.runtime) }) }
 func (op *operation) stop() {
-	op.cancel()
+	op.cancelResolution()
 	<-op.done
 	op.release()
 }

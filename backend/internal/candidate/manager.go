@@ -153,7 +153,7 @@ type operation struct {
 	commitResult *book.Book
 	releaseOnce  sync.Once
 	done         chan struct{}
-	commitMu     sync.Mutex
+	transitionMu sync.Mutex
 }
 
 type binding struct {
@@ -261,21 +261,7 @@ func (m *Manager) Cancel(ownerID, id string) bool {
 	if !ok {
 		return false
 	}
-	snapshot := op.current()
-	if snapshot.State == StateVerified {
-		op.finish(StateCancelled, "candidate resolution was cancelled")
-		op.cancel()
-		select {
-		case <-op.done:
-			op.release()
-		default:
-		}
-		return true
-	}
-	if snapshot.State == StateRunning {
-		op.finish(StateCancelled, "candidate resolution was cancelled")
-		op.cancel()
-	}
+	op.cancelResolution()
 	return true
 }
 

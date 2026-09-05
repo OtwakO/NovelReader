@@ -52,9 +52,11 @@ The independent review reproduced account-state leakage, cancellation bypass in 
 
 No production fixes were made during the independent audit. Temporary synthetic probes were removed. Second verification has reconfirmed the browser ownership and candidate transition defects. Corrective implementation is in progress. A03/A04 are fixed: the worker transfers capacity ownership at registration; the browser component marks its lifetime closed before teardown, closes late-created sessions and prevents stale polling/close continuations. The missing test i18n injection is corrected. Verification: 3 browser-component tests, TypeScript checking and changed-file ESLint pass; 11 worker interaction/health tests pass (mocked browser, not real Chrome).
 
+A02 is fixed: candidate acceptance, shelving, cancellation and expiry share one transition lock, while snapshot reads remain independent of slow persistence. Terminal states cannot acquire write eligibility again; automatic commit failures remain retryable and completed commits remain idempotent. Candidate and API package tests pass; targeted terminal/idempotent-commit tests also pass under the race detector.
+
 ## Next action
 
-Correct candidate transitions (A02), then frontend account-state ownership (A01). Browser ownership and its test gate are complete. Promote only the relevant diagnostic reproductions into maintained tests; do not resume cosmetic decomposition automatically.
+Implement frontend account-state ownership (A01), then source/runtime cancellation and invalidation (A05/A06). Browser ownership and candidate transitions are complete. Promote only the relevant diagnostic reproductions into maintained tests; do not resume cosmetic decomposition automatically.
 
 ## Verification
 

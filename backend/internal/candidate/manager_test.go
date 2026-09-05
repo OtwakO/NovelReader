@@ -559,3 +559,41 @@ func newBindingFixture(t *testing.T, content string, delay time.Duration) bindin
 func credibleText(label string) string {
 	return fmt.Sprintf("%s chapter prose contains enough meaningful narrative text to verify that this source returned real readable content rather than an empty page, login prompt, access denial, or browser compatibility notice.", label)
 }
+
+// Cancellation and expiry must revoke write eligibility, not just release the runtime.
+func TestTerminalCandidateCannotCommit(t *testing.T) {
+	for _, terminal := range []string{"cancelled", "expired"} {
+		t.Run(terminal, func(t *testing.T) {
+			fixture := newBindingFixture(t, credibleText("terminal"), 0)
+			sources := sourceMap{fixture.server.URL: fixture.source}
+			books := &memoryBooks{}
+			searcher := book.NewSearcher(fetcher.NewInsecureStateless(time.Second), analyzer.NewJSVM(), analyzer.NewCacheManager(), sources, nil)
+			policy := DefaultPolicy()
+			if terminal == "expired" {
+				policy.Retention = 50 * time.Millisecond
+			}
+			manager := NewManager(policy)
+			defer manager.Close()
+			released := make(chan struct{})
+			started, err := manager.Start("reader", Input{Name: "Fixture Novel", SourceURL: fixture.server.URL, BookURL: fixture.server.URL + "/book"}, Runtime{Sources: sources, Books: books, Searcher: searcher, Release: func() { close(released) }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if terminal == "cancelled" {
+				waitForState(t, manager, "reader", started.ID, StateVerified)
+				manager.Cancel("reader", started.ID)
+			}
+			select {
+			case <-released:
+			case <-time.After(time.Second):
+				t.Fatal("terminal operation retained runtime")
+			}
+			if _, err := manager.Commit("reader", started.ID, "must-not-exist"); err == nil {
+				t.Fatal("terminal candidate accepted a new commit")
+			}
+			if books.calls != 0 {
+				t.Fatalf("terminal candidate wrote %d times", books.calls)
+			}
+		})
+	}
+}
