@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import { pinia } from './app/pinia';
 import { router } from './app/router';
+import { installReaderStateBoundary } from './app/reader-state';
 import { i18n, initializeI18n } from './i18n';
 import { registerServiceWorker } from './pwa/register-service-worker';
 import { useSessionStore } from './stores/session';
@@ -12,6 +13,7 @@ await initializeI18n();
 const app = createApp(App);
 app.use(pinia);
 app.use(i18n);
+app.onUnmount(installReaderStateBoundary(pinia));
 app.use(router);
 
 const session = useSessionStore(pinia);

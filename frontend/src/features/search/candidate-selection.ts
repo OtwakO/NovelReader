@@ -11,3 +11,12 @@ export function loadCandidateSelection(key: string): SearchResult | null {
     return value as SearchResult;
   } catch { return null; }
 }
+
+export function clearCandidateSelections() {
+  try {
+    for (let index = sessionStorage.length - 1; index >= 0; index--) {
+      const key = sessionStorage.key(index);
+      if (key?.startsWith(prefix)) sessionStorage.removeItem(key);
+    }
+  } catch { /* tab storage may be disabled */ }
+}

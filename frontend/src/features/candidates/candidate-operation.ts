@@ -1,5 +1,5 @@
 import type { AltSource, Book } from '../../api/models';
-import { request } from '../../api/transport';
+import { readerRequestSignal, request } from '../../api/transport';
 import { normalizedBookIdentity } from '../books/book-identity';
 
 export interface BookCandidate {
@@ -116,8 +116,10 @@ export function subscribeCandidateOperation(
   handlers: { onSnapshot: (snapshot: CandidateOperationSnapshot) => void; onDisconnect: () => void },
 ): EventSource {
   const stream = new EventSource(`/api/candidate-resolutions/${encodeURIComponent(id)}/events`);
+  const signal = readerRequestSignal();
   let terminal = false;
   stream.onmessage = (message) => {
+    if (signal.aborted) { stream.close(); return; }
     try {
       const snapshot = JSON.parse(message.data) as CandidateOperationSnapshot;
       handlers.onSnapshot(snapshot);
@@ -126,7 +128,7 @@ export function subscribeCandidateOperation(
     } catch { /* malformed operation snapshots cannot safely mutate UI state */ }
   };
   stream.onerror = () => {
-    if (!terminal) handlers.onDisconnect();
+    if (!signal.aborted && !terminal) handlers.onDisconnect();
   };
   return stream;
 }
@@ -205,4 +207,8 @@ function saveOperationRegistry(value: Record<string, string>) {
     if (Object.keys(value).length) sessionStorage.setItem(storageKey, JSON.stringify(value));
     else sessionStorage.removeItem(storageKey);
   } catch { /* operation still runs if tab storage is unavailable */ }
+}
+
+export function clearCandidateOperations() {
+  try { sessionStorage.removeItem(storageKey); } catch { /* tab storage may be disabled */ }
 }

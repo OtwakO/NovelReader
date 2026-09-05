@@ -54,19 +54,21 @@ No production fixes were made during the independent audit. Temporary synthetic 
 
 A02 is fixed: candidate acceptance, shelving, cancellation and expiry share one transition lock, while snapshot reads remain independent of slow persistence. Terminal states cannot acquire write eligibility again; automatic commit failures remain retryable and completed commits remain idempotent. Candidate and API package tests pass; targeted terminal/idempotent-commit tests also pass under the race detector.
 
+A01 is fixed: one application-level identity boundary invokes feature-local resets and aborts previous-identity HTTP work. Search/Explore generations remain monotonic across resets; old candidate events and queued progress writes cannot repopulate new-reader state. Owner-tagged tab restoration remains available for the same reader, and browser appearance preferences are preserved. No schema or HTTP payload changes.
+
 ## Next action
 
-Implement frontend account-state ownership (A01), then source/runtime cancellation and invalidation (A05/A06). Browser ownership and candidate transitions are complete. Promote only the relevant diagnostic reproductions into maintained tests; do not resume cosmetic decomposition automatically.
+Implement source/runtime cancellation and invalidation (A05/A06). A01–A04 and the original frontend test regression are complete. Promote only the relevant diagnostic reproductions into maintained tests; do not resume cosmetic decomposition automatically.
 
 ## Verification
 
 Independent review at `33b9a1f`:
 
 - Backend: `go test ./internal/auth ./internal/api ./internal/booksource ./internal/candidate ./internal/sourceinteraction ./internal/readerstore` passed for those six packages (cached); no full backend-suite claim.
-- Frontend lint passed. Full frontend suite: **181/182 tests passed across 54 files**; SourceBrowserSession fails because `$t` is not injected by its test after the component conversion.
+- Current frontend verification after A01–A04: **189/189 tests passed across 56 files**, lint and production build (including TypeScript checking) passed. This supersedes the audit's 181/182 result.
 - `npm run build` passed separately, including TypeScript checking.
 - Synthetic diagnostic probes reproduced the five defects named above; they intentionally failed assertions of the desired behavior and were removed, not committed as tests.
-- Automated AFT health inspection failed. No Docker/Compose E2E, real browser-worker execution, live-source audit, race-detector run, browser UX verification or performance benchmark was performed.
+- AFT inspection now completes but reports no authoritative Go diagnostics (`gopls` unavailable); Go tests are authoritative. Targeted candidate transition/idempotence tests passed under the race detector. No Docker/Compose E2E, real browser-worker execution, live-source audit, browser UX verification or performance benchmark was performed.
 
 Earlier clean-test claims are not the current verification state. See the [audit verification and limits](../verification/independent-architecture-code-audit.md#tests-dead-code-overfitting-and-review-limits) for exact scope.
 

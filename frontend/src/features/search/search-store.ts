@@ -27,6 +27,13 @@ export const useSearchStore = defineStore('search', {
     moreCount: (state) => Math.min(state.batchSize, Math.max(0, state.eligible - state.checked)),
   },
   actions: {
+    resetReaderState() {
+      this.stop(false);
+      const generation = this.generation;
+      this.$reset();
+      this.generation = generation;
+      try { sessionStorage.removeItem(storageKey); } catch { /* tab storage may be disabled */ }
+    },
     initialize() {
       if (this.initialized) return;
       this.initialized = true;

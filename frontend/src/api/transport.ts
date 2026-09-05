@@ -4,6 +4,14 @@ export const API_BASE = '/api';
 
 type AuthenticationLossListener = () => void;
 let authenticationLossListener: AuthenticationLossListener | undefined;
+let readerRequests = new AbortController();
+
+export function readerRequestSignal(): AbortSignal { return readerRequests.signal; }
+
+export function resetReaderRequests(): void {
+  readerRequests.abort();
+  readerRequests = new AbortController();
+}
 
 export interface ApiErrorBody {
   code?: string;
@@ -47,10 +55,14 @@ export class NetworkError extends Error {
   }
 }
 
-async function fetchRequest(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+async function fetchRequest(input: RequestInfo | URL, init?: RequestInit) {
+  const signal = init?.signal ? AbortSignal.any([readerRequests.signal, init.signal]) : readerRequests.signal;
   try {
-    return await fetch(input, init);
+    const response = await fetch(input, { ...init, signal });
+    signal.throwIfAborted();
+    return { response, signal };
   } catch (cause) {
+    signal.throwIfAborted();
     throw new NetworkError(cause);
   }
 }
@@ -77,44 +89,42 @@ export function onAuthenticationLoss(listener?: AuthenticationLossListener) {
   };
 }
 
-async function responseError(response: Response): Promise<never> {
-  const error = await response.json().catch(() => ({ error: response.statusText })) as ExploreErrorBody;
-  if (response.status === 401) authenticationLossListener?.();
-  throw new ApiError(response.status, { ...error, error: error.error || error.message || response.statusText });
-}
-
-export async function request<T>(path: string, options?: RequestInit, errorKind: 'general' | 'explore' = 'general'): Promise<T> {
-  const response = await fetchRequest(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  });
+async function readJSON<T>(response: Response, signal: AbortSignal, errorKind: 'general' | 'explore' = 'general'): Promise<T> {
+  signal.throwIfAborted();
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText })) as ExploreErrorBody;
-    if (errorKind === 'explore' && isExploreErrorBody(error)) {
-      if (response.status === 401) authenticationLossListener?.();
-      throw new ExploreApiError(error);
-    }
+    signal.throwIfAborted();
     if (response.status === 401) authenticationLossListener?.();
+    if (errorKind === 'explore' && isExploreErrorBody(error)) throw new ExploreApiError(error);
     throw new ApiError(response.status, { ...error, error: error.error || error.message || response.statusText });
   }
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  const value = await response.json() as T;
+  signal.throwIfAborted();
+  return value;
+}
+
+export async function request<T>(path: string, options?: RequestInit, errorKind: 'general' | 'explore' = 'general'): Promise<T> {
+  const { response, signal } = await fetchRequest(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    ...options,
+  });
+  return readJSON<T>(response, signal, errorKind);
 }
 
 export async function requestForm<T>(path: string, form: FormData): Promise<T> {
-  const response = await fetchRequest(`${API_BASE}${path}`, { method: 'POST', body: form });
-  if (!response.ok) return responseError(response);
-  return response.json() as Promise<T>;
+  const { response, signal } = await fetchRequest(`${API_BASE}${path}`, { method: 'POST', body: form });
+  return readJSON<T>(response, signal);
 }
 
 export async function requestBinary(path: string): Promise<Response> {
-  const response = await fetchRequest(`${API_BASE}${path}`);
-  if (!response.ok) return responseError(response);
+  const { response, signal } = await fetchRequest(`${API_BASE}${path}`);
+  if (!response.ok) await readJSON<never>(response, signal);
+  signal.throwIfAborted();
   return response;
 }
 
 export async function requestUpload<T>(path: string, body: Blob): Promise<T> {
-  const response = await fetchRequest(`${API_BASE}${path}`, { method: 'POST', body, headers: { 'Content-Type': 'application/gzip' } });
-  if (!response.ok) return responseError(response);
-  return response.json() as Promise<T>;
+  const { response, signal } = await fetchRequest(`${API_BASE}${path}`, { method: 'POST', body, headers: { 'Content-Type': 'application/gzip' } });
+  return readJSON<T>(response, signal);
 }

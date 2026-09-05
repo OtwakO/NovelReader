@@ -43,6 +43,7 @@ this storage/backup boundary; see [Reader state](discovery-and-reading.md#reader
 - Source JavaScript receives one stable opaque device identity per Reader Account through `java.androidId()` and `java.deviceID()`. It is derived from the immutable Reader ID, shared across that reader's sources, and does not expose the Reader ID itself.
 - Recovery can restore Administrator access without claiming or rewriting Reader Data.
 - Reader deletion is durable, retryable, and coordinated with runtime and filesystem ownership.
+- In the frontend, `app/reader-state.ts` owns account transitions: it aborts prior-identity requests, resets reader-owned discovery/candidate/progress state, and prevents late responses from repopulating it. Tab restoration is retained only for the recorded Reader Account ID; browser-owned appearance preferences are not cleared.
 
 ## Source interaction state
 

@@ -94,7 +94,7 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 
 ## Active Work
 
-[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — an [independent audit of `33b9a1f`](docs/verification/independent-architecture-code-audit.md) supersedes the earlier completeness/prioritization claims. The auth deadline extraction is sound; frontend tests have one branch regression, and scheduler cancellation remains partial. Isolation, state-transition and resource-ownership fixes are recommended before cosmetic decomposition; corrective implementation is approved and starts with browser ownership, candidate transitions and frontend account-state isolation.
+[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — an [independent audit of `33b9a1f`](docs/verification/independent-architecture-code-audit.md) supersedes the earlier completeness/prioritization claims. The auth deadline extraction is retained. Browser cleanup ownership, candidate terminal transitions, frontend identity isolation and the failing frontend test are corrected; 189 frontend tests now pass. Source/runtime cancellation and invalidation are next; broader decomposition and performance work remain evidence-driven.
 
 ## Immediate Priorities
 
