@@ -58,9 +58,13 @@ A01 is fixed: one application-level identity boundary invokes feature-local rese
 
 A05/A06 are fixed: runtime cleanup is owned, capacity-counted and outside the manager mutex; cancellable waits replace lock-held draining. Collection replacement/deletion return affected IDs from their own transactions rather than a separate read. Success-record reads honor context. Manual and scheduled changes share browser/source-session invalidation; cleanup failure after commit is explicit, and scheduler sweeps reconcile even when no collections remain. API, BookSource, source-profile, reader-store, backup and auth package tests pass; runtime/quiescence/scheduler/partial-cleanup regressions pass under the race detector. OS filesystem calls remain synchronous; cancellation does not abandon owned cleanup.
 
+A07 is fixed: source replacement enforces 50 MiB before JSON parsing; font upload enforces a 21 MiB request cap and a 20 MiB parsed-file cap before reading/persistence. Oversize input returns HTTP 413; multipart temporary files are removed. Unknown-length source overflow, both font boundaries, temporary-file cleanup and normal font persistence are covered by focused tests. The API package passes. README documents the limits. No schema changes; rollback is code-only.
+
+After the inference interruption, the working tree and `97a04af` were checked; API, BookSource and source-profile package tests passed again, as did focused runtime/quiescence/scheduler/partial-cleanup tests under the race detector.
+
 ## Next action
 
-Address upload/font/identity contracts (A07–A09), rechecking each direct boundary first. A01–A06 and the original frontend test regression are complete.
+Address font persistence and logical-book identity contracts (A08–A09), rechecking each direct boundary first. A01–A07 and the original frontend test regression are complete. Font replacement must preserve existing behavior without losing cleanup references on failure; confirm any storage migration before implementation.
 
 Runtime approach: keep closing runtimes tracked (and counted against capacity) until their owned cleanup finishes. Start cleanup outside the manager lock; same-reader acquisition/quiescence waits on a completion signal with the caller's context, while unrelated readers remain usable. Shutdown drains tracked cleanup; no detached unbounded cleanup pool or new runtime for a still-closing reader. Propagate context to collection reads rather than wrapping context-free calls. No schema changes; rollback is code-only, but runtime lease/drain tests are required. Promote only the relevant diagnostic reproductions into maintained tests; do not resume cosmetic decomposition automatically.
 

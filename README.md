@@ -22,6 +22,8 @@ your own NovelReader data folder. Reader appearance and prefetch preferences are
 - **Optional browser sources** — A private WebView worker supports sources that need browser execution.
 - **Installable web app** — Install NovelReader as a PWA on supported desktop and mobile browsers.
 
+Source documents are limited to 50 MiB. Custom font files are limited to 20 MiB (21 MiB for the complete multipart request); oversized source replacements and font uploads return HTTP 413.
+
 NovelReader aims for practical Legado compatibility, but it cannot support every Android- or JVM-specific source behavior. Captchas and automatic WAF bypass are not supported.
 
 ## Deploy with Docker Compose

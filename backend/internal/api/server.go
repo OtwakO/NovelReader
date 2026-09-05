@@ -501,12 +501,18 @@ func (s *Server) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing query param id")
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, booksource.MaxCollectionDocumentBytes)
+	defer r.Body.Close()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeError(w, http.StatusRequestEntityTooLarge, "source document exceeds 50 MiB")
+		} else {
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
 		return
 	}
-	defer r.Body.Close()
 
 	src, err := booksource.NewFromJSON(body)
 	if err != nil {
@@ -968,9 +974,23 @@ func (s *Server) handleListFonts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUploadFont(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form (max 20MB)
-	if err := r.ParseMultipartForm(20 << 20); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	const maxFontBytes = 20 << 20
+	r.Body = http.MaxBytesReader(w, r.Body, maxFontBytes+(1<<20))
+	defer r.Body.Close()
+	defer func() {
+		if r.MultipartForm != nil {
+			if err := r.MultipartForm.RemoveAll(); err != nil {
+				slog.Warn("font upload temporary-file cleanup failed", "error", err)
+			}
+		}
+	}()
+	if err := r.ParseMultipartForm(maxFontBytes); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeError(w, http.StatusRequestEntityTooLarge, "font upload request is too large")
+		} else {
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
 		return
 	}
 
@@ -980,6 +1000,11 @@ func (s *Server) handleUploadFont(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	// FileHeader.Size is measured by the bounded multipart parser, not supplied by the client.
+	if header.Size > maxFontBytes {
+		writeError(w, http.StatusRequestEntityTooLarge, "font file exceeds 20 MiB")
+		return
+	}
 
 	data, err := io.ReadAll(file)
 	if err != nil {
