@@ -100,19 +100,15 @@ func BuildURLWithContextData(ctx context.Context, template, key string, page int
 		}
 	}
 
-	// Legado also permits a normal URL followed by an @js: segment. Evaluate
-	// the segment against the already-built URL so `result` has the expected value.
+	// URL scripts consume the raw rule before interpolation, page selection,
+	// and option parsing, matching Legado's analyzeJs phase.
 	if jsIndex := findURLJSSegment(urlStr); jsIndex > 0 {
 		baseTemplate := strings.TrimSpace(urlStr[:jsIndex])
-		baseMeta, err := BuildURLWithContextData(ctx, baseTemplate, key, page, baseURL, jsVM, sourceState, data)
-		if err != nil {
-			return nil, err
-		}
 		if jsVM == nil {
 			return nil, fmt.Errorf("urlbuilder: @js: no JS engine available")
 		}
 		bindings := urlBindings(data, key, page, baseURL, sourceState)
-		bindings["result"] = baseMeta.URL
+		bindings["result"] = baseTemplate
 		value, err := evalURLScript(ctx, jsVM, urlStr[jsIndex+4:], "", baseURL, data, bindings)
 		if err != nil {
 			return nil, fmt.Errorf("urlbuilder: @js: eval failed: %w", err)
@@ -140,24 +136,6 @@ func BuildURLWithContextData(ctx context.Context, template, key string, page int
 		urlStr = strings.TrimSpace(urlStr)
 	}
 
-	// Store the js option for eval after URL is fully constructed
-	var optJs string
-
-	// Extract JSON option suffix only from ordinary URL templates. JavaScript
-	// templates can contain unrelated object literals and must be evaluated first.
-	if !strings.HasPrefix(urlStr, "@js:") {
-		if before, option, ok := extractJSONOption(urlStr); ok {
-			urlStr = before
-
-			var err error
-			optJs, err = applyURLJSONOption(meta, option)
-			if err != nil {
-				slog.Warn("urlbuilder: failed to parse URL JSON option",
-					"option", option[:min(len(option), 100)], "err", err)
-			}
-		}
-	}
-
 	// @js: URL construction
 	if strings.HasPrefix(urlStr, "@js:") {
 		jsCode := urlStr[4:]
@@ -181,30 +159,24 @@ func BuildURLWithContextData(ctx context.Context, template, key string, page int
 		return nil, fmt.Errorf("urlbuilder: @js: no JS engine available")
 	}
 
-	// Handle <,{{page}}> page-selection syntax: <,a,b,c> picks page 1→a, 2→b, 3→c.
-	// For page 1, <,...> should be removed (produces empty string).
-	// We use a simple regex to remove <...> segments that match the page pattern.
-	// ponytail: only handles the common case; complex JS inside <...> is deferred.
+	// Expand the entire rule before page selection and option parsing. Otherwise
+	// JS comparison operators can be mistaken for selectors and options miss
+	// interpolation (or cannot be parsed until their expressions are expanded).
+	var err error
+	urlStr, err = evalTemplateExpressionsContext(ctx, urlStr, jsVM, baseURL, urlBindings(data, key, page, baseURL, sourceState))
+	if err != nil {
+		return nil, fmt.Errorf("urlbuilder: template eval failed: %w", err)
+	}
 	urlStr = expandPageSelector(urlStr, page)
 
-	// Evaluate {{...}} JS expressions in the URL (handles {{cookie.removeCookie(source.key)}}, etc.)
-	// First pass: simple variable replacement for {{key}} and {{page}} (no JS overhead)
-	urlStr = strings.ReplaceAll(urlStr, "{{key}}", key)
-	urlStr = strings.ReplaceAll(urlStr, "{{page}}", fmt.Sprintf("%d", page))
-
-	// Second pass: evaluate remaining {{...}} as JS expressions
-	if strings.Contains(urlStr, "{{") && jsVM != nil {
-		urlStr = evalTemplateExpressionsContext(ctx, urlStr, jsVM, baseURL, urlBindings(data, key, page, baseURL, sourceState))
-	}
-
-	// Replace {{key}} in POST body too
-	if meta.Body != "" {
-		meta.Body = expandPageSelector(meta.Body, page)
-		meta.Body = strings.ReplaceAll(meta.Body, "{{key}}", key)
-		meta.Body = strings.ReplaceAll(meta.Body, "{{page}}", fmt.Sprintf("%d", page))
-		if strings.Contains(meta.Body, "{{") && jsVM != nil {
-			meta.Body = evalTemplateExpressionsContext(ctx, meta.Body, jsVM, baseURL,
-				urlBindings(data, key, page, baseURL, sourceState))
+	// Store the js option for eval after URL is fully constructed.
+	var optJs string
+	if before, option, ok := extractJSONOption(urlStr); ok {
+		urlStr = before
+		optJs, err = applyURLJSONOption(meta, option)
+		if err != nil {
+			slog.Warn("urlbuilder: failed to parse URL JSON option",
+				"option", option[:min(len(option), 100)], "err", err)
 		}
 	}
 
@@ -513,12 +485,16 @@ func expandPageSelector(input string, page int) string {
 	})
 }
 
-func evalTemplateExpressionsContext(ctx context.Context, s string, jsVM *JSVM, baseURL string, extra ...map[string]interface{}) string {
-	var bindings map[string]interface{}
-	if len(extra) > 0 {
-		bindings = extra[0]
-	}
-	expanded, err := replaceTemplateExpressions(s, func(inner string) (string, error) {
+func evalTemplateExpressionsContext(ctx context.Context, s string, jsVM *JSVM, baseURL string, bindings map[string]interface{}) (string, error) {
+	return replaceTemplateExpressions(s, func(inner string) (string, error) {
+		// Keep simple variables available without a JS engine, in the same pass
+		// as other expressions so substituted text is not evaluated a second time.
+		if inner == "key" || inner == "page" {
+			return ToString(bindings[inner]), nil
+		}
+		if jsVM == nil {
+			return "", fmt.Errorf("no JS engine available")
+		}
 		script := inner
 		if jsLib, ok := bindings["__novelreader_jslib"].(string); ok && jsLib != "" {
 			script = jsLib + "\n" + script
@@ -532,10 +508,6 @@ func evalTemplateExpressionsContext(ctx context.Context, s string, jsVM *JSVM, b
 		}
 		return ToString(value), err
 	})
-	if err != nil {
-		slog.Warn("urlbuilder: template eval failed", "err", err)
-	}
-	return expanded
 }
 
 // EncodeParamValue URL-encodes a value in the specified charset.
