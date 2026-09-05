@@ -5,6 +5,7 @@ WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/ ./
+COPY testdata/book-identity.json /src/testdata/book-identity.json
 RUN npm run build
 
 FROM golang:alpine AS opencc-build

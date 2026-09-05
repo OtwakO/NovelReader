@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import identityCases from '../../../../testdata/book-identity.json';
 import { matchesLogicalBook, normalizedBookIdentity } from './book-identity';
 
 describe('book identity', () => {
-  it('normalizes punctuation, whitespace, case, and author labels', () => {
-    expect(normalizedBookIdentity(' 异度，旅社 ', '作者： 远瞳')).toEqual({ name: '异度旅社', author: '远瞳' });
-    expect(normalizedBookIdentity('The Book', 'AUTHOR: Alice')).toEqual({ name: 'thebook', author: 'alice' });
+  it.each(identityCases)('follows the backend identity contract: $name / $author', ({ name, author, expected }) => {
+    expect(normalizedBookIdentity(name, author)).toEqual(expected);
   });
   it('matches only the same normalized title and author', () => {
     const book = { name: '异度旅社', author: '远瞳' };

@@ -127,3 +127,9 @@ The Vue frontend owns presentation and interaction: shelf filtering/sorting/rest
 - Parser/transport failures never become successful empty results.
 - Opaque `data:` payloads remain backend-only and are redacted from user-visible crawl errors.
 - External source/gateway failure may leave a shelf book without a ready catalog; the book remains valid metadata with explicit retry and source-recovery actions.
+
+## Logical-book identity contract
+
+Shelf identity and frontend recovery matching follow backend `NormalizeBookIdentity`: lowercase individual Unicode characters, trim Unicode whitespace, remove the exact author prefixes/suffixes in that implementation, then retain letters and numbers. Whitespace before the author-label colon is not accepted as a prefix. Browser locale and contextual casing must not change this identity. Discovery's looser result grouping remains a separate contract.
+
+Both implementations run the shared synthetic cases in `testdata/book-identity.json`. The backend's persisted identity behavior is unchanged.

@@ -1,10 +1,21 @@
 import type { SearchResult } from '../../api/models';
 
+// Match Go strings.TrimSpace, including Unicode whitespace absent from JS trim().
+function trimIdentitySpace(value: string) {
+  return value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
+}
+
 function normalizePart(value: string | undefined, author = false) {
-  let normalized = String(value || '').trim().toLocaleLowerCase();
-  if (author) normalized = normalized
-    .replace(/^(作者|author)\s*[:：]\s*/i, '')
-    .replace(/\s*(著|作)\s*$/u, '');
+  // Go lowercases individual runes, without locale/context-dependent casing.
+  let normalized = trimIdentitySpace([...String(value || '')].map((character) => character.toLowerCase()).join(''));
+  if (author) {
+    for (const prefix of ['作者：', '作者:', 'author：', 'author:']) {
+      if (normalized.startsWith(prefix)) normalized = trimIdentitySpace(normalized.slice(prefix.length));
+    }
+    for (const suffix of [' 著', '著', ' 作', '作']) {
+      if (normalized.endsWith(suffix)) normalized = trimIdentitySpace(normalized.slice(0, -suffix.length));
+    }
+  }
   return [...normalized].filter((character) => /[\p{L}\p{N}]/u.test(character)).join('');
 }
 

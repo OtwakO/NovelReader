@@ -1,0 +1,8 @@
+[
+  {"name":" 异度，旅社 ","author":"作者： 远瞳 著","expected":{"name":"异度旅社","author":"远瞳"}},
+  {"name":"The Book","author":"AUTHOR: Alice","expected":{"name":"thebook","author":"alice"}},
+  {"name":"The Book","author":"Author : Someone","expected":{"name":"thebook","author":"authorsomeone"}},
+  {"name":"ΟΣ 123","author":"Alice","expected":{"name":"οσ123","author":"alice"}},
+  {"name":"Book","author":"\u0085author: Alice\u0085","expected":{"name":"book","author":"alice"}},
+  {"name":" ! ","author":"","expected":{"name":"","author":""}}
+]
