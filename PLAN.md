@@ -96,11 +96,11 @@ The completed [architecture and code quality improvements](docs/plans/2026-09-05
 
 ## Active Work
 
-No implementation workstream is currently selected.
+[BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Audit first; no source-specific patches or real BookSources committed.
 
 ## Immediate Priorities
 
-1. Select the next concrete product or compatibility need. Do not expand into frontend decomposition or performance redesign without evidence; consult the completed [architecture workstream](docs/plans/2026-09-05-architecture-code-quality-improvements.md) for deferred findings and compatibility limits.
+1. Establish the production-path baseline for the [BookSource engine audit](docs/plans/booksource-engine-compatibility-audit.md), distinguish shared mismatches from upstream failures, and propose the smallest evidence-backed corrections.
 2. Select further compatibility slices from current evidence rather than historical unchecked boxes.
 3. Introduce provider capability interfaces only when a first non-BookSource provider is accepted; introduce image-sequence documents and structured locations only when that modality becomes active work.
 4. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
