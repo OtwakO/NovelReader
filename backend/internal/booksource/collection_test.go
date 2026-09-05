@@ -84,7 +84,7 @@ func TestCollectionReplacementPreservesDuplicateSourceIDsByExactDefinitionThenOr
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := store.ListByCollection(collection.ID)
+	before, err := store.ListByCollection(t.Context(), collection.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestCollectionReplacementPreservesDuplicateSourceIDsByExactDefinitionThenOr
 	if result.Added != 0 || result.Removed != 0 || result.Total != 2 {
 		t.Fatalf("unexpected replacement membership result: %#v", result)
 	}
-	after, err := store.ListByCollection(collection.ID)
+	after, err := store.ListByCollection(t.Context(), collection.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestCollectionReplacementUsesStoredDocumentOrderWhenEveryDuplicateChanges(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := store.ListByCollection(collection.ID)
+	before, err := store.ListByCollection(t.Context(), collection.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestCollectionReplacementUsesStoredDocumentOrderWhenEveryDuplicateChanges(t
 	}, "changed.json", "", "", now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	after, err := store.ListByCollection(collection.ID)
+	after, err := store.ListByCollection(t.Context(), collection.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestCollectionReplacementKeepsExactIdentityAcrossDocumentReorder(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := store.ListByCollection(collection.ID)
+	before, err := store.ListByCollection(t.Context(), collection.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestCollectionReplacementKeepsExactIdentityAcrossDocumentReorder(t *testing
 	}, "reordered.json", "", "", now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	after, err := store.ListByCollection(collection.ID)
+	after, err := store.ListByCollection(t.Context(), collection.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestCollectionSourceEditPreservesDocumentPosition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := store.ListByCollection(collection.ID)
+	before, err := store.ListByCollection(t.Context(), collection.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestCollectionSourceEditPreservesDocumentPosition(t *testing.T) {
 	if err := store.Upsert(before[0]); err != nil {
 		t.Fatal(err)
 	}
-	after, err := store.ListByCollection(collection.ID)
+	after, err := store.ListByCollection(t.Context(), collection.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +228,7 @@ func TestCollectionRenameAndDeletePreserveSimpleOwnershipModel(t *testing.T) {
 	if got.Name != "Renamed" {
 		t.Fatalf("rename was not persisted: %#v", got)
 	}
-	if err := store.DeleteCollection(context.Background(), collection.ID); err != nil {
+	if _, err := store.DeleteCollection(context.Background(), collection.ID); err != nil {
 		t.Fatal(err)
 	}
 	if source := collectionSourceByURLOrNil(t, store, collection.ID, "https://one"); source != nil {
@@ -258,7 +258,7 @@ func collectionSourceByURL(t *testing.T, store *Store, collectionID, sourceURL s
 
 func collectionSourceByURLOrNil(t *testing.T, store *Store, collectionID, sourceURL string) *BookSource {
 	t.Helper()
-	sources, err := store.ListByCollection(collectionID)
+	sources, err := store.ListByCollection(t.Context(), collectionID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +331,7 @@ func TestCollectionAvailabilityGatesDiscoveryWithoutChangingSourcePreferences(t 
 	if source, err := store.GetExploreEnabledByID(enabledSource.ID); err != nil || source != nil {
 		t.Fatalf("disabled collection source=%#v err=%v", source, err)
 	}
-	members, err := store.ListByCollection(collection.ID)
+	members, err := store.ListByCollection(t.Context(), collection.ID)
 	if err != nil || len(members) != 2 || members[0].Enabled || !members[1].Enabled {
 		t.Fatalf("member preferences changed: %#v err=%v", members, err)
 	}

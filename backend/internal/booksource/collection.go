@@ -49,11 +49,12 @@ type Collection struct {
 }
 
 type ReplaceResult struct {
-	Added     int `json:"added"`
-	Updated   int `json:"updated"`
-	Removed   int `json:"removed"`
-	Unchanged int `json:"unchanged"`
-	Total     int `json:"total"`
+	PreviousSourceIDs []string `json:"-"` // captured inside the mutation transaction for runtime invalidation
+	Added             int      `json:"added"`
+	Updated           int      `json:"updated"`
+	Removed           int      `json:"removed"`
+	Unchanged         int      `json:"unchanged"`
+	Total             int      `json:"total"`
 }
 
 type CreateCollection struct {
@@ -290,6 +291,9 @@ func replaceCollectionSources(ctx context.Context, tx *sql.Tx, collectionID stri
 	}
 	matchedExisting := make(map[int]bool, len(matches))
 	result := ReplaceResult{Total: len(sources)}
+	for _, source := range existing {
+		result.PreviousSourceIDs = append(result.PreviousSourceIDs, source.ID)
+	}
 	for incomingIndex, existingIndex := range matches {
 		matchedExisting[existingIndex] = true
 		incoming := sources[incomingIndex]
@@ -427,15 +431,15 @@ func (s *Store) UpdateCollectionSchedule(ctx context.Context, id string, interva
 }
 
 func (s *Store) RecordCollectionSuccess(ctx context.Context, id string, now time.Time) error {
-	collection, err := s.GetCollection(id)
-	if err != nil {
+	var interval SyncInterval
+	if err := s.db.QueryRowContext(ctx, `SELECT sync_interval FROM book_source_collections WHERE id = ?`, id).Scan(&interval); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrCollectionNotFound
+		}
 		return err
 	}
-	if collection == nil {
-		return ErrCollectionNotFound
-	}
 	at := now.UnixMilli()
-	_, err = s.db.ExecContext(ctx, `UPDATE book_source_collections SET last_attempt_at = ?, last_success_at = ?, next_sync_at = ?, last_error = '', updated_at = ? WHERE id = ?`, at, at, NextSyncAt(collection.SyncInterval, now), at, id)
+	_, err := s.db.ExecContext(ctx, `UPDATE book_source_collections SET last_attempt_at = ?, last_success_at = ?, next_sync_at = ?, last_error = '', updated_at = ? WHERE id = ?`, at, at, NextSyncAt(interval, now), at, id)
 	return err
 }
 
@@ -448,29 +452,45 @@ func (s *Store) RecordCollectionFailure(ctx context.Context, id, message string,
 	return err
 }
 
-func (s *Store) DeleteCollection(ctx context.Context, id string) error {
+func (s *Store) DeleteCollection(ctx context.Context, id string) ([]string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("booksource: begin collection deletion: %w", err)
+		return nil, fmt.Errorf("booksource: begin collection deletion: %w", err)
 	}
 	defer tx.Rollback()
 	var exists int
 	if err := tx.QueryRowContext(ctx, `SELECT 1 FROM book_source_collections WHERE id = ?`, id).Scan(&exists); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrCollectionNotFound
+			return nil, ErrCollectionNotFound
 		}
-		return err
+		return nil, err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM book_sources WHERE collection_id = ?`, id); err != nil {
-		return fmt.Errorf("booksource: delete collection sources: %w", err)
+	rows, err := tx.QueryContext(ctx, `DELETE FROM book_sources WHERE collection_id = ? RETURNING id`, id)
+	if err != nil {
+		return nil, fmt.Errorf("booksource: delete collection sources: %w", err)
+	}
+	var sourceIDs []string
+	for rows.Next() {
+		var sourceID string
+		if err := rows.Scan(&sourceID); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		sourceIDs = append(sourceIDs, sourceID)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM book_source_collections WHERE id = ?`, id); err != nil {
-		return fmt.Errorf("booksource: delete collection: %w", err)
+		return nil, fmt.Errorf("booksource: delete collection: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("booksource: commit collection deletion: %w", err)
+		return nil, fmt.Errorf("booksource: commit collection deletion: %w", err)
 	}
-	return nil
+	return sourceIDs, nil
 }
 
 func newSourceID() (string, error) {

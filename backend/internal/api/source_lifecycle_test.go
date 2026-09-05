@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,7 +28,7 @@ func TestSourceLifecyclePreservesSurvivorsAndDeletesRemovedState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	existing, err := store.ListByCollection(collection.ID)
+	existing, err := store.ListByCollection(t.Context(), collection.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,4 +112,41 @@ func newSourceLifecycleStores(t *testing.T) (*booksource.Store, *sourceprofile.S
 		_ = manager.Close()
 	}
 	return booksource.NewStore(home.DB()), sourceprofile.NewStore(home.DB(), home.CredentialsDB()), home.DB(), home.CredentialsDB(), closeHome
+}
+
+func TestCommittedCollectionInvalidatesBeforeCleanupAndCanReconcileLater(t *testing.T) {
+	store, profiles, _, credentials, cleanup := newSourceLifecycleStores(t)
+	defer cleanup()
+	collection, _, err := store.CreateCollection(t.Context(), booksource.CreateCollection{Name: "Fixture", OriginKind: booksource.CollectionOriginUpload, SyncInterval: booksource.SyncManual}, []*booksource.BookSource{{BookSourceURL: "https://example.test", Enabled: true}}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources, err := store.ListByCollection(t.Context(), collection.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := profiles.SaveAuthentication(t.Context(), sources[0].ID, json.RawMessage(`{"token":"synthetic"}`)); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	var invalidated []string
+	result, err := replaceSourceCollection(ctx, store, profiles, func(id string) { invalidated = append(invalidated, id); cancel() }, collection.ID, nil, "", "", "", time.Now())
+	if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "committed") {
+		t.Fatalf("partial outcome not explicit: %v", err)
+	}
+	if result.Removed != 1 || len(invalidated) != 1 || invalidated[0] != sources[0].ID {
+		t.Fatalf("result=%+v invalidated=%v", result, invalidated)
+	}
+	remaining, err := store.ListByCollection(t.Context(), collection.ID)
+	if err != nil || len(remaining) != 0 {
+		t.Fatalf("committed removal lost: %v %v", remaining, err)
+	}
+	if err := profiles.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := credentials.QueryRow(`SELECT COUNT(*) FROM source_auth_state`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("credentials=%d error=%v", count, err)
+	}
 }

@@ -56,8 +56,8 @@ func (s *Store) List() ([]BookSource, error) {
 }
 
 // ListByCollection returns every definition owned by one collection.
-func (s *Store) ListByCollection(collectionID string) ([]*BookSource, error) {
-	rows, err := s.db.Query(`SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ? ORDER BY collection_position ASC, id ASC`, collectionID)
+func (s *Store) ListByCollection(ctx context.Context, collectionID string) ([]*BookSource, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+sourceColumns+` FROM book_sources WHERE collection_id = ? ORDER BY collection_position ASC, id ASC`, collectionID)
 	if err != nil {
 		return nil, fmt.Errorf("booksource: list collection sources: %w", err)
 	}

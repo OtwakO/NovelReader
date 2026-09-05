@@ -56,9 +56,13 @@ A02 is fixed: candidate acceptance, shelving, cancellation and expiry share one 
 
 A01 is fixed: one application-level identity boundary invokes feature-local resets and aborts previous-identity HTTP work. Search/Explore generations remain monotonic across resets; old candidate events and queued progress writes cannot repopulate new-reader state. Owner-tagged tab restoration remains available for the same reader, and browser appearance preferences are preserved. No schema or HTTP payload changes.
 
+A05/A06 are fixed: runtime cleanup is owned, capacity-counted and outside the manager mutex; cancellable waits replace lock-held draining. Collection replacement/deletion return affected IDs from their own transactions rather than a separate read. Success-record reads honor context. Manual and scheduled changes share browser/source-session invalidation; cleanup failure after commit is explicit, and scheduler sweeps reconcile even when no collections remain. API, BookSource, source-profile, reader-store, backup and auth package tests pass; runtime/quiescence/scheduler/partial-cleanup regressions pass under the race detector. OS filesystem calls remain synchronous; cancellation does not abandon owned cleanup.
+
 ## Next action
 
-Implement source/runtime cancellation and invalidation (A05/A06). A01–A04 and the original frontend test regression are complete. Promote only the relevant diagnostic reproductions into maintained tests; do not resume cosmetic decomposition automatically.
+Address upload/font/identity contracts (A07–A09), rechecking each direct boundary first. A01–A06 and the original frontend test regression are complete.
+
+Runtime approach: keep closing runtimes tracked (and counted against capacity) until their owned cleanup finishes. Start cleanup outside the manager lock; same-reader acquisition/quiescence waits on a completion signal with the caller's context, while unrelated readers remain usable. Shutdown drains tracked cleanup; no detached unbounded cleanup pool or new runtime for a still-closing reader. Propagate context to collection reads rather than wrapping context-free calls. No schema changes; rollback is code-only, but runtime lease/drain tests are required. Promote only the relevant diagnostic reproductions into maintained tests; do not resume cosmetic decomposition automatically.
 
 ## Verification
 

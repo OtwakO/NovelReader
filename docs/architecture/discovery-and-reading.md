@@ -17,6 +17,8 @@ Opening the raw editor fetches one lossless definition through `GET /api/sources
 Explore toggles use a narrow `PATCH`; full `PUT` remains deliberate definition replacement. A list
 summary must never be submitted as a replacement definition, because omitted rules would be lost.
 
+Collection mutations capture prior Source IDs in the storage transaction. Manual and scheduled changes invalidate the same source-session/browser state after commit, even if credential cleanup fails. Cross-database cleanup failures report that the mutation committed; idempotent reconciliation retries on runtime startup and scheduler sweeps, including readers with no remaining collections.
+
 ## Covers
 
 Cover display URLs are backend-issued and reader-scoped. Stored-book URLs carry a version query;

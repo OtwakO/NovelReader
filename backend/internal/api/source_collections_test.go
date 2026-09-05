@@ -135,7 +135,7 @@ func TestSourceCollectionAvailabilityPatchPreservesMemberSettings(t *testing.T) 
 	if collection.Enabled {
 		t.Fatalf("collection=%#v", collection)
 	}
-	members, err := server.sourceStore.ListByCollection(collection.ID)
+	members, err := server.sourceStore.ListByCollection(t.Context(), collection.ID)
 	if err != nil || len(members) != 2 || members[0].Enabled || !members[1].Enabled {
 		t.Fatalf("members=%#v err=%v", members, err)
 	}

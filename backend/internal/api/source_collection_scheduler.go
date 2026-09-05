@@ -20,7 +20,7 @@ const (
 
 type sourceCollectionScheduler struct {
 	runtimes  *readerRuntimeManager
-	loader    *booksource.RemoteLoader
+	load      func(context.Context, string, string, string) (booksource.RemoteDocument, error)
 	users     func(context.Context) ([]readerstore.UserID, error)
 	interval  time.Duration
 	ctx       context.Context
@@ -31,7 +31,7 @@ type sourceCollectionScheduler struct {
 
 func newSourceCollectionScheduler(runtimes *readerRuntimeManager, loader *booksource.RemoteLoader, users func(context.Context) ([]readerstore.UserID, error)) *sourceCollectionScheduler {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &sourceCollectionScheduler{runtimes: runtimes, loader: loader, users: users, interval: time.Hour, ctx: ctx, cancel: cancel, done: make(chan struct{})}
+	return &sourceCollectionScheduler{runtimes: runtimes, load: loader.Load, users: users, interval: time.Hour, ctx: ctx, cancel: cancel, done: make(chan struct{})}
 }
 
 func (s *sourceCollectionScheduler) Start() {
@@ -84,6 +84,12 @@ func (s *sourceCollectionScheduler) syncDue(ctx context.Context) {
 			}
 			continue
 		}
+		if err := runtime.sourceProfiles.Reconcile(readerCtx); err != nil {
+			cancel()
+			release()
+			slog.Warn("source collection scheduler could not reconcile owned state", "error", err)
+			continue
+		}
 		collections, err := runtime.sourceStore.ListDueCollections(readerCtx, time.Now())
 		cancel()
 		if err != nil {
@@ -106,7 +112,7 @@ func (s *sourceCollectionScheduler) syncDue(ctx context.Context) {
 func (s *sourceCollectionScheduler) syncCollection(ctx context.Context, runtime *readerRuntime, collection booksource.Collection) {
 	store := runtime.sourceStore
 	now := time.Now()
-	document, err := s.loader.Load(ctx, collection.OriginURL, collection.ETag, collection.LastModified)
+	document, err := s.load(ctx, collection.OriginURL, collection.ETag, collection.LastModified)
 	if err != nil {
 		s.recordCollectionFailure(store, collection.ID, err, now)
 		return
@@ -124,7 +130,8 @@ func (s *sourceCollectionScheduler) syncCollection(ctx context.Context, runtime 
 		s.recordCollectionFailure(store, collection.ID, errors.New("scheduled sync refused an unexpectedly empty collection"), now)
 		return
 	}
-	if _, err := replaceSourceCollection(ctx, store, runtime.sourceProfiles, runtime.searcher.DeleteSourceSession, collection.ID, sources, "", document.ETag, document.LastModified, now); err != nil {
+	invalidate := func(sourceID string) { invalidateSourceRuntime(runtime.searcher, runtime.browserSessions, sourceID) }
+	if _, err := replaceSourceCollection(ctx, store, runtime.sourceProfiles, invalidate, collection.ID, sources, "", document.ETag, document.LastModified, now); err != nil {
 		s.recordCollectionFailure(store, collection.ID, err, now)
 	}
 }

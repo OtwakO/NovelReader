@@ -391,10 +391,7 @@ func (s *Server) handleImportSources(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) closeSourceRuntime(sourceID string) {
-	if s.browserSessions != nil {
-		s.browserSessions.CloseSource(context.Background(), sourceID)
-	}
-	s.deleteSourceSession(sourceID)
+	invalidateSourceRuntime(s.searcher, s.browserSessions, sourceID)
 }
 
 func (s *Server) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
