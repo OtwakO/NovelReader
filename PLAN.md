@@ -92,13 +92,15 @@ The completed [WebView Runtime Efficiency](docs/plans/2026-09-04-webview-runtime
 
 The completed [Source Authentication and Session Foundation](docs/plans/2026-09-03-source-auth-session-foundation.md) work established reader-owned login/session state, scoped runtime-cookie management, secret-safe diagnostics, and bounded authenticated controlled-browser networking. The completed [Source Collection availability](docs/plans/2026-09-02-source-collection-availability.md) work added a collection-level Search/Explore gate while preserving every member source's individual settings and existing shelf reading. The completed [reading document foundation](docs/plans/2026-09-02-reading-document-foundation.md) established the versioned prose-document, opaque-resource, and focused prose-renderer seams around the current BookSource text/image path.
 
+The completed [architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) workstream corrected lifecycle/isolation defects, upload/font/identity contracts and reader-handler ownership, and implemented measured narrow chapter/progress lookups. Reader schema epoch 9 requires matching/fresh development data. Its plan records scoped verification and the approved local-only integration; hosted CI and deployment verification remain unperformed. Frontend decomposition stays evidence-gated.
+
 ## Active Work
 
-[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — verified corrective slices A01–A10 are complete, including lifecycle/isolation fixes, upload/font/identity contracts and runtime-owned reader HTTP handlers. Authenticated requests retain their leases without copying Server or rebuilding routes. The plan records verification, schema compatibility and remaining limitations; the [independent audit](docs/verification/independent-architecture-code-audit.md) remains baseline evidence, not the current completion checklist. A12's measured narrow chapter/progress queries and composite index are implemented and verified (reader schema epoch 9). Frontend decomposition remains evidence-gated.
+No implementation workstream is currently selected.
 
 ## Immediate Priorities
 
-1. Review/land the completed architecture corrective branch when requested; see the [active plan](docs/plans/2026-09-05-architecture-code-quality-improvements.md) for verification and compatibility limits. Do not expand into frontend decomposition or performance redesign without a concrete need.
+1. Select the next concrete product or compatibility need. Do not expand into frontend decomposition or performance redesign without evidence; consult the completed [architecture workstream](docs/plans/2026-09-05-architecture-code-quality-improvements.md) for deferred findings and compatibility limits.
 2. Select further compatibility slices from current evidence rather than historical unchecked boxes.
 3. Introduce provider capability interfaces only when a first non-BookSource provider is accepted; introduce image-sequence documents and structured locations only when that modality becomes active work.
 4. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).

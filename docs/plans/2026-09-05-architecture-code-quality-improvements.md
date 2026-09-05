@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 updated: 2026-09-05
 ---
 
@@ -94,9 +94,9 @@ Context-aware `GetChapterWithNext` and `HasReadableChapter` replace full-catalog
 
 Book, API, reader-store and backup package tests pass. Existing chapter-context coverage now checks gaps, volumes, last chapters and book scoping; the existing content-cache test also checks noncanonical/missing indices. The optional benchmark calls production methods: at 10,000 chapters, pairs take 0.0346–0.0348 ms / about 2.8 KiB and readability 0.0222–0.0230 ms / about 1 KiB. Full-catalog reads on the new index take 16.35–16.84 ms / 8.3 MiB. Same warm local setup and two 100ms runs as above; no end-to-end speed claim. No broader test suite or frontend change was needed.
 
-## Next action
+## Closure
 
-A01–A10 and A12 are complete. Review/land the corrective branch when requested. A11 frontend workflow decomposition remains deferred until a concrete change justifies it. Manual browser smoke and exact-image verification remain unperformed; no merge, data reset or deployment has been performed.
+A01–A10 and A12 are complete. The user approved concluding the workstream and fast-forwarding local `main` using the existing scoped verification, without publishing the branch or running another test round. Remote `main` was fetched and confirmed to be an ancestor; no hosted CI run exists for this branch. A11 frontend workflow decomposition remains deferred until a concrete change justifies it. Manual browser smoke and exact-image verification remain unperformed. No data reset or deployment was performed; schema epoch 9 requires matching/fresh development data. Git records the local integration; pushing remains a separate action.
 
 ## Verification
 
