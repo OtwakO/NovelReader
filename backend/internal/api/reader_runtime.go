@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -38,6 +39,9 @@ func (m *readerRuntimeManager) openRuntime(ctx context.Context, userID readersto
 	sourceStore := booksource.NewStore(home.DB())
 	bookStore := book.NewStore(home.DB())
 	fontStore := fontstore.NewStore(home.DB(), home.Files())
+	if err := fontStore.Cleanup(ctx); err != nil {
+		slog.Warn("reader font cleanup remains pending", "error", err)
+	}
 	sourceProfiles := sourceprofile.NewStore(home.DB(), home.CredentialsDB())
 	if err := sourceProfiles.Reconcile(ctx); err != nil {
 		_ = home.Close()

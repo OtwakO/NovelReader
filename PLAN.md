@@ -94,7 +94,7 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 
 ## Active Work
 
-[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — an [independent audit of `33b9a1f`](docs/verification/independent-architecture-code-audit.md) supersedes the earlier completeness/prioritization claims. The auth deadline extraction is retained. Browser cleanup ownership, candidate terminal transitions, frontend identity isolation and the failing frontend test are corrected; 189 frontend tests now pass. Source/runtime cleanup is now tracked outside global locks, and collection mutation/invalidation is transaction-aware. Upload limits are enforced and tested; font persistence and identity contracts are next; broader decomposition and performance work remain evidence-driven.
+[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — an [independent audit of `33b9a1f`](docs/verification/independent-architecture-code-audit.md) supersedes the earlier completeness/prioritization claims. The auth deadline extraction is retained. Browser cleanup ownership, candidate terminal transitions, frontend identity isolation and the failing frontend test are corrected; 189 frontend tests now pass. Source/runtime cleanup is now tracked outside global locks, and collection mutation/invalidation is transaction-aware. Upload limits are enforced and tested; font cleanup ownership is implemented with a fresh-schema change; identity normalization is next; broader decomposition and performance work remain evidence-driven.
 
 ## Immediate Priorities
 

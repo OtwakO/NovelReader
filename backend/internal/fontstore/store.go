@@ -2,6 +2,7 @@
 package fontstore
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -49,28 +50,43 @@ func initSchema(db schemaExecutor) error {
 	if err != nil {
 		return fmt.Errorf("fontstore: init: %w", err)
 	}
-	return nil
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS font_cleanup (file_name TEXT PRIMARY KEY)`)
+	return err
 }
 
-// Add saves a font file and adds a DB record.
+// Add publishes a new ID; same-name replacement retires the previous file.
 func (s *Store) Add(name, id string, data []byte) (*Font, error) {
-	if err := s.files.WriteFile(data, 0o600, readerstore.FontsDirectory, id); err != nil {
-		return nil, fmt.Errorf("fontstore: write: %w", err)
-	}
-
-	f := &Font{
-		ID:        id,
-		Name:      name,
-		FileName:  id,
-		FileSize:  int64(len(data)),
-		CreatedAt: time.Now().UnixMilli(),
-	}
-
-	_, err := s.db.Exec(`INSERT OR REPLACE INTO fonts (id, name, file_name, file_size, created_at) VALUES (?,?,?,?,?)`,
-		f.ID, f.Name, f.FileName, f.FileSize, f.CreatedAt)
+	tx, err := s.db.Begin()
 	if err != nil {
-		_ = s.files.Remove(readerstore.FontsDirectory, id) // cleanup file on DB failure
-		return nil, fmt.Errorf("fontstore: db: %w", err)
+		return nil, err
+	}
+	defer tx.Rollback()
+	// Acquire the write lock before inspecting/replacing metadata. Cleanup uses
+	// the same lock, including when another Store opens for this reader.
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO font_cleanup SELECT file_name FROM fonts WHERE name = ?`, name); err != nil {
+		return nil, err
+	}
+	var exists bool
+	if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM fonts WHERE id = ?)`, id).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, fmt.Errorf("fontstore: font ID already exists")
+	}
+	f := &Font{ID: id, Name: name, FileName: id, FileSize: int64(len(data)), CreatedAt: time.Now().UnixMilli()}
+	if _, err := tx.Exec(`INSERT INTO fonts (id, name, file_name, file_size, created_at) VALUES (?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET id=excluded.id, file_name=excluded.file_name, file_size=excluded.file_size, created_at=excluded.created_at`, f.ID, f.Name, f.FileName, f.FileSize, f.CreatedAt); err != nil {
+		return nil, err
+	}
+	if err := s.files.WriteFile(data, 0o600, readerstore.FontsDirectory, id); err != nil {
+		return nil, errors.Join(fmt.Errorf("fontstore: write: %w", err), s.removeFile(id))
+	}
+	if err := tx.Commit(); err != nil {
+		// Commit errors can be ambiguous: keep the file rather than deleting bytes
+		// potentially referenced by committed metadata.
+		return nil, fmt.Errorf("fontstore: commit font %s: %w", id, err)
+	}
+	if err := s.Cleanup(context.Background()); err != nil {
+		return f, fmt.Errorf("font saved; obsolete file cleanup pending: %w", err)
 	}
 	return f, nil
 }
@@ -113,16 +129,23 @@ func (s *Store) Read(id string) (Font, []byte, error) {
 	return f, data, nil
 }
 
-// Delete removes a font.
 func (s *Store) Delete(id string) error {
-	var fileName string
-	err := s.db.QueryRow(`SELECT file_name FROM fonts WHERE id = ?`, id).Scan(&fileName)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	tx, err := s.db.Begin()
+	if err != nil {
 		return err
 	}
-	if fileName != "" {
-		_ = s.files.Remove(readerstore.FontsDirectory, fileName)
+	defer tx.Rollback()
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO font_cleanup SELECT file_name FROM fonts WHERE id = ?`, id); err != nil {
+		return err
 	}
-	_, err = s.db.Exec(`DELETE FROM fonts WHERE id = ?`, id)
-	return err
+	if _, err := tx.Exec(`DELETE FROM fonts WHERE id = ?`, id); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if err := s.Cleanup(context.Background()); err != nil {
+		return fmt.Errorf("font deleted; file cleanup pending: %w", err)
+	}
+	return nil
 }

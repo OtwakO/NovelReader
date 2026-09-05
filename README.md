@@ -120,6 +120,8 @@ You can also set `REGISTRATION_INVITE_CODE` to require an invite code.
 
 ## Local development
 
+The current font-cleanup schema requires fresh Reader Data; older reader schemas are rejected rather than migrated during internal development. No data is reset automatically. Use the [development reset runbook](docs/runbooks/development-data-reset.md) if needed; preserve a cold copy before resetting anything you want to keep.
+
 ### Docker Compose from the checkout
 
 Run from the repository root with Docker Desktop using Linux containers (or Docker Engine + Compose):

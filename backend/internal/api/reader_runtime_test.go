@@ -10,6 +10,7 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/sourceexec"
 	"github.com/otwako/novelreader/internal/sourceinteraction"
@@ -20,7 +21,7 @@ import (
 const runtimeTestUser readerstore.UserID = "11111111-1111-4111-8111-111111111111"
 
 func TestReaderRuntimeQuiesceDrainsWorkPurgesStateAndRejectsNewAcquisitions(t *testing.T) {
-	readers, err := readerstore.NewManager(t.TempDir(), 2, booksource.ReaderSchema(), sourceprofile.ReaderSchema())
+	readers, err := readerstore.NewManager(t.TempDir(), 2, booksource.ReaderSchema(), sourceprofile.ReaderSchema(), fontstore.ReaderSchema())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +87,7 @@ func (b *blockedRuntimeBrowser) CloseInteractive(context.Context, string, string
 func TestRuntimeEvictionKeepsOwnershipWithoutBlockingOtherReaders(t *testing.T) {
 	const other readerstore.UserID = "22222222-2222-4222-8222-222222222222"
 	const third readerstore.UserID = "33333333-3333-4333-8333-333333333333"
-	readers, err := readerstore.NewManager(t.TempDir(), 3, booksource.ReaderSchema(), sourceprofile.ReaderSchema())
+	readers, err := readerstore.NewManager(t.TempDir(), 3, booksource.ReaderSchema(), sourceprofile.ReaderSchema(), fontstore.ReaderSchema())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -1017,7 +1018,7 @@ func (s *Server) handleUploadFont(w http.ResponseWriter, r *http.Request) {
 		name = strings.TrimSuffix(header.Filename, filepath.Ext(header.Filename))
 	}
 
-	id := fmt.Sprintf("%d", TimeNowMillis()) // ponytail: simple timestamp ID
+	id := rand.Text()
 	f, err := s.fontStore.Add(name, id, data)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

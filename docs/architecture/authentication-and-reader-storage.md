@@ -63,6 +63,12 @@ scripts, or embedded values; portable archives are not secret-sanitized source d
 
 See the completed [source interaction plan](../plans/2026-08-30-source-interaction.md) for implementation history.
 
+## Font file ownership
+
+Font replacement/deletion records obsolete filenames in `font_cleanup` in the same SQLite transaction as the metadata change. Cleanup runs immediately and retries at reader-runtime opening; failures remain recorded and visible without blocking unrelated reading. SQLite write transactions serialize mutations and cleanup across Store instances. Missing files are safe to acknowledge on retry.
+
+This covers committed file retirements, not atomicity between SQLite and new file writes: a process interruption before publishing a new file's metadata can still leave an unreferenced file. No filesystem garbage collector or general job framework is installed.
+
 ## Backup boundaries
 
 ### Complete deployment backup
