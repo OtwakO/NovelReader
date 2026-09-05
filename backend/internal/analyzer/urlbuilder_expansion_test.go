@@ -30,6 +30,12 @@ func TestBuildURLExpansionPhaseOrder(t *testing.T) {
 			header:   "Example",
 		},
 		{
+			name:     "nested object braces are not template delimiters",
+			template: `/search,{{JSON.stringify({headers: {'X-Query':key}})}}`,
+			wantURL:  "https://example.com/search",
+			header:   "Example",
+		},
+		{
 			name:     "URL script runs before interpolation",
 			template: "/search?q={{key}}\n@js:result.replace('{{key}}', 'from-script')",
 			wantURL:  "https://example.com/search?q=from-script",

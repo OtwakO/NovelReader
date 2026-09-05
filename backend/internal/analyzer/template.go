@@ -65,17 +65,9 @@ func replaceTemplateExpressions(input string, evaluate func(string) (string, err
 				continue
 			}
 			switch {
-			case index+1 < len(input) && input[index:index+2] == "{{":
-				depth++
-				index++
-			case index+1 < len(input) && input[index:index+2] == "}}":
-				if depth == 0 {
-					end = index
-					index = len(input)
-				} else {
-					depth--
-					index++
-				}
+			case depth == 0 && index+1 < len(input) && input[index:index+2] == "}}":
+				end = index
+				index = len(input)
 			case char == '{':
 				depth++
 			case char == '}':
