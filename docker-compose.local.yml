@@ -17,8 +17,10 @@ services:
       PUID: "1000"
       PGID: "1000"
       PUBLIC_URL: ""
-      # Set a private setup token only when creating the first administrator.
-      ADMIN_BOOTSTRAP_TOKEN: ""
+      # PLACEHOLDER ONLY: replace this with a strong private token before first startup.
+      # Use your replacement token to create the first administrator, then clear it
+      # and recreate the app container. Never commit your real setup token.
+      ADMIN_BOOTSTRAP_TOKEN: "testbootstrap"
       ADMIN_RECOVERY_TOKEN: ""
       REGISTRATION_ENABLED: "true"
       REGISTRATION_INVITE_CODE: ""
