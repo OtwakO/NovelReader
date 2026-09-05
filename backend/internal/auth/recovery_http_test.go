@@ -206,7 +206,10 @@ func TestRecoveryHTTPHandlerRevokesSessionCreatedAfterDeadline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	result := make(chan error, 1)
-	go func() { _, err := handler.createSessionWithinDeadline(ctx, account, 101); result <- err }()
+	go func() {
+		_, err := createAuthenticatedSessionWithinDeadline(ctx, handler.sessions, account, 101, handler.afterSessionCreate, "test")
+		result <- err
+	}()
 	credential := <-created
 	if err := <-result; !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error=%v", err)

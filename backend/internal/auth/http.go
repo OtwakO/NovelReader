@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -323,7 +322,7 @@ func (h *HTTPHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusInternalServerError, "login unavailable")
 		return
 	}
-	credential, err := h.createSessionWithinDeadline(ctx, account, h.now().Unix())
+	credential, err := createAuthenticatedSessionWithinDeadline(ctx, h.sessions, account, h.now().Unix(), h.afterSessionCreate, "login")
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		w.Header().Set("Retry-After", "1")
 		writeAuthError(w, http.StatusServiceUnavailable, "login temporarily unavailable")
@@ -354,62 +353,6 @@ func (h *HTTPHandler) authenticateWithinDeadline(ctx context.Context, username, 
 		return authenticated.account, authenticated.err
 	case <-ctx.Done():
 		return Account{}, ctx.Err()
-	}
-}
-
-func (h *HTTPHandler) createSessionWithinDeadline(ctx context.Context, account Account, now int64) (SessionCredential, error) {
-	result := make(chan struct {
-		credential SessionCredential
-		err        error
-	}, 1)
-	go func() {
-		credential, err := h.sessions.CreateAuthenticated(ctx, account, now)
-		if err == nil && h.afterSessionCreate != nil {
-			h.afterSessionCreate(credential)
-		}
-		result <- struct {
-			credential SessionCredential
-			err        error
-		}{credential: credential, err: err}
-	}()
-	select {
-	case created := <-result:
-		return created.credential, created.err
-	case <-ctx.Done():
-		go h.revokeEventuallyCreatedSession(result)
-		return SessionCredential{}, ctx.Err()
-	}
-}
-
-func (h *HTTPHandler) revokeEventuallyCreatedSession(result <-chan struct {
-	credential SessionCredential
-	err        error
-}) {
-	created := <-result
-	if created.err != nil || created.credential.Token == "" {
-		return
-	}
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	for {
-		err := h.sessions.Logout(cleanupCtx, created.credential.Token)
-		if err == nil {
-			return
-		}
-		if cleanupCtx.Err() != nil {
-			slog.Error("auth: failed to revoke session created after login timeout", "error", err)
-			return
-		}
-		timer := time.NewTimer(10 * time.Millisecond)
-		select {
-		case <-cleanupCtx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
-			slog.Error("auth: failed to revoke session created after login timeout", "error", cleanupCtx.Err())
-			return
-		case <-timer.C:
-		}
 	}
 }
 
@@ -469,7 +412,7 @@ func (h *HTTPHandler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusInternalServerError, "registration unavailable")
 		return
 	}
-	credential, err := h.createSessionWithinDeadline(ctx, account, h.now().Unix())
+	credential, err := createAuthenticatedSessionWithinDeadline(ctx, h.sessions, account, h.now().Unix(), h.afterSessionCreate, "registration")
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "registration unavailable")
 		return

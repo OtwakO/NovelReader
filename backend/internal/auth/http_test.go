@@ -188,7 +188,7 @@ func TestHTTPHandlerRevokesSessionCommittedAtDeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 	go func() {
-		_, createErr := handler.createSessionWithinDeadline(ctx, account, 100)
+		_, createErr := createAuthenticatedSessionWithinDeadline(ctx, handler.sessions, account, 100, handler.afterSessionCreate, "test")
 		result <- createErr
 	}()
 	credential := <-created
@@ -230,7 +230,7 @@ func TestHTTPHandlerBoundsSessionCreationWhileRevocationBarrierIsBusy(t *testing
 		t.Fatal(err)
 	}
 	startedAt := time.Now()
-	_, err = handler.createSessionWithinDeadline(ctx, account, 100)
+	_, err = createAuthenticatedSessionWithinDeadline(ctx, handler.sessions, account, 100, handler.afterSessionCreate, "test")
 	if !errors.Is(err, context.DeadlineExceeded) || time.Since(startedAt) >= 200*time.Millisecond {
 		store.sessionGuard.unlock()
 		t.Fatalf("session deadline error=%v elapsed=%s", err, time.Since(startedAt))

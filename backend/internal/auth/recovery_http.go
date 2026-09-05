@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -133,7 +132,7 @@ func (h *RecoveryHTTPHandler) handleRecovery(w http.ResponseWriter, r *http.Requ
 
 	sessionCtx, sessionCancel := context.WithTimeout(r.Context(), h.timeout)
 	defer sessionCancel()
-	credential, err := h.createSessionWithinDeadline(sessionCtx, account, now.Unix())
+	credential, err := createAuthenticatedSessionWithinDeadline(sessionCtx, h.sessions, account, now.Unix(), h.afterSessionCreate, "recovery")
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		w.Header().Set("Retry-After", "1")
 		writeAuthError(w, http.StatusServiceUnavailable, "recovery temporarily unavailable")
@@ -167,62 +166,6 @@ func (h *RecoveryHTTPHandler) performRecoveryWithinDeadline(ctx context.Context,
 		return completed.account, completed.err
 	case <-ctx.Done():
 		return Account{}, ctx.Err()
-	}
-}
-
-func (h *RecoveryHTTPHandler) createSessionWithinDeadline(ctx context.Context, account Account, now int64) (SessionCredential, error) {
-	result := make(chan struct {
-		credential SessionCredential
-		err        error
-	}, 1)
-	go func() {
-		credential, err := h.sessions.CreateAuthenticated(ctx, account, now)
-		if err == nil && h.afterSessionCreate != nil {
-			h.afterSessionCreate(credential)
-		}
-		result <- struct {
-			credential SessionCredential
-			err        error
-		}{credential: credential, err: err}
-	}()
-	select {
-	case created := <-result:
-		return created.credential, created.err
-	case <-ctx.Done():
-		go h.revokeEventuallyCreatedSession(result)
-		return SessionCredential{}, ctx.Err()
-	}
-}
-
-func (h *RecoveryHTTPHandler) revokeEventuallyCreatedSession(result <-chan struct {
-	credential SessionCredential
-	err        error
-}) {
-	created := <-result
-	if created.err != nil || created.credential.Token == "" {
-		return
-	}
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	for {
-		err := h.sessions.Logout(cleanupCtx, created.credential.Token)
-		if err == nil {
-			return
-		}
-		if cleanupCtx.Err() != nil {
-			slog.Error("auth: failed to revoke session created after recovery timeout", "error", err)
-			return
-		}
-		timer := time.NewTimer(10 * time.Millisecond)
-		select {
-		case <-cleanupCtx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
-			slog.Error("auth: failed to revoke session created after recovery timeout", "error", cleanupCtx.Err())
-			return
-		case <-timer.C:
-		}
 	}
 }
 

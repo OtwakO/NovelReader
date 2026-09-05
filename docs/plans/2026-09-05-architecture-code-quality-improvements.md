@@ -217,7 +217,7 @@ For every phase:
 - [x] Restore and enforce the frontend lint contract.
 - [ ] Improve Reader frontend cohesion.
 - [ ] Improve Source Management frontend cohesion.
-- [ ] Consolidate authenticated-session deadline handling.
+- [x] Consolidate authenticated-session deadline handling.
 - [ ] Improve scheduled Source Collection error handling and deadlines.
 - [ ] Remove individually verified obsolete interfaces.
 - [ ] Add and run SourceSession registry benchmarks; optimize only if justified.
@@ -230,11 +230,13 @@ The audit is verified and documented. The branch is `review/architecture-code-au
 
 F01 is implemented: the five violating Vue components now follow the declared Options API and ordering/style rules, and the publish workflow runs lint before frontend tests and build. The conversions preserved local component ownership and did not introduce shared abstractions or alter product behavior.
 
-The next phase should remain separate from the lint work. Broader frontend and backend refactors remain tracked and evidence-gated.
+F08 is implemented: login, registration, setup, and recovery now call one package-local authenticated-session deadline operation. Late-session revocation, retry bounds, callback timing, and flow-specific diagnostics have one owner in `backend/internal/auth/session_deadline.go`; handler-specific pass-through methods were removed.
+
+Broader frontend and backend refactors remain tracked and evidence-gated.
 
 ## Next Action
 
-Review and commit the completed F01 phase, then select the next independently reviewable issue. The recommended next phase is F08, consolidating the duplicated authenticated-session deadline operation, because it is a localized backend consistency fix with a clear contract. F02 and F03 are larger design changes and should be discussed before choosing component boundaries.
+Review and commit the completed F08 phase. Then address F09 as a localized reliability improvement: define scheduler operation deadlines and make acquisition, listing, sync-recording, and shutdown failures observable without adding concurrency. F02 and F03 are larger design changes and should be discussed before choosing component boundaries.
 
 ## Verification
 
@@ -257,6 +259,14 @@ F01 verification completed on 2026-09-05:
 - Affected Reader and Source Browser component tests passed.
 - Full frontend Vitest run passed: 53 test files.
 - `npm run build` passed, including `vue-tsc --noEmit` and the Vite production build.
+- `git diff --check` passed.
+
+F08 verification completed on 2026-09-05:
+
+- `go test ./internal/auth` passed.
+- `go test -race ./internal/auth` passed.
+- The existing login, recovery, and setup late-session tests exercise the shared operation, including deadline return and retry after transient session-guard contention.
+- AFT no longer reports the three-handler authenticated-session duplication group.
 - `git diff --check` passed.
 
 Still needed:
