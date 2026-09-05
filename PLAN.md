@@ -88,7 +88,8 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 ## Active Work
 
 [GitHub Actions runtime](docs/plans/github-actions-runtime.md) — conservative workflow optimizations:
-documentation-only path exclusions, lean npm installation, and concurrent verified-image staging.
+documentation-only path exclusions, lean npm installation, concurrent verified-image staging,
+and native Go compilation reuse through matching test/build flags.
 Local validation passed; hosted timing and registry integration remain to be measured.
 Completed handoffs above are historical context, not active backlogs.
 

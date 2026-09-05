@@ -31,11 +31,12 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY backend/ ./
 COPY build/opencc.env /tmp/opencc.env
 COPY --from=opencc-build /opt/opencc /opt/opencc
+# Match compilation flags so the release build can reuse dependencies compiled by tests.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     . /tmp/opencc.env \
     && export PKG_CONFIG_PATH=/opt/opencc/lib/pkgconfig LD_LIBRARY_PATH=/opt/opencc/lib CGO_ENABLED=1 \
-    && go test -tags=opencc_native \
+    && go test -tags=opencc_native -trimpath \
        -ldflags="-X github.com/otwako/novelreader/internal/chineseconv.EngineVersion=${OPENCC_VERSION}" \
        ./internal/chineseconv ./internal/api \
     && go build -tags=opencc_native -trimpath \
