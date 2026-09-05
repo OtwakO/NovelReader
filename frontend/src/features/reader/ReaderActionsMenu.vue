@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, nextTick, useId } from 'vue';
+import { defineComponent, nextTick } from 'vue';
 import ReaderControlIcon from './ReaderControlIcon.vue';
 
 export default defineComponent({
@@ -7,9 +7,8 @@ export default defineComponent({
   components: { ReaderControlIcon },
   props: { refreshDisabled: Boolean, refreshing: Boolean },
   emits: ['bookmarks', 'refetch'],
-  setup: () => ({ menuId: useId() }),
-  data: () => ({ open: false }),
-  mounted() { document.addEventListener('pointerdown', this.onOutside); },
+  data: () => ({ open: false, menuId: '' }),
+  mounted() { this.menuId = `reader-actions-${this.$.uid}`; document.addEventListener('pointerdown', this.onOutside); },
   beforeUnmount() { document.removeEventListener('pointerdown', this.onOutside); },
   methods: {
     close(focus = false) { this.open=false; if(focus)(this.$refs.trigger as HTMLButtonElement).focus(); },
@@ -33,7 +32,7 @@ export default defineComponent({
 <template>
   <div class="reader-actions" @keydown="onKeydown" @focusout="onFocusOut">
     <button ref="trigger" class="trigger" type="button" :aria-label="$t('reader.actions.title')" aria-haspopup="menu" :aria-expanded="open" :aria-controls="menuId" @click="toggle" @keydown.down.prevent="!open && toggle()">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
     </button>
     <div v-if="open" :id="menuId" class="actions-panel" role="menu" :aria-label="$t('reader.actions.title')">
       <button type="button" role="menuitem" @click="choose('bookmarks')"><ReaderControlIcon name="bookmark" />{{ $t('reader.bookmarks.title') }}</button>

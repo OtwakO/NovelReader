@@ -57,8 +57,8 @@ export default defineComponent({
       const content=await this.chapterLoader.load(index);
       if(request!==this.generation)return;
       let mode:ReaderPreferences['chineseConversion'];
-      let display={chapters:this.chapters,content:content as ChapterContent|null};
-      let conversionError='';
+      let display;
+      let conversionError:string;
       // A mode change during loading must not commit text converted for the old preference.
       do {
         mode=this.preferences.chineseConversion;

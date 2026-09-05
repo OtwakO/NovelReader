@@ -214,7 +214,7 @@ For every phase:
 - [x] Reverify findings against code, CI configuration, structural callers, lint, diagnostics, and architecture documents.
 - [x] Classify findings as defects, maintainability issues, measurement hypotheses, partial findings, or rejected static-analysis noise.
 - [x] Record the accepted improvement approach and active workstream.
-- [ ] Restore and enforce the frontend lint contract.
+- [x] Restore and enforce the frontend lint contract.
 - [ ] Improve Reader frontend cohesion.
 - [ ] Improve Source Management frontend cohesion.
 - [ ] Consolidate authenticated-session deadline handling.
@@ -226,19 +226,15 @@ For every phase:
 
 ## Current State
 
-The audit is verified and documented. No production code has been changed. The branch is `review/architecture-code-audit`.
+The audit is verified and documented. The branch is `review/architecture-code-audit`.
 
-The first implementation phase is intentionally narrow: restore the existing frontend lint contract and make lint an authoritative CI gate. Broader frontend and backend refactors remain tracked but should not be combined with that phase.
+F01 is implemented: the five violating Vue components now follow the declared Options API and ordering/style rules, and the publish workflow runs lint before frontend tests and build. The conversions preserved local component ownership and did not introduce shared abstractions or alter product behavior.
+
+The next phase should remain separate from the lint work. Broader frontend and backend refactors remain tracked and evidence-gated.
 
 ## Next Action
 
-Fix F01 only:
-
-1. retain the currently declared Options API convention;
-2. resolve the 7 lint errors and 3 warnings without changing behavior;
-3. add `npm run lint` to the frontend CI job;
-4. run focused affected tests, then `npm run lint`, `npm test`, and `npm run build`;
-5. record the completed verification here before starting F02 or F03.
+Review and commit the completed F01 phase, then select the next independently reviewable issue. The recommended next phase is F08, consolidating the duplicated authenticated-session deadline operation, because it is a localized backend consistency fix with a clear contract. F02 and F03 are larger design changes and should be discussed before choosing component boundaries.
 
 ## Verification
 
@@ -255,9 +251,17 @@ Verified on 2026-09-05:
 - Structural caller checks distinguish caller-free `Searcher.Search` and `Executor.Build` from legacy/test-used interfaces.
 - Git working tree was clean before documentation changes.
 
+F01 verification completed on 2026-09-05:
+
+- `npm run lint` passed with zero warnings or errors.
+- Affected Reader and Source Browser component tests passed.
+- Full frontend Vitest run passed: 53 test files.
+- `npm run build` passed, including `vue-tsc --noEmit` and the Vite production build.
+- `git diff --check` passed.
+
 Still needed:
 
-- focused verification for each implementation phase;
+- focused verification for each remaining implementation phase;
 - benchmarks before accepting F06 or F07 as performance defects;
 - visible browser checks when frontend layout or interaction changes;
 - final broad regression verification before completing the workstream.

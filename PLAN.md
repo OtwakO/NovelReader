@@ -94,7 +94,7 @@ The completed [Source Authentication and Session Foundation](docs/plans/2026-09-
 
 ## Active Work
 
-[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — the repository-wide audit has been verified and classified. Work is proceeding in small phases, beginning with restoring the declared frontend lint contract and adding lint to CI; broader cohesion and performance work remains evidence-gated.
+[Architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) — the repository-wide audit has been verified and classified. The frontend lint contract is restored and enforced in CI; remaining cohesion and performance work is proceeding in separate evidence-gated phases.
 
 ## Immediate Priorities
 

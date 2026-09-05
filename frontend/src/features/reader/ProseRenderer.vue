@@ -1,24 +1,30 @@
-<script setup lang="ts">
-import { ref, watch } from 'vue';
+<script lang="ts">
+import { defineComponent, type PropType } from 'vue';
 import type { ProseDocument } from '../../api/reader';
 
-const props = defineProps<{
-  document: ProseDocument;
-  fallbackImageAlt: string;
-  imageUnavailable: string;
-  showImages: boolean;
-}>();
-
-const failedResources = ref(new Set<string>());
-watch(() => props.document, () => { failedResources.value = new Set(); });
-
-function imageAlt(alt?: string): string {
-  return alt || props.fallbackImageAlt;
-}
-
-function markImageFailed(href: string) {
-  failedResources.value = new Set(failedResources.value).add(href);
-}
+export default defineComponent({
+  name: 'ProseRenderer',
+  props: {
+    document: { type: Object as PropType<ProseDocument>, required: true },
+    fallbackImageAlt: { type: String, required: true },
+    imageUnavailable: { type: String, required: true },
+    showImages: { type: Boolean, required: true },
+  },
+  data: () => ({ failedResources: new Set<string>() }),
+  watch: {
+    document() {
+      this.failedResources = new Set();
+    },
+  },
+  methods: {
+    imageAlt(alt?: string): string {
+      return alt || this.fallbackImageAlt;
+    },
+    markImageFailed(href: string) {
+      this.failedResources = new Set(this.failedResources).add(href);
+    },
+  },
+});
 </script>
 
 <template>
