@@ -70,9 +70,27 @@ A10 is complete: root `Server` owns lifecycle/auth/backup; runtime-owned `reader
 
 Verification: API suite passes, including the full API package under the race detector. A focused cached-handler/extra-candidate-lease/quiesce/replacement test and concurrent equal-ID reader requests pass. Backup and server-command package tests pass; all backend packages compile (`go test ./... -run '^$'`, not a full backend test run). AFT inspection timed out and supplies no fresh diagnostic evidence. No frontend, Docker, real-worker or live-source tests were run for A10. No schema/HTTP contract change; rollback is code-only.
 
+### A12 measurement checkpoint
+
+At `b9a2344`, the chapter-content and progress handlers still materialize the full catalog. An optional synthetic benchmark (`backend/internal/book/chapter_lookup_benchmark_test.go`) compares that storage read with chapter-pair and readability SQL prototypes, using both the current book-only index and a prototype `(book_id, idx)` index. Production behavior/schema are unchanged.
+
+Run: `cd backend && go test ./internal/book -run '^$' -bench '^BenchmarkChapterLookup$' -benchmem -benchtime=100ms -count=2`.
+
+Environment: Go 1.27.0, linux/amd64, Ryzen 9 5900X, temporary reader databases with normal readerstore setup. Two warm local runs; synthetic midpoint lookups, no network, HTTP, browser, concurrent writers or cold-cache measurement.
+
+| Chapters | Full catalog | Pair, existing index | Pair, composite index |
+|---|---|---|---|
+| 100 | 0.310–0.329 ms | 0.113–0.117 ms | 0.037–0.053 ms |
+| 1,000 | 2.315–2.385 ms | 0.255–0.261 ms | 0.035–0.036 ms |
+| 10,000 | 26.37–27.14 ms | 1.85–1.89 ms | 0.037–0.040 ms |
+
+At 10,000 chapters, allocation falls from 8.3 MiB/full read to about 2.8 KiB/pair. Indexed readability checks take 0.024–0.028 ms and about 1 KiB. These results justify a narrow query/index proposal, not a claim about end-to-end reader speed. The prototype uses contiguous indices; implementation must preserve missing-index handling, immediate catalog successor semantics (including volumes), existing path-index validation and source/state-version progress guards.
+
+Bounded branch check: reused per-slice review/test evidence and checked the corrective commit sequence plus selected ownership transitions. No new blocker was found in those examined paths. This was not a new exhaustive audit; manual browser smoke and exact-image/Docker verification remain unperformed.
+
 ## Next action
 
-A01–A10 and the original frontend test regression are complete. Remaining frontend workflow decomposition and performance proposals are deferred until a concrete feature/change or measurement justifies them. Do not resume cosmetic decomposition or unmeasured performance work automatically.
+A01–A10 and the original frontend test regression are complete. Confirm the A12 implementation scope: narrow chapter-pair/readability queries and a composite index, preserving HTTP behavior with focused existing tests and one gap/volume regression. Frontend workflow decomposition remains deferred until a concrete change justifies it. No merge, data reset or deployment has been performed.
 
 ## Verification
 
