@@ -454,7 +454,7 @@ func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src book
 	transport := s.newTransport(s.workflowClient(), session)
 	defer transport.CloseIdleConnections()
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
-	executor.SetURLContext(&analyzer.URLContext{JSLib: src.JSLib})
+	executor.SetURLContext(&analyzer.URLContext{Source: src.ScriptData(), JSLib: src.JSLib})
 	spec, err := executor.BuildContext(srcCtx, src.SearchURL, query, 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
@@ -575,7 +575,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 	an := analyzer.New(html, baseURL, s.jsVM, s.cache)
 	an.SetJSLib(src.JSLib)
 	an.SetSourceState(state)
-	an.SetSourceData(sourceContext(src))
+	an.SetSourceData(src.ScriptData())
 	an.SetContext(ctx)
 	elements, err := an.GetElements(bookListRule)
 	if err != nil {
@@ -610,7 +610,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		elAn.SetContent(el)
 		elAn.SetJSLib(src.JSLib)
 		elAn.SetSourceState(state)
-		elAn.SetSourceData(sourceContext(src))
+		elAn.SetSourceData(src.ScriptData())
 		elAn.SetContext(ctx)
 
 		r := SearchResult{

@@ -15,6 +15,7 @@ func setExecutorContext(executor *sourceexec.Executor, src booksource.BookSource
 
 func setExecutorContextWithBookData(executor *sourceexec.Executor, src booksource.BookSource, bookData map[string]interface{}, b *Book, current, next *Chapter, baseURL string) {
 	executor.SetURLContext(&analyzer.URLContext{
+		Source:      src.ScriptData(),
 		Book:        bookData,
 		Chapter:     chapterContextOrNil(b, current, baseURL),
 		NextChapter: chapterContextOrNil(b, next, baseURL),
@@ -31,7 +32,7 @@ func setAnalyzerContextWithBookData(an *analyzer.Analyzer, src booksource.BookSo
 }
 
 func setAnalyzerContextMaps(an *analyzer.Analyzer, src booksource.BookSource, state analyzer.SourceState, bookData, chapterData, nextData map[string]interface{}) {
-	setAnalyzerContextData(an, src, state, sourceContext(src), bookData, chapterData, nextData)
+	setAnalyzerContextData(an, src, state, src.ScriptData(), bookData, chapterData, nextData)
 }
 
 func setAnalyzerContextData(an *analyzer.Analyzer, src booksource.BookSource, state analyzer.SourceState, sourceData, bookData, chapterData, nextData map[string]interface{}) {
@@ -90,13 +91,6 @@ func syncBookFromContext(b *Book, values map[string]interface{}) {
 	if value := stringValue("tocUrl"); value != "" {
 		b.TocURL = value
 	}
-}
-
-func sourceContext(src booksource.BookSource) map[string]interface{} {
-	body, _ := json.Marshal(src)
-	var values map[string]interface{}
-	_ = json.Unmarshal(body, &values)
-	return values
 }
 
 func bookContext(b *Book, src booksource.BookSource) map[string]interface{} {

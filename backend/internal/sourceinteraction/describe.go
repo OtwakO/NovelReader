@@ -133,11 +133,7 @@ func (d *Describer) evaluate(ctx context.Context, source booksource.BookSource, 
 		script = "(" + script + ")"
 	}
 	wrapped := source.JSLib + "\n" + script
-	bindings := analyzer.URLBindings(&analyzer.URLContext{JSLib: source.JSLib}, source.BookSourceURL, session)
-	bindings["source"] = map[string]interface{}{
-		"bookSourceUrl":  source.BookSourceURL,
-		"bookSourceName": source.BookSourceName,
-	}
+	bindings := analyzer.URLBindings(&analyzer.URLContext{Source: source.ScriptData(), JSLib: source.JSLib}, source.BookSourceURL, session)
 	value, err := d.jsVM.EvalContext(ctx, wrapped, "", source.BookSourceURL, bindings)
 	if err != nil {
 		return nil, fmt.Errorf("sourceinteraction: evaluate loginUi: %w", err)

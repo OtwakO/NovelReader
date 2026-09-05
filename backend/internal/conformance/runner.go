@@ -161,7 +161,7 @@ func RunSearchWithOptions(ctx context.Context, raw []byte, indices []int, query 
 		}
 		transport = sourceexec.NewRoutingTransport(transport, browser)
 		executor := sourceexec.NewExecutorWithSession(jsVM, transport, session)
-		executor.SetURLContext(&analyzer.URLContext{JSLib: src.JSLib})
+		executor.SetURLContext(&analyzer.URLContext{Source: src.ScriptData(), JSLib: src.JSLib})
 		spec, buildErr := executor.BuildContext(sourceCtx, src.SearchURL, query, 1, src.BookSourceURL)
 		if buildErr != nil {
 			record.Classification = "js_or_request_build_failure"

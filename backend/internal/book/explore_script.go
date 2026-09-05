@@ -54,9 +54,8 @@ func (s *Searcher) evaluateExploreJavaScriptWithBridge(ctx context.Context, sour
 		return nil, err
 	}
 	state.SetRequestHeaders(sourceHeaders)
-	urlContext := &analyzer.URLContext{JSLib: source.JSLib}
+	urlContext := &analyzer.URLContext{Source: source.ScriptData(), JSLib: source.JSLib}
 	bindings := analyzer.URLBindings(urlContext, source.BookSourceURL, state)
-	bindings["source"] = sourceContext(source)
 	bindings["infoMap"] = exploreInfoMap(state)
 	if bridge != nil {
 		bindings["jsBridge"] = bridge

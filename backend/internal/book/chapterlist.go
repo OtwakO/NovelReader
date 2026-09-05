@@ -71,7 +71,7 @@ func (p *ChapterListParser) ParseChapterList(tocURL, baseURL string) ([]Chapter,
 		p.bookData = bookContext(p.book, p.src)
 	}
 	if p.sourceData == nil {
-		p.sourceData = sourceContext(p.src)
+		p.sourceData = p.src.ScriptData()
 	}
 	if rules == nil {
 		return nil, fmt.Errorf("toc: no rules for %s", p.src.BookSourceName)
@@ -247,10 +247,10 @@ for (var __chapterIndex = 0; __chapterIndex < chapters.length; __chapterIndex++)
   }
 }
 ({chapters: chapters, errors: __formatErrors});`
-	data := &analyzer.URLContext{Book: p.bookData, JSLib: p.src.JSLib}
+	data := &analyzer.URLContext{Source: p.src.ScriptData(), Book: p.bookData, JSLib: p.src.JSLib}
 	bindings := analyzer.URLBindings(data, baseURL, p.state)
 	bindings["chapters"] = chapterValues
-	bindings["source"] = sourceContext(p.src)
+	bindings["source"] = p.src.ScriptData()
 	ctx := p.ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -343,7 +343,7 @@ func syncChapterFromContext(chapter *Chapter, values map[string]interface{}) {
 
 func (p *ChapterListParser) parsePage(body, pageURL, listRule string, rules map[string]string) ([]Chapter, string, error) {
 	if p.sourceData == nil {
-		p.sourceData = sourceContext(p.src)
+		p.sourceData = p.src.ScriptData()
 	}
 	an := analyzer.New(body, pageURL, p.jsVM, p.cache)
 	an.SetContext(p.ctx)

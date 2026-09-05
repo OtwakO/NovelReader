@@ -82,7 +82,7 @@ func evaluateSourceHeaders(ctx context.Context, vm *analyzer.JSVM, source bookso
 		return nil, fmt.Errorf("source header JavaScript engine unavailable")
 	}
 	bindings := analyzer.URLBindings(nil, source.BookSourceURL, state)
-	bindings["source"] = sourceContext(source)
+	bindings["source"] = source.ScriptData()
 	value, err := analyzer.EvalURLScript(ctx, vm, header[4:], "", source.BookSourceURL, nil, bindings)
 	if err != nil {
 		return nil, err

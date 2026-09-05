@@ -18,7 +18,7 @@ func TestCoverDecodeScriptRunsWithByteInput(t *testing.T) {
 		[]byte("fixture-cover"),
 		source.BookSourceURL,
 		map[string]interface{}{
-			"source": sourceContext(source),
+			"source": source.ScriptData(),
 			"book":   bookContext(&Book{Name: "fixture", SourceURL: source.BookSourceURL}, source),
 		},
 	)

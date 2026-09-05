@@ -150,7 +150,7 @@ func (s *Searcher) applyImageDecode(ctx context.Context, src booksource.BookSour
 	}
 	bindings := map[string]interface{}{
 		"sourceState": session,
-		"source":      sourceContext(src),
+		"source":      src.ScriptData(),
 		"book":        bookContext(b, src),
 	}
 	if chapter != nil {

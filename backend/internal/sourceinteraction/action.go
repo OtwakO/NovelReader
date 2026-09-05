@@ -136,11 +136,7 @@ func (d *Describer) act(ctx context.Context, sourceID string, request ActionRequ
 			return ActionResult{}, fmt.Errorf("sourceinteraction: JavaScript engine unavailable")
 		}
 		bridge := interactionBridge(&authentication, originalLoginInfo, &effects, browserBodies)
-		bindings := analyzer.URLBindings(&analyzer.URLContext{JSLib: current.source.JSLib}, current.source.BookSourceURL, session)
-		bindings["source"] = map[string]interface{}{
-			"bookSourceUrl":  current.source.BookSourceURL,
-			"bookSourceName": current.source.BookSourceName,
-		}
+		bindings := analyzer.URLBindings(&analyzer.URLContext{Source: current.source.ScriptData(), JSLib: current.source.JSLib}, current.source.BookSourceURL, session)
 		bindings["jsBridge"] = bridge
 		bindings["isLongClick"] = request.IsLongClick
 		script := current.source.JSLib + "\n" + current.source.LoginURL + "\n" + action

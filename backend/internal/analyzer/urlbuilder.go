@@ -73,6 +73,7 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 
 // URLContext carries the same typed crawl objects used by page analyzers.
 type URLContext struct {
+	Source      map[string]interface{}
 	Book        map[string]interface{}
 	Chapter     map[string]interface{}
 	NextChapter map[string]interface{}
@@ -291,6 +292,9 @@ func urlBindings(data *URLContext, key string, page int, baseURL string, state S
 	}
 	if data == nil {
 		return bindings
+	}
+	if data.Source != nil {
+		bindings["source"] = data.Source
 	}
 	if data.Book != nil {
 		bindings["book"] = data.Book
