@@ -64,6 +64,7 @@ func TestOperationPrefersPrimaryMetadataAndCommitsWithoutRecrawl(t *testing.T) {
 			delay = 80 * time.Millisecond
 		}
 		fixture := newBindingFixture(t, credibleText(fmt.Sprintf("source-%d", index)), delay)
+		fixture.source.RuleBookInfo = `{"name":".name@text","tocUrl":".toc@href","intro":"@js:if (java.get('binding') !== source.bookSourceUrl) throw new Error('wrong binding variables'); java.put('checked', 'yes')"}`
 		inputs = append(inputs, fixture)
 		sources[fixture.server.URL] = fixture.source
 	}
@@ -71,8 +72,9 @@ func TestOperationPrefersPrimaryMetadataAndCommitsWithoutRecrawl(t *testing.T) {
 	books := &memoryBooks{}
 	var released atomic.Int32
 	input := Input{Name: "Fixture Novel", Author: "Fixture Author", SourceURL: inputs[0].server.URL, BookURL: inputs[0].server.URL + "/book", LastChapter: "Primary provider hint", ShelveBookID: "stored"}
+	input.VariableMap = fmt.Sprintf(`{"binding":%q}`, inputs[0].server.URL)
 	for _, fixture := range inputs[1:] {
-		input.AlternateSources = append(input.AlternateSources, book.AltSource{SourceURL: fixture.server.URL, BookURL: fixture.server.URL + "/book"})
+		input.AlternateSources = append(input.AlternateSources, book.AltSource{SourceURL: fixture.server.URL, BookURL: fixture.server.URL + "/book", VariableMap: fmt.Sprintf(`{"binding":%q}`, fixture.server.URL)})
 	}
 	manager := NewManager(Policy{Concurrency: 5, StageTimeout: 300 * time.Millisecond, OperationTimeout: 2 * time.Second, Retention: time.Minute})
 	snapshot, err := manager.Start("reader", input, Runtime{Sources: sources, Books: books, Searcher: searcher, Release: func() { released.Add(1) }})
@@ -98,6 +100,17 @@ func TestOperationPrefersPrimaryMetadataAndCommitsWithoutRecrawl(t *testing.T) {
 	final := waitForState(t, manager, "reader", snapshot.ID, StateCommitted)
 	if final.StoredBook == nil || final.StoredBook.SourceURL != inputs[0].server.URL {
 		t.Fatalf("final=%+v", final)
+	}
+	if final.StoredBook.Intro != "yes" || final.StoredBook.VariableMap != fmt.Sprintf(`{"binding":%q,"checked":"yes"}`, inputs[0].server.URL) {
+		t.Fatalf("candidate lost updated book variables: %+v", final.StoredBook)
+	}
+	for _, alternate := range final.StoredBook.AlternateSources {
+		if alternate.VariableMap != fmt.Sprintf(`{"binding":%q}`, alternate.SourceURL) {
+			t.Fatalf("candidate lost alternate variables: %+v", alternate)
+		}
+	}
+	if final.Attempts[0].VariableMap != input.VariableMap {
+		t.Fatal("attempt must retain the input snapshot, not later crawl mutations")
 	}
 	if final.StoredBook.ActiveSource == nil || final.StoredBook.ActiveSource.LastChapter != "Primary provider hint" {
 		t.Fatalf("active binding display snapshot=%+v", final.StoredBook.ActiveSource)

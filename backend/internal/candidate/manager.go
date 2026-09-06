@@ -39,6 +39,7 @@ type Runtime struct {
 }
 
 type Input struct {
+	VariableMap      string           `json:"variableMap,omitempty"`
 	Name             string           `json:"name"`
 	Author           string           `json:"author,omitempty"`
 	CoverURL         string           `json:"coverUrl,omitempty"`
@@ -73,13 +74,14 @@ type Stage string
 const StageBookInfo Stage = "book_info"
 
 type Attempt struct {
-	SourceName string `json:"sourceName,omitempty"`
-	SourceID   string `json:"sourceId"`
-	SourceURL  string `json:"sourceUrl"`
-	BookURL    string `json:"bookUrl"`
-	Stage      Stage  `json:"stage,omitempty"`
-	State      string `json:"state"`
-	Reason     string `json:"reason,omitempty"`
+	VariableMap string `json:"variableMap,omitempty"` // input snapshot, not mutable crawl state
+	SourceName  string `json:"sourceName,omitempty"`
+	SourceID    string `json:"sourceId"`
+	SourceURL   string `json:"sourceUrl"`
+	BookURL     string `json:"bookUrl"`
+	Stage       Stage  `json:"stage,omitempty"`
+	State       string `json:"state"`
+	Reason      string `json:"reason,omitempty"`
 }
 
 type Selection struct {
@@ -157,8 +159,8 @@ type operation struct {
 }
 
 type binding struct {
-	sourceID, sourceURL, bookURL, sourceName, sourceGroup, lastChapter string
-	capabilities                                                       []string
+	sourceID, sourceURL, bookURL, sourceName, sourceGroup, lastChapter, variableMap string
+	capabilities                                                                    []string
 }
 type resolved struct {
 	book      *book.Book
@@ -194,6 +196,9 @@ func (m *Manager) Start(ownerID string, input Input, runtime Runtime) (Snapshot,
 	if strings.TrimSpace(input.Name) == "" || strings.TrimSpace(input.SourceURL) == "" || strings.TrimSpace(input.BookURL) == "" {
 		return Snapshot{}, errors.New("candidate name, sourceUrl, and bookUrl are required")
 	}
+	if err := validateInputVariables(input); err != nil {
+		return Snapshot{}, err
+	}
 	id, err := randomID()
 	if err != nil {
 		return Snapshot{}, err
@@ -207,7 +212,7 @@ func (m *Manager) Start(ownerID string, input Input, runtime Runtime) (Snapshot,
 	queue := bindings(input)
 	attempts := make([]Attempt, len(queue))
 	for i, binding := range queue {
-		attempts[i] = Attempt{SourceName: binding.sourceName, SourceID: binding.sourceID, SourceURL: binding.sourceURL, BookURL: binding.bookURL, State: "queued"}
+		attempts[i] = Attempt{VariableMap: binding.variableMap, SourceName: binding.sourceName, SourceID: binding.sourceID, SourceURL: binding.sourceURL, BookURL: binding.bookURL, State: "queued"}
 	}
 	op := &operation{id: id, ownerID: ownerID, input: input, runtime: runtime, policy: m.policy, ctx: ctx, cancel: cancel, subscribers: make(map[chan Snapshot]struct{}), commitID: strings.TrimSpace(input.ShelveBookID), done: make(chan struct{})}
 	op.snapshot = Snapshot{ID: id, State: StateRunning, Known: len(queue), Attempts: attempts, AutomaticCommit: op.commitID != "", UpdatedAt: time.Now()}

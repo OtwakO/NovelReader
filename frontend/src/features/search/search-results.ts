@@ -70,7 +70,7 @@ export function mergeSearchResults(current: SearchResult[], incoming: SearchResu
       item.shelfBookId ||= match.shelfBookId;
       item.alternateSources = alternatives([
         ...(match.alternateSources ?? []),
-        { sourceId: match.sourceId, sourceUrl: match.sourceUrl, bookUrl: match.bookUrl, sourceName: match.sourceName, sourceGroup: match.sourceGroup, capabilities: match.capabilities },
+        { sourceId: match.sourceId, sourceUrl: match.sourceUrl, bookUrl: match.bookUrl, sourceName: match.sourceName, sourceGroup: match.sourceGroup, capabilities: match.capabilities, variableMap: match.variableMap },
         ...(item.alternateSources ?? []),
       ], item);
       merged[index] = item;
@@ -78,7 +78,7 @@ export function mergeSearchResults(current: SearchResult[], incoming: SearchResu
       match.shelfBookId ||= item.shelfBookId;
       match.alternateSources = alternatives([
         ...(match.alternateSources ?? []),
-        { sourceId: item.sourceId, sourceUrl: item.sourceUrl, bookUrl: item.bookUrl, sourceName: item.sourceName, sourceGroup: item.sourceGroup, capabilities: item.capabilities },
+        { sourceId: item.sourceId, sourceUrl: item.sourceUrl, bookUrl: item.bookUrl, sourceName: item.sourceName, sourceGroup: item.sourceGroup, capabilities: item.capabilities, variableMap: item.variableMap },
         ...(item.alternateSources ?? []),
       ], match);
     }

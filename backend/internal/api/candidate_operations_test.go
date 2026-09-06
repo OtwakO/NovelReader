@@ -88,7 +88,13 @@ func TestCandidateOperationHTTPCommitDoesNotRecrawl(t *testing.T) {
 	server, closeDB := newWorkflowAPIServer(t)
 	defer closeDB()
 	importWorkflowSource(t, server, fixture.URL)
-	started := performAPIRequest(server, http.MethodPost, "/api/candidate-resolutions", candidateRequestBody(fixture.URL, nil))
+	var input map[string]any
+	if err := json.Unmarshal(candidateRequestBody(fixture.URL, nil), &input); err != nil {
+		t.Fatal(err)
+	}
+	input["variableMap"] = `{"request":"original"}`
+	requestBody, _ := json.Marshal(input)
+	started := performAPIRequest(server, http.MethodPost, "/api/candidate-resolutions", requestBody)
 	var snapshot candidate.Snapshot
 	if err := json.Unmarshal(started.Body.Bytes(), &snapshot); err != nil {
 		t.Fatal(err)
@@ -111,6 +117,12 @@ func TestCandidateOperationHTTPCommitDoesNotRecrawl(t *testing.T) {
 	committed := performAPIRequest(server, http.MethodPost, "/api/candidate-resolutions/"+snapshot.ID+"/shelve", body)
 	if committed.Code != http.StatusCreated {
 		t.Fatalf("commit status=%d body=%s", committed.Code, committed.Body.String())
+	}
+	if err := json.Unmarshal(committed.Body.Bytes(), &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.StoredBook == nil || snapshot.StoredBook.VariableMap != input["variableMap"] || snapshot.Attempts[0].VariableMap != input["variableMap"] {
+		t.Fatalf("HTTP handoff lost variables: %+v", snapshot)
 	}
 	retried := performAPIRequest(server, http.MethodPost, "/api/candidate-resolutions/"+snapshot.ID+"/shelve", body)
 	if retried.Code != http.StatusCreated && retried.Code != http.StatusOK {
@@ -164,5 +176,25 @@ func importWorkflowSource(t *testing.T, server *Server, sourceURL string) {
 	response := performAPIRequest(server, http.MethodPost, "/api/sources", rawSource)
 	if response.Code != http.StatusOK {
 		t.Fatalf("import status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestCandidateOperationRejectsInvalidVariableSnapshots(t *testing.T) {
+	server, closeDB := newWorkflowAPIServer(t)
+	defer closeDB()
+	for _, raw := range []string{`not-json`, `null`, `[]`, `{"token":null}`, `{"token":42}`} {
+		for _, alternate := range []bool{false, true} {
+			input := map[string]any{"name": "Fixture", "sourceUrl": "https://example.test", "bookUrl": "/book"}
+			if alternate {
+				input["alternateSources"] = []map[string]string{{"sourceUrl": "https://other.test", "bookUrl": "/book", "variableMap": raw}}
+			} else {
+				input["variableMap"] = raw
+			}
+			body, _ := json.Marshal(input)
+			response := performAPIRequest(server, http.MethodPost, "/api/candidate-resolutions", body)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "variableMap must encode") {
+				t.Fatalf("alternate=%v invalid snapshot %q: status=%d body=%s", alternate, raw, response.Code, response.Body.String())
+			}
+		}
 	}
 }

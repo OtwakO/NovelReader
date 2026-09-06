@@ -1,4 +1,5 @@
 export interface AltSource {
+  variableMap?: string;
   sourceId: string;
   sourceUrl: string;
   bookUrl: string;
@@ -10,6 +11,7 @@ export interface AltSource {
 }
 
 export interface SearchResult {
+  variableMap?: string;
   name: string;
   author: string;
   coverUrl: string;
@@ -31,6 +33,7 @@ export interface SearchResult {
 }
 
 export interface Book {
+  variableMap?: string;
   id: string;
   name: string;
   author: string;

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   cancelCandidateOperation,
   candidateOperationMatches,
+  candidateBindingSignature,
   candidateWasCommitted,
   clearCandidateCommittedBook,
   commitCandidateOperation,
@@ -19,11 +20,11 @@ describe('candidate operation client', () => {
   it('starts one asynchronous operation and strips client-only fields', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'operation', state: 'running', known: 2, completed: 0, active: 1, attempts: [], updatedAt: new Date().toISOString() }), { status: 202, headers: { 'Content-Type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchMock);
-    await startCandidateOperation(result, 'book-id');
+    await startCandidateOperation({ ...result, variableMap: '{"request":"primary"}' }, 'book-id');
     const call = fetchMock.mock.calls[0];
     expect(call?.[0]).toContain('/candidate-resolutions');
     const body = JSON.parse(String(call?.[1]?.body));
-    expect(body).toMatchObject({ shelveBookId: 'book-id', sourceId: 'source', sourceUrl: 'source', alternateSources: result.alternateSources });
+    expect(body).toMatchObject({ variableMap: '{"request":"primary"}', shelveBookId: 'book-id', sourceId: 'source', sourceUrl: 'source', alternateSources: result.alternateSources });
     expect(body.score).toBeUndefined();
   });
 
@@ -36,6 +37,19 @@ describe('candidate operation client', () => {
     expect(candidateOperationMatches(result, matching as never)).toBe(true);
     expect(candidateOperationMatches({ ...result, sourceId: ' source ', sourceUrl: ' source ', bookUrl: ' /book ' }, matching as never)).toBe(true);
     expect(candidateOperationMatches(result, stale as never)).toBe(false);
+  });
+
+  it('invalidates reuse when either binding has a different variable snapshot', () => {
+    const candidate = { ...result, variableMap: '{"token":"primary"}', alternateSources: [{ ...result.alternateSources[0]!, variableMap: '{"token":"alternate"}' }] };
+    const snapshot = { attempts: [candidate, ...candidate.alternateSources] };
+    expect(candidateOperationMatches(candidate, snapshot as never)).toBe(true);
+    for (const changed of [
+      { ...candidate, variableMap: '{"token":"new"}' },
+      { ...candidate, alternateSources: [{ ...candidate.alternateSources[0]!, variableMap: '' }] },
+    ]) {
+      expect(candidateOperationMatches(changed, snapshot as never)).toBe(false);
+      expect(candidateBindingSignature(changed)).not.toBe(candidateBindingSignature(candidate));
+    }
   });
 
   it('recognizes committed logical books across different source bindings', () => {

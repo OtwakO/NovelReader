@@ -3,6 +3,7 @@ import { readerRequestSignal, request } from '../../api/transport';
 import { normalizedBookIdentity } from '../books/book-identity';
 
 export interface BookCandidate {
+  variableMap?: string;
   name: string; author?: string; coverUrl?: string; coverDisplayUrl?: string; intro?: string; kind?: string; lastChapter?: string;
   updateTime?: string; wordCount?: string; sourceName?: string; sourceGroup?: string; capabilities?: string[]; sourceId: string; sourceUrl: string; bookUrl: string; alternateSources?: AltSource[];
 }
@@ -20,6 +21,7 @@ export type CandidateOperationState = 'running' | 'verified' | 'committed' | 'ex
 export type CandidateOperationStage = 'book_info';
 
 export interface CandidateOperationAttempt {
+  variableMap?: string;
   sourceName?: string;
   sourceId: string;
   sourceUrl: string;
@@ -57,6 +59,7 @@ const committedLogicalPrefix = 'committed-logical:';
 function payload(candidate: BookCandidate, shelveBookId?: string) {
   return {
     name: candidate.name,
+    ...(candidate.variableMap !== undefined ? { variableMap: candidate.variableMap } : {}),
     ...(candidate.author !== undefined ? { author: candidate.author } : {}),
     ...(candidate.coverUrl !== undefined ? { coverUrl: candidate.coverUrl } : {}),
     ...(candidate.intro !== undefined ? { intro: candidate.intro } : {}),
@@ -80,12 +83,12 @@ export function candidateOperationKey(candidate: BookCandidate): string {
 }
 
 export function candidateBindingSignature(candidate: BookCandidate): string {
-  return candidateBindings(candidate).join('\u0001');
+  return JSON.stringify(candidateBindings(candidate));
 }
 
 export function candidateOperationMatches(candidate: BookCandidate, snapshot: CandidateOperationSnapshot): boolean {
   const expected = candidateBindings(candidate);
-  const actual = (snapshot.attempts ?? []).map(attempt => bindingKey(attempt.sourceId, attempt.bookUrl));
+  const actual = (snapshot.attempts ?? []).map(bindingSnapshotKey);
   return expected.length === actual.length && expected.every((key, index) => key === actual[index]);
 }
 
@@ -179,13 +182,19 @@ function logicalCommitKey(candidate: BookCandidate) {
 
 function candidateBindings(candidate: BookCandidate): string[] {
   const seen = new Set<string>();
-  const bindings = [{ sourceId: candidate.sourceId, bookUrl: candidate.bookUrl }, ...(candidate.alternateSources ?? [])];
+  const bindings = [candidate, ...(candidate.alternateSources ?? [])];
   return bindings.flatMap(binding => {
     const key = bindingKey(binding.sourceId, binding.bookUrl);
     if (!binding.sourceId || !binding.bookUrl || seen.has(key)) return [];
     seen.add(key);
-    return [key];
+    return [bindingSnapshotKey(binding)];
   });
+}
+
+// Rule variables stay opaque. Even a formatting-only change conservatively
+// invalidates reuse; the frontend must not interpret source execution state.
+function bindingSnapshotKey(binding: { sourceId: string; bookUrl?: string; variableMap?: string }) {
+  return JSON.stringify([bindingKey(binding.sourceId, binding.bookUrl), binding.variableMap ?? '']);
 }
 
 function bindingKey(sourceId: string, bookUrl = '') {

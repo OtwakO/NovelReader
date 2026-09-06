@@ -132,7 +132,7 @@ func main() {
 		if result.Name == "" || result.BookURL == "" {
 			continue
 		}
-		candidate := &book.Book{Name: result.Name, Author: result.Author, CoverURL: result.CoverURL, Intro: result.Intro, Kind: result.Kind, LastChapter: result.LastChapter, WordCount: result.WordCount, UpdateTime: result.UpdateTime, SourceURL: source.BookSourceURL, BookURL: result.BookURL, Origin: source.BookSourceName}
+		candidate := &book.Book{VariableMap: result.VariableMap, Name: result.Name, Author: result.Author, CoverURL: result.CoverURL, Intro: result.Intro, Kind: result.Kind, LastChapter: result.LastChapter, WordCount: result.WordCount, UpdateTime: result.UpdateTime, SourceURL: source.BookSourceURL, BookURL: result.BookURL, Origin: source.BookSourceName}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		detail, detailErr = searcher.GetBookInfoForBookContext(ctx, source, candidate, result.BookURL)
 		cancel()
