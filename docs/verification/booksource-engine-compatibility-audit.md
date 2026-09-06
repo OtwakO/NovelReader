@@ -33,14 +33,14 @@ Evidence:
 
 ### E02 — Search never takes the documented detail-page branches
 
-**Impact:** valid search redirects become `no elements matched bookList rule`. Captured responses from samples 26 and 33 satisfy their unchanged Book Info rules.
+**Impact:** valid search redirects become `no elements matched bookList rule`. Sample 26 supplies a confirmed live case. Captured responses from 26 and 33 satisfied their unchanged Book Info rules, but that alone did not establish fallback eligibility for 33.
 
 `book/search.go::parseSearchResultWithRuleStateContextAtURL` rejects an empty list and does not inspect `bookUrlPattern`. Android `BookList.kt:62–108` and Rust `service/search.rs:832–874` both:
 
 1. parse as detail when the response URL matches the configured pattern;
 2. when no pattern is configured and the list is empty, attempt detail parsing.
 
-Evidence: two deterministic local-HTTP cases fail on the unchanged production search path (pattern match and empty-list fallback). The current detail parser successfully parses two captured live responses. Sample 39 also returned a detail-shaped page, but its own detail rules did **not** pass the counterfactual: its current validity remains unresolved and is not counted as a proven live recovery.
+Evidence: two deterministic local-HTTP cases failed on the baseline production search path (pattern match and empty-list fallback). Detail-only counterfactuals parsed two captured responses. Subsequent unchanged-source replay established that sample 33 has a nonmatching configured pattern, which excludes the reference's empty-list fallback; do not count it as a proven engine recovery or bypass its pattern. Sample 39 also returned a detail-shaped page, but its own detail rules did **not** pass the counterfactual: its validity remains unresolved. Current implementation and replay outcomes are in the active plan.
 
 **Recommended correction:** implement these branches in the shared search response workflow, reusing existing detail parsing and preserving response URL, variables and source identity. Do not invent selectors, retry another endpoint, or return a book merely because the page has a title. Existing “empty result URL uses response URL” tests cover a different behavior and missed this gap.
 

@@ -36,7 +36,9 @@ func TestRunSearchGoldenClassifications(t *testing.T) {
 	raw, err := json.Marshal([]map[string]interface{}{
 		makeSource("/success", 0, rule),
 		makeSource("/zero", 0, rule),
-		makeSource("/mismatch", 0, rule),
+		// A missing required rule is invalid; an unmatched selector alone now
+		// legitimately permits the reference's empty-list detail fallback.
+		makeSource("/mismatch", 0, map[string]string{"name": ".book@text"}),
 		makeSource("/webview", 1, rule),
 	})
 	if err != nil {

@@ -113,18 +113,6 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 	if err != nil {
 		return ExplorePage{}, newExploreError("result_rule_failed", "result", "Could not parse Explore results", false, err)
 	}
-	if len(books) == 0 && session.source.BookURLPattern == "" {
-		book := &Book{SourceID: session.source.ID, SourceURL: session.source.BookSourceURL, BookURL: baseURL, Origin: session.source.BookSourceName}
-		bookData := bookContext(book, session.source)
-		bookData["variableMap"] = variables
-		book, detailErr := s.parseBookInfoResponse(pageCtx, session.source, response.Body, baseURL, book, bookData, session.state)
-		if detailErr != nil {
-			return ExplorePage{}, newExploreError("result_rule_failed", "result", "Could not parse Explore detail fallback", false, detailErr)
-		}
-		if book.Name != "" {
-			books = append(books, searchResultFromBook(book))
-		}
-	}
 	if reverse {
 		for left, right := 0, len(books)-1; left < right; left, right = left+1, right-1 {
 			books[left], books[right] = books[right], books[left]
@@ -169,13 +157,4 @@ func retainExploreBooks(session *exploreSession, state *explorePageState, books 
 		unique = append(unique, result)
 	}
 	return unique, false
-}
-
-func searchResultFromBook(book *Book) SearchResult {
-	return SearchResult{
-		Name: book.Name, Author: book.Author, CoverURL: book.CoverURL, Intro: book.Intro, Kind: book.Kind,
-		LastChapter: book.LastChapter, UpdateTime: book.UpdateTime, WordCount: book.WordCount,
-		BookURL: book.BookURL, SourceID: book.SourceID, SourceURL: book.SourceURL, SourceName: book.Origin,
-		VariableMap: book.VariableMap,
-	}
 }

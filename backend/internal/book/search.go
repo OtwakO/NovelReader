@@ -496,7 +496,7 @@ func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src book
 	if resultBaseURL == "" {
 		resultBaseURL = spec.URL
 	}
-	results, err := s.parseDiscoveryResults(srcCtx, src, resp.Body, src.RuleSearch, resultBaseURL, session, discoveryParseOptions{limit: limit, variables: variables})
+	results, err := s.parseDiscoveryResults(srcCtx, src, resp.Body, src.RuleSearch, resultBaseURL, session, discoveryParseOptions{search: true, limit: limit, variables: variables})
 	if err != nil {
 		return nil, err
 	}
@@ -559,20 +559,18 @@ func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, sr
 }
 
 func (s *Searcher) parseSearchResultWithRuleStateContextAtURL(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState) ([]SearchResult, error) {
-	return s.parseDiscoveryResults(ctx, src, html, ruleJSON, baseURL, state, discoveryParseOptions{limit: maxResultsPerSource})
+	return s.parseDiscoveryResults(ctx, src, html, ruleJSON, baseURL, state, discoveryParseOptions{search: true, limit: maxResultsPerSource})
 }
 
 type discoveryParseOptions struct {
-	limit        int // zero leaves the source-native Explore page uncapped
+	search       bool // only Search forces detail parsing on a matching URL pattern
+	limit        int  // zero leaves the source-native Explore page uncapped
 	allowEmpty   bool
 	strictFields bool
 	variables    map[string]string
 }
 
-func (s *Searcher) parseDiscoveryResults(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState, options discoveryParseOptions) ([]SearchResult, error) {
-	if baseURL == "" {
-		baseURL = src.BookSourceURL
-	}
+func (s *Searcher) parseDiscoveryList(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState, options discoveryParseOptions) ([]SearchResult, error) {
 	rules := parseRuleJSON(ruleJSON)
 	if rules == nil {
 		return nil, fmt.Errorf("search: invalid rule JSON for %s", src.BookSourceName)
@@ -583,9 +581,6 @@ func (s *Searcher) parseDiscoveryResults(ctx context.Context, src booksource.Boo
 	}
 
 	variables := options.variables
-	if variables == nil {
-		variables = make(map[string]string)
-	}
 	an := analyzer.New(html, baseURL, s.jsVM, s.cache)
 	an.SetRuleData(variables)
 	an.SetJSLib(src.JSLib)
@@ -594,10 +589,11 @@ func (s *Searcher) parseDiscoveryResults(ctx context.Context, src booksource.Boo
 	an.SetContext(ctx)
 	elements, err := an.GetElements(bookListRule)
 	if err != nil {
-		if options.allowEmpty && errors.Is(err, analyzer.ErrNoElements) {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("search: bookList: %w", err)
+	}
+
+	if len(elements) == 0 {
+		return nil, analyzer.ErrNoElements
 	}
 
 	// Search caps early; source-native Explore pages deliberately pass no cap.

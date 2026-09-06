@@ -8,6 +8,7 @@ require (
 	github.com/antchfx/htmlquery v1.3.6
 	github.com/bogdanfinn/fhttp v0.6.8
 	github.com/bogdanfinn/tls-client v1.15.2-0.20260702071810-b790a311273f
+	github.com/dlclark/regexp2/v2 v2.2.1
 	github.com/dop251/goja v0.0.0-20260701091749-b07b74453ea9
 	github.com/longbridge/opencc v0.3.14-0.20241210034039-839f616e7a29
 	golang.org/x/crypto v0.53.0
@@ -27,7 +28,6 @@ require (
 	github.com/bogdanfinn/quic-go-utls v1.0.9-utls // indirect
 	github.com/bogdanfinn/utls v1.7.7-barnius // indirect
 	github.com/bogdanfinn/websocket v1.5.5-barnius // indirect
-	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
