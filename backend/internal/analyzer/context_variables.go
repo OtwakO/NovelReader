@@ -5,23 +5,16 @@ import "fmt"
 type evaluationVariables struct {
 	book           map[string]interface{}
 	chapter        map[string]interface{}
-	fallbackGet    func(string) string
-	fallbackPut    func(string, string)
+	ruleData       map[string]string
 	bookCleanup    func()
 	chapterCleanup func()
 }
 
-func newEvaluationVariables(book, chapter map[string]interface{}, analyzer *Analyzer, state SourceState) *evaluationVariables {
-	variables := &evaluationVariables{book: book, chapter: chapter}
-	if analyzer != nil && state != nil {
-		variables.fallbackGet = func(key string) string {
-			if value, ok := state.GetMemory(key).(string); ok {
-				return value
-			}
-			return ""
-		}
-		variables.fallbackPut = func(key, value string) { state.PutMemory(key, value) }
+func newEvaluationVariables(book, chapter map[string]interface{}, ruleData map[string]string) *evaluationVariables {
+	if ruleData == nil {
+		ruleData = make(map[string]string)
 	}
+	variables := &evaluationVariables{book: book, chapter: chapter, ruleData: ruleData}
 	variables.bookCleanup = bindVariableMethods(book)
 	variables.chapterCleanup = bindVariableMethods(chapter)
 	return variables
@@ -51,10 +44,7 @@ func (v *evaluationVariables) Get(key string) string {
 	if value, ok := getContextVariable(v.book, key); ok {
 		return value
 	}
-	if v.fallbackGet != nil {
-		return v.fallbackGet(key)
-	}
-	return ""
+	return v.ruleData[key]
 }
 
 func (v *evaluationVariables) Put(key, value string) string {
@@ -65,8 +55,8 @@ func (v *evaluationVariables) Put(key, value string) string {
 		putContextVariable(v.chapter, key, value)
 	} else if v.book != nil {
 		putContextVariable(v.book, key, value)
-	} else if v.fallbackPut != nil {
-		v.fallbackPut(key, value)
+	} else if v.ruleData != nil {
+		v.ruleData[key] = value
 	}
 	return value
 }

@@ -73,7 +73,8 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 	transport := s.newTransport(s.workflowClientWithTimeout(s.exploreTimeout()), session.state)
 	defer transport.CloseIdleConnections()
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session.state)
-	executor.SetURLContext(&analyzer.URLContext{Source: session.source.ScriptData(), JSLib: session.source.JSLib})
+	variables := make(map[string]string)
+	executor.SetURLContext(&analyzer.URLContext{Source: session.source.ScriptData(), RuleData: variables, JSLib: session.source.JSLib})
 	spec, err := executor.BuildContext(pageCtx, kind.URL, "", request.Page, session.source.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
@@ -108,13 +109,15 @@ func (s *Searcher) GetExplorePage(ctx context.Context, request ExplorePageReques
 	if err != nil {
 		return ExplorePage{}, newExploreError("result_rule_failed", "result", "Explore result rules are invalid", false, err)
 	}
-	books, err := s.parseSearchResultWithRuleStateContextAtURLLimit(pageCtx, session.source, response.Body, ruleJSON, baseURL, session.state, 0, true, true)
+	books, err := s.parseDiscoveryResults(pageCtx, session.source, response.Body, ruleJSON, baseURL, session.state, discoveryParseOptions{allowEmpty: true, strictFields: true, variables: variables})
 	if err != nil {
 		return ExplorePage{}, newExploreError("result_rule_failed", "result", "Could not parse Explore results", false, err)
 	}
 	if len(books) == 0 && session.source.BookURLPattern == "" {
 		book := &Book{SourceID: session.source.ID, SourceURL: session.source.BookSourceURL, BookURL: baseURL, Origin: session.source.BookSourceName}
-		book, detailErr := s.parseBookInfoResponse(pageCtx, session.source, response.Body, baseURL, book, nil, session.state)
+		bookData := bookContext(book, session.source)
+		bookData["variableMap"] = variables
+		book, detailErr := s.parseBookInfoResponse(pageCtx, session.source, response.Body, baseURL, book, bookData, session.state)
 		if detailErr != nil {
 			return ExplorePage{}, newExploreError("result_rule_failed", "result", "Could not parse Explore detail fallback", false, detailErr)
 		}
@@ -172,6 +175,7 @@ func searchResultFromBook(book *Book) SearchResult {
 	return SearchResult{
 		Name: book.Name, Author: book.Author, CoverURL: book.CoverURL, Intro: book.Intro, Kind: book.Kind,
 		LastChapter: book.LastChapter, UpdateTime: book.UpdateTime, WordCount: book.WordCount,
-		BookURL: book.BookURL, SourceURL: book.SourceURL, SourceName: book.Origin,
+		BookURL: book.BookURL, SourceID: book.SourceID, SourceURL: book.SourceURL, SourceName: book.Origin,
+		VariableMap: book.VariableMap,
 	}
 }

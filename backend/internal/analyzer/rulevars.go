@@ -225,22 +225,12 @@ func replaceRuleGets(rule string, get func(string) string) string {
 	}
 }
 
-const ruleVariablePrefix = "__rule_var:"
-
 func (a *Analyzer) putRuleVariable(key, value string) {
-	if a.sourceState != nil {
-		a.sourceState.PutVariable(ruleVariablePrefix+key, value)
-		return
-	}
-	if a.ruleVars == nil {
-		a.ruleVars = make(map[string]string)
-	}
-	a.ruleVars[key] = value
+	variables := evaluationVariables{book: a.book, chapter: a.chapter, ruleData: a.ruleVars}
+	variables.Put(key, value)
 }
 
 func (a *Analyzer) getRuleVariable(key string) string {
-	if a.sourceState != nil {
-		return a.sourceState.GetVariable(ruleVariablePrefix + key)
-	}
-	return a.ruleVars[key]
+	variables := evaluationVariables{book: a.book, chapter: a.chapter, ruleData: a.ruleVars}
+	return variables.Get(key)
 }

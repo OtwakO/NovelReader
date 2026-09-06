@@ -234,11 +234,13 @@ Map = function(a) {
 		}
 	}
 	var bookData, chapterData map[string]interface{}
+	var ruleData map[string]string
 	if len(extra) > 0 {
 		bookData, _ = extra[0]["book"].(map[string]interface{})
 		chapterData, _ = extra[0]["chapter"].(map[string]interface{})
+		ruleData, _ = extra[0]["ruleData"].(map[string]string)
 	}
-	variables := newEvaluationVariables(bookData, chapterData, activeAnalyzer, sourceState)
+	variables := newEvaluationVariables(bookData, chapterData, ruleData)
 	defer variables.Close()
 	h := &jsHelpers{vm: vm, rt: rt, hc: hc, ctx: ctx, analyzer: activeAnalyzer, state: sourceState, baseURL: baseURL, variables: variables}
 	var bridge *JSBridge
@@ -359,7 +361,7 @@ Map = function(a) {
 	// Set extra bindings (key, page, book, chapter, etc.)
 	if len(extra) > 0 {
 		for k, v := range extra[0] {
-			if k == "analyzer" || k == "source" || k == "jsBridge" {
+			if k == "analyzer" || k == "source" || k == "jsBridge" || k == "ruleData" {
 				continue
 			}
 			_ = rt.Set(k, v)
@@ -1127,7 +1129,7 @@ func resolveAjaxURL(rawURL, baseURL string) (string, error) {
 	return base.ResolveReference(reference).String(), nil
 }
 
-// Put stores a value in the active chapter, book, rule-data, or source context.
+// Put stores a value in the active chapter, book, or request-local rule data.
 func (h *jsHelpers) Put(key, value string) string {
 	return h.variables.Put(key, value)
 }

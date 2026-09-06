@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -454,7 +455,8 @@ func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src book
 	transport := s.newTransport(s.workflowClient(), session)
 	defer transport.CloseIdleConnections()
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
-	executor.SetURLContext(&analyzer.URLContext{Source: src.ScriptData(), JSLib: src.JSLib})
+	variables := make(map[string]string)
+	executor.SetURLContext(&analyzer.URLContext{Source: src.ScriptData(), RuleData: variables, JSLib: src.JSLib})
 	spec, err := executor.BuildContext(srcCtx, src.SearchURL, query, 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {
 		if err == nil {
@@ -494,7 +496,7 @@ func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src book
 	if resultBaseURL == "" {
 		resultBaseURL = spec.URL
 	}
-	results, err := s.parseSearchResultWithRuleStateContextAtURLLimit(srcCtx, src, resp.Body, src.RuleSearch, resultBaseURL, session, limit, false, false)
+	results, err := s.parseDiscoveryResults(srcCtx, src, resp.Body, src.RuleSearch, resultBaseURL, session, discoveryParseOptions{limit: limit, variables: variables})
 	if err != nil {
 		return nil, err
 	}
@@ -505,6 +507,7 @@ func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src book
 }
 
 func applySearchResultToBook(book *Book, result SearchResult) {
+	book.VariableMap = result.VariableMap
 	book.Name = result.Name
 	book.Author = result.Author
 	book.CoverURL = result.CoverURL
@@ -556,10 +559,17 @@ func (s *Searcher) parseSearchResultWithRuleStateContext(ctx context.Context, sr
 }
 
 func (s *Searcher) parseSearchResultWithRuleStateContextAtURL(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState) ([]SearchResult, error) {
-	return s.parseSearchResultWithRuleStateContextAtURLLimit(ctx, src, html, ruleJSON, baseURL, state, maxResultsPerSource, false, false)
+	return s.parseDiscoveryResults(ctx, src, html, ruleJSON, baseURL, state, discoveryParseOptions{limit: maxResultsPerSource})
 }
 
-func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState, limit int, allowEmpty, strictFields bool) ([]SearchResult, error) {
+type discoveryParseOptions struct {
+	limit        int // zero leaves the source-native Explore page uncapped
+	allowEmpty   bool
+	strictFields bool
+	variables    map[string]string
+}
+
+func (s *Searcher) parseDiscoveryResults(ctx context.Context, src booksource.BookSource, html, ruleJSON, baseURL string, state analyzer.SourceState, options discoveryParseOptions) ([]SearchResult, error) {
 	if baseURL == "" {
 		baseURL = src.BookSourceURL
 	}
@@ -572,22 +582,27 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		return nil, fmt.Errorf("search: no bookList rule for %s", src.BookSourceName)
 	}
 
+	variables := options.variables
+	if variables == nil {
+		variables = make(map[string]string)
+	}
 	an := analyzer.New(html, baseURL, s.jsVM, s.cache)
+	an.SetRuleData(variables)
 	an.SetJSLib(src.JSLib)
 	an.SetSourceState(state)
 	an.SetSourceData(src.ScriptData())
 	an.SetContext(ctx)
 	elements, err := an.GetElements(bookListRule)
 	if err != nil {
-		if allowEmpty && errors.Is(err, analyzer.ErrNoElements) {
+		if options.allowEmpty && errors.Is(err, analyzer.ErrNoElements) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("search: bookList: %w", err)
 	}
 
 	// Search caps early; source-native Explore pages deliberately pass no cap.
-	if limit > 0 && len(elements) > limit {
-		elements = elements[:limit]
+	if options.limit > 0 && len(elements) > options.limit {
+		elements = elements[:options.limit]
 	}
 
 	// Pre-extract non-empty field rules to skip rule-string parsing per element
@@ -621,14 +636,15 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 			Capabilities: booksource.CapabilityTags(src),
 		}
 		bookData := bookContext(nil, src)
+		bookData["variableMap"] = maps.Clone(variables)
 		elAn.SetBookDataValues(bookData)
 
 		for _, f := range fieldRules {
 			var value string
 			var fieldErr error
-			if f.key == "bookUrl" && limit > 0 {
+			if f.key == "bookUrl" && options.limit > 0 {
 				value, fieldErr = elAn.GetURLStringStrict(f.rule)
-			} else if strictFields {
+			} else if options.strictFields {
 				value, fieldErr = elAn.GetStringStrict(f.rule)
 			} else {
 				value, fieldErr = elAn.GetString(f.rule)
@@ -637,7 +653,7 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 				if errors.Is(fieldErr, analyzer.ErrNoElements) {
 					continue
 				}
-				if strictFields {
+				if options.strictFields {
 					return nil, fmt.Errorf("search: %s: %w", f.key, fieldErr)
 				}
 				continue
@@ -670,6 +686,9 @@ func (s *Searcher) parseSearchResultWithRuleStateContextAtURLLimit(ctx context.C
 		}
 
 		if r.Name != "" {
+			var parsed Book
+			syncBookFromContext(&parsed, bookData)
+			r.VariableMap = parsed.VariableMap
 			if r.BookURL == "" {
 				r.BookURL = baseURL
 			}

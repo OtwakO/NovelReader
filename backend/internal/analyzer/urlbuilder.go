@@ -73,6 +73,7 @@ func BuildURLWithState(template, key string, page int, baseURL string, jsVM *JSV
 
 // URLContext carries the same typed crawl objects used by page analyzers.
 type URLContext struct {
+	RuleData    map[string]string // request-local variables before a book exists
 	Source      map[string]interface{}
 	Book        map[string]interface{}
 	Chapter     map[string]interface{}
@@ -90,6 +91,17 @@ func BuildURLWithContextData(ctx context.Context, template, key string, page int
 	if template == "" {
 		return nil, fmt.Errorf("analyzer: empty URL template")
 	}
+
+	// Standalone callers still need one variable owner across all URL phases.
+	// Copy the context so an implicit owner cannot leak into a later request.
+	local := URLContext{}
+	if data != nil {
+		local = *data
+	}
+	if local.RuleData == nil {
+		local.RuleData = make(map[string]string)
+	}
+	data = &local
 
 	urlStr := strings.TrimSpace(template)
 
@@ -292,6 +304,9 @@ func urlBindings(data *URLContext, key string, page int, baseURL string, state S
 	}
 	if data == nil {
 		return bindings
+	}
+	if data.RuleData != nil {
+		bindings["ruleData"] = data.RuleData
 	}
 	if data.Source != nil {
 		bindings["source"] = data.Source

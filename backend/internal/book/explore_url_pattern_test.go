@@ -41,8 +41,8 @@ func TestParseExploreResultDoesNotFilterByBookURLPattern(t *testing.T) {
 <div class="hot_sale"><a href="/current/5678/"><span class="title">Two</span></a></div>`
 	searcher := NewSearcher(nil, analyzer.NewJSVM(), analyzer.NewCacheManager(), nil, nil)
 
-	results, err := searcher.parseSearchResultWithRuleStateContextAtURLLimit(
-		context.Background(), source, html, rules, "https://m.example.test/rank/", nil, 0, false, true,
+	results, err := searcher.parseDiscoveryResults(
+		context.Background(), source, html, rules, "https://m.example.test/rank/", nil, discoveryParseOptions{strictFields: true},
 	)
 	if err != nil {
 		t.Fatal(err)

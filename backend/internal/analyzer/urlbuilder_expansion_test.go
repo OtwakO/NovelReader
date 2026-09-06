@@ -79,3 +79,16 @@ func TestBuildURLRejectsInterpolationErrors(t *testing.T) {
 		t.Fatalf("meta=%+v err=%v; want missing engine error and no request", meta, err)
 	}
 }
+
+func TestURLPhasesShareOnlyRequestLocalVariables(t *testing.T) {
+	vm := NewJSVM()
+	data := &URLContext{}
+	meta, err := BuildURLWithContextData(t.Context(), `@js:java.put('token', 'saved'); '/{{java.get("token")}}'`, "", 1, "https://example.test", vm, nil, data)
+	if err != nil || meta.URL != "https://example.test/saved" {
+		t.Fatalf("URL phases lost their variables: meta=%+v err=%v", meta, err)
+	}
+	meta, err = BuildURLWithContextData(t.Context(), `/{{java.get("token")}}`, "", 1, "https://example.test", vm, nil, data)
+	if err != nil || meta.URL != "https://example.test/" {
+		t.Fatalf("later request inherited implicit variables: meta=%+v err=%v", meta, err)
+	}
+}

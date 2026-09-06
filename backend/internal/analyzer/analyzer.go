@@ -119,14 +119,19 @@ type Analyzer struct {
 func New(content, baseURL string, jsVM *JSVM, cache *CacheManager) *Analyzer {
 	isJSON := looksLikeJSON(content)
 	return &Analyzer{
-		content: content,
-		baseURL: baseURL,
-		isJSON:  isJSON,
-		jsVM:    jsVM,
-		cache:   cache,
-		ctx:     context.Background(),
+		content:  content,
+		baseURL:  baseURL,
+		isJSON:   isJSON,
+		jsVM:     jsVM,
+		cache:    cache,
+		ctx:      context.Background(),
+		ruleVars: make(map[string]string),
 	}
 }
+
+// SetRuleData shares variables across URL construction and page evaluation for one request.
+// Each independent evaluation must receive its own non-nil map.
+func (a *Analyzer) SetRuleData(values map[string]string) { a.ruleVars = values }
 
 // SetJSLib sets the JS library code to prepend to every JS evaluation.
 // legado evaluates jsLib once before source-specific JS; we prepend it per-eval.
@@ -907,6 +912,7 @@ func (a *Analyzer) jsBindings() map[string]interface{} {
 	if a.jsBridge != nil {
 		b["jsBridge"] = a.jsBridge
 	}
+	b["ruleData"] = a.ruleVars
 	b["analyzer"] = a
 	return b
 }

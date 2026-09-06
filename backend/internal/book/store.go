@@ -104,6 +104,7 @@ type Chapter struct {
 
 // SearchResult is a book found by searching a source.
 type SearchResult struct {
+	VariableMap      string      `json:"variableMap,omitempty"` // serialized per-result rule variables
 	Name             string      `json:"name"`
 	Author           string      `json:"author"`
 	CoverURL         string      `json:"coverUrl"`

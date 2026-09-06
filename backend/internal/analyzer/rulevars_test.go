@@ -62,7 +62,7 @@ func TestRuleVariablesPreserveEmptyAndMalformedSemantics(t *testing.T) {
 	}
 }
 
-func TestRuleVariablesPersistThroughSourceState(t *testing.T) {
+func TestRuleVariablesStayWithTheirEvaluation(t *testing.T) {
 	state := &testSourceState{vars: map[string]string{}, memory: map[string]interface{}{}}
 	first := New(`{"id":"persisted"}`, "https://example.test/", NewJSVM(), nil)
 	first.SetSourceState(state)
@@ -73,8 +73,18 @@ func TestRuleVariablesPersistThroughSourceState(t *testing.T) {
 	second := New(`{}`, "https://example.test/", NewJSVM(), nil)
 	second.SetSourceState(state)
 	value, err := second.GetString(`@get:{saved}`)
+	if err != nil || value != "" {
+		t.Fatalf("other evaluation inherited value = %q, err=%v", value, err)
+	}
+	value, err = first.GetString(`@js:java.get("saved")`)
 	if err != nil || value != "persisted" {
-		t.Fatalf("persisted value = %q, err=%v", value, err)
+		t.Fatalf("JS cannot read rule variable = %q, err=%v", value, err)
+	}
+	if _, err := first.GetString(`@js:java.put("saved", "updated")`); err != nil {
+		t.Fatal(err)
+	}
+	if value, err := first.GetString(`@get:{saved}`); err != nil || value != "updated" {
+		t.Fatalf("rule cannot read JS variable = %q, err=%v", value, err)
 	}
 }
 
