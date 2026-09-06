@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import secrets
 import time
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable
 
-from runtime import close_context
+from runtime import DEFAULT_TIMEOUT_MS, WorkerBusyError
 
 
 @dataclass
@@ -19,6 +21,7 @@ class InteractiveSession:
     created_at: float
     last_used_at: float
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    close_task: asyncio.Task | None = None
 
 
 class InteractiveSessions:
@@ -28,13 +31,16 @@ class InteractiveSessions:
         self,
         acquire: Callable[[dict], Awaitable[tuple[object, object, object]]],
         release: Callable[[object, bool], Awaitable[None]],
+        close_context: Callable[[object], Awaitable[bool]],
         idle_ttl_seconds: float,
         absolute_ttl_seconds: float,
         max_frame_bytes: int = 6 * 1024 * 1024,
         sweep_interval_seconds: float = 5,
+        max_operations: int = 8,
     ):
         self._acquire = acquire
         self._release = release
+        self._close_context = close_context
         self._idle_ttl = idle_ttl_seconds
         self._absolute_ttl = absolute_ttl_seconds
         self._sweep_interval = sweep_interval_seconds
@@ -43,6 +49,7 @@ class InteractiveSessions:
         self._lock = asyncio.Lock()
         self._sweeper: asyncio.Task | None = None
         self._closing = False
+        self._operations = asyncio.Semaphore(max_operations)
 
     async def start(self) -> None:
         if self._sweeper is None:
@@ -61,7 +68,7 @@ class InteractiveSessions:
                 self._sessions[session_id] = InteractiveSession(context, page, now, now)
         except BaseException:
             browser_failed = not browser.is_connected()
-            if not await close_context(context):
+            if not await self._close_context(context):
                 browser_failed = True
             await self._release(browser, browser_failed)
             raise
@@ -75,7 +82,7 @@ class InteractiveSessions:
 
     async def frame(self, session_id: str) -> dict:
         session = await self._get(session_id)
-        async with session.lock:
+        async with self._operation(session):
             self._touch(session)
             image = await session.page.screenshot(type="jpeg", quality=95, scale="device")
             if len(image) > self._max_frame_bytes:
@@ -98,7 +105,7 @@ class InteractiveSessions:
 
     async def input(self, session_id: str, event: dict) -> dict:
         session = await self._get(session_id)
-        async with session.lock:
+        async with self._operation(session):
             self._touch(session)
             event_type = event.get("type")
             if event_type == "click":
@@ -123,15 +130,30 @@ class InteractiveSessions:
 
     async def close(self, session_id: str, save: bool = False, return_html: bool = False) -> dict:
         async with self._lock:
-            session = self._sessions.pop(session_id, None)
-        if session is None:
-            return {"closed": True, "cookies": []}
+            session = self._sessions.get(session_id)
+            if session is None:
+                return {"closed": True, "cookies": []}
+            if session.close_task is None:
+                session.close_task = asyncio.create_task(self._close_session(session_id, session, save, return_html))
+                # Cleanup can outlive the HTTP caller; retrieve failures even if
+                # that caller disconnects. Browser failures escalate at release.
+                session.close_task.add_done_callback(self._close_done)
+        return await asyncio.shield(session.close_task)
+
+    @staticmethod
+    def _close_done(task: asyncio.Task) -> None:
+        if not task.cancelled():
+            error = task.exception()
+            if error is not None:
+                logging.getLogger(__name__).warning("interactive close failed (%s)", type(error).__name__)
+
+    async def _close_session(self, session_id: str, session: InteractiveSession, save: bool, return_html: bool) -> dict:
         cookies = []
         html = ""
         browser = session.context.browser
         browser_failed = False
         try:
-            async with session.lock:
+            async with asyncio.timeout(DEFAULT_TIMEOUT_MS / 1000), session.lock:
                 if save:
                     cookies = await session.context.cookies()
                 if return_html:
@@ -143,9 +165,13 @@ class InteractiveSessions:
             browser_failed = not browser.is_connected()
             raise
         finally:
-            if not await close_context(session.context):
-                browser_failed = True
-            await self._release(browser, browser_failed or not browser.is_connected())
+            try:
+                if not await self._close_context(session.context):
+                    browser_failed = True
+                await self._release(browser, browser_failed or not browser.is_connected())
+            finally:
+                async with self._lock:
+                    self._sessions.pop(session_id, None)
         return {"closed": True, "cookies": cookies, "finalUrl": final_url, "html": html}
 
     async def close_all(self) -> None:
@@ -161,9 +187,23 @@ class InteractiveSessions:
     async def _get(self, session_id: str) -> InteractiveSession:
         async with self._lock:
             session = self._sessions.get(session_id)
-        if session is None:
-            raise KeyError("browser session not found")
+        if session is None or session.close_task is not None:
+            raise KeyError("browser session not found or closing")
         return session
+
+    @asynccontextmanager
+    async def _operation(self, session: InteractiveSession):
+        if self._operations.locked():
+            raise WorkerBusyError("browser worker is busy")
+        await self._operations.acquire()
+        try:
+            async with asyncio.timeout(DEFAULT_TIMEOUT_MS / 1000):
+                async with session.lock:
+                    if session.close_task is not None:
+                        raise KeyError("browser session is closing")
+                    yield
+        finally:
+            self._operations.release()
 
     def _touch(self, session: InteractiveSession) -> None:
         session.last_used_at = time.monotonic()

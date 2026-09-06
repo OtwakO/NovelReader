@@ -7,13 +7,15 @@ import json
 import logging
 import os
 import signal
+from typing import cast
 
 from patchright.async_api import async_playwright
 
 from browser import BrowserWorker, PROTOCOL_VERSION
-from runtime import VirtualDisplay, browser_mode, runtime_metadata
+from runtime import DEFAULT_TIMEOUT_MS, WorkerBusyError, VirtualDisplay, browser_mode, runtime_metadata
 
 MAX_REQUEST_BYTES = 1_048_576
+SHUTDOWN_GRACE_SECONDS = 10
 
 
 async def read_request(reader: asyncio.StreamReader) -> tuple[str, dict, bytes]:
@@ -37,7 +39,7 @@ async def read_request(reader: asyncio.StreamReader) -> tuple[str, dict, bytes]:
 async def write_response(writer: asyncio.StreamWriter, status: int, body: dict) -> None:
     body.setdefault("version", PROTOCOL_VERSION)
     encoded = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    reason = {200: "OK", 400: "Bad Request", 404: "Not Found", 503: "Busy"}.get(status, "Error")
+    reason = {200: "OK", 400: "Bad Request", 404: "Not Found", 503: "Busy", 504: "Gateway Timeout"}.get(status, "Error")
     header = (
         f"HTTP/1.1 {status} {reason}\r\n"
         "Content-Type: application/json; charset=utf-8\r\n"
@@ -45,14 +47,21 @@ async def write_response(writer: asyncio.StreamWriter, status: int, body: dict) 
         "Connection: close\r\n\r\n"
     ).encode("latin1")
     writer.write(header + encoded)
-    await writer.drain()
+    try:
+        await asyncio.wait_for(writer.drain(), DEFAULT_TIMEOUT_MS / 1000)
+    except TimeoutError as error:
+        raise ConnectionError("worker response write timed out") from error
 
 
 async def serve_connection(
     reader: asyncio.StreamReader, writer: asyncio.StreamWriter, worker: BrowserWorker
 ) -> None:
     try:
-        method, request_meta, body = await read_request(reader)
+        if worker.closing:
+            await write_response(writer, 503, {"error": "browser worker is shutting down"})
+            return
+        async with asyncio.timeout(DEFAULT_TIMEOUT_MS / 1000):
+            method, request_meta, body = await read_request(reader)
         if method == "GET" and request_meta["path"] == "/healthz":
             await write_response(writer, 200, await worker.health())
             return
@@ -61,7 +70,7 @@ async def serve_connection(
         if method == "POST" and path == "/execute":
             result = await worker.submit(payload)
         elif method == "POST" and path == "/sessions":
-            result = await worker.interactive.create(payload)
+            result = await worker.open_interactive(payload)
         elif path.startswith("/sessions/"):
             parts = path.split("/")
             session_id = parts[2] if len(parts) > 2 else ""
@@ -78,11 +87,20 @@ async def serve_connection(
             await write_response(writer, 404, {"error": "not found"})
             return
         await write_response(writer, 503 if result.get("error") == "browser worker is busy" else 200, result)
+    except ConnectionError:
+        raise  # Do not attempt a second HTTP response on a failed writer.
+    except TimeoutError:
+        await write_response(writer, 504, {"error": "browser request timed out"})
+    except WorkerBusyError as error:
+        await write_response(writer, 503, {"error": str(error)})
     except Exception as error:
         await write_response(writer, 400, {"version": PROTOCOL_VERSION, "error": str(error)})
     finally:
         writer.close()
-        await writer.wait_closed()
+        try:
+            await asyncio.wait_for(writer.wait_closed(), 1)
+        except (ConnectionError, TimeoutError):
+            pass
 
 
 def capacity_settings() -> tuple[int, int, int, int, int, int]:
@@ -104,34 +122,78 @@ async def main() -> None:
     mode = browser_mode()
     runtime_info = runtime_metadata()
     max_pages, max_pending, max_body, max_contexts, interactive_idle, interactive_absolute = capacity_settings()
-    stop = asyncio.Event()
     display = VirtualDisplay(mode)
+    playwright = None
+    worker = None
+    server = None
+    connections: set[asyncio.Task] = set()
+    loop = asyncio.get_running_loop()
+
+    def force_exit() -> None:
+        logging.critical("browser worker shutdown exceeded its deadline; terminating worker")
+        # Container PID 1 exit / the native service supervisor owns descendant
+        # termination. Never respawn Python or Chrome inside this failed runtime.
+        os._exit(1)
+
+    async def connection(reader, writer) -> None:
+        # asyncio schedules this callback as a task, only after worker startup.
+        task = cast(asyncio.Task, asyncio.current_task())
+        connections.add(task)
+        try:
+            await serve_connection(reader, writer, cast(BrowserWorker, worker))
+        except ConnectionError:
+            pass  # The client disconnected; serve_connection still closes its writer.
+        except Exception:
+            logging.exception("worker connection failed")
+        finally:
+            connections.discard(task)
 
     try:
         await display.start()
-        async with async_playwright() as playwright:
-            worker = BrowserWorker(
-                playwright, max_pages, max_pending, max_body, max_contexts,
-                interactive_idle, interactive_absolute, mode, runtime_info,
-            )
+        playwright = await async_playwright().start()
+        worker = BrowserWorker(
+            playwright, max_pages, max_pending, max_body, max_contexts,
+            interactive_idle, interactive_absolute, mode, runtime_info,
+        )
+        await worker.start()
+        server = await asyncio.start_server(connection, host, port)
+        for signum in (signal.SIGINT, signal.SIGTERM):
             try:
-                await worker.start()
-                server = await asyncio.start_server(
-                    lambda reader, writer: serve_connection(reader, writer, worker), host, port
-                )
-                loop = asyncio.get_running_loop()
-                for signum in (signal.SIGINT, signal.SIGTERM):
-                    try:
-                        loop.add_signal_handler(signum, stop.set)
-                    except NotImplementedError:
-                        pass
-                logging.info("Patchright %s worker listening on %s:%d", mode, host, port)
-                async with server:
-                    await stop.wait()
-            finally:
-                await worker.close()
+                loop.add_signal_handler(signum, worker.request_shutdown)
+            except NotImplementedError:
+                pass
+        logging.info("Patchright %s worker listening on %s:%d", mode, host, port)
+        await worker.shutdown_requested.wait()
     finally:
-        await display.close()
+        # Arm before any await, including server/request and driver teardown.
+        # Cooperative cancellation alone cannot guarantee a bounded shutdown.
+        watchdog = loop.call_later(SHUTDOWN_GRACE_SECONDS, force_exit)
+        cleanup_complete = False
+        try:
+            if server is not None:
+                server.close()
+            for task in list(connections):
+                task.cancel()
+            await asyncio.gather(*list(connections), return_exceptions=True)
+            try:
+                if worker is not None:
+                    await worker.close()
+            finally:
+                try:
+                    if playwright is not None:
+                        await playwright.stop()
+                finally:
+                    await display.close()
+            if server is not None:
+                await server.wait_closed()
+            cleanup_complete = True
+        finally:
+            # Keep the deadline armed on failure while asyncio.run drains any
+            # remaining tasks; they may also refuse cooperative cancellation.
+            if cleanup_complete and (worker is None or worker.failure is None):
+                watchdog.cancel()
+    if worker is not None and worker.failure is not None:
+        raise RuntimeError(worker.failure)
 
 
 if __name__ == "__main__":

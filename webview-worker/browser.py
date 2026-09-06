@@ -9,16 +9,18 @@ import contextlib
 import ipaddress
 import re
 import socket
+from collections.abc import Awaitable, Callable
 from urllib.parse import urlparse
 
-from runtime import BROWSER_MODES, close_context
+from runtime import BROWSER_MODES, DEFAULT_TIMEOUT_MS
 
 from patchright.async_api import async_playwright
 
 from interactive import InteractiveSessions
 
 PROTOCOL_VERSION = 4
-DEFAULT_TIMEOUT_MS = 30_000
+BROWSER_CLOSE_TIMEOUT_SECONDS = 2
+CONTEXT_CLOSE_TIMEOUT_SECONDS = 2
 
 
 async def mediate_data_document_request(route, context, max_body_bytes: int, timeout_ms: int) -> None:
@@ -99,8 +101,11 @@ class BrowserWorker:
         self.runtime_info = dict(runtime_info or {})
         self.max_body_bytes = max_body_bytes
         self.max_contexts = max_contexts
-        self.queue: asyncio.Queue[tuple[dict, asyncio.Future]] = asyncio.Queue(maxsize=max_pending)
+        self.queue: asyncio.Queue[tuple[Callable[[], Awaitable[dict]], asyncio.Future]] = asyncio.Queue(maxsize=max_pending)
         self.browser = None
+        self._browser_close_task: asyncio.Task | None = None
+        self._releases: set[asyncio.Task] = set()
+        self._context_closes: set[asyncio.Task] = set()
         self.state_lock = asyncio.Lock()
         self.active = 0
         self.completed = 0
@@ -111,14 +116,18 @@ class BrowserWorker:
         self.recycled = 0
         self.browser_tainted = False
         self.closing = False
+        self.failure: str | None = None
+        self.shutdown_requested = asyncio.Event()
         self.consumers: list[asyncio.Task] = []
         self.max_pages = max_pages
         self.capacity = asyncio.Semaphore(max_pages)
         self.interactive = InteractiveSessions(
             self._open_interactive_context,
             self._release_browser,
+            self._close_context,
             interactive_idle_seconds,
             interactive_absolute_seconds,
+            max_operations=max_pages + max_pending,
             max_frame_bytes=min(8 * 1024 * 1024, max(1024 * 1024, max_body_bytes * 3 // 5)),
         )
 
@@ -127,17 +136,41 @@ class BrowserWorker:
         self.consumers = [asyncio.create_task(self._consume()) for _ in range(self.max_pages)]
         await self.interactive.start()
 
+    def request_shutdown(self, failure: str | None = None) -> None:
+        self.closing = True
+        self.failure = self.failure or failure
+        self.shutdown_requested.set()
+
     async def submit(self, request: dict) -> dict:
+        return await self._submit(lambda: self._run(request), request)
+
+    async def open_interactive(self, request: dict) -> dict:
+        return await self._submit(lambda: self.interactive.create(request), request)
+
+    async def _submit(self, operation: Callable[[], Awaitable[dict]], request: dict) -> dict:
         if self.closing:
             return self._error("browser worker is shutting down")
-        future = asyncio.get_running_loop().create_future()
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+        deadline = loop.time() + max(1, int(request.get("timeoutMs") or DEFAULT_TIMEOUT_MS)) / 1000
+
+        async def bounded_operation():
+            try:
+                async with asyncio.timeout_at(deadline):
+                    return await operation()
+            except TimeoutError:
+                return self._error("browser request timed out")
+
         try:
-            self.queue.put_nowait((request, future))
+            self.queue.put_nowait((bounded_operation, future))
         except asyncio.QueueFull:
             self.busy_rejections += 1
             return self._error("browser worker is busy")
         try:
-            return await future
+            async with asyncio.timeout_at(deadline):
+                return await future
+        except TimeoutError:
+            return self._error("browser request timed out waiting for completion")
         except asyncio.CancelledError:
             future.cancel()
             raise
@@ -149,20 +182,24 @@ class BrowserWorker:
             if not future.done():
                 future.set_result(self._error("browser worker is shutting down"))
             self.queue.task_done()
-        await self.interactive.close_all()
         for consumer in self.consumers:
             consumer.cancel()
         await asyncio.gather(*self.consumers, return_exceptions=True)
         self.consumers.clear()
+        await self.interactive.close_all()
+        await asyncio.gather(*list(self._releases), return_exceptions=True)
         async with self.state_lock:
             await self._close_browser()
+        await asyncio.gather(*list(self._context_closes), return_exceptions=True)
 
     async def _consume(self) -> None:
-        while True:
-            request, future = await self.queue.get()
+        while not self.closing:
+            operation, future = await self.queue.get()
             try:
                 if not future.cancelled():
-                    future.set_result(await self._run(request))
+                    result = await operation()
+                    if not future.done():
+                        future.set_result(result)
             except asyncio.CancelledError:
                 if not future.done():
                     future.set_result(self._error("browser worker is shutting down"))
@@ -172,6 +209,9 @@ class BrowserWorker:
                     future.set_result(self._error(str(error)))
             finally:
                 self.queue.task_done()
+                # An idle consumer must not retain the previous document/frame.
+                result = None
+                del operation, future
 
     async def _run(self, request: dict) -> dict:
         self.total_requests += 1
@@ -203,28 +243,68 @@ class BrowserWorker:
 
     async def _browser_for_request(self):
         async with self.state_lock:
-            if self.browser is None or not self.browser.is_connected():
-                await self._close_browser()
+            if self.closing:
+                raise RuntimeError("browser worker is shutting down")
+            if self.browser is not None and not self.browser.is_connected():
+                self.request_shutdown("browser disconnected unexpectedly")
+                raise RuntimeError(self.failure)
+            if self.browser is None:
                 await self._launch_browser()
             return self.browser
 
     async def _release_browser(self, browser, browser_failed: bool) -> None:
-        async with self.state_lock:
-            self.active -= 1
-            self.completed += 1
-            self.total_completed += 1
-            if browser_failed:
-                self.browser_tainted = True
-            should_recycle = (
-                self.active == 0
-                and (self.browser_tainted or self.completed >= self.max_contexts)
-            )
-            if should_recycle and self.browser is browser:
-                self.completed = 0
-                self.browser_tainted = False
-                self.recycled += 1
-                await self._close_browser()
-        self.capacity.release()
+        task = asyncio.create_task(self._finish_release(browser, browser_failed))
+        self._releases.add(task)
+        task.add_done_callback(self._release_done)
+        await asyncio.shield(task)
+
+    def _release_done(self, task: asyncio.Task) -> None:
+        self._releases.discard(task)
+        if task.cancelled() or task.exception() is not None:
+            self.request_shutdown("browser release could not be completed")
+
+    async def _finish_release(self, browser, browser_failed: bool) -> None:
+        try:
+            async with self.state_lock:
+                self.active -= 1
+                self.completed += 1
+                self.total_completed += 1
+                if browser_failed:
+                    self.browser_tainted = True
+                    self.request_shutdown("browser cleanup could not be confirmed")
+                should_recycle = (
+                    self.active == 0
+                    and (self.browser_tainted or self.completed >= self.max_contexts)
+                )
+                if should_recycle and self.browser is browser:
+                    await self._close_browser()
+                    self.completed = 0
+                    self.browser_tainted = False
+                    self.recycled += 1
+        finally:
+            self.capacity.release()
+
+
+    async def _close_context(self, context) -> bool:
+        task = asyncio.create_task(context.close())
+        self._context_closes.add(task)
+        task.add_done_callback(self._context_close_done)
+        try:
+            done, _ = await asyncio.wait({task}, timeout=CONTEXT_CLOSE_TIMEOUT_SECONDS)
+            if done:
+                task.result()
+                return True
+        except BaseException:
+            # Cleanup ownership remains here even if its caller is cancelled.
+            pass
+        self.request_shutdown("context teardown could not be confirmed")
+        task.cancel()
+        return False
+
+    def _context_close_done(self, task: asyncio.Task) -> None:
+        self._context_closes.discard(task)
+        if task.cancelled() or task.exception() is not None:
+            self.request_shutdown("context teardown failed")
 
     async def _taint_browser(self) -> None:
         async with self.state_lock:
@@ -258,7 +338,7 @@ class BrowserWorker:
             acquired = True
             viewport = request.get("viewport") or {}
             device_scale_factor = min(3.0, max(1.0, float(viewport.get("deviceScaleFactor") or 1)))
-            context = await browser.new_context(
+            context = await self._new_context(browser,
                 extra_http_headers=request.get("headers") or {},
                 device_scale_factor=device_scale_factor,
             )
@@ -282,7 +362,7 @@ class BrowserWorker:
                 await page.goto(target, wait_until="domcontentloaded", timeout=timeout_ms)
             return browser, context, page
         except BaseException:
-            if context is not None and not await close_context(context):
+            if context is not None and not await self._close_context(context):
                 await self._taint_browser()
             if acquired:
                 await self._release_browser(browser, not browser.is_connected())
@@ -290,19 +370,48 @@ class BrowserWorker:
                 self.capacity.release()
             raise
 
+    async def _new_context(self, browser, **options):
+        try:
+            return await browser.new_context(**options)
+        except asyncio.CancelledError:
+            # The remote allocation may already have happened before its reply.
+            # The runtime owns the browser even without a returned context handle.
+            self.request_shutdown("context allocation was interrupted")
+            raise
+
     async def _launch_browser(self) -> None:
-        self.browser = await self.playwright.chromium.launch(
-            channel="chrome",
-            headless=self.browser_mode == "headless",
-        )
+        try:
+            self.browser = await self.playwright.chromium.launch(
+                channel="chrome",
+                headless=self.browser_mode == "headless",
+            )
+        except asyncio.CancelledError:
+            # Playwright/runtime teardown owns any process launched before reply.
+            self.request_shutdown("browser launch was interrupted")
+            raise
 
     async def _close_browser(self) -> None:
-        if self.browser is not None:
-            browser, self.browser = self.browser, None
-            try:
-                await browser.close()
-            except Exception:
-                pass
+        if self.browser is None:
+            return
+        browser = self.browser
+        try:
+            if self._browser_close_task is None:
+                self._browser_close_task = asyncio.create_task(browser.close())
+            done, _ = await asyncio.wait({self._browser_close_task}, timeout=BROWSER_CLOSE_TIMEOUT_SECONDS)
+            if not done:
+                self._browser_close_task.cancel()
+                raise TimeoutError("browser close deadline expired")
+            self._browser_close_task.result()
+        except BaseException as error:
+            # Keep the handle: uncertain teardown is a worker failure, not
+            # permission to launch another browser alongside the old process.
+            self.request_shutdown("browser teardown could not be confirmed")
+            if isinstance(error, asyncio.CancelledError):
+                raise
+            raise RuntimeError(self.failure) from error
+        self.browser = None
+        self._browser_close_task = None
+
 
     async def _execute(self, browser, request: dict, timeout_ms: int) -> dict:
         if request.get("probe") is True:
@@ -315,7 +424,7 @@ class BrowserWorker:
 
         context = None
         try:
-            context = await browser.new_context(
+            context = await self._new_context(browser,
                 extra_http_headers=request.get("headers") or {}
             )
             cookies = browser_cookies(request.get("cookies") or [], target)
@@ -427,7 +536,7 @@ class BrowserWorker:
                 "cookies": protocol_cookies(await context.cookies()),
             }
         finally:
-            if context is not None and not await close_context(context):
+            if context is not None and not await self._close_context(context):
                 # A context that cannot be closed may retain renderer processes. Taint the
                 # shared browser so it is recycled when active work drains.
                 await self._taint_browser()
@@ -435,7 +544,7 @@ class BrowserWorker:
     async def _probe(self, browser, timeout_ms: int) -> dict:
         context = None
         try:
-            context = await browser.new_context()
+            context = await self._new_context(browser)
             page = await context.new_page()
             await page.set_content(
                 "<main id='novelreader-webview-probe'>ready</main>",
@@ -451,7 +560,7 @@ class BrowserWorker:
                 "finalUrl": "about:blank",
             }
         finally:
-            if context is not None and not await close_context(context):
+            if context is not None and not await self._close_context(context):
                 await self._taint_browser()
 
     async def health(self) -> dict:

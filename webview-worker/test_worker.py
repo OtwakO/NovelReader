@@ -123,6 +123,10 @@ if __name__ == "__main__":
 
 
 class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
+    async def close_context(self, context) -> bool:
+        await context.close()
+        return True
+
     async def asyncSetUp(self) -> None:
         self.browser = MagicMock()
         self.browser.is_connected.return_value = True
@@ -139,7 +143,7 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
         self.page.mouse.wheel = AsyncMock()
         self.acquire = AsyncMock(return_value=(self.browser, self.context, self.page))
         self.release = AsyncMock()
-        self.sessions = InteractiveSessions(self.acquire, self.release, 60, 600, sweep_interval_seconds=0.01)
+        self.sessions = InteractiveSessions(self.acquire, self.release, self.close_context, 60, 600, sweep_interval_seconds=0.01)
         await self.sessions.start()
 
     async def asyncTearDown(self) -> None:
@@ -161,7 +165,7 @@ class InteractiveSessionsTest(unittest.IsolatedAsyncioTestCase):
         await self.sessions.close(created["sessionId"])
 
     async def test_large_jpeg_retries_at_lower_quality(self) -> None:
-        sessions = InteractiveSessions(self.acquire, self.release, 60, 600, max_frame_bytes=4)
+        sessions = InteractiveSessions(self.acquire, self.release, self.close_context, 60, 600, max_frame_bytes=4)
         self.page.screenshot = AsyncMock(side_effect=[b"oversized", b"jpeg"])
         await sessions.start()
         try:
@@ -247,6 +251,7 @@ class InteractiveConstructionFailureTest(unittest.IsolatedAsyncioTestCase):
     async def test_failed_navigation_closes_partial_context_and_releases_capacity(self) -> None:
         browser = MagicMock()
         browser.is_connected.return_value = True
+        browser.close = AsyncMock()
         context = MagicMock()
         context.close = AsyncMock()
         context.add_cookies = AsyncMock()
@@ -457,6 +462,7 @@ class InteractiveDataURLTest(unittest.IsolatedAsyncioTestCase):
     async def test_html_data_document_is_opened(self) -> None:
         browser = MagicMock()
         browser.is_connected.return_value = True
+        browser.close = AsyncMock()
         context = MagicMock()
         context.close = AsyncMock()
         context.add_cookies = AsyncMock()

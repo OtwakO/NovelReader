@@ -50,16 +50,46 @@ backend and worker together to use it. Values are not fabricated or cached acros
 worker changes; each lookup uses the existing probe queue and context cleanup.
 
 `WEBVIEW_MAX_PAGES` limits concurrent browser contexts, `WEBVIEW_MAX_PENDING` bounds queued
-requests, `WEBVIEW_MAX_CONTEXTS_PER_BROWSER` recycles Chrome after clean usage (failed context cleanup also
+one-shot requests and interactive opens, `WEBVIEW_MAX_CONTEXTS_PER_BROWSER` recycles Chrome after clean usage (failed context cleanup also
 marks the browser for recycling when active work drains), and
 `WEBVIEW_MAX_BODY_BYTES` caps returned content. Each request gets an isolated context and cookies
-are returned to the Go source session. Browser protocol v2 also accepts optional `sourceRegex`;
+are returned to the Go source session. Queue waiting and execution share the request deadline.
+Interactive frame/input work has a separate admission bound of `MAX_PAGES + MAX_PENDING`,
+a 30-second operation deadline, and per-session serialization. Saturation returns busy rather
+than retaining unlimited waiters; close requests remain available to free capacity. Browser protocol v2 also accepts optional `sourceRegex`;
 the worker full-matches loaded resource URLs and returns the first match as the response body.
 Backend and worker versions must be upgraded together when this protocol changes.
 
-The same private worker also supports short-lived interactive login contexts. `WEBVIEW_INTERACTIVE_IDLE_SECONDS` (default 120) and `WEBVIEW_INTERACTIVE_ABSOLUTE_SECONDS` (default 600) enforce cleanup even when a client disappears. Interactive contexts share `WEBVIEW_MAX_PAGES` capacity with one-shot requests, are never persisted, and are closed on expiry or worker shutdown.
+The same private worker also supports short-lived interactive login contexts. `WEBVIEW_INTERACTIVE_IDLE_SECONDS` (default 120) and `WEBVIEW_INTERACTIVE_ABSOLUTE_SECONDS` (default 600) enforce cleanup even when a client disappears. Interactive contexts share `WEBVIEW_MAX_PAGES` capacity with one-shot requests, are never persisted, and are closed on expiry or worker shutdown. A closing session retains one cleanup task until context disposal and capacity release finish; disconnecting/cancelling a close caller does not abandon that task.
 
 Base64 HTML `data:` documents receive a narrow request mediator for their `fetch` and XHR probes. The mediator accepts only HTTP(S), rejects any hostname resolution containing non-public addresses, verifies the connected server address before exposing the response, does not follow redirects, bounds timeout and response size, and authorizes only the opaque `null` document origin. Other resource types retain normal browser handling. This avoids globally disabling Chromium web security or exposing a general browser proxy.
+
+## Fatal lifecycle recovery
+
+The worker owns allocation, context disposal, browser teardown and capacity-release tasks.
+Interrupted allocation, unexpected browser disconnection, or unconfirmed teardown makes it
+unavailable and requests runtime shutdown. Context/browser close has a two-second observation
+deadline; expiration does not wait indefinitely for cancellation acknowledgement. The worker
+retains ownership rather than launching replacements alongside potentially orphaned resources.
+
+Root shutdown stops acceptance, cancels/drains connection and worker tasks, and closes the
+browser driver/display. A ten-second hard-exit watchdog covers stalled cleanup, including
+cancellation-resistant tasks. In-flight browser operations fail; user actions are not replayed.
+The main backend and persisted reader data are separate from this browser sidecar.
+
+**Hosted deployment must supervise the whole process tree.** The image runs Python directly
+as container PID 1: exiting terminates the container's remaining Chrome/driver descendants,
+and Compose's `restart: unless-stopped` restarts the sidecar. Do not replace that with an
+in-process Python/Chrome restart loop or use the host PID namespace. Native hosting needs an
+equivalent supervisor (for example systemd `KillMode=control-group`, `Restart=on-failure`,
+and a stop timeout longer than the worker's ten-second grace). An unsupervised native command
+is a development workflow, not the hosted descendant-cleanup guarantee.
+
+Deterministic lifecycle regressions run with:
+
+```sh
+uv run --frozen --no-sync python -m unittest -q test_lifecycle test_worker test_runtime
+```
 
 ## Optional live Cloudflare check
 

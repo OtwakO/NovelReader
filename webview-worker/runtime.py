@@ -8,6 +8,13 @@ import subprocess
 from importlib.metadata import version
 from pathlib import Path
 
+DEFAULT_TIMEOUT_MS = 30_000
+
+
+class WorkerBusyError(ValueError):
+    """Admission was rejected without retaining pending work."""
+
+
 BROWSER_MODES = frozenset({"headless", "headful"})
 XVFB_DISPLAY = ":99"
 XVFB_SOCKET = Path("/tmp/.X11-unix/X99")
@@ -85,12 +92,3 @@ class VirtualDisplay:
             else:
                 os.environ["DISPLAY"] = self.previous_display
             self.changed_display = False
-
-
-async def close_context(context) -> bool:
-    """Bound cleanup and let the owner recycle the browser on failure."""
-    try:
-        await asyncio.shield(asyncio.wait_for(context.close(), timeout=2))
-        return True
-    except BaseException:
-        return False
