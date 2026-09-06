@@ -40,9 +40,21 @@ Two shared defects have deterministic synthetic reproductions: missing redirecte
 
 The canonical findings and recommended boundaries are in [the initial audit report](../verification/booksource-engine-compatibility-audit.md), with [sanitized per-sample observations](../../testdata/booksource/audits/search-bookinfo/engine-audit-v5-2026-09-06.json). This is a checkpoint, not a completed audit or engine sign-off.
 
+## E01 handoff investigation — proposal, not yet accepted
+
+Further read-only tracing found an existing durable mechanism: `Book.VariableMap` (`books.variable_map`) is serialized by the book API, restored by `bookContext`, updated by `syncBookFromContext`, and replaced on source switch. Therefore the earlier framing of opaque references as preserving an existing backend-only boundary was incorrect. TypeScript's omission of that field does not prevent the API from sending it.
+
+Legado `BookList.kt:119–121,211–216` seeds a separate `SearchBook(variable=...)` from workflow RuleData; `SearchBook.kt:48,76–77,120–134` retains that state through conversion into a stored book. NovelReader instead discards per-result book data after extraction; `SearchResult`, `AltSource`, candidate `Input`/`binding`/`inputBook`, and frontend candidate `payload` do not carry variables. Search/Explore result merging also projects alternate bindings without variable state. Candidate resolution starts at Book Info, so it does not reconstruct search variables first.
+
+Recommended minimal complete design: explicit request-local RuleData for discovery URL/list evaluation, copied into each result's own book-variable state; carry that snapshot through discovery/candidate binding data into the existing Book.VariableMap lifecycle. Share one variable shape, not a second context registry. Preserve independent state for each source/book binding, including alternate promotion/demotion; do not merge maps for the same logical book across sources. Avoid duplicate mutable authoritative state between active binding and Book.VariableMap. Recheck candidate reuse/signature logic: it currently compares only source/book identities, so changed variable snapshots must not reuse an incompatible resolved operation.
+
+The frontend should carry these values without executing/interpreting them. At the API boundary, validate the existing request limits plus the chosen string-map shape and bind the data to the selected source/book. Variables are untrusted data, not authentication/authorization authority. A backend-only context reference remains an alternative only if hiding these values from the browser becomes an explicit product/security requirement; it adds retention, expiry and restore semantics and would require revisiting the current Book API as well. A source-wide cache or transient source-session lookup is not an adequate replacement for durable per-book data.
+
+This check changed documentation only; E01 implementation and any request/binding data-shape change await approval of the approach. Existing active work on E02 remains separate. No new tests or live reruns were needed for this data-flow investigation.
+
 ## Next action
 
-Re-verify and implement the accepted corrections, starting with shared source identity and context ownership. Unsupported UA/JVM helpers still require separate contract verification and a bounded implementation decision. Preserve the original sample and observations before post-fix reruns. No full compatibility claim is justified. Any accepted structural correction needs an explicit ownership approach and public-seam regressions before production edits.
+Review the E01 handoff proposal above before changing candidate/binding data shapes, then implement the accepted request-local → per-result → stored-book ownership flow. E03/E04/E05 are committed; E02 still needs shared response-fallback work. Unsupported UA/JVM helpers still require separate contract verification and a bounded implementation decision. Preserve the original sample and observations before post-fix reruns. No full compatibility claim is justified. Any accepted structural correction needs an explicit ownership approach and public-seam regressions before production edits.
 
 ## Verification
 
