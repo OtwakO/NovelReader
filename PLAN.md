@@ -100,7 +100,7 @@ The completed [architecture and code quality improvements](docs/plans/2026-09-05
 
 ## Immediate Priorities
 
-1. Continue the accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), use the completed post-fix sample comparison to select a bounded bridge feasibility check or diagnose remaining unclassified empties; do not claim universal compatibility.
+1. Continue the accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), review the proposed bounded browser-UA provider after successful feasibility evidence; remaining Java imports and unclassified empty responses stay separate. Do not claim universal compatibility.
 2. Select further compatibility slices from current evidence rather than historical unchecked boxes.
 3. Introduce provider capability interfaces only when a first non-BookSource provider is accepted; introduce image-sequence documents and structured locations only when that modality becomes active work.
 4. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
