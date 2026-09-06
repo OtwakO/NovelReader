@@ -92,3 +92,7 @@ Broader CSS/Default indexing, JSONPath/XPath/regex dialects, JS bridge coverage,
 4. Re-run only affected frozen identities after fixes, plus the original scoped regressions. Continue other engine families with evidence, not a new parser framework or a full JVM rewrite.
 
 The audit remains active. These findings already establish that the engine is responsible for some of the reported failure pattern; they do not establish that all remaining failures are upstream or that all shared gaps have been found.
+
+## Post-fix comparison
+
+The same frozen sample was rerun after E01–E05 at e752412. See the [sanitized post-fix report](../../testdata/booksource/audits/search-bookinfo/engine-audit-v5-post-fix-e752412.md) for current observations, unresolved classifications and bounded next approaches. The initial figures above are historical, not current pass rates.

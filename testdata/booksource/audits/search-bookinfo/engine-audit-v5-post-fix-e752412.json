@@ -1,0 +1,797 @@
+{
+  "status": "observations_not_compatibility_signoff",
+  "engineRevision": "e752412",
+  "baselineRevision": "bf0c672",
+  "corpusSHA256": "122b3a3a49bcd3f5e9464584691a726e1b901829aeedceb375012fb8405ffe40",
+  "frozenSHA256": "e5f6d73d66278cb591d72ac06c85e9735cf42615d3b9b391127c9ad1d2c0944e",
+  "probeBinarySHA256": "cf84df8ced7f494d2da4c9cfbdb130af2169dd114054e0772d6e83b617fa20dc",
+  "query": "凡人修仙传",
+  "sampleCount": 50,
+  "webviewConfigured": false,
+  "sequentialNonPassRechecks": 19,
+  "sequentialSuspiciousRechecks": 7,
+  "outcomes": {
+    "search_error_unclassified": 10,
+    "search_and_detail_returned": 31,
+    "empty_unclassified": 8,
+    "detail_error_unclassified": 1
+  },
+  "records": [
+    {
+      "sampleIndex": 0,
+      "rawIndex": 48,
+      "definitionSHA256": "038c38fec774de22208be3be07462b39fbc2dfd3dbf9b6650c04ae46b253940d",
+      "initialOutcome": "search_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "search_error_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": []
+    },
+    {
+      "sampleIndex": 1,
+      "rawIndex": 130,
+      "definitionSHA256": "284e38e46111c3d7fbff058c61ec9009717f880b358d63cabc420251a7bb36de",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 14,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 14,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 2,
+      "rawIndex": 7,
+      "definitionSHA256": "9899868bc17d306c3c3c7431417a44a6ec5cb3cece7e21f901f5d12e9c551a42",
+      "initialOutcome": "search_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "search_error_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        0
+      ]
+    },
+    {
+      "sampleIndex": 3,
+      "rawIndex": 277,
+      "definitionSHA256": "2ac14ad544f97d69b5b0e4c22facbc55b9b466097282715eae48b9703fe97588",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "scrutiny",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 20,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 20,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 4,
+      "rawIndex": 156,
+      "definitionSHA256": "f39800a9f7d87afc06bb2fee702ce6cfb073344b7c4c9106240b6ede5538cf29",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 1,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 1,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 5,
+      "rawIndex": 175,
+      "definitionSHA256": "0007666ca3263f888867feb89cb9d758731fbf89e3b501634a1e2f75a011961e",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 10,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 10,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 6,
+      "rawIndex": 136,
+      "definitionSHA256": "bf8e520af096f1f4819836ea173dd377ba8781cf306a12546d6732bcb88b2f50",
+      "initialOutcome": "empty_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "empty_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200
+      ]
+    },
+    {
+      "sampleIndex": 7,
+      "rawIndex": 290,
+      "definitionSHA256": "1fcb83b3bcacef6d626cf7997febbcbbd5e9b57308026b6d37e4201d95605187",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 3,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 3,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 8,
+      "rawIndex": 50,
+      "definitionSHA256": "984aa00c01f42891eb2c88a50bfd9d0d2dd541f7acf5b839404884864ce2a15e",
+      "initialOutcome": "empty_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "empty_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200
+      ]
+    },
+    {
+      "sampleIndex": 9,
+      "rawIndex": 104,
+      "definitionSHA256": "b22d174e67e7c7b165cb50641964af0488fe08e8eda7bfe91ba075a2d209afd2",
+      "initialOutcome": "empty_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "empty_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200
+      ]
+    },
+    {
+      "sampleIndex": 10,
+      "rawIndex": 228,
+      "definitionSHA256": "e88c88998fd32c5802c8efb4682c0cdeb780ed3bdb53a36a265c7a97b62cd65c",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "scrutiny",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 20,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 1,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 11,
+      "rawIndex": 278,
+      "definitionSHA256": "6d3e8a7cdd2ad8245ccfd78246e659f0f93bfe06f1333dfcc3e498e21249aed4",
+      "initialOutcome": "empty_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "empty_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200
+      ]
+    },
+    {
+      "sampleIndex": 12,
+      "rawIndex": 28,
+      "definitionSHA256": "2dfb6e85958529c0f6cbc56f1318fca2037b1121d9ad285db65645e7817cf745",
+      "initialOutcome": "search_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "search_error_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        0
+      ]
+    },
+    {
+      "sampleIndex": 13,
+      "rawIndex": 141,
+      "definitionSHA256": "5dadf6fd3709e3541414de3da4da3000a8cb80a25844156b1117265d2a9e1a95",
+      "initialOutcome": "empty_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "empty_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200
+      ]
+    },
+    {
+      "sampleIndex": 14,
+      "rawIndex": 60,
+      "definitionSHA256": "21b01b2d14d6705212427b495b262e291b7e6ec6c32aaaed81079f4e6480b980",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 1,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 1,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 15,
+      "rawIndex": 49,
+      "definitionSHA256": "90b92e6ba6a63257f1c830e6d1848898e6377ac7c1eb7423621fef2bbbe4a1b7",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 10,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 10,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 16,
+      "rawIndex": 147,
+      "definitionSHA256": "6b9790ffd5ab5bc56f35fa7bff553bf6713fabd7c8c9cbbc9ec1141fca6944f4",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "scrutiny",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 5,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 5,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 17,
+      "rawIndex": 242,
+      "definitionSHA256": "259e181629d06b94a64b249703f60dd284fc51cdd8c86b8617723f9e5ac1e33c",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 10,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 10,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 18,
+      "rawIndex": 0,
+      "definitionSHA256": "3b1eeff3d45eec2a71ab12af116bf866f8d969c74c0972d79eca88ae22931ed1",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 15,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 15,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 19,
+      "rawIndex": 22,
+      "definitionSHA256": "e51c49445fb3510be17fa9aa7f68231a5f4bf0bca2944da9ee1e3238729bffb6",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 7,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 7,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 20,
+      "rawIndex": 143,
+      "definitionSHA256": "7be9fc7cb3a59adb90176991e18db656836a9cf1a921392a608ec68ca8cdbb43",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 20,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 20,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 21,
+      "rawIndex": 201,
+      "definitionSHA256": "9bfd739033343e703327082845c9cd9e4dc942ae16cf4afc8c086deb519964e2",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "scrutiny",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 2,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 2,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 22,
+      "rawIndex": 254,
+      "definitionSHA256": "b4c046166eed0c4493afb871be931bd02cc4661e48885ff334107bb670444598",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "scrutiny",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 20,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 20,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 23,
+      "rawIndex": 193,
+      "definitionSHA256": "7c33a4d3048bbd387db2bb770e6d884c342c6a3e795f88f108cb7b2211e45a49",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 4,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 4,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 24,
+      "rawIndex": 26,
+      "definitionSHA256": "4975faa987badb13d780ead26f60a73afec5a11b4a8f517cccac904760647cc0",
+      "initialOutcome": "search_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "search_error_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": []
+    },
+    {
+      "sampleIndex": 25,
+      "rawIndex": 180,
+      "definitionSHA256": "cd1e571b6caff0cd4791bac978f4f8ef169137887ba7645e25865bfde426b29c",
+      "initialOutcome": "search_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "search_error_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": []
+    },
+    {
+      "sampleIndex": 26,
+      "rawIndex": 119,
+      "definitionSHA256": "0a65d058219c1196dd1a7772d0f72a4a7f1d6138a68a04f39807df7a245115b6",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 1,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 1,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 27,
+      "rawIndex": 12,
+      "definitionSHA256": "1d6d81f011e389e21e47f3583c75cc90490461309415645536c669b672723802",
+      "initialOutcome": "search_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "search_error_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        0
+      ]
+    },
+    {
+      "sampleIndex": 28,
+      "rawIndex": 66,
+      "definitionSHA256": "f90a6031cc94da22344eac7c105289abe6bfde978323b5dd919de425262c7d54",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 8,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 8,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 29,
+      "rawIndex": 65,
+      "definitionSHA256": "0cd753f6a0e56a59ab833d4f50fb8d7b402df009f9f7c605557738172d0f4a33",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 18,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 18,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 30,
+      "rawIndex": 93,
+      "definitionSHA256": "265a349e5dea02490432b390d8b199f09bdfecce75d6fc92998bf4285e9fea40",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 20,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 20,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 31,
+      "rawIndex": 101,
+      "definitionSHA256": "6827d85d5f7a9ccbe4beb5c6c0124489a9a114a5a834f0bde630782f8a229ff4",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 20,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 20,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 32,
+      "rawIndex": 194,
+      "definitionSHA256": "06e86ad99dc5154355cd2d3ee6e7c16b2ad13e3404e2474b2d345157a36ef73e",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "scrutiny",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 10,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 10,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 33,
+      "rawIndex": 55,
+      "definitionSHA256": "c897f147152474f2982258f25a570573b1993c5f552a9e470b9da51d2a9fb36f",
+      "initialOutcome": "search_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "search_error_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200
+      ]
+    },
+    {
+      "sampleIndex": 34,
+      "rawIndex": 250,
+      "definitionSHA256": "78ea06ba914539075199e74a1e1c6b97427f459ab8fcfb81c02cee222cadacee",
+      "initialOutcome": "search_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "search_error_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200
+      ]
+    },
+    {
+      "sampleIndex": 35,
+      "rawIndex": 210,
+      "definitionSHA256": "3eccfdedc129dec836e774a98f309ccd1941cdaee5c6a53a8561e5869b096855",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 10,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 10,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 36,
+      "rawIndex": 165,
+      "definitionSHA256": "bdfc2dc85335e6f03af314470873843682b4e146936ca9ae8beee756fbd820ef",
+      "initialOutcome": "search_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "search_error_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        404
+      ]
+    },
+    {
+      "sampleIndex": 37,
+      "rawIndex": 58,
+      "definitionSHA256": "4cdc5c160394478b41f2d17a1dc5a2913ce0132181a8d0a4cda516780894e84b",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 7,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 7,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 38,
+      "rawIndex": 137,
+      "definitionSHA256": "6586900952dc58196eeba31ac50a7aa010a9d0f96da56bb7bcbf7e363c288c6a",
+      "initialOutcome": "empty_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "empty_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200
+      ]
+    },
+    {
+      "sampleIndex": 39,
+      "rawIndex": 92,
+      "definitionSHA256": "7381cee8f111763745f82149845bae34f2ce6fcce58e13fefedff4036c72f5c1",
+      "initialOutcome": "empty_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "empty_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200
+      ]
+    },
+    {
+      "sampleIndex": 40,
+      "rawIndex": 169,
+      "definitionSHA256": "00323d213ddfdb5846441c42fef1bf6f5c64d00b58b8f08e57de0c5ad16ea9d6",
+      "initialOutcome": "detail_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "detail_error_unclassified",
+      "resultCount": 20,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 20,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 41,
+      "rawIndex": 47,
+      "definitionSHA256": "3fab2d6e62fc82641603c5468d4b50bcf193458d0dfc1392d9a69d499d7874e9",
+      "initialOutcome": "empty_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "empty_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200
+      ]
+    },
+    {
+      "sampleIndex": 42,
+      "rawIndex": 248,
+      "definitionSHA256": "31de07bae797db55b9c94ceca37bd639d92d936481b5cf2227bbc3d9a5a82319",
+      "initialOutcome": "search_error_unclassified",
+      "confirmationPhase": "replay",
+      "confirmedOutcome": "search_error_unclassified",
+      "resultCount": 0,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 0,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        502
+      ]
+    },
+    {
+      "sampleIndex": 43,
+      "rawIndex": 261,
+      "definitionSHA256": "aee0f04669acc221103020ecd7da0897b4a9c45f63c948165468984263504b3f",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 20,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 20,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 44,
+      "rawIndex": 134,
+      "definitionSHA256": "6771215f9c0123067c6a034005f32b77128e7254847ed5cfe307291e5f4e8e42",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 20,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 20,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 45,
+      "rawIndex": 280,
+      "definitionSHA256": "70dad9a377e01e71ee2209f4375664a952bf7d545c622f63a3eb9d2e3a71ca4f",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 10,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 10,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 46,
+      "rawIndex": 212,
+      "definitionSHA256": "037811cf375b7b2d784fc7f58b584b307879d9e402fc619b3b6b38ffedd8f6ae",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 17,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 17,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 47,
+      "rawIndex": 198,
+      "definitionSHA256": "c02bfe97e21aaa87746f85ce3548230c34893dd01c218ad3d8f9cf44d5ce13d0",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 20,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 20,
+      "detailHasTocURL": false,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 48,
+      "rawIndex": 162,
+      "definitionSHA256": "79d1b88ecb1c1f30e701e96f96bd71d1117dc8d2fec4bde75c2bce8ba506de16",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "initial",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 17,
+      "hasQueryInTitle": true,
+      "distinctBookURLs": 17,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    },
+    {
+      "sampleIndex": 49,
+      "rawIndex": 83,
+      "definitionSHA256": "ba92ce928e3149575b1eae2623efb72c89ec931b02312f99ac842a4af71d8497",
+      "initialOutcome": "search_and_detail_returned",
+      "confirmationPhase": "scrutiny",
+      "confirmedOutcome": "search_and_detail_returned",
+      "resultCount": 9,
+      "hasQueryInTitle": false,
+      "distinctBookURLs": 9,
+      "detailHasTocURL": true,
+      "httpStatuses": [
+        200,
+        200
+      ]
+    }
+  ]
+}
