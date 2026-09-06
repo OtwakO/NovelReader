@@ -23,6 +23,7 @@ var (
 // AltSource is a complete source binding for the same logical book.
 // It may occupy either the active or alternate role.
 type AltSource struct {
+	VariableMap    string   `json:"variableMap,omitempty"` // alternate binding snapshot; active variables live on Book
 	SourceID       string   `json:"sourceId"`
 	SourceURL      string   `json:"sourceUrl"`
 	BookURL        string   `json:"bookUrl"`
@@ -558,6 +559,9 @@ func mergeAlternateSources(currentSourceID, currentBookURL string, sources []Alt
 }
 
 func enrichAlternateSource(existing, incoming AltSource) AltSource {
+	if incoming.VariableMap != "" {
+		existing.VariableMap = incoming.VariableMap
+	}
 	if incoming.SourceName != "" {
 		existing.SourceName = incoming.SourceName
 	}

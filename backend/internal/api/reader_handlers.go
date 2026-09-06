@@ -587,14 +587,14 @@ func (s *readerAPI) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
 		return
 	}
-	isAlternate := false
+	var selected *book.AltSource
 	for _, alternate := range current.AlternateSources {
 		if alternate.SourceID == req.SourceID && alternate.BookURL == req.BookURL {
-			isAlternate = true
+			selected = &alternate
 			break
 		}
 	}
-	if !isAlternate {
+	if selected == nil {
 		writeErrorCode(w, http.StatusBadRequest, "source_not_alternate", "source is not an alternate for this book")
 		return
 	}
@@ -622,7 +622,7 @@ func (s *readerAPI) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	target, err := s.searcher.GetBookInfoForBook(*src, &book.Book{
-		Name: current.Name, Author: current.Author,
+		Name: current.Name, Author: current.Author, VariableMap: selected.VariableMap,
 	}, req.BookURL)
 	if err != nil {
 		writeCrawlError(w, "book_info", err)

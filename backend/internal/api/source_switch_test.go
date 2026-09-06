@@ -21,7 +21,7 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	for name, sourceURL := range map[string]string{"Primary": primary.URL, "Target": target.URL, "Bad": bad.URL} {
 		raw, _ := json.Marshal([]map[string]interface{}{{
 			"bookSourceUrl": sourceURL, "bookSourceName": name, "bookSourceType": 0, "enabled": true,
-			"ruleBookInfo": map[string]string{"name": ".name@text", "tocUrl": ".toc@href"},
+			"ruleBookInfo": map[string]string{"name": "@js:if (java.get('binding') !== source.bookSourceName) throw new Error('wrong binding context'); java.getString('.name@text')", "tocUrl": ".toc@href"},
 			"ruleToc":      map[string]string{"chapterList": ".chapter", "chapterName": "text", "chapterUrl": "href"},
 			"ruleContent":  map[string]string{"content": ".content@text"},
 		}})
@@ -45,10 +45,10 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	}
 
 	stored := &book.Book{
-		ID: "book-1", Name: "Fixture", SourceID: sourceID(primary.URL), SourceURL: primary.URL, BookURL: primary.URL + "/book", TocURL: primary.URL + "/toc", Origin: "Primary",
+		ID: "book-1", Name: "Fixture", VariableMap: `{"binding":"Primary"}`, SourceID: sourceID(primary.URL), SourceURL: primary.URL, BookURL: primary.URL + "/book", TocURL: primary.URL + "/toc", Origin: "Primary",
 		ActiveSource: &book.AltSource{SourceID: sourceID(primary.URL), SourceURL: primary.URL, BookURL: primary.URL + "/book", SourceName: "Primary", DiscoveryQuery: "Fixture@primary", SourceGroup: "Primary type", Capabilities: []string{"search"}},
 		AlternateSources: []book.AltSource{
-			{SourceID: sourceID(target.URL), SourceURL: target.URL, BookURL: target.URL + "/book", SourceName: "Target", DiscoveryQuery: "Fixture@target", SourceGroup: "Target type", Capabilities: []string{"explore"}},
+			{SourceID: sourceID(target.URL), SourceURL: target.URL, BookURL: target.URL + "/book", SourceName: "Target", VariableMap: `{"binding":"Target"}`, DiscoveryQuery: "Fixture@target", SourceGroup: "Target type", Capabilities: []string{"explore"}},
 			{SourceID: sourceID(bad.URL), SourceURL: bad.URL, BookURL: bad.URL + "/book", SourceName: "Bad"},
 		},
 	}
@@ -90,6 +90,9 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil || result.Mapping != "title" {
 		t.Fatalf("result=%+v err=%v body=%s", result, err, response.Body.String())
+	}
+	if result.Book.VariableMap != `{"binding":"Target"}` {
+		t.Fatalf("target variables were not retained: %q", result.Book.VariableMap)
 	}
 	assertStoredSource(t, server, target.URL, 1, 0.65, 2, 3)
 	bookmarkResponse := performAPIRequest(server, http.MethodGet, "/api/books/book-1/bookmarks", nil)

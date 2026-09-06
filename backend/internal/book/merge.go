@@ -77,6 +77,7 @@ func bindingFromSearchResult(result SearchResult) AltSource {
 		SourceGroup:  result.SourceGroup,
 		Capabilities: append([]string(nil), result.Capabilities...),
 		LastChapter:  result.LastChapter,
+		VariableMap:  result.VariableMap,
 	}
 }
 

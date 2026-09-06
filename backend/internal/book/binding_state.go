@@ -28,6 +28,8 @@ func bindingFromBook(book *Book) AltSource {
 	if book.ActiveSource != nil && sameBinding(binding, *book.ActiveSource) {
 		binding = enrichAlternateSource(binding, *book.ActiveSource)
 	}
+	// The active Book owns the latest variables, not its metadata projection.
+	binding.VariableMap = book.VariableMap
 	return binding
 }
 
@@ -89,6 +91,9 @@ func encodeBindingState(state bindingState) (string, error) {
 		return "", errors.New("book: cannot encode bindings without a valid active binding")
 	}
 	state.Alternates = mergeAlternateSources(state.Active.SourceID, state.Active.BookURL, state.Alternates)
+	// Active variables are stored in books.variable_map. Persist only alternate
+	// snapshots here so later crawl updates cannot leave a second stale copy.
+	state.Active.VariableMap = ""
 	encoded, err := json.Marshal(state)
 	if err != nil {
 		return "", fmt.Errorf("book: encode binding state: %w", err)
@@ -100,6 +105,7 @@ func applyBindingState(book *Book, state bindingState) {
 	book.ActiveSource = nil
 	if validBinding(state.Active) {
 		active := state.Active
+		active.VariableMap = ""
 		book.ActiveSource = &active
 	}
 	book.AlternateSources = append([]AltSource(nil), state.Alternates...)
