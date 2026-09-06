@@ -39,6 +39,7 @@ class BrowserWorkerProbeTest(unittest.IsolatedAsyncioTestCase):
         page = MagicMock()
         page.set_content = AsyncMock()
         page.locator.return_value.text_content = AsyncMock(return_value="ready")
+        page.evaluate = AsyncMock(return_value="Browser-owned UA")
         context = MagicMock()
         context.new_page = AsyncMock(return_value=page)
         context.close = AsyncMock()
@@ -49,7 +50,15 @@ class BrowserWorkerProbeTest(unittest.IsolatedAsyncioTestCase):
         result = await worker._execute(browser, {"probe": True}, 1000)
 
         self.assertEqual(result["body"], "novelreader-webview-ok")
+        self.assertEqual(result["userAgent"], "Browser-owned UA")
+        page.evaluate.assert_awaited_once_with("navigator.userAgent")
         browser.new_context.assert_awaited_once()
+        context.close.assert_awaited_once()
+
+        context.close.reset_mock()
+        page.evaluate.side_effect = RuntimeError("browser disconnected")
+        with self.assertRaisesRegex(RuntimeError, "browser disconnected"):
+            await worker._execute(browser, {"probe": True}, 1000)
         context.close.assert_awaited_once()
 
 

@@ -447,6 +447,7 @@ class BrowserWorker:
                 "version": PROTOCOL_VERSION,
                 "statusCode": 200,
                 "body": "novelreader-webview-ok" if marker == "ready" else "",
+                "userAgent": await page.evaluate("navigator.userAgent"),
                 "finalUrl": "about:blank",
             }
         finally:

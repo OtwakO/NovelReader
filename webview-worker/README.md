@@ -43,6 +43,11 @@ installed), and stops it on shutdown. An existing display remains caller-owned. 
 the same Chrome binary and isolated, non-persistent contexts, with no additional stealth flags,
 UA overrides, or engine fallback. Headful Chrome costs more memory; keep concurrency bounded.
 `/healthz` includes the resolved Patchright/Chrome versions and selected mode.
+The bounded execution probe also returns the real default `navigator.userAgent` for
+`java.getWebViewUA()`. This helper requires a reachable worker with this capability;
+older workers still support readiness probes but cannot supply the UA. Upgrade the
+backend and worker together to use it. Values are not fabricated or cached across
+worker changes; each lookup uses the existing probe queue and context cleanup.
 
 `WEBVIEW_MAX_PAGES` limits concurrent browser contexts, `WEBVIEW_MAX_PENDING` bounds queued
 requests, `WEBVIEW_MAX_CONTEXTS_PER_BROWSER` recycles Chrome after clean usage (failed context cleanup also

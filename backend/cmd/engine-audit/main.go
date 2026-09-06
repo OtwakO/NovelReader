@@ -115,6 +115,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		vm.SetBrowserUserAgentProvider(worker.UserAgent)
 		searcher.SetWebViewTransportFactory(func(session *sourceexec.SourceSession) sourceexec.Transport {
 			return observer{worker.ForSession(session), &stage, &exchanges}
 		})

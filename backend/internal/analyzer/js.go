@@ -37,10 +37,11 @@ type JSVM struct {
 }
 
 type jsExecutor struct {
-	pool     chan *goja.Runtime
-	mu       sync.Mutex
-	initCode string
-	hc       fetcher.HTTPClient // for java.get/java.post from JS
+	pool             chan *goja.Runtime
+	mu               sync.Mutex
+	initCode         string
+	hc               fetcher.HTTPClient // for java.get/java.post from JS
+	browserUserAgent func(context.Context) (string, error)
 }
 
 // JSBridge exposes workflow-scoped JavaScript helpers without coupling analyzer to callers.
@@ -253,6 +254,7 @@ Map = function(a) {
 	toast := h.Toast
 	refreshExplore := h.RefreshExplore
 	java := map[string]interface{}{
+		"getWebViewUA":            func() (string, error) { return vm.getBrowserUserAgent(ctx) },
 		"get":                     h.Get,
 		"put":                     h.Put,
 		"post":                    h.Post,

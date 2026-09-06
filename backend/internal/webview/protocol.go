@@ -76,6 +76,7 @@ type interactiveResult struct {
 }
 
 type protocolResponse struct {
+	UserAgent     string              `json:"userAgent,omitempty"` // browser default, returned only by probes
 	Version       int                 `json:"version"`
 	StatusCode    int                 `json:"statusCode"`
 	Headers       map[string][]string `json:"headers,omitempty"`

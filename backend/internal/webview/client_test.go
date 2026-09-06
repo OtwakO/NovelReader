@@ -21,7 +21,7 @@ func TestClientProbeUsesWorkerExecutionProtocol(t *testing.T) {
 		if !request.Probe || request.Version != protocolVersion || request.URL != "" {
 			t.Fatalf("probe request=%+v", request)
 		}
-		_ = json.NewEncoder(w).Encode(protocolResponse{Version: protocolVersion, StatusCode: http.StatusOK, Body: "novelreader-webview-ok"})
+		_ = json.NewEncoder(w).Encode(protocolResponse{Version: protocolVersion, StatusCode: http.StatusOK, Body: "novelreader-webview-ok", UserAgent: "Browser-owned UA"})
 	}))
 	defer server.Close()
 
@@ -31,6 +31,9 @@ func TestClientProbeUsesWorkerExecutionProtocol(t *testing.T) {
 	}
 	if err := client.Probe(t.Context()); err != nil {
 		t.Fatal(err)
+	}
+	if ua, err := client.UserAgent(t.Context()); err != nil || ua != "Browser-owned UA" {
+		t.Fatalf("user-agent=%q err=%v", ua, err)
 	}
 }
 
@@ -267,5 +270,22 @@ func TestInteractiveClientStartsInputsAndClosesSession(t *testing.T) {
 	}
 	if len(requests) != 3 {
 		t.Fatalf("requests=%v", requests)
+	}
+}
+
+func TestUserAgentRejectsOlderWorkerCapability(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(protocolResponse{Version: protocolVersion, StatusCode: 200, Body: "novelreader-webview-ok"})
+	}))
+	defer server.Close()
+	client, err := NewClient(Config{Endpoint: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Probe(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if ua, err := client.UserAgent(t.Context()); err == nil || ua != "" || !strings.Contains(err.Error(), "upgrade the worker") {
+		t.Fatalf("missing identity capability was accepted: ua=%q err=%v", ua, err)
 	}
 }

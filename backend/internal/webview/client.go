@@ -63,17 +63,35 @@ func (c *Client) Do(ctx context.Context, spec sourceexec.RequestSpec) (sourceexe
 // Probe verifies the configured worker by creating a real browser context and evaluating a
 // deterministic in-memory page. It does not contact an external website.
 func (c *Client) Probe(ctx context.Context) error {
+	_, err := c.probe(ctx)
+	return err
+}
+
+// UserAgent reads the default identity of a real isolated browser context.
+// No UA is fabricated or cached when the worker is unavailable or replaced.
+func (c *Client) UserAgent(ctx context.Context) (string, error) {
+	result, err := c.probe(ctx)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(result.UserAgent) == "" {
+		return "", fmt.Errorf("webview: worker does not provide a browser user-agent; upgrade the worker")
+	}
+	return result.UserAgent, nil
+}
+
+func (c *Client) probe(ctx context.Context) (protocolResponse, error) {
 	if c == nil {
-		return fmt.Errorf("webview: nil client")
+		return protocolResponse{}, fmt.Errorf("webview: nil client")
 	}
 	result, err := c.executeWorker(ctx, protocolRequest{Version: protocolVersion, Probe: true, TimeoutMS: int(c.timeout.Milliseconds())})
 	if err != nil {
-		return err
+		return protocolResponse{}, err
 	}
 	if result.Body != "novelreader-webview-ok" {
-		return fmt.Errorf("webview: worker probe returned unexpected result")
+		return protocolResponse{}, fmt.Errorf("webview: worker probe returned unexpected result")
 	}
-	return nil
+	return result, nil
 }
 
 type sessionTransport struct {

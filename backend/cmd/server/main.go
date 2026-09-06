@@ -98,6 +98,7 @@ func main() {
 			log.Fatalf("webview transport: %v", browserErr)
 		}
 		searcher.SetWebViewTransportFactory(browserClient.ForSession)
+		jsVM.SetBrowserUserAgentProvider(browserClient.UserAgent)
 		slog.Info("headless WebView transport enabled", "endpoint", cfg.WebViewEndpoint)
 	}
 
