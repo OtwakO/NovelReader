@@ -96,11 +96,11 @@ The completed [architecture and code quality improvements](docs/plans/2026-09-05
 
 ## Active Work
 
-[BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed shared corrections are being implemented in tested steps; current outcomes and remaining work are in the plan. No source-specific patches or real BookSources committed.
+[BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening are implemented and locally integration-tested for landing together; unresolved compatibility investigations remain active in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities
 
-1. Continue the accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), the bounded browser-UA provider and [browser lifecycle hardening](docs/plans/browser-worker-lifecycle.md) are implemented. Resume a bounded remaining compatibility investigation; retain the recorded verification limits. Do not claim universal compatibility.
+1. The accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), bounded browser-UA provider and [browser lifecycle hardening](docs/plans/browser-worker-lifecycle.md) are implemented. Resume a bounded remaining compatibility investigation; retain the recorded verification limits. Do not claim universal compatibility.
 2. Select further compatibility slices from current evidence rather than historical unchecked boxes.
 3. Introduce provider capability interfaces only when a first non-BookSource provider is accepted; introduce image-sequence documents and structured locations only when that modality becomes active work.
 4. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
