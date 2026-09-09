@@ -55,6 +55,7 @@ Follow [Normalize Reading into Documents, Resources, and Modality Renderers](../
 7. Preserve uploaded source material and publish parsing/index changes atomically. A failed import or reparse must not replace an existing readable index.
 8. Prefer an explicit compile-time provider dispatch switch initially. Introduce a registry only if real registration needs emerge.
 9. Refactor existing BookSource code only where ownership must change for the first TXT vertical slice; do not reorganize the subsystem for symmetry.
+10. Place future features by the narrowest domain that owns their invariant: library-wide organization in the library module; origin-neutral reading coordination in the reading workflow; typography/page/audio behavior in the modality document/renderer; and acquisition, parsing, synchronization, replacement, or recovery in the owning provider. When a feature is shared by only some providers, extract a small capability only after the second real implementation demonstrates the common contract.
 
 ## Decisions
 
@@ -121,6 +122,21 @@ Follow [Normalize Reading into Documents, Resources, and Modality Renderers](../
 - [ ] Add unified shelf origin filtering and focused TXT management UI.
 - [ ] Add bounded TXT reparsing and progress/bookmark relocation only after the basic import/read path is stable.
 - [ ] Update current architecture documentation with the concrete implemented interfaces and storage ownership.
+
+## Feature Placement Guide
+
+Use this routing rule to prevent shared behavior from being duplicated or provider details from leaking outward:
+
+| Feature kind | Canonical owner | Examples |
+|---|---|---|
+| Shared shelf/library behavior | Library | collections, favorites, sorting, filtering, reading history, display overrides |
+| Shared reading-session behavior | Reading workflow | authorization, section navigation, progress, bookmarks, common failures, prefetch coordination |
+| Reading-modality behavior | Document and renderer | prose typography and selection, image-page fitting and zoom, audio playback and time location |
+| BookSource-only behavior | BookSource module | Search, Explore, source bindings, catalog fetch, source recovery, rules, sessions, login |
+| TXT-only behavior | TXT module | upload validation, encoding, TOC parsing, text indexing, reparse, original-file handling |
+| Shared by some providers | Small capability after the second real case | original-file export or file replacement if TXT and EPUB demonstrate one cohesive contract |
+
+Provider modules normalize native behavior into Reading Sections, Reading Documents, Content Resources, and Reading Locations. Shared layers must not know TXT offsets, archive paths, BookSource URLs, source rules, cookies, or provider-native identifiers. The frontend selects rendering by document kind, not provider kind; provider-specific management remains in focused feature UI.
 
 ## Current State
 

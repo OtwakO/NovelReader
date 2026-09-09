@@ -114,7 +114,7 @@ The completed [architecture and code quality improvements](docs/plans/2026-09-05
 - **Frontend seam:** Vue consumes typed domain interfaces and never executes BookSource rules or interprets opaque source payloads.
 - **Reading seam:** providers open Reading Sections as modality-specific Reading Documents; documents use opaque Content Resources and the Reading Session delegates to modality renderers. See [decision 0002](docs/decisions/0002-reading-documents-and-resources.md).
 - **Source identity:** immutable NovelReader Source ID; imported `bookSourceUrl` is source data and may duplicate.
-- **Book identity:** normalized title plus author identifies a logical shelf book; exact source bindings live beneath it.
+- **BookSource book identity:** normalized title plus author identifies a logical BookSource shelf book; exact source bindings live beneath it. Imported publications remain independently identified shelf items by default; cross-provider edition linking requires a separate decision.
 - **Shelf admission:** Book Info metadata is sufficient for admission; catalog availability is a separate observable state.
 - **Explore:** one selected BookSource and its native catalog at a time; Search/Explore eligibility combines saved source preferences with independently persisted collection availability, without affecting shelf reading.
 - **Storage:** `system.db` plus one self-contained reader home per immutable Reader Account ID.
