@@ -96,15 +96,17 @@ The completed [architecture and code quality improvements](docs/plans/2026-09-05
 
 ## Active Work
 
+[Multi-provider library and imported books foundation](docs/plans/2026-09-10-multi-provider-library.md) — accepted design work for one provider-neutral library with cohesive BookSource and TXT ownership, shared reading capabilities extracted only at the second real provider, and a future path to EPUB without a generic plugin framework. The branch `feat/multi-provider-library` currently contains planning only; the next step is mapping current shelf/reader ownership and defining the smallest compatible foundation and TXT vertical slice before production edits.
+
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities
 
-1. The accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), bounded browser-UA provider and [browser lifecycle hardening](docs/plans/browser-worker-lifecycle.md) are implemented. Confirm the next bounded compatibility slice with the user before implementation; retain the recorded verification limits. Do not claim universal compatibility.
-2. Select further compatibility slices from current evidence rather than historical unchecked boxes.
-3. Introduce provider capability interfaces only when a first non-BookSource provider is accepted; introduce image-sequence documents and structured locations only when that modality becomes active work.
-4. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
-5. Finish consistent display of source-provided `updateTime` metadata if that presentation improvement is prioritized.
+1. Map current shelf, catalog, reading, resource, progress, deletion, API, and frontend ownership for the accepted [multi-provider library workstream](docs/plans/2026-09-10-multi-provider-library.md); then define the smallest provider-neutral foundation and complete TXT import-to-reading vertical slice before production edits.
+2. Extract provider capability interfaces only where BookSource and the first concrete TXT implementation create real variation; keep TXT TOC parsing, encoding, indexing, and reparsing provider-owned, and preserve one unified library with origin filters.
+3. The accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), bounded browser-UA provider and [browser lifecycle hardening](docs/plans/browser-worker-lifecycle.md) are implemented. Confirm any next compatibility slice with the user before implementation; retain the recorded verification limits. Do not claim universal compatibility.
+4. Select further compatibility slices from current evidence rather than historical unchecked boxes; introduce image-sequence documents and structured locations only when that modality becomes active work.
+5. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md). Finish consistent display of source-provided `updateTime` metadata only if that presentation improvement is prioritized.
 
 ## Durable Decisions
 
