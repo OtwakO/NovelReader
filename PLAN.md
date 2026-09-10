@@ -96,7 +96,7 @@ The completed [architecture and code quality improvements](docs/plans/2026-09-05
 
 ## Active Work
 
-[Multi-provider library and imported books](docs/plans/2026-09-10-multi-provider-library.md) — redrafted as a requirements-led baseline covering product behavior, performance, storage, backup/removal, quality criteria, prior preferences, and open design questions. The old blueprint remains in Git as a second opinion. Architecture and delivery sequence await discussion; production implementation is paused and the branch contains documentation only.
+[Multi-provider library and imported books](docs/plans/2026-09-10-multi-provider-library.md) — requirements-led baseline plus a proposed refined design: small shared library/reading contracts, origin-owned interpretation, reader-home durable lifecycle, and explicit revision/transaction/runtime invariants. Initial format limits, reparse locations, inbox completion, and delivery scope remain decision gates. Architecture and delivery sequence await acceptance; production implementation is paused and the branch contains documentation only.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 

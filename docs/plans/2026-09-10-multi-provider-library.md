@@ -1,5 +1,5 @@
 ---
-status: requirements-review
+status: design-review
 updated: 2026-09-10
 ---
 
@@ -135,6 +135,78 @@ Only the requirements-led process is accepted at this checkpoint:
 
 Do not inherit the previous proposal's table split, shared section persistence, provider/publication ID scheme, revision counters, original-byte indexing, lock topology, directory hierarchy, deletion quarantine, or foundation-first sequence as requirements.
 
+## Refined Design Recommendation — Proposed
+
+This section records the systematic design review and subsequent discussion, not authorization to implement. Preserve the requirements above; signatures, table names, limits, and delivery scope remain subject to the unresolved decisions below.
+
+### Ownership and appropriate abstraction
+
+| Concern | Recommended owner and shape | Avoid |
+|---|---|---|
+| Library identity, display metadata, listing/organization | One shared library model/store; server-side bounded queries. User-edited metadata has one authoritative home; provider-returned metadata is acquisition data, not a competing display record. | Fetching every provider's books and merging/paginating in memory; per-card provider queries; growing nullable format-specific columns. |
+| Ordinary reading and reader state | Small reading operations coordinating authorization, section lookup, document opening, progress/bookmarks, and normalized failures. Reuse the existing prose semantics and renderer. | Separate TXT/EPUB readers or a pass-through service with no invariant of its own. |
+| Native catalog/content | BookSource owns source bindings/catalog/cache; TXT owns encoding and chapter index. Share the section/document contract; start with provider-owned catalog persistence unless common storage earns its cost. | Assuming a shared interface requires shared section rows plus provider-extension rows. |
+| Provider variation | Consumer-owned interfaces only for real shared operations. Explicit selection in application composition; focused origin-specific management remains explicit. | Giant Provider interface, plugin registry, reflection, universal provider payload, scattered provider checks in the reader. |
+| TXT analysis | One concrete analyzer with ordinary functions and a typed method choice: automatic, preset, custom where approved. | Class per pattern, parser plugins, generic workflow engine. |
+| Durable bytes | Extend existing reader-home rooted storage only for required streaming, ownership, backup, and cleanup operations. TXT owns interpretation, not a separate file-lifecycle system. | Whole-file ReadFile for novels; cloud/virtual filesystem abstraction; encoding-aware storage infrastructure. |
+| Cross-owner mutations | One explicit use-case operation owns commit/rollback, using narrow transaction-aware store operations. | Module-internal SQL from another module, separate commits stitched together by an HTTP handler, a general unit-of-work framework. |
+| Background analysis | Recoverable SQLite work records plus bounded workers integrated with reader lifetime. | One goroutine per file, unbounded per-reader pools, external broker, event bus, retaining whole novels in memory. |
+
+Dependencies should flow from application composition/reading operations toward the shared model and origin implementations. The library must not import origin modules. Shared document values must not depend on HTTP handlers or BookSource-native processor state. Provider implementations can adapt to those values without duplicating them. Physical package splits should follow these responsibilities only when they materially improve locality.
+
+Keep BookSource catalog synchronization and TXT reparse as distinct use cases; share location validation/commit mechanics only where their contracts match. The existing BookSource switch transaction is a preservation requirement, not permission to make all origins implement source switching.
+
+### Identity, changes, and reading locations
+
+- Give every library item a stable identity. Title/author merge remains BookSource-specific; pending acquisitions need not be visible library items. Exact row/key layout is not chosen here.
+- Distinguish active content/catalog revision from optimistic concurrency on progress. Scrolling must not invalidate a prepared TOC solely because a progress counter changed. Ordinary progress writes must still reject stale structure and conflicting writes; retain existing ordering/conflict protections.
+- Section references are opaque outside the owning origin and qualified by the relevant revision. Do not assume ordinals survive replacement or that random IDs create correspondence between different catalogs.
+- The current prose location is section/chapter plus normalized progression. A scroll fraction is NOT an original-byte location, especially after presentation transforms. Do not invent exact TXT relocation by multiplying that fraction by a byte range. Exact anchors, conservative relocation, or explicit user repositioning require a decision before reparse delivery; no speculative universal audio/image location model is needed.
+- When applying a new interpretation, read current progress/bookmarks and validate them inside the coordinated operation. If concurrent changes invalidate an impact preview, recompute or return a conflict rather than overwrite newer state. Expensive analysis stays outside the transaction.
+- At the shared reading seam, requests/responses and client caches must identify the relevant interpretation. Old document/resource responses and queued progress writes must not attach to a newer TOC, removed item, replaced reader home, or another account. Backend lookup must likewise avoid pairing a section from one revision with content from another.
+
+### TXT preparation and switching
+
+- Receive durably, analyze asynchronously, accept, then read. Ordinary opening loads the prepared index and selected content; it never triggers full parsing or full-file hashing.
+- Prefer one immutable original file and byte-range indexing for explicitly supported seek-decodable encodings. Do not promise every encoding or create a routine normalized full-content duplicate. A bounded sample proposes encoding; the complete analysis detects later decode errors. Resolved encoding/rule and parser version are stored with the result.
+- Analyzer input is a readable original and validated interpretation options; output is a bounded index, resolved interpretation, review disposition, and diagnostics. It does not publish books or manage transactions. One streaming pass can evaluate a small bounded set of built-in patterns; enforce limits on lines, headings, candidates, and total work. Preserve leading text and handle EOF/decoding failures explicitly.
+- Separate **advisory diagnostics**, **review-required ambiguity**, and **technical errors**. Ready is not defined as “no messages.” Explicit user choice can resolve ambiguity but cannot bypass invalid decoding, unsafe ranges, or resource limits. Custom patterns use the existing language's safe regex facilities and input limits, not an invented timeout subsystem.
+- Prefer one active index and at most one durable replacement candidate per publication. Transient bounded alternative evidence may support Automatic review; it need not become permanent version history. A newer analysis request supersedes older work; cancellation/supersession is checked when saving a result, not only during parsing.
+- Initial import and later reparse use the same analyzer and preview behavior. Acceptance is an idempotent database operation bound to the candidate and content revision, not another parse or file copy. Repeated clicks/retries must not publish duplicate library items. Independently re-uploading the same bytes is a different product question, not automatic deduplication.
+- Normal reads should remain bounded by the requested unit. Large chapters/no-heading files require an explicit subdivision, chunking, or initial-limit policy; neither a whole-book fallback nor an unbounded HTML/JSON response satisfies this requirement.
+
+### Durable content and operation lifetime
+
+- Proposed file layout adds `files/inbox/`, `files/work/`, and `files/publications/<readable-name>--<unique-id>/<readable-original-name>`. No pending/ready/failed directory hierarchy or required format subfolders. Workflow state is in SQLite; pending and published imports share a stable managed file. Use portable sanitized names and stored relative paths, not names reconstructed from editable titles.
+- Managed originals are immutable through the application; external in-place edits/renames are initially unsupported. Detect encountered missing/changed content explicitly; do not silently rebuild an index or hash the entire file on every open. File replacement is not implied by reparsing and needs its own future policy.
+- Acquisition is not merely a rename followed by an INSERT. Record recoverable intent before destructive inbox consumption, retain evidence of managed ownership, and acknowledge durable acquisition only when the storage contract is met. Same-filesystem and cross-filesystem steps may differ. Failed database commits can be ambiguous; recovery must not delete potentially referenced bytes.
+- A safe inbox contract must address an external writer that remains open across rename. Temporary-suffix then final-rename delivery is the reliable producer convention; heuristic stability scanning cannot guarantee it. Cross-filesystem source removal must not delete a replacement file that appeared at the same inbox path. If managed acquisition succeeds but inbox cleanup fails, retain retryable identity/state and report partial completion without claiming/publishing it again.
+- Deletion uses an identifiable, retryable lifecycle: stop new work, drain/cancel conflicting work, remove owned bytes, finalize related rows. Do not require a quarantine directory without a concrete need. Unreferenced files from interrupted acquisition are recovery inputs, not automatically disposable garbage.
+- Workers must respect process-wide resource bounds as well as reader/account fairness. They hold a valid reader-home lifetime while running, not an HTTP request context; shutdown, account removal, and restore stop admission and cancel/drain work before closing/replacing storage. Do not pin a runtime for an entire idle batch or let stale workers write into a restored home. This is lifecycle integration, not a new distributed scheduler.
+- Backup uses an explicit durable-file policy, not a walk that accidentally includes inbox/work. Pair the database snapshot with its referenced durable content and prevent deletion/replacement of those bytes until copied; include existing managed assets in the same consistency analysis. Parsing and ordinary reads should not require a long exclusive backup lock.
+- Backup/restore must account for partially acquired or deleting publications. Choose whether to settle such operations or export a safe recoverable representation before snapshot; do not export database references whose only required bytes live in excluded work/inbox. A portable restore must NEVER replay deletion of an external inbox original from the source installation. Keep operational recovery references distinct from portable publication state.
+
+### Extension and failure checks
+
+| Scenario | Expected locality / invariant |
+|---|---|
+| New TXT heading family | TXT analyzer and focused fixtures; shared reader unchanged. |
+| New BookSource login/recovery feature | BookSource implementation and its management UI; TXT unaffected. |
+| Collections or common display changes | Shared library and UI; no format parser edits. |
+| EPUB addition | Reuse durable file lifecycle, library, prose session, and authorized resources; implement package/spine interpretation inside EPUB. No placeholder adapter now. |
+| EPUB-specific footnotes/richer navigation | Extend document semantics only for real behavior; do not force EPUB navigation hierarchy to equal a flat spine or expose archive paths/raw executable HTML. Exact EPUB design is deferred. |
+| Reparse while reading or double-clicking Apply | No lost newer progress, stale candidate publication, duplicate admission, or old document attached to new sections. |
+| Interrupted claim/deletion or backup during acquisition | No lost sole original, silently incomplete cleanup, or unusable portable snapshot. |
+| Restart/account restore during batch | Work recovers without request lifetime dependence or stale writes to a replaced home; no destructive external inbox replay. |
+
+### Alternatives and delivery discipline
+
+- **One nullable universal book row:** superficially smallest patch, but leaves shared reading dependent on origin-specific state; not recommended.
+- **Universal shared catalog schema/provider framework first:** centralizes tables but front-loads joins, coordinated ownership, and hypothetical capabilities; not justified by present evidence.
+- **Small shared library/reading contract with origin-owned preparation:** recommended balance. Its real cost is explicit transaction composition and section validation without assumed shared-table foreign keys. Verify those seams rather than hiding the cost.
+
+Implement a narrow complete TXT path and extract the minimum common state needed for both origins in that same workstream. “Vertical slice first” is not permission to create fake BookSources, duplicate reader state temporarily, or defer safe removal/backup. Establish identity, revision checks, and commit ownership before schema edits; avoid a standalone broad foundation rewrite. Agree the first usable slice and follow-on reparse/review controls before implementation. Keep it schema-coherent with existing exact-schema validation; any foreign-key cleanup design must enable enforcement on every reader connection rather than assume the current configuration does so.
+
 ## Open Design Questions
 
 Resolve these progressively, not through one large speculative blueprint:
@@ -162,15 +234,15 @@ Resolve these progressively, not through one large speculative blueprint:
 - Branch: `feat/multi-provider-library`, created from `main` at `0702469`.
 - The workstream has changed documentation only. No production code, schema, frontend behavior, or HTTP interface was implemented; nothing in those areas required reverting.
 - The previous blueprint has been replaced in this stable plan path. Git preserves its history.
-- Requirements and prior preferences are recovered; replacement architecture and implementation sequence are not yet accepted. Production implementation remains paused.
+- Requirements and prior preferences are recovered. A proposed refined design now records ownership, appropriate patterns, TXT analysis/switching, file lifecycle, concurrency/restore invariants, alternatives, and extension checks. Replacement architecture and delivery sequence still await acceptance; production implementation remains paused.
 
 ## Next Action
 
-Present a bounded comparison of credible architectural alternatives, grounded in the affected existing code and the requirements above. Recommend the simplest complete approach, identify consequential unresolved tradeoffs, and discuss it with the user before adding a concrete implementation plan or changing production code.
+Discuss the proposed refinement with the user. Before concrete implementation, settle the initial encoding/oversized-section policy, TXT location preservation on reparse, reliable inbox completion contract, and first usable delivery scope. Then specify only the necessary shared state, transaction/recovery boundaries, backup treatment of in-flight operations, runtime integration, and focused verification in this plan. No further generic framework design is needed.
 
 ## Verification
 
 - Branch comparison with `main` confirmed that only `PLAN.md` and this plan differ for the workstream.
-- This redraft is documentation-only; no runtime tests or builds are claimed or needed to validate it.
+- This work is documentation-only; no runtime tests or builds are claimed. Focused source inspection rechecked `book/store.go:UpdateProgress`, `book/bookmark.go:AddBookmark`, `book/source_switch.go:SwitchSource`, frontend `reader/progress-writer.ts`, `readerstore/home.go`, `readerstore/backup.go:SnapshotHome/copyDurableFiles`, `readerstore/database.go`, and API reader runtime lifecycle. These confirm progress/source coupling, transactional source switching, whole-file file helpers, whole-tree backup copying, and the need for job/runtime lifetime integration. This is design evidence, not a completed implementation or concurrency test.
 - Before implementation, define focused checks for preserved BookSource behavior, TXT interpretation/read bounds, stale reading state, partial batch failure, interrupted acquisition/deletion, and backup/restore consistency. Use synthetic deterministic fixtures and fault injection where justified; do not multiply tests for equivalent cases.
 - Performance limits and supported encodings remain unmeasured/unselected; no scalability guarantee is claimed.
