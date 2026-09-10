@@ -25,7 +25,11 @@ func TestListBooksIncludesStoredCurrentChapterTitle(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := server.standalone.bookStore.UpdateProgress(stored.ID, stored.SourceID, 0, 1, 0.4); err != nil {
+	stored, err := server.standalone.bookStore.GetBook(stored.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := server.standalone.bookStore.UpdateProgress(stored.ID, stored.ContentRevision, 0, 1, 0.4); err != nil {
 		t.Fatal(err)
 	}
 

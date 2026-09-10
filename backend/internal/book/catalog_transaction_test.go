@@ -24,7 +24,7 @@ func TestCatalogReplacementParticipatesInCallerTransaction(t *testing.T) {
 			}
 			// Another owner must be able to change its state in the same
 			// transaction; catalog persistence must not commit ahead of it.
-			if _, err := tx.Exec(`UPDATE books SET dur_chapter_pos = 0.5 WHERE id = 'book-1'`); err != nil {
+			if _, err := tx.Exec(`UPDATE books SET variable_map = ? WHERE id = 'book-1'`, `{"key":"value"}`); err != nil {
 				t.Fatalf("catalog ended its caller's transaction: %v", err)
 			}
 			if commit {
@@ -43,11 +43,11 @@ func TestCatalogReplacementParticipatesInCallerTransaction(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			wantTitle, wantCount, wantPosition := "Original", 1, 0.0
+			wantTitle, wantCount, wantVariables := "Original", 1, ""
 			if commit {
-				wantTitle, wantCount, wantPosition = "Replacement", 2, 0.5
+				wantTitle, wantCount, wantVariables = "Replacement", 2, `{"key":"value"}`
 			}
-			if len(chapters) != wantCount || chapters[0].Title != wantTitle || stored.TotalChapterNum != wantCount || stored.DurChapterPos != wantPosition {
+			if len(chapters) != wantCount || chapters[0].Title != wantTitle || stored.TotalChapterNum != wantCount || stored.VariableMap != wantVariables {
 				t.Fatalf("catalog/state were not atomic: book=%+v chapters=%+v", stored, chapters)
 			}
 		})

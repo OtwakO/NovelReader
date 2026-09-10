@@ -16,14 +16,15 @@ const (
 )
 
 type CachedChapter struct {
-	BookID       string
-	SourceID     string
-	ChapterIndex int
-	ChapterURL   string
-	Title        string
-	Paragraphs   []string
-	Blocks       []processor.ProseBlock
-	CachedAt     int64
+	ContentRevision int64
+	BookID          string
+	SourceID        string
+	ChapterIndex    int
+	ChapterURL      string
+	Title           string
+	Paragraphs      []string
+	Blocks          []processor.ProseBlock
+	CachedAt        int64
 }
 
 func (s *Store) SaveChapterCache(entry CachedChapter) error {
@@ -41,10 +42,10 @@ func (s *Store) SaveChapterCache(entry CachedChapter) error {
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck
-	if _, err := tx.Exec(`INSERT INTO chapter_cache (book_id, source_id, chapter_index, chapter_url, title, paragraphs, blocks, cached_at, last_accessed)
-		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM books WHERE id = ? AND source_id = ?)
-		ON CONFLICT(book_id, source_id, chapter_index) DO UPDATE SET chapter_url=excluded.chapter_url, title=excluded.title, paragraphs=excluded.paragraphs, blocks=excluded.blocks, cached_at=excluded.cached_at, last_accessed=excluded.last_accessed`,
-		entry.BookID, entry.SourceID, entry.ChapterIndex, entry.ChapterURL, entry.Title, string(paragraphs), string(blocks), now, now, entry.BookID, entry.SourceID); err != nil {
+	if _, err := tx.Exec(`INSERT INTO chapter_cache (book_id, source_id, chapter_index, chapter_url, title, paragraphs, blocks, cached_at, last_accessed, content_revision)
+		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM books b JOIN library_items l ON l.id = b.id WHERE b.id = ? AND b.source_id = ? AND l.content_revision = ?)
+		ON CONFLICT(book_id, source_id, chapter_index) DO UPDATE SET content_revision=excluded.content_revision, chapter_url=excluded.chapter_url, title=excluded.title, paragraphs=excluded.paragraphs, blocks=excluded.blocks, cached_at=excluded.cached_at, last_accessed=excluded.last_accessed`,
+		entry.BookID, entry.SourceID, entry.ChapterIndex, entry.ChapterURL, entry.Title, string(paragraphs), string(blocks), now, now, entry.ContentRevision, entry.BookID, entry.SourceID, entry.ContentRevision); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM chapter_cache WHERE rowid IN (
@@ -60,13 +61,14 @@ func (s *Store) SaveChapterCache(entry CachedChapter) error {
 	return tx.Commit()
 }
 
-func (s *Store) GetChapterCache(bookID, sourceID string, chapterIndex int, chapterURL string) (*CachedChapter, error) {
+func (s *Store) GetChapterCache(bookID, sourceID string, chapterIndex int, chapterURL string, contentRevision int64) (*CachedChapter, error) {
 	var entry CachedChapter
 	var paragraphs, blocks string
-	err := s.db.QueryRow(`SELECT book_id, source_id, chapter_index, chapter_url, title, paragraphs, blocks, cached_at FROM chapter_cache
-		WHERE book_id = ? AND source_id = ? AND chapter_index = ? AND chapter_url = ?`,
-		bookID, sourceID, chapterIndex, chapterURL).
-		Scan(&entry.BookID, &entry.SourceID, &entry.ChapterIndex, &entry.ChapterURL, &entry.Title, &paragraphs, &blocks, &entry.CachedAt)
+	err := s.db.QueryRow(`SELECT book_id, source_id, chapter_index, chapter_url, title, paragraphs, blocks, cached_at, content_revision FROM chapter_cache
+		WHERE book_id = ? AND source_id = ? AND chapter_index = ? AND chapter_url = ? AND content_revision = ?
+		AND EXISTS (SELECT 1 FROM library_items WHERE id = chapter_cache.book_id AND content_revision = chapter_cache.content_revision)`,
+		bookID, sourceID, chapterIndex, chapterURL, contentRevision).
+		Scan(&entry.BookID, &entry.SourceID, &entry.ChapterIndex, &entry.ChapterURL, &entry.Title, &paragraphs, &blocks, &entry.CachedAt, &entry.ContentRevision)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

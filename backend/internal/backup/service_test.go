@@ -57,6 +57,27 @@ func TestServiceExportsTimestampedPortableArchiveAndRestoresAcrossReaders(t *tes
 	if info.Filename != "novelreader-Alice-測試-backup-20260829-214530+0800.tar.gz" {
 		t.Fatalf("filename=%q", info.Filename)
 	}
+	// An old epoch must fail before staging Reader Data, and release its reservation
+	// so the compatible archive can still be restored below.
+	oldManifest := NewManifest("Alice", service.now())
+	oldManifest.ReaderSchemaVersion--
+	manifestJSON, err := json.Marshal(oldManifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oldArchive bytes.Buffer
+	compressed := gzip.NewWriter(&oldArchive)
+	tarWriter := tar.NewWriter(compressed)
+	if err := writeTarBytes(tarWriter, ManifestPath, manifestJSON, 0o600, service.now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(tarWriter.Close(), compressed.Close()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.PrepareRestore(t.Context(), backupBob, &oldArchive); err == nil || !strings.Contains(err.Error(), "incompatible") {
+		t.Fatalf("old epoch restore error=%v", err)
+	}
+
 	prepared, err := service.PrepareRestore(context.Background(), backupBob, bytes.NewReader(archive.Bytes()))
 	if err != nil {
 		t.Fatal(err)

@@ -18,7 +18,7 @@ const i18n = createI18n({
 });
 
 const book = {
-  id: 'book-1', name: 'Fixture Novel', author: 'Author', coverUrl: '', intro: '', kind: '', sourceId: 'source-1', sourceUrl: 'source-1', bookUrl: '/book', origin: 'Source', lastChapter: '', durChapterIndex: 0, durChapterPos: 0, totalChapterNum: 0, stateVersion: 0, alternateSources: [],
+  id: 'book-1', name: 'Fixture Novel', author: 'Author', coverUrl: '', intro: '', kind: '', sourceId: 'source-1', sourceUrl: 'source-1', bookUrl: '/book', origin: 'Source', lastChapter: '', durChapterIndex: 0, durChapterPos: 0, totalChapterNum: 0, provider: 'booksource', contentRevision: 0, stateVersion: 0, alternateSources: [],
 };
 
 afterEach(() => {
@@ -31,8 +31,9 @@ describe('BookDetailView catalog synchronization', () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(book), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(book), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ state: 'syncing' }), { status: 202, headers: { 'Content-Type': 'application/json' } }))
-      .mockResolvedValueOnce(new Response(JSON.stringify([{ id: 'book-1_0', bookId: 'book-1', index: 0, title: 'Chapter One', url: '/1', isVolume: false }]), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ contentRevision: 1, chapters: [{ id: 'book-1_0', bookId: 'book-1', index: 0, title: 'Chapter One', url: '/1', isVolume: false }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchMock);
 
     const wrapper = mount(BookDetailView, {
@@ -66,6 +67,7 @@ describe('BookDetailView catalog synchronization', () => {
   it('shows the catalog failure and retries through the sync endpoint', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(book), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(book), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ code: 'source_request_failed', error: 'All aggregate routes failed.' }), { status: 502, headers: { 'Content-Type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ state: 'syncing' }), { status: 202, headers: { 'Content-Type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchMock);
@@ -90,6 +92,27 @@ describe('BookDetailView catalog synchronization', () => {
     await retry!.trigger('click');
     await flushPromises();
 
-    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/books/book-1/chapters/sync', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/books/book-1/chapters/sync', expect.objectContaining({ method: 'POST' }));
   });
+});
+
+it('renders provider-neutral details without requesting BookSource context', async () => {
+  const item = { id: 'local', provider: 'fixture', name: 'Local publication', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', durChapterIndex: 0, durChapterPos: 0, totalChapterNum: 0, contentRevision: 2, stateVersion: 0 };
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === '/api/books/local') return new Response(JSON.stringify(item), { status: 200 });
+    if (url === '/api/books/local/chapters') return new Response(JSON.stringify({ chapters: [], contentRevision: 2 }), { status: 200 });
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const wrapper = mount(BookDetailView, { global: {
+    plugins: [i18n], mocks: { $route: { params: { bookId: 'local' } } },
+    stubs: { RouterLink: { template: '<a><slot /></a>' }, FeatureScaffold: { template: '<main><slot /></main>' }, BookCover: true, BookDetailSection: true, BookDetailToc: true, SourceRecoveryPanel: true },
+  } });
+  try {
+    await flushPromises();
+    expect(wrapper.text()).toContain('Local publication');
+    expect(wrapper.find('source-recovery-panel-stub').exists()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  } finally { wrapper.unmount(); }
 });

@@ -11,7 +11,7 @@ import (
 const (
 	// CurrentReaderSchemaVersion is one epoch for the complete current reader schema.
 	// Versions 1-4 belonged to the removed development migration history.
-	CurrentReaderSchemaVersion      = 9
+	CurrentReaderSchemaVersion      = 10
 	CurrentCredentialsSchemaVersion = 2
 )
 
@@ -91,6 +91,7 @@ func openHomeDatabase(path string) (*sql.DB, error) {
 	query.Add("_pragma", "journal_mode(WAL)")
 	query.Add("_pragma", "busy_timeout(5000)")
 	query.Add("_pragma", "cache_size(-8000)")
+	query.Add("_pragma", "foreign_keys(ON)")
 	dsn := sqliteFileURI(path) + "?" + query.Encode()
 
 	db, err := sql.Open("sqlite", dsn)

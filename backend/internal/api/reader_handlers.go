@@ -17,6 +17,7 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fontstore"
+	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/sourceinteraction"
 	"github.com/otwako/novelreader/internal/sourceprofile"
@@ -254,20 +255,7 @@ func (s *readerAPI) handleUpdateSource(w http.ResponseWriter, r *http.Request) {
 
 // --- Books ---
 
-func (s *readerAPI) handleListBooks(w http.ResponseWriter, r *http.Request) {
-	books, err := s.bookStore.ListBooks()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if books == nil {
-		books = []book.Book{}
-	}
-	s.addStoredCoverDisplayURLs(books)
-	writeJSON(w, http.StatusOK, books)
-}
-
-func (s *readerAPI) handleGetBook(w http.ResponseWriter, r *http.Request) {
+func (s *readerAPI) handleGetBookSource(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	b, err := s.bookStore.GetBook(id)
 	if err != nil {
@@ -393,10 +381,15 @@ func (s *readerAPI) handleRetryChapters(w http.ResponseWriter, r *http.Request) 
 	writeCatalogResult(w, s.catalogs.Retry(r.PathValue("id")))
 }
 
+type catalogResponse struct {
+	Chapters        []book.Chapter `json:"chapters"`
+	ContentRevision int64          `json:"contentRevision"`
+}
+
 func writeCatalogResult(w http.ResponseWriter, result book.CatalogResult) {
 	switch result.State {
 	case book.CatalogReady:
-		writeJSON(w, http.StatusOK, result.Chapters)
+		writeJSON(w, http.StatusOK, catalogResponse{Chapters: result.Chapters, ContentRevision: result.ContentRevision})
 	case book.CatalogSyncing:
 		w.Header().Set("Retry-After", "1")
 		writeJSON(w, http.StatusAccepted, map[string]string{"state": string(book.CatalogSyncing)})
@@ -426,25 +419,28 @@ func (s *readerAPI) handleGetChapterContent(w http.ResponseWriter, r *http.Reque
 	bookID := r.PathValue("id")
 	idx := r.PathValue("idx")
 
-	b, err := s.bookStore.GetBook(bookID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load book failed")
-		return
-	}
-	if b == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-
 	index, err := strconv.Atoi(idx)
 	// Preserve the previous exact decimal match (e.g. "01" is not chapter 1).
 	if err != nil || strconv.Itoa(index) != idx {
 		writeErrorCode(w, http.StatusNotFound, "chapter_not_found", "chapter not found")
 		return
 	}
-	ch, next, err := s.bookStore.GetChapterWithNext(r.Context(), bookID, index)
+	b, ch, next, err := s.bookStore.GetChapterSnapshot(r.Context(), bookID, index)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "load chapters failed")
+		return
+	}
+	if b == nil {
+		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+		return
+	}
+	revision, err := strconv.ParseInt(r.URL.Query().Get("contentRevision"), 10, 64)
+	if err != nil || revision < 0 {
+		writeError(w, http.StatusBadRequest, "contentRevision is required")
+		return
+	}
+	if revision != b.ContentRevision {
+		writeErrorCode(w, http.StatusConflict, "state_changed", "book interpretation changed")
 		return
 	}
 	if ch == nil {
@@ -454,14 +450,14 @@ func (s *readerAPI) handleGetChapterContent(w http.ResponseWriter, r *http.Reque
 
 	src, err := s.sourceStore.GetByID(b.SourceID)
 	if err != nil {
-		if s.writeChapterCacheFallback(w, b, ch) {
+		if s.writeChapterCacheFallback(w, r, b, ch) {
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "load source failed")
 		return
 	}
 	if src == nil {
-		if s.writeChapterCacheFallback(w, b, ch) {
+		if s.writeChapterCacheFallback(w, r, b, ch) {
 			return
 		}
 		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
@@ -473,7 +469,7 @@ func (s *readerAPI) handleGetChapterContent(w http.ResponseWriter, r *http.Reque
 		err = errors.New("content: empty extraction")
 	}
 	if err != nil {
-		if s.writeChapterCacheFallback(w, b, ch) {
+		if s.writeChapterCacheFallback(w, r, b, ch) {
 			return
 		}
 		writeCrawlError(w, "content", err)
@@ -485,11 +481,14 @@ func (s *readerAPI) handleGetChapterContent(w http.ResponseWriter, r *http.Reque
 		displayTitle = contentTitle
 	}
 
+	if !s.validateChapterSnapshot(w, r, b) {
+		return
+	}
 	proc := processor.New(s.processorCfg)
 	result := proc.Process(displayTitle, rawContent)
 	s.saveChapterCache(b, ch, result)
 
-	writeJSON(w, http.StatusOK, newChapterContentResponse(b.ID, ch.Index, result.Title, result.Paragraphs, result.Blocks, false))
+	writeJSON(w, http.StatusOK, newChapterContentResponse(b.ID, b.ContentRevision, ch.Index, result.Title, result.Paragraphs, result.Blocks, false))
 }
 
 // --- Progress ---
@@ -497,10 +496,10 @@ func (s *readerAPI) handleGetChapterContent(w http.ResponseWriter, r *http.Reque
 func (s *readerAPI) handleUpdateProgress(w http.ResponseWriter, r *http.Request) {
 	bookID := r.PathValue("id")
 	var req struct {
-		SourceID     *string  `json:"sourceId"`
-		StateVersion *int64   `json:"stateVersion"`
-		ChapterIndex *int     `json:"chapterIndex"`
-		Position     *float64 `json:"position"`
+		ContentRevision *int64   `json:"contentRevision"`
+		StateVersion    *int64   `json:"stateVersion"`
+		ChapterIndex    *int     `json:"chapterIndex"`
+		Position        *float64 `json:"position"`
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	defer r.Body.Close()
@@ -514,12 +513,12 @@ func (s *readerAPI) handleUpdateProgress(w http.ResponseWriter, r *http.Request)
 		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "invalid progress request")
 		return
 	}
-	if req.SourceID == nil || *req.SourceID == "" || req.StateVersion == nil || *req.StateVersion < 0 || req.ChapterIndex == nil || req.Position == nil || *req.ChapterIndex < 0 || math.IsNaN(*req.Position) || math.IsInf(*req.Position, 0) || *req.Position < 0 || *req.Position > 1 {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "sourceId, stateVersion, chapterIndex, and position are required and must be valid")
+	if req.ContentRevision == nil || *req.ContentRevision < 0 || req.StateVersion == nil || *req.StateVersion < 0 || req.ChapterIndex == nil || req.Position == nil || *req.ChapterIndex < 0 || math.IsNaN(*req.Position) || math.IsInf(*req.Position, 0) || *req.Position < 0 || *req.Position > 1 {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "contentRevision, stateVersion, chapterIndex, and position are required and must be valid")
 		return
 	}
 	chapterIndex, position := *req.ChapterIndex, *req.Position
-	storedBook, err := s.bookStore.GetBook(bookID)
+	storedBook, err := s.libraryStore.Get(r.Context(), bookID)
 	if err != nil {
 		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load book")
 		return
@@ -528,7 +527,7 @@ func (s *readerAPI) handleUpdateProgress(w http.ResponseWriter, r *http.Request)
 		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
 		return
 	}
-	if storedBook.SourceID != *req.SourceID || storedBook.StateVersion != *req.StateVersion {
+	if storedBook.ContentRevision != *req.ContentRevision || storedBook.StateVersion != *req.StateVersion {
 		writeErrorCode(w, http.StatusConflict, "state_changed", "book state changed before progress was saved")
 		return
 	}
@@ -541,7 +540,7 @@ func (s *readerAPI) handleUpdateProgress(w http.ResponseWriter, r *http.Request)
 		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "chapterIndex is not a readable chapter")
 		return
 	}
-	stateVersion, err := s.bookStore.UpdateProgress(bookID, *req.SourceID, *req.StateVersion, chapterIndex, position)
+	stateVersion, err := s.bookStore.UpdateProgress(bookID, *req.ContentRevision, *req.StateVersion, chapterIndex, position)
 	if err != nil {
 		if errors.Is(err, book.ErrBookNotFound) {
 			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
@@ -646,7 +645,7 @@ func (s *readerAPI) handleSwitchSource(w http.ResponseWriter, r *http.Request) {
 	if s.catalogs != nil {
 		s.catalogs.Invalidate(bookID)
 	}
-	if err := s.bookStore.SwitchSource(bookID, current.StateVersion, *target, targetChapters, chapterIndex, current.DurChapterPos); err != nil {
+	if err := s.bookStore.SwitchSource(bookID, library.Revision{Content: current.ContentRevision, State: current.StateVersion}, *target, targetChapters, chapterIndex, current.DurChapterPos); err != nil {
 		if errors.Is(err, book.ErrBookStateChanged) {
 			writeErrorCode(w, http.StatusConflict, "state_changed", "reading position changed during source validation; try again")
 			return

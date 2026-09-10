@@ -8,7 +8,7 @@ vi.mock('../../api/system', () => ({ convertChineseTexts: vi.fn() }));
 
 const chapters: Chapter[] = [{ id: 'chapter-1', bookId: 'book-1', index: 0, title: '软件后台', url: '/1', isVolume: false }];
 const content: ChapterContent = {
-  version: 1,
+  version: 1, contentRevision: 7,
   document: {
     kind: 'prose',
     title: '这里的软件',
@@ -59,7 +59,7 @@ describe('reader Chinese conversion', () => {
 it('reuses catalog conversion and recent documents, with mode and catalog identity isolation', async () => {
   vi.mocked(convertChineseTexts).mockReset().mockImplementation(async (_mode, texts) => [...texts]);
   const convert = createReaderDisplayConverter();
-  const first = { version: 1 as const, offlineCopy: false, document: { kind: 'prose' as const, title: 'First', blocks: [] } };
+  const first = { version: 1 as const, contentRevision: 7, offlineCopy: false, document: { kind: 'prose' as const, title: 'First', blocks: [] } };
   const second = { ...first, document: { ...first.document, title: 'Second' } };
   const chapters = [{ id: 'chapter', bookId: 'book', index: 0, title: 'Catalog title', url: '/chapter', isVolume: false }];
   await convert(chapters, first, 'traditional');

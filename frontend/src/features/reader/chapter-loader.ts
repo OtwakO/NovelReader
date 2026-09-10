@@ -2,8 +2,8 @@ import { getChapterContent, type ChapterContent } from '../../api/reader';
 
 const maxRecentChapters = 5;
 
-/** One reader/book/source binding. Dispose and drain before replacing that binding. */
-export function createChapterLoader(bookId: string) {
+/** One reader/book interpretation revision. Dispose and drain before replacing that binding. */
+export function createChapterLoader(bookId: string, contentRevision: number) {
   const cache = new Map<number, ChapterContent>();
   const pending = new Map<number, Promise<ChapterContent>>();
   const controller = new AbortController();
@@ -25,8 +25,9 @@ export function createChapterLoader(bookId: string) {
     // Chapter scripts share source-session state: do not overlap speculative and foreground fetches.
     const operation = tail.then(async () => {
       if (closed) throw new DOMException('Reader session closed', 'AbortError');
-      const content = await getChapterContent(bookId, index, controller.signal);
+      const content = await getChapterContent(bookId, index, contentRevision, controller.signal);
       if (closed) throw new DOMException('Reader session closed', 'AbortError');
+      if (content.contentRevision !== contentRevision) throw new Error('Book interpretation changed; reload the chapter list');
       if (!content.offlineCopy) {
         cache.set(index, content);
         if (cache.size > maxRecentChapters) cache.delete(cache.keys().next().value!);

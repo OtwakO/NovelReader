@@ -38,11 +38,11 @@ func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM chapter_cache WHERE book_id = 'book-5'`).Scan(&perBook); err != nil || perBook != 100 {
 		t.Fatalf("perBook=%d err=%v", perBook, err)
 	}
-	cached, err := store.GetChapterCache("book-5", "source", 100, "url-100")
+	cached, err := store.GetChapterCache("book-5", "source", 100, "url-100", 0)
 	if err != nil || cached == nil || cached.Paragraphs[0] != "content-100" || len(cached.Blocks) != 1 || cached.Blocks[0].Src != "image-100" {
 		t.Fatalf("cached=%+v err=%v", cached, err)
 	}
-	if cached, err := store.GetChapterCache("book-5", "source", 100, "changed-url"); err != nil || cached != nil {
+	if cached, err := store.GetChapterCache("book-5", "source", 100, "changed-url", 0); err != nil || cached != nil {
 		t.Fatalf("changed URL cached=%+v err=%v", cached, err)
 	}
 	if err := store.DeleteBook("book-5"); err != nil {
@@ -53,5 +53,42 @@ func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
 	}
 	if err := db.QueryRow(`SELECT COUNT(*) FROM chapter_cache WHERE book_id = 'book-5'`).Scan(&perBook); err != nil || perBook != 0 {
 		t.Fatalf("cache recreated after delete: count=%d err=%v", perBook, err)
+	}
+}
+
+func TestChapterCacheRejectsSupersededRevision(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "cache.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	initializeBookTestSchema(t, db)
+	store := NewStore(db)
+	if err := store.AddBook(&Book{ID: "book", Name: "Novel", SourceID: "source", SourceURL: "source", BookURL: "url"}); err != nil {
+		t.Fatal(err)
+	}
+	entry := CachedChapter{BookID: "book", SourceID: "source", ChapterIndex: 0, ChapterURL: "chapter", Paragraphs: []string{"old"}}
+	if err := store.SaveChapterCache(entry); err != nil {
+		t.Fatal(err)
+	}
+	// Publishing even an identical URL list creates a new interpretation revision.
+	if err := store.SaveChapters("book", []Chapter{{Index: 0, Title: "One", URL: "chapter"}}); err != nil {
+		t.Fatal(err)
+	}
+	if cached, err := store.GetChapterCache("book", "source", 0, "chapter", 0); err != nil || cached != nil {
+		t.Fatalf("superseded cache=%+v err=%v", cached, err)
+	}
+	current := entry
+	current.ContentRevision = 1
+	current.Paragraphs = []string{"current"}
+	if err := store.SaveChapterCache(current); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveChapterCache(entry); err != nil {
+		t.Fatal(err)
+	}
+	cached, err := store.GetChapterCache("book", "source", 0, "chapter", 1)
+	if err != nil || cached == nil || cached.Paragraphs[0] != "current" {
+		t.Fatalf("late response replaced current cache: %+v err=%v", cached, err)
 	}
 }

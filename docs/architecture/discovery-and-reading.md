@@ -35,7 +35,8 @@ a subdued image-derived backdrop; callers own sizing/framing rather than duplica
 
 ## Logical books and source bindings
 
-- Normalized `(title, author)` identifies one logical shelf book.
+- A library ID identifies an independent publication. Shared admission does not merge display names/authors.
+- Within BookSource acquisition only, normalized `(title, author)` identifies one logical BookSource shelf book.
 - Exact `(SourceID, BookURL)` identifies a source binding beneath it.
 - A binding carries the imported source identity plus source-returned display metadata such as source name/group, capabilities, discovery-query provenance, and the opaque `lastChapter` snapshot.
 - Persistence keeps one explicit active binding and zero or more alternates.
@@ -68,11 +69,11 @@ Catalog availability is separate from shelf existence.
 - A missing catalog starts or joins one active synchronization for that book.
 - Each reader runs at most two catalog crawls concurrently by default.
 - Full TOC parsing has a bounded deadline and cancellation checks through fetch, extraction, deduplication, and title formatting.
-- Chapters and `totalChapterNum` publish atomically only if the book still has the source ID/state version the crawl started with.
+- Chapters and the library-owned `totalChapterNum` publish atomically only if the book still has the source ID/content revision the crawl started with. Progress and bookmark changes do not invalidate a catalog crawl.
 - Successful catalog state leaves process memory; failures remain observable until explicit retry.
 - Book deletion and source switching invalidate/drain old work for prompt cleanup, while the transactional source/version guard provides correctness.
 
-`GET /api/books/{id}/chapters` returns ready chapters, `202` synchronization state, or a typed failure. `POST /api/books/{id}/chapters/sync` retries a retained failure; it does not force-refresh an already ready catalog.
+`GET /api/books/{id}/chapters` returns `{chapters, contentRevision}`, `202` synchronization state, or a typed failure. `POST /api/books/{id}/chapters/sync` retries a retained failure; it does not force-refresh an already ready catalog.
 
 See the completed [catalog synchronization plan](../plans/2026-08-31-catalog-synchronization.md).
 
@@ -82,17 +83,32 @@ The current BookSource path opens each chapter as a versioned **Prose Document**
 
 Inline-image blocks expose only opaque NovelReader-controlled Content Resource references. Source image origins remain backend-only in the bounded chapter cache. Authenticated chapter-image endpoints resolve remote resources from the active Exact Source Binding with source headers, cookies, request options, sessions, and portable decoding; bounded `data:image/...` resources are decoded locally through the same resource path. Existing text-only cached chapters without stored blocks are translated into paragraph blocks at the response seam rather than requiring a cache migration.
 
+Content requests carry the catalog revision and responses repeat it. Superseded requests are rejected
+before upstream execution and snapshots are revalidated after the fetch. Cache admission checks the
+current source and revision transactionally; an old response cannot replace a newer cached entry.
+Image references carry the interpretation revision and cannot resolve images from a later catalog.
+The frontend loader is bound to one book/revision and rejects mismatched responses before retention
+or display.
+
 The frontend Reading Session owns chapter loading, navigation, common chrome, recovery, and progress coordination. A focused prose renderer owns paragraph and inline-image presentation. Images are responsive and centered; meaningful source alternative text is used accessibly and shown beneath the image as a centered caption. An image failure remains local to its figure and does not replace readable chapter prose.
 
 ## Reader state
 
-Stored books own:
+`library` owns publication IDs, provider discrimination, display metadata, catalog summaries,
+revision-qualified chapter/index and normalized in-chapter progress, and bookmarks. BookSource owns
+active/alternate bindings, native chapters and the bounded processed chapter cache. There is no shared
+section table or duplicate shared metadata in BookSource storage.
 
-- the active source binding and catalog;
-- chapter/index and normalized in-chapter progress;
-- bookmarks, including explicit orphan state after source migration;
-- bounded server-side processed chapter cache;
-- source-provided latest chapter/update metadata.
+`GET /api/books` and `/api/books/{id}` return shared library fields plus optional cover/display-label
+enrichment. `/api/books/{id}/booksource` exposes the combined BookSource-context projection separately.
+Shelf metadata and native display inputs are read in one SQLite snapshot with a fixed number of
+queries; source cover revisions remain batched. Native bindings are not required on a generic item.
+
+Content revision identifies a catalog/interpretation; state version orders progress and bookmark
+mutations. Catalog publication advances the former, progress and successful bookmark add/delete
+advance the latter, and source switching validates both before atomically replacing the interpretation
+and relocating reading state. Unresolved bookmarks retain their old location revision and are marked
+orphaned; deleting them guards current library state, not the orphan's old location revision.
 
 Typography, Chinese conversion mode, image visibility, wake lock, and prefetch preferences are
 browser-local settings shared across books, not fields on a stored book or part of its portable
@@ -108,8 +124,9 @@ loads. Default-on prefetch requests only the next readable chapter after display
 load images, or save progress. Speculative and foreground fetches are serialized because source
 scripts share mutable session state. Offline fallback documents are not retained in this session cache.
 
-Progress writes remain ordered but their acknowledgements no longer block chapter display. Bookmarks
-and source switching retain progress barriers. Source switching and explicit Refresh discard chapter
+Progress and bookmark mutations share one per-book queue and state-version owner. Progress
+acknowledgements do not block chapter display. Bookmark capture snapshots its revision-qualified
+location before awaiting progress; source switching drains that same mutation queue. Source switching and explicit Refresh discard chapter
 and conversion reuse and drain started requests before loading new content, preventing late source
 state writes. Unmount aborts outstanding requests; cancellation reaches the backend chapter workflow.
 Refresh preserves position and still reports an explicit offline copy if the upstream source fails.
@@ -130,10 +147,10 @@ The Vue frontend owns presentation and interaction: shelf filtering/sorting/rest
 
 ## Logical-book identity contract
 
-Shelf identity and frontend recovery matching follow backend `NormalizeBookIdentity`: lowercase individual Unicode characters, trim Unicode whitespace, remove the exact author prefixes/suffixes in that implementation, then retain letters and numbers. Whitespace before the author-label colon is not accepted as a prefix. Browser locale and contextual casing must not change this identity. Discovery's looser result grouping remains a separate contract.
+BookSource shelf merging and frontend source-recovery matching follow backend `NormalizeBookIdentity`: lowercase individual Unicode characters, trim Unicode whitespace, remove the exact author prefixes/suffixes in that implementation, then retain letters and numbers. Whitespace before the author-label colon is not accepted as a prefix. Browser locale and contextual casing must not change this identity. Discovery's looser result grouping remains a separate contract.
 
 Both implementations run the shared synthetic cases in `testdata/book-identity.json`. The backend's persisted identity behavior is unchanged.
 
 ## Narrow chapter lookups
 
-Chapter content reads fetch the exact chapter and its immediate catalog successor (including volume headings); progress validation checks readable-chapter existence directly. Both queries use the `(book_id, idx)` chapter index. Full-catalog reads remain for catalog display and workflows that need the complete list. Missing indices are not silently advanced to a later chapter, and existing source/state-version progress checks remain unchanged.
+Chapter content reads fetch the exact chapter and its immediate catalog successor (including volume headings), together with the owning BookSource binding and library revision in one SQLite read transaction. The transaction ends before network work. Progress validation checks readable-chapter existence directly. Both queries use the `(book_id, idx)` chapter index. Full-catalog reads remain for catalog display and workflows that need the complete list. Missing indices are not silently advanced; shared progress CAS validates content revision and state version.

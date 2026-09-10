@@ -17,7 +17,7 @@ const i18n = createI18n({ legacy: false, globalInjection: true, locale: 'en', me
 const active: AltSource = { sourceId: 'aggregate', sourceUrl: 'aggregate', bookUrl: '/current', sourceName: 'Aggregate', lastChapter: 'Initial provider hint' };
 
 function shelfBook(activeSource = active, alternateSources: AltSource[] = []): Book {
-  return { id: 'book', name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', sourceId: activeSource.sourceId, sourceUrl: activeSource.sourceUrl, bookUrl: activeSource.bookUrl, origin: activeSource.sourceName, lastChapter: activeSource.lastChapter || '', durChapterIndex: 0, durChapterPos: 0, totalChapterNum: 0, stateVersion: 1, activeSource, alternateSources };
+  return { id: 'book', name: 'Book', author: 'Author', coverUrl: '', intro: '', kind: '', sourceId: activeSource.sourceId, sourceUrl: activeSource.sourceUrl, bookUrl: activeSource.bookUrl, origin: activeSource.sourceName, lastChapter: activeSource.lastChapter || '', durChapterIndex: 0, durChapterPos: 0, totalChapterNum: 0, provider: 'booksource', contentRevision: 0, stateVersion: 1, activeSource, alternateSources };
 }
 
 function mountPanel(options: { book?: Book; onClearAndRescan?: () => Promise<void> } = {}): VueWrapper {

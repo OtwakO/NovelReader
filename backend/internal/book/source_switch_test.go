@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/otwako/novelreader/internal/database"
+	"github.com/otwako/novelreader/internal/library"
 )
 
 func TestSwitchSourcePreservesNWayBindingMetadataAcrossReloads(t *testing.T) {
@@ -43,7 +44,7 @@ func TestSwitchSourcePreservesNWayBindingMetadataAcrossReloads(t *testing.T) {
 		}
 		wantVariables[wanted.BookURL] = `{"refreshed":"` + wanted.BookURL + `"}`
 		target := Book{SourceID: wanted.SourceID, SourceURL: wanted.SourceURL, BookURL: wanted.BookURL, Origin: wanted.SourceName, VariableMap: wantVariables[wanted.BookURL]}
-		if err := store.SwitchSource("book", current.StateVersion, target, chapters, 0, 0); err != nil {
+		if err := store.SwitchSource("book", library.Revision{Content: current.ContentRevision, State: current.StateVersion}, target, chapters, 0, 0); err != nil {
 			t.Fatal(err)
 		}
 		reloaded, err := store.GetBook("book")

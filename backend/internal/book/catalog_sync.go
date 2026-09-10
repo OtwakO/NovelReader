@@ -31,10 +31,11 @@ const (
 )
 
 type CatalogResult struct {
-	State    CatalogState
-	Failure  CatalogFailure
-	Chapters []Chapter
-	Err      error
+	ContentRevision int64
+	State           CatalogState
+	Failure         CatalogFailure
+	Chapters        []Chapter
+	Err             error
 }
 
 type catalogSync struct {
@@ -92,12 +93,15 @@ func (c *Catalogs) Get(bookID string) CatalogResult {
 	if closed {
 		return CatalogResult{State: CatalogFailed, Failure: CatalogFailureUpstream, Err: context.Canceled}
 	}
-	chapters, err := c.store.GetChapters(bookID)
+	chapters, revision, err := c.store.GetCatalog(c.ctx, bookID)
 	if err != nil {
+		if errors.Is(err, ErrBookNotFound) {
+			return CatalogResult{State: CatalogFailed, Failure: CatalogFailureBookNotFound, Err: err}
+		}
 		return CatalogResult{State: CatalogFailed, Failure: CatalogFailureStorage, Err: err}
 	}
 	if len(chapters) > 0 {
-		return CatalogResult{State: CatalogReady, Chapters: chapters}
+		return CatalogResult{State: CatalogReady, Chapters: chapters, ContentRevision: revision}
 	}
 	return c.start(bookID)
 }
@@ -186,8 +190,8 @@ func (c *Catalogs) run(parent context.Context, bookID string, entry *catalogSync
 		result.Failure, result.Err = CatalogFailureUpstream, errors.New("chapter catalog is empty")
 		return
 	}
-	if err := c.store.SaveCatalog(bookID, value.SourceID, value.StateVersion, chapters); err != nil {
-		if errors.Is(err, ErrCatalogBookNotFound) {
+	if err := c.store.SaveCatalog(bookID, value.SourceID, value.ContentRevision, chapters); err != nil {
+		if errors.Is(err, ErrCatalogBookNotFound) || errors.Is(err, ErrBookNotFound) {
 			result.Failure, result.Err = CatalogFailureBookNotFound, err
 		} else if errors.Is(err, ErrCatalogSourceChanged) {
 			result.Failure, result.Err = CatalogFailureUpstream, err
@@ -196,7 +200,7 @@ func (c *Catalogs) run(parent context.Context, bookID string, entry *catalogSync
 		}
 		return
 	}
-	result = CatalogResult{State: CatalogReady, Chapters: chapters}
+	result = CatalogResult{State: CatalogReady, Chapters: chapters, ContentRevision: value.ContentRevision + 1}
 }
 
 func (c *Catalogs) finish(bookID string, entry *catalogSync, result CatalogResult) {

@@ -4,8 +4,10 @@ import {
   clearBookSources,
   deleteBook,
   getBook,
+  getBookSource,
   mergeBookSources,
   type Book,
+  type LibraryBook,
 } from "../../api/books";
 import type { AltSource, Chapter } from "../../api/models";
 import { switchBookSource, waitForCatalog } from "../../api/reader";
@@ -30,7 +32,8 @@ export default defineComponent({
   },
   data() {
     return {
-      book: null as Book | null,
+      book: null as LibraryBook | null,
+      nativeBook: null as Book | null,
       chapters: [] as Chapter[],
       loading: true,
       bookError: "",
@@ -68,6 +71,7 @@ export default defineComponent({
   watch: {
     bookId() {
       this.book = null;
+      this.nativeBook = null;
       this.chapters = [];
       void this.load();
     },
@@ -85,6 +89,9 @@ export default defineComponent({
         const book = await getBook(this.bookId);
         if (request !== this.loadGeneration) return;
         this.book = book;
+        const nativeBook = book.provider === 'booksource' ? await getBookSource(this.bookId) : null;
+        if (request !== this.loadGeneration) return;
+        this.nativeBook = nativeBook;
         this.loading = false;
         await this.loadCatalog(false, request);
       } catch (cause) {
@@ -102,11 +109,11 @@ export default defineComponent({
       this.catalogRetrying = retry;
       this.tocError = "";
       try {
-        const chapters = await waitForCatalog(this.bookId, {
+        const catalog = await waitForCatalog(this.bookId, {
           retry,
           isCurrent: () => request === this.loadGeneration,
         });
-        if (request === this.loadGeneration) this.chapters = chapters;
+        if (request === this.loadGeneration) this.chapters = catalog.chapters;
       } catch (cause) {
         if (request !== this.loadGeneration) return;
         this.tocError =
@@ -125,7 +132,7 @@ export default defineComponent({
       this.persistence = this.persistence
         .then(async () => {
           if (this.book)
-            this.book = await mergeBookSources(this.book.id, sources);
+            this.book = this.nativeBook = await mergeBookSources(this.book.id, sources);
         })
         .catch((cause) => {
           this.sourceError =
@@ -138,7 +145,7 @@ export default defineComponent({
       try {
         await this.persistence;
         if (!this.book) throw new Error(this.$t("bookDetail.notFound"));
-        this.book = await clearBookSources(this.book.id);
+        this.book = this.nativeBook = await clearBookSources(this.book.id);
         this.sourceMessage = this.$t("sourceRecovery.cleared");
         this.sourceError = "";
       } catch (cause) {
@@ -155,14 +162,14 @@ export default defineComponent({
       this.sourceError = "";
       this.sourceMessage = "";
       try {
-        this.book = await mergeBookSources(this.book.id, [source]);
+        this.book = this.nativeBook = await mergeBookSources(this.book.id, [source]);
         const result = await switchBookSource(
           this.book.id,
           source.sourceId,
           source.sourceUrl,
           source.bookUrl,
         );
-        this.book = result.book;
+        this.book = this.nativeBook = result.book;
         this.loadGeneration += 1;
         this.chapters = [];
         this.tocError = "";
@@ -231,10 +238,10 @@ export default defineComponent({
           <p v-if="displayLastChapter" class="latest">
             {{ $t("bookDetail.latest", { chapter: displayLastChapter }) }}
           </p>
-          <p class="source">
+          <p v-if="nativeBook || book.originLabel" class="source">
             {{
               $t("bookDetail.currentSource", {
-                source: book.origin || book.sourceUrl,
+                source: nativeBook?.origin || book.originLabel,
               })
             }}
           </p>
@@ -295,7 +302,8 @@ export default defineComponent({
         :error="tocError"
       />
       <SourceRecoveryPanel
-        :book="book"
+        v-if="nativeBook"
+        :book="nativeBook"
         :switching="switching"
         :action-error="sourceError"
         :action-message="sourceMessage"

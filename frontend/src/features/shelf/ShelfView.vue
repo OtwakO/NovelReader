@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, nextTick } from "vue";
 import { listBooks } from "../../api/books";
-import type { Book } from "../../api/models";
+import type { LibraryBook } from "../../api/models";
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
 import BookCover from "../books/BookCover.vue";
@@ -14,13 +14,13 @@ export default defineComponent({
   components: { AppButton, BookCover, FeatureScaffold },
   data() {
     const view = loadShelfViewState();
-    return { books: [] as Book[], loading: true, error: "", query: view.query, sort: view.sort as ShelfSort, restoreScrollY: view.scrollY };
+    return { books: [] as LibraryBook[], loading: true, error: "", query: view.query, sort: view.sort as ShelfSort, restoreScrollY: view.scrollY };
   },
   computed: {
-    continueBook(): Book | null {
+    continueBook(): LibraryBook | null {
       return visibleShelfBooks(this.books, '', 'recent')[0] ?? null;
     },
-    visibleBooks(): Book[] { return visibleShelfBooks(this.books, this.query, this.sort); },
+    visibleBooks(): LibraryBook[] { return visibleShelfBooks(this.books, this.query, this.sort); },
   },
   watch: {
     query() { this.saveView(); },
@@ -49,20 +49,20 @@ export default defineComponent({
         this.loading = false;
       }
     },
-    progress(book: Book) {
+    progress(book: LibraryBook) {
       return shelfProgressPercent(book);
     },
-    chapter(book: Book) {
+    chapter(book: LibraryBook) {
       return currentChapterNumber(book);
     },
-    latestChapter(book: Book) { return readableChapterLabel(book.lastChapter); },
-    currentChapter(book: Book) {
+    latestChapter(book: LibraryBook) { return readableChapterLabel(book.lastChapter); },
+    currentChapter(book: LibraryBook) {
       return (
         book.currentChapterTitle ||
         this.$t("shelf.chapter", { chapter: this.chapter(book) })
       );
     },
-    coverURL(book: Book) { return book.coverDisplayUrl || ''; },
+    coverURL(book: LibraryBook) { return book.coverDisplayUrl || ''; },
   },
 });
 </script>

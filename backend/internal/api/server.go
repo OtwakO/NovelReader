@@ -18,6 +18,7 @@ import (
 	"github.com/otwako/novelreader/internal/chineseconv"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/fontstore"
+	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/sourceinteraction"
@@ -73,7 +74,7 @@ func NewServer(sourceStore *booksource.Store, bookStore *book.Store, searcher *b
 	services := &readerServices{fetcher: fetcher, processorCfg: processorCfg,
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
-	runtime := &readerRuntime{db: db, sourceStore: sourceStore, bookStore: bookStore, searcher: searcher, fontStore: fontStore}
+	runtime := &readerRuntime{db: db, sourceStore: sourceStore, bookStore: bookStore, libraryStore: library.NewStore(db), searcher: searcher, fontStore: fontStore}
 	if bookStore != nil && sourceStore != nil && searcher != nil {
 		runtime.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
 	}

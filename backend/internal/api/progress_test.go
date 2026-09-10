@@ -32,7 +32,7 @@ func TestProgressAPIValidatesBookChapterAndPosition(t *testing.T) {
 	}
 	server := NewServer(nil, store, nil, nil, nil, nil, nil, processor.Config{}, t.TempDir(), db)
 
-	response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/progress", []byte(`{"sourceId":"source","stateVersion":0,"chapterIndex":2,"position":0.6}`))
+	response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/progress", []byte(`{"contentRevision":1,"stateVersion":0,"chapterIndex":2,"position":0.6}`))
 	if response.Code != http.StatusOK {
 		t.Fatalf("valid status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -46,13 +46,13 @@ func TestProgressAPIValidatesBookChapterAndPosition(t *testing.T) {
 		body   string
 		status int
 	}{
-		{"missing", `{"sourceId":"source","stateVersion":0,"chapterIndex":0,"position":0}`, http.StatusNotFound},
-		{"book-1", `{"sourceId":"old","stateVersion":1,"chapterIndex":0,"position":0}`, http.StatusConflict},
-		{"book-1", `{"sourceId":"source","stateVersion":0,"chapterIndex":0,"position":0}`, http.StatusConflict},
-		{"book-1", `{"sourceId":"source","stateVersion":1,"chapterIndex":-1,"position":0}`, http.StatusBadRequest},
-		{"book-1", `{"sourceId":"source","stateVersion":1,"chapterIndex":1,"position":0}`, http.StatusBadRequest},
-		{"book-1", `{"sourceId":"source","stateVersion":1,"chapterIndex":9,"position":0}`, http.StatusBadRequest},
-		{"book-1", `{"sourceId":"source","stateVersion":1,"chapterIndex":0,"position":1.1}`, http.StatusBadRequest},
+		{"missing", `{"contentRevision":1,"stateVersion":0,"chapterIndex":0,"position":0}`, http.StatusNotFound},
+		{"book-1", `{"contentRevision":0,"stateVersion":1,"chapterIndex":0,"position":0}`, http.StatusConflict},
+		{"book-1", `{"contentRevision":1,"stateVersion":0,"chapterIndex":0,"position":0}`, http.StatusConflict},
+		{"book-1", `{"contentRevision":1,"stateVersion":1,"chapterIndex":-1,"position":0}`, http.StatusBadRequest},
+		{"book-1", `{"contentRevision":1,"stateVersion":1,"chapterIndex":1,"position":0}`, http.StatusBadRequest},
+		{"book-1", `{"contentRevision":1,"stateVersion":1,"chapterIndex":9,"position":0}`, http.StatusBadRequest},
+		{"book-1", `{"contentRevision":1,"stateVersion":1,"chapterIndex":0,"position":1.1}`, http.StatusBadRequest},
 		{"book-1", `{}`, http.StatusBadRequest},
 		{"book-1", `{]`, http.StatusBadRequest},
 	} {

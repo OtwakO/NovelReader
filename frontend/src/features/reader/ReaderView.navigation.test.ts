@@ -1,15 +1,15 @@
 import { flushPromises, shallowMount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReaderView from './ReaderView.vue';
-import { getBook, mergeBookSources } from '../../api/books';
+import { getBook, getBookSource, mergeBookSources } from '../../api/books';
 import { getChapterContent, saveProgress, switchBookSource, waitForCatalog, type ChapterContent } from '../../api/reader';
 import { resetProgressWriter, waitForProgressWrites } from './progress-writer';
 
-vi.mock('../../api/books', () => ({ getBook:vi.fn(), mergeBookSources:vi.fn(), clearBookSources:vi.fn() }));
+vi.mock('../../api/books', () => ({ getBook:vi.fn(), getBookSource:vi.fn(), mergeBookSources:vi.fn(), clearBookSources:vi.fn() }));
 vi.mock('../../api/reader', () => ({ getChapterContent:vi.fn(), saveProgress:vi.fn(), switchBookSource:vi.fn(), waitForCatalog:vi.fn(), listFonts:vi.fn(), getFontUrl:vi.fn() }));
 vi.mock('../../api/system', () => ({ getChineseConversionCapability:vi.fn(async()=>({available:false,modes:[]})) }));
-const initialBook = { id:'book', name:'Novel', author:'Author', coverUrl:'', intro:'', kind:'', sourceId:'old', sourceUrl:'old', bookUrl:'/book', origin:'Source', lastChapter:'', durChapterIndex:0, durChapterPos:0, totalChapterNum:3, stateVersion:0, alternateSources:[] };
-const chapter = (title:string):ChapterContent => ({version:1, offlineCopy:false, document:{kind:'prose',title,blocks:[]}});
+const initialBook = { id:'book', name:'Novel', author:'Author', coverUrl:'', intro:'', kind:'', sourceId:'old', sourceUrl:'old', bookUrl:'/book', origin:'Source', lastChapter:'', durChapterIndex:0, durChapterPos:0, totalChapterNum:3, provider:'booksource',contentRevision:7,stateVersion:0, alternateSources:[] };
+const chapter = (title:string):ChapterContent => ({version:1, contentRevision:7, offlineCopy:false, document:{kind:'prose',title,blocks:[]}});
 const source = {sourceId:'new',sourceUrl:'new',bookUrl:'/new',sourceName:'New',name:'New',author:'Author'};
 let wrapper:ReturnType<typeof shallowMount<typeof ReaderView>>;
 
@@ -17,8 +17,9 @@ beforeEach(()=>{
   vi.clearAllMocks();resetProgressWriter();localStorage.clear();
   localStorage.setItem('novelreader.reader.preferences.v1',JSON.stringify({prefetchNextChapter:false}));
   vi.mocked(getBook).mockResolvedValue({...initialBook});
+  vi.mocked(getBookSource).mockResolvedValue({...initialBook});
   vi.mocked(mergeBookSources).mockResolvedValue({...initialBook});
-  vi.mocked(waitForCatalog).mockResolvedValue([0,1,2].map(index=>({id:String(index),bookId:'book',index,title:String(index),url:'/chapter/'+index,isVolume:false})));
+  vi.mocked(waitForCatalog).mockResolvedValue({contentRevision:7,chapters:[0,1,2].map(index=>({id:String(index),bookId:'book',index,title:String(index),url:'/chapter/'+index,isVolume:false}))});
   vi.mocked(getChapterContent).mockImplementation(async(_book,index)=>chapter('old '+index));
   vi.mocked(saveProgress).mockImplementation(async(_book,_source,stateVersion)=>({status:'saved',stateVersion:stateVersion+1}));
 });
@@ -77,6 +78,17 @@ describe('reader navigation lifecycle',()=>{
     await navigation;
     expect(vm.currentIndex).toBe(1);
     expect(vm.displayContent?.document.title).toBe('converted 1');
+  });
+
+  it('captures one revision-qualified bookmark location before awaiting progress',async()=>{
+    const vm=await open();
+    let release!:(value:{status:string;stateVersion:number})=>void;
+    vi.mocked(saveProgress).mockReturnValueOnce(new Promise(resolve=>{release=resolve;}));
+    const capture=vm.captureBookmark();
+    await flushPromises();
+    vm.currentIndex=1;vm.catalogRevision=8;vm.lastPosition=.9;
+    release({status:'saved',stateVersion:1});
+    await expect(capture).resolves.toEqual({contentRevision:7,chapterIndex:0,position:0});
   });
 
   it('manual refetch bypasses cached documents while keeping position and recoverable display',async()=>{

@@ -1,4 +1,4 @@
-import type { Book } from '../../api/models';
+import type { LibraryBook } from '../../api/models';
 
 export type ShelfSort = 'recent' | 'title' | 'author' | 'progress';
 export interface ShelfViewState { query: string; sort: ShelfSort; scrollY: number }
@@ -25,7 +25,7 @@ export function saveShelfViewState(state: ShelfViewState): void {
   try { storage()?.setItem(key, JSON.stringify(state)); } catch { /* tab-local restoration is optional */ }
 }
 
-export function visibleShelfBooks(books: Book[], query: string, sort: ShelfSort): Book[] {
+export function visibleShelfBooks(books: LibraryBook[], query: string, sort: ShelfSort): LibraryBook[] {
   const normalized = query.trim().toLocaleLowerCase();
   const filtered = normalized ? books.filter(book => `${book.name}\n${book.author}`.toLocaleLowerCase().includes(normalized)) : books;
   return [...filtered].sort((left, right) => {

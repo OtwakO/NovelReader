@@ -31,6 +31,7 @@ func (s *readerAPI) registerRoutes() {
 	// Books
 	s.mux.HandleFunc("GET /api/books", s.handleListBooks)
 	s.mux.HandleFunc("GET /api/books/{id}", s.handleGetBook)
+	s.mux.HandleFunc("GET /api/books/{id}/booksource", s.handleGetBookSource)
 	s.mux.HandleFunc("GET /api/books/{id}/cover", s.handleGetBookCover)
 	s.mux.HandleFunc("GET /api/covers/{reference}", s.handleGetCoverDisplay)
 	s.mux.HandleFunc("POST /api/candidate-resolutions", s.handleStartCandidateResolution)

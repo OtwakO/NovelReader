@@ -32,6 +32,11 @@ data/users/<immutable-reader-id>/
 `reader.db` and ordinary files are portable plaintext Reader Data: BookSources, shelf books, chapters, progress, bookmarks, caches, preferences, source profiles, and file metadata. They remain inspectable without an application secret. Browser-only Reader preferences are outside
 this storage/backup boundary; see [Reader state](discovery-and-reading.md#reader-state).
 
+Reader schema epoch 10 composes library-owned shared metadata/state/bookmarks with BookSource-owned
+bindings/catalog/cache and the other reader modules. Foreign keys are enabled on every pooled reader
+connection. Epoch-9 homes and portable archives are incompatible; there is no automatic migration or
+reset. Preservation and rollback instructions live in the [development reset runbook](../runbooks/development-data-reset.md).
+
 `credentials.db` is separate. Reversible source credentials are encrypted using the installation-level credential key configured by NovelReader. Losing that key requires source reauthentication but must not make Reader Data unreadable.
 
 ## Authentication
