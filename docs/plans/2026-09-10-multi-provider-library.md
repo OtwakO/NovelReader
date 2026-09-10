@@ -1,5 +1,5 @@
 ---
-status: design-review
+status: active
 updated: 2026-09-10
 ---
 
@@ -12,9 +12,9 @@ This is the canonical handoff for this workstream; conversation memory and older
 | Need | Read / action |
 |---|---|
 | What the user has decided | [Confirmed product decisions](#confirmed-product-decisions-and-delivery-order), together with [prior preferences](#previously-confirmed-preferences). Do not restart that questionnaire. |
-| Architectural recommendation, not yet implementation approval | [Refined design](#refined-design-recommendation--proposed). Ownership and invariants matter more than illustrative signatures or suggested storage shapes. |
+| Architecture and implementation authority | Methodical implementation is authorized; see [delivery steps](#delivery-steps). The [refined design](#refined-design-recommendation--proposed) still does not fix unexamined schemas or lifecycle mechanisms. |
 | What exists and what to inspect | [Existing foundations](#existing-foundations-and-evidence), then [current state](#current-state) and [verification](#verification). Check Git before assuming the branch is unchanged. |
-| What to do next | [Next action](#next-action). Prepare one bounded implementation proposal; do not repeat the broad architecture review or start coding from a historical blueprint. |
+| What to do next | [Next action](#next-action) and [delivery steps](#delivery-steps). Continue the current bounded step; do not repeat the broad architecture review or start coding from a historical blueprint. |
 
 The confirmed product choices supersede earlier alternatives in this document and Git history. Proposed architecture is not an extra feature checklist. If new code evidence conflicts with a requirement, report the specific conflict; do not silently change the requirement or implement an increasingly complex workaround.
 
@@ -22,7 +22,7 @@ The confirmed product choices supersede earlier alternatives in this document an
 
 Add practical, responsive batch TXT import and reading, with a clean path to EPUB, shared library/reader behavior, understandable non-wasteful storage, portable backups, and complete removal. Preserve existing BookSource behavior without building an unnecessarily elaborate framework.
 
-This document replaces the previous architectural blueprint with a requirements-led baseline. The user authorized this redraft, not implementation of a replacement architecture. The earlier proposal is available in Git (notably `f27c4f1`) as a second opinion, not an implementation constraint.
+This document replaces the previous architectural blueprint with a requirements-led baseline. The user subsequently authorized methodical implementation under the quality constraints below. This does not adopt every proposed mechanism wholesale. The earlier proposal is available in Git (notably `f27c4f1`) as a second opinion, not an implementation constraint.
 
 ## Scope
 
@@ -165,18 +165,18 @@ The user selected these after the refined-design discussion. Do not reopen them 
 
 ## Accepted Approach
 
-The confirmed product decisions above and the following requirements-led process are accepted. Concrete architecture remains proposed:
+The confirmed product decisions and methodical implementation are accepted. Begin with the isolated TXT interpretation step below; consequential shared-state and durable-lifecycle design remains an explicit checkpoint:
 
 1. Use the alternatives already compared below; revisit them only if the bounded implementation design exposes a material new constraint.
 2. Prefer reuse and a complete, bounded TXT path over an abstract foundation rewrite performed solely in anticipation of future providers.
 3. Explain consequential tradeoffs and obtain agreement before committing to interfaces, schemas, or lifecycle mechanisms.
-4. Turn the confirmed delivery order into concrete implementation steps and verification gates after the architecture is accepted.
+4. Deliver small working steps with focused verification. Resolve the shared-state and lifecycle boundaries before their implementation; do not mistake progress on an isolated step for acceptance of the remaining schema or runtime design.
 
 Do not inherit the previous proposal's table split, shared section persistence, provider/publication ID scheme, revision counters, original-byte indexing, lock topology, directory hierarchy, deletion quarantine, or foundation-first sequence as requirements.
 
 ## Refined Design Recommendation — Proposed
 
-This section records the systematic design review and subsequent discussion, not authorization to implement. Product behavior and core/advanced scope are confirmed above. Concrete signatures, table layout, coordination mechanisms, and engineering limits remain to be specified.
+This section records the systematic design review and subsequent discussion. Implementation authority and concrete progress are tracked in Delivery Steps and Current State, not inferred from this proposal. Product behavior and core/advanced scope are confirmed above; unimplemented signatures, table layout, and coordination mechanisms still require the relevant checkpoint.
 
 ### Ownership and appropriate abstraction
 
@@ -268,22 +268,36 @@ These are bounded implementation-design tasks, not another product questionnaire
 - A full manual TOC editor, parser marketplace, or full-text editing suite.
 - Unrelated BookSource compatibility fixes, repository-wide refactoring, or expanded test/tooling infrastructure.
 
+## Delivery Steps
+
+1. **TXT interpretation boundary (complete; Standard change).** Implement a concrete analyzer in `backend/internal/txt`, using existing `x/text` support, and direct bounded section decoding. Done means synthetic originals in the confirmed encodings produce lossless original-byte ranges, automatic/preset heading recognition and bounded generated sections; ambiguity/errors are explicit and cancellation is respected. No storage writes, worker framework, schema, HTTP, or frontend changes. This validates the original-byte strategy before wiring persistence. Engineering defaults are local resource bounds, not a finalized upload policy or performance guarantee.
+2. **Shared-state and durable-lifecycle checkpoint.** Inspect the already identified direct consumers. Specify minimal library/reading state and transaction ownership together with recoverable acquisition/removal and backup/runtime coordination. Present consequential choices before schema or file-lifecycle edits; preserve BookSource behavior. Avoid a standalone generic foundation project.
+3. **Durable acquisition through reading.** Integrate browser/inbox intake, bounded asynchronous work, persisted candidates, acceptance, shared reader/progress/bookmarks, and complete cleanup/backup in working increments under the accepted checkpoint. Define concrete increments there, not speculative tables now.
+4. **Core user workflow and verification.** Connect basic preview, encoding/preset corrections and bulk acceptance to the unified library. Verify representative batch responsiveness and bounded opening plus focused BookSource regressions. The core is not complete until removal and portable restore work.
+5. **Advanced follow-up.** Only after core completion: the already deferred controls and reparse, then separately scoped EPUB work.
+
 ## Current State
 
 - Branch: `feat/multi-provider-library`, created from `main` at `0702469`.
-- The workstream has changed documentation only. No production code, schema, frontend behavior, or HTTP interface was implemented; nothing in those areas required reverting.
+- Step 1 is implemented in `backend/internal/txt`: concrete `Analyze` and `ReadSection` functions, supported decoding, heading candidates, generated ranges, review reasons, and focused synthetic tests. No schema, runtime, HTTP, frontend, dependency, or existing BookSource code was changed. It is not yet connected to an import/read workflow.
 - The previous blueprint has been replaced in this stable plan path. Git preserves its history.
-- Requirements, the initial encoding set, generated-section behavior, completed-copy inbox convention, conservative reparse handling, and core-before-advanced delivery order are confirmed. The proposed refined design records ownership, appropriate patterns, lifecycle invariants, and extension checks. Concrete architecture still awaits acceptance; production implementation remains paused.
+- Requirements and delivery order remain confirmed. Methodical implementation is now authorized, without blanket approval of the proposed schema or lifecycle machinery. Shared-state and durable-lifecycle changes remain gated by step 2; no such changes are included in step 1.
 
 ## Next Action
 
-Prepare one bounded core-delivery implementation proposal using the confirmed choices and proposed ownership model. It should identify: (1) minimum shared state and origin-owned state, (2) section/document and progress contracts with transaction ownership, (3) acquisition/deletion/backup coordination integrated with existing runtime lifetime, and (4) small working delivery steps and targeted verification. Resolve only the relevant engineering questions above; no exhaustive schema catalog, pattern survey, or speculative framework is needed.
-
-Present that proposal for acceptance before production edits. After acceptance, update this plan's proposed/accepted status, concrete delivery steps, Current State, and Verification together so a later session can act without asking for the same approval again. During implementation, record meaningful stopping points and verification limits here rather than create per-session or per-agent plans. Do not reopen settled product choices or turn deferred advanced features into core prerequisites.
+Proceed to delivery step 2: inspect the existing library/progress consumers and reader-home/runtime boundaries identified under Existing Foundations. Produce the bounded shared-state/durable-lifecycle design and resolve consequential choices before edits. Use the tested TXT analyzer rather than invent another parsing framework. Keep meaningful stopping points and verification limits here; do not reopen settled product choices or make advanced features prerequisites.
 
 ## Verification
 
-- Branch comparison with `main` confirmed that only `PLAN.md` and this plan differ for the workstream.
-- This work is documentation-only; no runtime tests or builds are claimed. Focused source inspection rechecked `book/store.go:UpdateProgress`, `book/bookmark.go:AddBookmark`, `book/source_switch.go:SwitchSource`, frontend `reader/progress-writer.ts`, `readerstore/home.go`, `readerstore/backup.go:SnapshotHome/copyDurableFiles`, `readerstore/database.go`, and API reader runtime lifecycle. These confirm progress/source coupling, transactional source switching, whole-file file helpers, whole-tree backup copying, and the need for job/runtime lifetime integration. This is design evidence, not a completed implementation or concurrency test.
-- Before implementation, define focused checks for preserved BookSource behavior, TXT interpretation/read bounds, stale reading state, partial batch failure, interrupted acquisition/deletion, and backup/restore consistency. Use synthetic deterministic fixtures and fault injection where justified; do not multiply tests for equivalent cases.
-- The initial encoding set is selected but not implemented/verified. Exact performance limits remain unmeasured; no scalability guarantee is claimed.
+- `cd backend && go test ./internal/txt -count=1` passed. Tests cover original-byte reconstruction across supported encodings/BOMs, generated bounds and paragraph preference, preset/review behavior, malformed/truncated input, cancellation/I/O errors, and direct bounded reads. Boundary cases include UTF-16 surrogates, GB18030 four-byte characters, Big5 two-rune units, and a UTF-8 character crossing the detection sample boundary.
+- `go test ./internal/txt -run '^$' -bench '^BenchmarkAnalyze$' -benchtime=1x -benchmem` measured the synthetic roughly 1 MiB input at 67.9 MB/s and 87,720 allocated bytes in one local iteration. This is a smoke measurement of the analyzer, not batch latency, concurrent reading, disk, or library-size evidence.
+- AFT inspection timed out; it supplied no authoritative Go diagnostics. The scoped Go tests compiled the new package successfully. No full backend suite, frontend build, or integration test is claimed because this step changes no existing caller.
+- Integration verification remains outstanding: preserved BookSource behavior, stale reading state, partial batch failures, interrupted acquisition/removal, account lifetime, and portable backup/restore. Define focused checks alongside step 2 rather than multiply hypothetical failure combinations.
+
+### Implemented Interpretation Boundaries
+
+- Automatic encoding selection recognizes BOMs or a valid UTF-8 sample followed by full streaming validation. It does not guess GB18030 versus Big5; `ErrEncodingRequired` requests a manual choice. Explicit legacy decoding rejects substitutions rather than silently corrupting the index. BOM-marked UTF-16 resolves byte order for subsequent range reads.
+- Automatic Chinese/English heading candidates share one decoding pass; explicit presets and generated sections use the same analyzer. Heading scanning currently uses LF/CRLF lines. Returned sections include headings/whitespace and exclude only the initial BOM. Few/no headings or competing families produce review reasons, not a publish decision; admission remains outside the analyzer.
+- Original-byte offsets are TXT index data, not shared reading-location identity. `Options`, resolved encoding/preset, and parser version are available for candidate persistence; revision/hash ownership belongs to the next integration step.
+- Resource bounds live in `analysis.go`: decoded section/source-range limits, preferred paragraph target, input/index bounds, and heading/sample bounds. These are initial engineering defaults, not finalized upload policy. Before persisting indexes, define how later limit/parser changes preserve readability of existing interpretations. Generated sections remain character-unit aligned and preserve original bytes; a long line is fragmented rather than buffered without limit.
+- `ReadSection` needs only `io.ReaderAt`, the resolved encoding and a validated indexed range. It does not inspect a library or publication directory. Its caller must provide the matching immutable original and handle resource/revision lifetimes. Shared Reading Document conversion and acquisition/backup/delete behavior are not implemented.
