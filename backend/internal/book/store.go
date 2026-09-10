@@ -467,16 +467,8 @@ func (s *Store) AddOrMergeBookWithChapters(candidate *Book, chapters []Chapter) 
 	); err != nil {
 		return nil, false, err
 	}
-	for index := range chapters {
-		chapter := chapters[index]
-		chapter.BookID = candidate.ID
-		if chapter.ID == "" {
-			chapter.ID = fmt.Sprintf("%s_%d", candidate.ID, chapter.Index)
-		}
-		if _, err := tx.Exec(`INSERT INTO chapters (id, book_id, idx, title, url, is_vip, is_volume, is_pay, base_url, tag, word_count, cached) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-			chapter.ID, chapter.BookID, chapter.Index, chapter.Title, chapter.URL, boolToInt(chapter.IsVip), boolToInt(chapter.IsVolume), boolToInt(chapter.IsPay), chapter.BaseURL, chapter.Tag, chapter.WordCount, boolToInt(chapter.Cached)); err != nil {
-			return nil, false, err
-		}
+	if err := replaceChaptersTx(tx, candidate.ID, chapters, false); err != nil {
+		return nil, false, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, false, err
@@ -649,7 +641,10 @@ func (s *Store) SaveCatalog(bookID, sourceID string, stateVersion int64, chapter
 	if currentSourceID != sourceID || currentStateVersion != stateVersion {
 		return ErrCatalogSourceChanged
 	}
-	return replaceChaptersTx(tx, bookID, chapters, true)
+	if err := replaceChaptersTx(tx, bookID, chapters, true); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) replaceChapters(bookID string, chapters []Chapter, updateTotal bool) error {
@@ -658,9 +653,13 @@ func (s *Store) replaceChapters(bookID string, chapters []Chapter, updateTotal b
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck
-	return replaceChaptersTx(tx, bookID, chapters, updateTotal)
+	if err := replaceChaptersTx(tx, bookID, chapters, updateTotal); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
+// replaceChaptersTx leaves commit/rollback to the use case that owns tx.
 func replaceChaptersTx(tx *sql.Tx, bookID string, chapters []Chapter, updateTotal bool) error {
 	// Delete existing chapters
 	if _, err := tx.Exec(`DELETE FROM chapters WHERE book_id = ?`, bookID); err != nil {
@@ -692,7 +691,7 @@ func replaceChaptersTx(tx *sql.Tx, bookID string, chapters []Chapter, updateTota
 		}
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 // GetChapters returns all chapters for a book.
