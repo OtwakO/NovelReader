@@ -5,6 +5,19 @@ updated: 2026-09-10
 
 # Multi-Provider Library and Imported Books
 
+## Resume Here
+
+This is the canonical handoff for this workstream; conversation memory and older plan revisions are not needed to resume.
+
+| Need | Read / action |
+|---|---|
+| What the user has decided | [Confirmed product decisions](#confirmed-product-decisions-and-delivery-order), together with [prior preferences](#previously-confirmed-preferences). Do not restart that questionnaire. |
+| Architectural recommendation, not yet implementation approval | [Refined design](#refined-design-recommendation--proposed). Ownership and invariants matter more than illustrative signatures or suggested storage shapes. |
+| What exists and what to inspect | [Existing foundations](#existing-foundations-and-evidence), then [current state](#current-state) and [verification](#verification). Check Git before assuming the branch is unchanged. |
+| What to do next | [Next action](#next-action). Prepare one bounded implementation proposal; do not repeat the broad architecture review or start coding from a historical blueprint. |
+
+The confirmed product choices supersede earlier alternatives in this document and Git history. Proposed architecture is not an extra feature checklist. If new code evidence conflicts with a requirement, report the specific conflict; do not silently change the requirement or implement an increasingly complex workaround.
+
 ## Goal
 
 Add practical, responsive batch TXT import and reading, with a clean path to EPUB, shared library/reader behavior, understandable non-wasteful storage, portable backups, and complete removal. Preserve existing BookSource behavior without building an unnecessarily elaborate framework.
@@ -48,7 +61,7 @@ EPUB is a future extension to consider when evaluating the design, not an implem
 - Distinguish technical failure from an ambiguous but potentially usable interpretation.
 - Keep published interpretations stable across application/parser updates; do not silently reparse books on upgrade or normal opening.
 - Support later reparse with preview and explicit application. A failed or cancelled attempt must not damage the currently readable book.
-- Preserve progress/bookmarks where a reliable mapping exists; explain uncertainty rather than silently relocate them incorrectly. Exact anchors and relocation policy remain design questions.
+- Preserve progress/bookmarks where a reliable mapping exists; explain uncertainty rather than silently relocate them incorrectly. Follow the confirmed conservative reparse policy below; precise text anchors are not part of that delivery.
 
 ### Batch review and admission
 
@@ -59,6 +72,14 @@ EPUB is a future extension to consider when evaluating the design, not an implem
 - Report partial success accurately. Failed items remain understandable and recoverable or removable.
 - Pending imports must be distinguishable from ordinary readable library items and remain manageable across interruption/restart.
 - Cancellation must stop further requested work safely and explain what has already completed; it is not an implicit rollback of an entire batch.
+
+### User workflow reference
+
+`Upload or scan completed files → receive durably → analyze asynchronously → preview/correct or bulk accept → library → ordinary reading`.
+
+Acquired files can leave the inbox before becoming library items; acquisition, analysis, and admission are distinct outcomes. Ready results can be added while other files continue processing. Needs-review results expose an actionable interpretation choice; technical failures expose retry/remove, not a false success. Closing the screen does not cancel accepted server work, but an unfinished browser transfer is not yet durably acquired.
+
+Later published-book reparse uses the same analysis/preview behavior: `choose method → analyze candidate → review impact → apply or discard`. Until Apply, the active interpretation remains readable. Exact screens and labels are not fixed by this reference.
 
 ### Responsiveness and scale
 
@@ -93,6 +114,14 @@ Evaluate alternatives against these criteria rather than rewarding architectural
 - **Efficiency:** avoid routine duplicate content, unbounded queues, whole-library work on reading paths, and processing that blocks interaction unnecessarily.
 - **Proportional verification:** deterministic tests for real risks and shared contracts, not exhaustive combinations or architectural implementation details.
 - **Controlled scope:** preserve unrelated behavior and stop for consequential tradeoffs. No broad cleanup or dependency changes merely to modernize code.
+
+### Effort and abstraction guardrail
+
+The user explicitly prioritizes balance: over-abstraction is as harmful as missing abstraction. Choose patterns per real problem, not from a preferred catalog. Use a function/conditional until variation, shared invariants, or lifecycle complexity earns a stronger structure; the ownership table does not mandate a package, interface, or class for every row.
+
+The failure scenarios below bound normal supported behavior, not an invitation to design for every possible failure combination. Cover ordinary interrupted I/O, retries, and account lifecycle interactions. Do not broaden the contract to concurrent external editing, distributed writers, perfect encoding detection, elaborate relocation, or self-healing storage. Preserve data integrity and reader isolation without turning this into a general resilience project.
+
+Use the fewest deterministic tests that cover the changed contract: normal behavior, a meaningful boundary/failure, and a regression where needed. Add an integration test when it proves a real transaction/file boundary, not one test per internal helper or one suite per scenario combination. Stop when that evidence is sufficient; do not repeatedly audit unrelated code or delegate routine work to subagents.
 
 ## Previously Confirmed Preferences
 
@@ -138,7 +167,7 @@ The user selected these after the refined-design discussion. Do not reopen them 
 
 The confirmed product decisions above and the following requirements-led process are accepted. Concrete architecture remains proposed:
 
-1. Compare the smallest credible architectures against the actual TXT and BookSource workflows.
+1. Use the alternatives already compared below; revisit them only if the bounded implementation design exposes a material new constraint.
 2. Prefer reuse and a complete, bounded TXT path over an abstract foundation rewrite performed solely in anticipation of future providers.
 3. Explain consequential tradeoffs and obtain agreement before committing to interfaces, schemas, or lifecycle mechanisms.
 4. Turn the confirmed delivery order into concrete implementation steps and verification gates after the architecture is accepted.
@@ -147,7 +176,7 @@ Do not inherit the previous proposal's table split, shared section persistence, 
 
 ## Refined Design Recommendation — Proposed
 
-This section records the systematic design review and subsequent discussion, not authorization to implement. Preserve the requirements above; signatures, table names, limits, and delivery scope remain subject to the unresolved decisions below.
+This section records the systematic design review and subsequent discussion, not authorization to implement. Product behavior and core/advanced scope are confirmed above. Concrete signatures, table layout, coordination mechanisms, and engineering limits remain to be specified.
 
 ### Ownership and appropriate abstraction
 
@@ -217,15 +246,15 @@ Keep BookSource catalog synchronization and TXT reparse as distinct use cases; s
 
 Implement a narrow complete TXT path and extract the minimum common state needed for both origins in that same workstream. “Vertical slice first” is not permission to create fake BookSources, duplicate reader state temporarily, or defer safe removal/backup. Establish identity, revision checks, and commit ownership before schema edits; avoid a standalone broad foundation rewrite. Follow the confirmed core-before-advanced delivery order when defining implementation steps. Keep it schema-coherent with existing exact-schema validation; any foreign-key cleanup design must enable enforcement on every reader connection rather than assume the current configuration does so.
 
-## Open Design Questions
+## Remaining Engineering Design
 
-Resolve these progressively, not through one large speculative blueprint:
+These are bounded implementation-design tasks, not another product questionnaire. Choose routine reversible defaults from existing conventions; ask only when evidence requires a consequential change to the confirmed behavior, scope, data contract, or architecture:
 
 1. **Implementation slices:** how can the confirmed core delivery be divided into complete working steps without temporary duplicate reader state or a broad framework rewrite?
 2. **Shared contract and ownership:** what must the library/reader know, what stays origin-owned, and does shared section persistence simplify real workflows or merely duplicate provider indexes?
 3. **Identity and reading state:** how do section references, content changes, source switches, progress, and bookmarks remain coherent without conflating every progress write with a content revision?
 4. **Encoding and bounded access:** verify original-byte boundary handling for the confirmed encoding set and choose practical generated-section limits. These are focused implementation checks, not a request for an encoding framework or exhaustive benchmark suite.
-5. **TOC acceptance:** what evidence supports automatic admission, what requires review, and which correction methods solve the actual expected inputs?
+5. **TOC readiness:** define concrete structural checks separating ready, review-required, and failed analysis for the confirmed methods. Ready enables bulk selection in the core delivery; it does not imply automatic admission, which is deferred.
 6. **Ownership transfer:** under the confirmed completed-copy convention, what minimal recovery records handle interrupted same/cross-filesystem claims, cleanup failure, and duplicate discovery without losing originals?
 7. **Durable consistency:** what is the smallest coordination/recovery mechanism that makes backup, ingestion, removal, and reading safe together? File placement before database insertion alone does not establish crash-safe ownership recovery.
 8. **Limits and compatibility:** what upload/section/batch limits and representative performance checks are appropriate, and what coordinated schema/frontend transition is actually necessary?
@@ -248,7 +277,9 @@ Resolve these progressively, not through one large speculative blueprint:
 
 ## Next Action
 
-Use the confirmed product decisions to specify only the necessary shared state, transaction/recovery boundaries, backup treatment of in-flight operations, runtime integration, and focused verification for the core delivery. Present the bounded implementation approach for acceptance before production edits. Do not reopen settled product choices, build precise relocation, or expand into generic frameworks or extreme-case defenses.
+Prepare one bounded core-delivery implementation proposal using the confirmed choices and proposed ownership model. It should identify: (1) minimum shared state and origin-owned state, (2) section/document and progress contracts with transaction ownership, (3) acquisition/deletion/backup coordination integrated with existing runtime lifetime, and (4) small working delivery steps and targeted verification. Resolve only the relevant engineering questions above; no exhaustive schema catalog, pattern survey, or speculative framework is needed.
+
+Present that proposal for acceptance before production edits. After acceptance, update this plan's proposed/accepted status, concrete delivery steps, Current State, and Verification together so a later session can act without asking for the same approval again. During implementation, record meaningful stopping points and verification limits here rather than create per-session or per-agent plans. Do not reopen settled product choices or turn deferred advanced features into core prerequisites.
 
 ## Verification
 
