@@ -13,7 +13,7 @@ This document replaces the previous architectural blueprint with a requirements-
 
 ## Scope
 
-The workstream covers TXT acquisition, interpretation, review, library admission, reading, backup, removal, and safe later reparsing. A complete first delivery slice and subsequent milestones remain to be agreed; listing a requirement here does not put every UI control into the first release.
+The workstream covers TXT acquisition, interpretation, review, library admission, reading, backup, removal, and safe later reparsing. The core-before-advanced delivery order is confirmed below; listing a requirement here does not put every UI control into the first release.
 
 EPUB is a future extension to consider when evaluating the design, not an implementation requirement for the first TXT slice. Existing BookSource search, source bindings, catalog synchronization, source switching/recovery, caching, and reading must remain supported.
 
@@ -110,7 +110,7 @@ These preserve the discussion so the user does not have to reconstruct it. They 
 | Backup | Include managed pending and published content; exclude temporary work and unclaimed ingress. |
 | Schema compatibility | Disposable pre-public reader homes may be recreated if necessary; no speculative migration machinery. This is permission, not a requirement to replace the schema. |
 
-Possible review controls discussed previously include result filters/search/sorting, bulk method changes, beginning/middle/end TOC samples, custom heading patterns, and single-section fallback. Their exact selection, safety limits, and delivery priority are not yet approved. Automatic/preset/custom parsing are candidate approaches, not a required parser framework.
+Review controls discussed previously include result filters/search/sorting, bulk method changes, beginning/middle/end TOC samples, custom heading patterns, and single-section fallback. The confirmed decisions below establish generated-section handling and core/advanced sequencing; exact UI controls and engineering limits remain to be designed. Parsing methods do not require a parser framework.
 
 ## Existing Foundations and Evidence
 
@@ -124,14 +124,24 @@ The earlier code inspection identified the following relevant starting points; r
 
 These observations identify coupling and reuse opportunities; they do not prove that a wholesale shared-storage rewrite is necessary.
 
+## Confirmed Product Decisions and Delivery Order
+
+The user selected these after the refined-design discussion. Do not reopen them without a material new constraint:
+
+1. **Initial encodings:** UTF-8, BOM-marked UTF-16, GB18030, and Big5. Recognize encodings where reliable and permit explicit selection when uncertain; no promise of perfect automatic detection or arbitrary encoding support.
+2. **Oversized/no-heading text:** generate bounded reading sections, preferring paragraph boundaries. Preserve ordinary detected chapters; split oversized ones into clearly labeled parts, and offer generated sections in review when headings are absent. Disclose generated divisions in the preview. These are index ranges, not rewritten/copied content. The implementation must also bound unusually long paragraphs using valid character boundaries; exact thresholds are engineering parameters to check with representative inputs.
+3. **Inbox completion:** users finish copying before opening Imports or pressing Scan. Opening Imports continues to trigger scanning. Ignore temporary suffixes; recommend temporary-name then rename for automated producers, but do not require that protocol for ordinary manual use. In-progress writes are outside the supported scanning contract; inexpensive change checks are useful but are not proof of completion. No watcher or elaborate completion-detection system.
+4. **First reparse behavior:** preserve demonstrably reliable mappings, flag uncertainty, let users select a new resume section, and retain unresolved bookmarks visibly. Do not add precise text-anchor tracking or an approximate relocation engine merely for this feature. Initial-import reinterpretation has no saved locations to migrate.
+5. **Delivery order:** first deliver browser/inbox batch acquisition, bounded asynchronous processing, automatic/preset analysis, encoding selection, basic preview/bulk acceptance, unified library/prose reading, progress/bookmarks, complete removal, and backup/restore integration. Follow with advanced custom patterns, published-book reparse, optional auto-add, and richer bulk-review controls. EPUB remains later. This sequencing does not authorize implementing the still-proposed architecture or dropping integrity work from the first delivery.
+
 ## Accepted Approach
 
-Only the requirements-led process is accepted at this checkpoint:
+The confirmed product decisions above and the following requirements-led process are accepted. Concrete architecture remains proposed:
 
 1. Compare the smallest credible architectures against the actual TXT and BookSource workflows.
 2. Prefer reuse and a complete, bounded TXT path over an abstract foundation rewrite performed solely in anticipation of future providers.
 3. Explain consequential tradeoffs and obtain agreement before committing to interfaces, schemas, or lifecycle mechanisms.
-4. Add concrete delivery steps and verification gates here after the approach is accepted.
+4. Turn the confirmed delivery order into concrete implementation steps and verification gates after the architecture is accepted.
 
 Do not inherit the previous proposal's table split, shared section persistence, provider/publication ID scheme, revision counters, original-byte indexing, lock topology, directory hierarchy, deletion quarantine, or foundation-first sequence as requirements.
 
@@ -161,7 +171,7 @@ Keep BookSource catalog synchronization and TXT reparse as distinct use cases; s
 - Give every library item a stable identity. Title/author merge remains BookSource-specific; pending acquisitions need not be visible library items. Exact row/key layout is not chosen here.
 - Distinguish active content/catalog revision from optimistic concurrency on progress. Scrolling must not invalidate a prepared TOC solely because a progress counter changed. Ordinary progress writes must still reject stale structure and conflicting writes; retain existing ordering/conflict protections.
 - Section references are opaque outside the owning origin and qualified by the relevant revision. Do not assume ordinals survive replacement or that random IDs create correspondence between different catalogs.
-- The current prose location is section/chapter plus normalized progression. A scroll fraction is NOT an original-byte location, especially after presentation transforms. Do not invent exact TXT relocation by multiplying that fraction by a byte range. Exact anchors, conservative relocation, or explicit user repositioning require a decision before reparse delivery; no speculative universal audio/image location model is needed.
+- The current prose location is section/chapter plus normalized progression. A scroll fraction is NOT an original-byte location, especially after presentation transforms. Do not invent exact TXT relocation by multiplying that fraction by a byte range. Follow the confirmed conservative reparse policy rather than introduce exact anchors or a speculative universal audio/image location model.
 - When applying a new interpretation, read current progress/bookmarks and validate them inside the coordinated operation. If concurrent changes invalidate an impact preview, recompute or return a conflict rather than overwrite newer state. Expensive analysis stays outside the transaction.
 - At the shared reading seam, requests/responses and client caches must identify the relevant interpretation. Old document/resource responses and queued progress writes must not attach to a newer TOC, removed item, replaced reader home, or another account. Backend lookup must likewise avoid pairing a section from one revision with content from another.
 
@@ -173,14 +183,14 @@ Keep BookSource catalog synchronization and TXT reparse as distinct use cases; s
 - Separate **advisory diagnostics**, **review-required ambiguity**, and **technical errors**. Ready is not defined as “no messages.” Explicit user choice can resolve ambiguity but cannot bypass invalid decoding, unsafe ranges, or resource limits. Custom patterns use the existing language's safe regex facilities and input limits, not an invented timeout subsystem.
 - Prefer one active index and at most one durable replacement candidate per publication. Transient bounded alternative evidence may support Automatic review; it need not become permanent version history. A newer analysis request supersedes older work; cancellation/supersession is checked when saving a result, not only during parsing.
 - Initial import and later reparse use the same analyzer and preview behavior. Acceptance is an idempotent database operation bound to the candidate and content revision, not another parse or file copy. Repeated clicks/retries must not publish duplicate library items. Independently re-uploading the same bytes is a different product question, not automatic deduplication.
-- Normal reads should remain bounded by the requested unit. Large chapters/no-heading files require an explicit subdivision, chunking, or initial-limit policy; neither a whole-book fallback nor an unbounded HTML/JSON response satisfies this requirement.
+- Normal reads should remain bounded by the requested unit. Use the confirmed generated-section policy for oversized/no-heading text; neither a whole-book fallback nor an unbounded HTML/JSON response satisfies this requirement.
 
 ### Durable content and operation lifetime
 
 - Proposed file layout adds `files/inbox/`, `files/work/`, and `files/publications/<readable-name>--<unique-id>/<readable-original-name>`. No pending/ready/failed directory hierarchy or required format subfolders. Workflow state is in SQLite; pending and published imports share a stable managed file. Use portable sanitized names and stored relative paths, not names reconstructed from editable titles.
 - Managed originals are immutable through the application; external in-place edits/renames are initially unsupported. Detect encountered missing/changed content explicitly; do not silently rebuild an index or hash the entire file on every open. File replacement is not implied by reparsing and needs its own future policy.
 - Acquisition is not merely a rename followed by an INSERT. Record recoverable intent before destructive inbox consumption, retain evidence of managed ownership, and acknowledge durable acquisition only when the storage contract is met. Same-filesystem and cross-filesystem steps may differ. Failed database commits can be ambiguous; recovery must not delete potentially referenced bytes.
-- A safe inbox contract must address an external writer that remains open across rename. Temporary-suffix then final-rename delivery is the reliable producer convention; heuristic stability scanning cannot guarantee it. Cross-filesystem source removal must not delete a replacement file that appeared at the same inbox path. If managed acquisition succeeds but inbox cleanup fails, retain retryable identity/state and report partial completion without claiming/publishing it again.
+- Follow the confirmed completed-copy inbox contract; do not try to support arbitrary concurrent external writers through a complex protocol. An open external writer can survive rename, so heuristic stability is not proof of completion. Failed claims must not silently consume a different file; if managed acquisition succeeds but inbox cleanup fails, retain retryable identity/state and report partial completion without claiming/publishing it again.
 - Deletion uses an identifiable, retryable lifecycle: stop new work, drain/cancel conflicting work, remove owned bytes, finalize related rows. Do not require a quarantine directory without a concrete need. Unreferenced files from interrupted acquisition are recovery inputs, not automatically disposable garbage.
 - Workers must respect process-wide resource bounds as well as reader/account fairness. They hold a valid reader-home lifetime while running, not an HTTP request context; shutdown, account removal, and restore stop admission and cancel/drain work before closing/replacing storage. Do not pin a runtime for an entire idle batch or let stale workers write into a restored home. This is lifecycle integration, not a new distributed scheduler.
 - Backup uses an explicit durable-file policy, not a walk that accidentally includes inbox/work. Pair the database snapshot with its referenced durable content and prevent deletion/replacement of those bytes until copied; include existing managed assets in the same consistency analysis. Parsing and ordinary reads should not require a long exclusive backup lock.
@@ -205,18 +215,18 @@ Keep BookSource catalog synchronization and TXT reparse as distinct use cases; s
 - **Universal shared catalog schema/provider framework first:** centralizes tables but front-loads joins, coordinated ownership, and hypothetical capabilities; not justified by present evidence.
 - **Small shared library/reading contract with origin-owned preparation:** recommended balance. Its real cost is explicit transaction composition and section validation without assumed shared-table foreign keys. Verify those seams rather than hiding the cost.
 
-Implement a narrow complete TXT path and extract the minimum common state needed for both origins in that same workstream. “Vertical slice first” is not permission to create fake BookSources, duplicate reader state temporarily, or defer safe removal/backup. Establish identity, revision checks, and commit ownership before schema edits; avoid a standalone broad foundation rewrite. Agree the first usable slice and follow-on reparse/review controls before implementation. Keep it schema-coherent with existing exact-schema validation; any foreign-key cleanup design must enable enforcement on every reader connection rather than assume the current configuration does so.
+Implement a narrow complete TXT path and extract the minimum common state needed for both origins in that same workstream. “Vertical slice first” is not permission to create fake BookSources, duplicate reader state temporarily, or defer safe removal/backup. Establish identity, revision checks, and commit ownership before schema edits; avoid a standalone broad foundation rewrite. Follow the confirmed core-before-advanced delivery order when defining implementation steps. Keep it schema-coherent with existing exact-schema validation; any foreign-key cleanup design must enable enforcement on every reader connection rather than assume the current configuration does so.
 
 ## Open Design Questions
 
 Resolve these progressively, not through one large speculative blueprint:
 
-1. **Smallest delivery:** what complete TXT import/review/read/remove/backup path establishes the second real origin, and which advanced review/reparse controls follow later?
+1. **Implementation slices:** how can the confirmed core delivery be divided into complete working steps without temporary duplicate reader state or a broad framework rewrite?
 2. **Shared contract and ownership:** what must the library/reader know, what stays origin-owned, and does shared section persistence simplify real workflows or merely duplicate provider indexes?
 3. **Identity and reading state:** how do section references, content changes, source switches, progress, and bookmarks remain coherent without conflating every progress write with a content revision?
-4. **Encoding and bounded access:** which encodings are initially supported, how are safe read boundaries established, and how do long sections/no-heading files remain responsive without routine content duplication?
+4. **Encoding and bounded access:** verify original-byte boundary handling for the confirmed encoding set and choose practical generated-section limits. These are focused implementation checks, not a request for an encoding framework or exhaustive benchmark suite.
 5. **TOC acceptance:** what evidence supports automatic admission, what requires review, and which correction methods solve the actual expected inputs?
-6. **Ownership transfer:** how are incomplete writes, same/cross-filesystem claims, restart, cleanup failure, and duplicate discovery handled without losing originals? Rename does not stop an external writer with an already-open file handle; observed stability alone is not proof of completion.
+6. **Ownership transfer:** under the confirmed completed-copy convention, what minimal recovery records handle interrupted same/cross-filesystem claims, cleanup failure, and duplicate discovery without losing originals?
 7. **Durable consistency:** what is the smallest coordination/recovery mechanism that makes backup, ingestion, removal, and reading safe together? File placement before database insertion alone does not establish crash-safe ownership recovery.
 8. **Limits and compatibility:** what upload/section/batch limits and representative performance checks are appropriate, and what coordinated schema/frontend transition is actually necessary?
 
@@ -234,15 +244,15 @@ Resolve these progressively, not through one large speculative blueprint:
 - Branch: `feat/multi-provider-library`, created from `main` at `0702469`.
 - The workstream has changed documentation only. No production code, schema, frontend behavior, or HTTP interface was implemented; nothing in those areas required reverting.
 - The previous blueprint has been replaced in this stable plan path. Git preserves its history.
-- Requirements and prior preferences are recovered. A proposed refined design now records ownership, appropriate patterns, TXT analysis/switching, file lifecycle, concurrency/restore invariants, alternatives, and extension checks. Replacement architecture and delivery sequence still await acceptance; production implementation remains paused.
+- Requirements, the initial encoding set, generated-section behavior, completed-copy inbox convention, conservative reparse handling, and core-before-advanced delivery order are confirmed. The proposed refined design records ownership, appropriate patterns, lifecycle invariants, and extension checks. Concrete architecture still awaits acceptance; production implementation remains paused.
 
 ## Next Action
 
-Discuss the proposed refinement with the user. Before concrete implementation, settle the initial encoding/oversized-section policy, TXT location preservation on reparse, reliable inbox completion contract, and first usable delivery scope. Then specify only the necessary shared state, transaction/recovery boundaries, backup treatment of in-flight operations, runtime integration, and focused verification in this plan. No further generic framework design is needed.
+Use the confirmed product decisions to specify only the necessary shared state, transaction/recovery boundaries, backup treatment of in-flight operations, runtime integration, and focused verification for the core delivery. Present the bounded implementation approach for acceptance before production edits. Do not reopen settled product choices, build precise relocation, or expand into generic frameworks or extreme-case defenses.
 
 ## Verification
 
 - Branch comparison with `main` confirmed that only `PLAN.md` and this plan differ for the workstream.
 - This work is documentation-only; no runtime tests or builds are claimed. Focused source inspection rechecked `book/store.go:UpdateProgress`, `book/bookmark.go:AddBookmark`, `book/source_switch.go:SwitchSource`, frontend `reader/progress-writer.ts`, `readerstore/home.go`, `readerstore/backup.go:SnapshotHome/copyDurableFiles`, `readerstore/database.go`, and API reader runtime lifecycle. These confirm progress/source coupling, transactional source switching, whole-file file helpers, whole-tree backup copying, and the need for job/runtime lifetime integration. This is design evidence, not a completed implementation or concurrency test.
 - Before implementation, define focused checks for preserved BookSource behavior, TXT interpretation/read bounds, stale reading state, partial batch failure, interrupted acquisition/deletion, and backup/restore consistency. Use synthetic deterministic fixtures and fault injection where justified; do not multiply tests for equivalent cases.
-- Performance limits and supported encodings remain unmeasured/unselected; no scalability guarantee is claimed.
+- The initial encoding set is selected but not implemented/verified. Exact performance limits remain unmeasured; no scalability guarantee is claimed.
