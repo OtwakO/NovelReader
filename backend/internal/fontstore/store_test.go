@@ -32,13 +32,13 @@ func TestStoreKeepsEqualFontIDsInsideReaderHome(t *testing.T) {
 	defer bobHome.Close()
 	alice := NewStore(aliceHome.DB(), aliceHome.Files())
 	bob := NewStore(bobHome.DB(), bobHome.Files())
-	if _, err := alice.Add("Alice Font", "same-id", []byte("alice font")); err != nil {
+	if _, err := alice.Add(t.Context(), "Alice Font", "same-id", []byte("alice font")); err != nil {
 		t.Fatal(err)
 	}
 	if _, data, err := bob.Read("same-id"); err != nil || data != nil {
 		t.Fatalf("bob read before add: data=%q err=%v", data, err)
 	}
-	if _, err := bob.Add("Bob Font", "same-id", []byte("bob font")); err != nil {
+	if _, err := bob.Add(t.Context(), "Bob Font", "same-id", []byte("bob font")); err != nil {
 		t.Fatal(err)
 	}
 	_, aliceData, err := alice.Read("same-id")
@@ -49,7 +49,7 @@ func TestStoreKeepsEqualFontIDsInsideReaderHome(t *testing.T) {
 	if err != nil || string(bobData) != "bob font" {
 		t.Fatalf("bob data=%q err=%v", bobData, err)
 	}
-	if err := alice.Delete("same-id"); err != nil {
+	if err := alice.Delete(t.Context(), "same-id"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := aliceHome.Files().ReadFile(readerstore.FontsDirectory, "same-id"); err == nil {
@@ -76,10 +76,10 @@ func TestReplacementAndInterruptedCleanup(t *testing.T) {
 	}
 	defer home.Close()
 	store := NewStore(home.DB(), home.Files())
-	if _, err := store.Add("Fixture", "old", []byte("old")); err != nil {
+	if _, err := store.Add(t.Context(), "Fixture", "old", []byte("old")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Add("Fixture", "new", []byte("new")); err != nil {
+	if _, err := store.Add(t.Context(), "Fixture", "new", []byte("new")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := home.Files().ReadFile(readerstore.FontsDirectory, "old"); !errors.Is(err, os.ErrNotExist) {
@@ -102,7 +102,7 @@ func TestReplacementAndInterruptedCleanup(t *testing.T) {
 	if err := os.WriteFile(child, nil, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Delete("new"); err == nil {
+	if err := store.Delete(t.Context(), "new"); err == nil {
 		t.Fatal("cleanup failure was hidden")
 	}
 	var pending int
@@ -146,7 +146,7 @@ func TestConcurrentStoresReplaceOneName(t *testing.T) {
 	for _, id := range []string{"first", "second"} {
 		go func() {
 			<-start
-			_, err := NewStore(home.DB(), home.Files()).Add("Shared", id, []byte(id))
+			_, err := NewStore(home.DB(), home.Files()).Add(t.Context(), "Shared", id, []byte(id))
 			done <- err
 		}()
 	}

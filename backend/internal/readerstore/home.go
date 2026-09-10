@@ -36,6 +36,7 @@ type HomeManifest struct {
 type FileStore struct {
 	dataRoot string
 	root     string
+	mutation chan struct{}
 }
 
 func (f FileStore) WriteFile(data []byte, perm os.FileMode, segments ...string) error {

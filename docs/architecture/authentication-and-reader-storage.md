@@ -82,6 +82,10 @@ With NovelReader stopped, copying the complete configured `DATA_DIR` is the disa
 The authenticated backup module exports a versioned `.tar.gz` archive containing a consistent SQLite backup of `reader.db`, ordinary reader files, a manifest, and restore instructions. It excludes account authority, passwords, sessions, automation tokens, and the separate source
 credential store. The imported-definition caveat above still applies.
 
+`FileStore.LockMutation(ctx)` coordinates composite metadata/file changes with snapshots through one gate shared by all leases of a reader home. Font add/delete/cleanup acquire it before their SQLite transaction. `SnapshotHome` holds the same gate from database snapshot through local file copying and validation; archive compression/transmission happens afterward. Ordinary reads and progress writes do not acquire this gate, and other reader homes are independent. Waiting and file copying honor cancellation between I/O operations. Once font publication begins, its short metadata transaction completes independently of request cancellation to avoid rolling back metadata during a file write.
+
+New durable-file writers must join this boundary around the whole metadata/file operation, not individual raw file calls. The gate prevents concurrent snapshot mismatches; it does not itself provide crash recovery, reference validation, or garbage collection.
+
 Restore behavior:
 
 1. upload and validate the archive in a bounded staging workspace while reading may continue;

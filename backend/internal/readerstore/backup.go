@@ -37,6 +37,11 @@ func (m *Manager) SnapshotHome(ctx context.Context, userID UserID, destination s
 		return cleanup(err)
 	}
 	defer home.Close()
+	unlock, err := home.Files().LockMutation(ctx)
+	if err != nil {
+		return cleanup(err)
+	}
+	defer unlock()
 	if err := writeHomeManifest(destination); err != nil {
 		return cleanup(err)
 	}
@@ -46,7 +51,7 @@ func (m *Manager) SnapshotHome(ctx context.Context, userID UserID, destination s
 	if err := initializeCredentialsDatabase(filepath.Join(destination, CredentialsDatabaseName), m.schemas); err != nil {
 		return cleanup(fmt.Errorf("readerstore: initialize snapshot credentials: %w", err))
 	}
-	if err := copyDurableFiles(home.Files().root, filepath.Join(destination, FilesDirectory)); err != nil {
+	if err := copyDurableFiles(ctx, home.Files().root, filepath.Join(destination, FilesDirectory)); err != nil {
 		return cleanup(err)
 	}
 	if err := validateHome(destination, m.schemas); err != nil {
@@ -93,13 +98,13 @@ func (m *Manager) PrepareReplacement(ctx context.Context, userID UserID, readerD
 	if err := writeHomeManifest(stagingPath); err != nil {
 		return cleanup(err)
 	}
-	if err := copyRegularFile(readerDatabase, filepath.Join(stagingPath, ReaderDatabaseName), 0o600); err != nil {
+	if err := copyRegularFile(ctx, readerDatabase, filepath.Join(stagingPath, ReaderDatabaseName), 0o600); err != nil {
 		return cleanup(fmt.Errorf("readerstore: stage reader database: %w", err))
 	}
 	if err := initializeCredentialsDatabase(filepath.Join(stagingPath, CredentialsDatabaseName), m.schemas); err != nil {
 		return cleanup(fmt.Errorf("readerstore: stage credentials database: %w", err))
 	}
-	if err := copyDurableFiles(filesRoot, filepath.Join(stagingPath, FilesDirectory)); err != nil {
+	if err := copyDurableFiles(ctx, filesRoot, filepath.Join(stagingPath, FilesDirectory)); err != nil {
 		return cleanup(err)
 	}
 	if err := validateHome(stagingPath, m.schemas); err != nil {
@@ -190,7 +195,7 @@ func backupDatabase(ctx context.Context, source *sql.DB, destination string) err
 	return err
 }
 
-func copyDurableFiles(source, destination string) error {
+func copyDurableFiles(ctx context.Context, source, destination string) error {
 	if err := os.MkdirAll(destination, 0o700); err != nil {
 		return fmt.Errorf("readerstore: create replacement files: %w", err)
 	}
@@ -204,6 +209,9 @@ func copyDurableFiles(source, destination string) error {
 		return nil
 	}
 	return filepath.WalkDir(source, func(path string, entry os.DirEntry, walkErr error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if walkErr != nil {
 			return walkErr
 		}
@@ -222,11 +230,14 @@ func copyDurableFiles(source, destination string) error {
 		if err != nil || !info.Mode().IsRegular() {
 			return ErrInvalidFilePath
 		}
-		return copyRegularFile(path, target, 0o600)
+		return copyRegularFile(ctx, path, target, 0o600)
 	})
 }
 
-func copyRegularFile(source, destination string, perm os.FileMode) error {
+func copyRegularFile(ctx context.Context, source, destination string, perm os.FileMode) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	input, err := os.Open(source)
 	if err != nil {
 		return err
@@ -240,7 +251,7 @@ func copyRegularFile(source, destination string, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	_, copyErr := io.Copy(output, input)
+	_, copyErr := io.Copy(output, contextReader{ctx: ctx, reader: input})
 	closeErr := output.Close()
 	return errors.Join(copyErr, closeErr)
 }
@@ -313,4 +324,18 @@ func reconcileReplacementArtifacts(root string, schemas []ReaderSchema) error {
 		}
 	}
 	return nil
+}
+
+// contextReader checks cancellation between bounded copy reads without owning
+// the input file. Filesystem syscalls themselves remain subject to OS behavior.
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r contextReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(p)
 }

@@ -55,7 +55,14 @@ func initSchema(db schemaExecutor) error {
 }
 
 // Add publishes a new ID; same-name replacement retires the previous file.
-func (s *Store) Add(name, id string, data []byte) (*Font, error) {
+func (s *Store) Add(ctx context.Context, name, id string, data []byte) (*Font, error) {
+	unlock, err := s.files.LockMutation(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	// Once publication begins, finish the short transaction even if the request
+	// disconnects. Cancellation must not roll back metadata during a file write.
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, err
@@ -85,7 +92,7 @@ func (s *Store) Add(name, id string, data []byte) (*Font, error) {
 		// potentially referenced by committed metadata.
 		return nil, fmt.Errorf("fontstore: commit font %s: %w", id, err)
 	}
-	if err := s.Cleanup(context.Background()); err != nil {
+	if err := s.cleanup(ctx); err != nil {
 		return f, fmt.Errorf("font saved; obsolete file cleanup pending: %w", err)
 	}
 	return f, nil
@@ -129,7 +136,12 @@ func (s *Store) Read(id string) (Font, []byte, error) {
 	return f, data, nil
 }
 
-func (s *Store) Delete(id string) error {
+func (s *Store) Delete(ctx context.Context, id string) error {
+	unlock, err := s.files.LockMutation(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -144,7 +156,7 @@ func (s *Store) Delete(id string) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	if err := s.Cleanup(context.Background()); err != nil {
+	if err := s.cleanup(ctx); err != nil {
 		return fmt.Errorf("font deleted; file cleanup pending: %w", err)
 	}
 	return nil

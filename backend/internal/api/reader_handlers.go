@@ -726,7 +726,7 @@ func (s *readerAPI) handleUploadFont(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := rand.Text()
-	f, err := s.fontStore.Add(name, id, data)
+	f, err := s.fontStore.Add(r.Context(), name, id, data)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -737,7 +737,7 @@ func (s *readerAPI) handleUploadFont(w http.ResponseWriter, r *http.Request) {
 
 func (s *readerAPI) handleDeleteFont(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := s.fontStore.Delete(id); err != nil {
+	if err := s.fontStore.Delete(r.Context(), id); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
