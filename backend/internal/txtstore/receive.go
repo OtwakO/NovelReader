@@ -45,7 +45,7 @@ func (s *Store) Receive(ctx context.Context, name string, input io.Reader) (Rece
 	defer unlock()
 	// Once finalization starts, finish the short metadata/file sequence even if
 	// the upload request disconnects. A database failure still leaves durable intent.
-	finalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	finalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataTimeout)
 	defer cancel()
 	if err := s.transition(finalCtx, value.ID, Receiving, Receiving, value.Size, ""); err != nil {
 		return value, err
@@ -88,7 +88,7 @@ func (s *Store) failTransfer(ctx context.Context, root *os.Root, value Receipt, 
 func (s *Store) recordFailure(ctx context.Context, root *os.Root, value Receipt, cause error) (Receipt, error) {
 	cleanupErr := removeIfPresent(root, workPath(value.ID))
 	cause = errors.Join(cause, cleanupErr)
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataTimeout)
 	defer cancel()
 	err := s.transition(cleanupCtx, value.ID, Receiving, Failed, value.Size, cause.Error())
 	if err == nil {

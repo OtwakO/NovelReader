@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/otwako/novelreader/internal/txt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/iotest"
 
+	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
@@ -20,7 +23,7 @@ const bob readerstore.UserID = "22222222-2222-4222-8222-222222222222"
 
 func receiptStore(t *testing.T) (*Store, *readerstore.Manager, *readerstore.Home, *os.Root) {
 	t.Helper()
-	manager, err := readerstore.NewManager(t.TempDir(), 2, ReaderSchema())
+	manager, err := readerstore.NewManager(t.TempDir(), 2, library.ReaderSchema(), ReaderSchema())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,6 +63,10 @@ func TestReceiptOriginalIsPortableAndDiscardIsIsolated(t *testing.T) {
 	if _, err := root.Stat(workPath(value.ID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("work remains: %v", err)
 	}
+	analysis, err := store.Analyze(t.Context(), value.ID, txt.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Temporary bytes are not part of a portable snapshot, regardless of owner.
 	if err := root.WriteFile(path.Join(readerstore.WorkDirectory, "txt", "partial"), []byte("partial"), 0o600); err != nil {
 		t.Fatal(err)
@@ -90,6 +97,10 @@ func TestReceiptOriginalIsPortableAndDiscardIsIsolated(t *testing.T) {
 	copied, err := restoredStore.Get(t.Context(), value.ID)
 	if err != nil || copied.Path != value.Path || copied.Size != int64(len(original)) {
 		t.Fatalf("restored=%+v err=%v", copied, err)
+	}
+	restoredAnalysis, err := restoredStore.Preview(t.Context(), value.ID)
+	if err != nil || !reflect.DeepEqual(restoredAnalysis, analysis) {
+		t.Fatalf("restored analysis=%+v err=%v", restoredAnalysis, err)
 	}
 	restoredRoot, err := restored.Files().OpenRoot()
 	if err != nil {

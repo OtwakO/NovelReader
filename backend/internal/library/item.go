@@ -3,7 +3,10 @@ package library
 
 import "errors"
 
-const BookSource = "booksource"
+const (
+	BookSource = "booksource"
+	TXT        = "txt"
+)
 
 var (
 	ErrNotFound        = errors.New("library: item not found")
