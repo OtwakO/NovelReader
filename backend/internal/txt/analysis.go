@@ -27,11 +27,12 @@ const (
 	maxSectionBytes       = 128 << 10
 	targetSectionBytes    = maxSectionBytes / 2
 	maxSectionSourceBytes = 2 * maxSectionBytes
-	maxInputBytes         = 256 << 20
-	maxSections           = 50000
-	maxHeadingBytes       = 512
-	encodingSampleBytes   = 64 << 10
-	parserVersion         = 1
+	// MaxInputBytes bounds both acquisition and analysis of one original.
+	MaxInputBytes       = 256 << 20
+	maxSections         = 50000
+	maxHeadingBytes     = 512
+	encodingSampleBytes = 64 << 10
+	parserVersion       = 1
 )
 
 var ErrEncodingRequired = errors.New("txt: encoding is uncertain; select an encoding")

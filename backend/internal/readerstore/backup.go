@@ -219,6 +219,12 @@ func copyDurableFiles(ctx context.Context, source, destination string) error {
 		if err != nil || relative == "." {
 			return err
 		}
+		if relative == WorkDirectory {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if entry.Type()&os.ModeSymlink != 0 {
 			return ErrInvalidFilePath
 		}

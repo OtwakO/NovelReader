@@ -40,8 +40,8 @@ func (r *lineReader) next() (textLine, error) {
 				break
 			}
 		}
-		if r.decoder.offset > maxInputBytes {
-			return textLine{}, fmt.Errorf("txt: input exceeds %d original bytes", maxInputBytes)
+		if r.decoder.offset > MaxInputBytes {
+			return textLine{}, fmt.Errorf("txt: input exceeds %d original bytes", MaxInputBytes)
 		}
 		if len(r.buffer)+len(unit) > maxSectionBytes {
 			r.pending = len(unit)

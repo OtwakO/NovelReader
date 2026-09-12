@@ -15,6 +15,7 @@ const (
 	ReaderDatabaseName      = "reader.db"
 	CredentialsDatabaseName = "credentials.db"
 	FilesDirectory          = "files"
+	WorkDirectory           = ".work" // Disposable transfer work, excluded from portable Reader Data.
 	FontsDirectory          = "fonts"
 	CoversDirectory         = "covers"
 	ChapterAssetsDirectory  = "chapter-assets"
@@ -44,7 +45,7 @@ func (f FileStore) WriteFile(data []byte, perm os.FileMode, segments ...string) 
 	if err != nil {
 		return err
 	}
-	root, err := f.openRoot()
+	root, err := f.OpenRoot()
 	if err != nil {
 		return fmt.Errorf("readerstore: open files root: %w", err)
 	}
@@ -60,7 +61,7 @@ func (f FileStore) ReadFile(segments ...string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	root, err := f.openRoot()
+	root, err := f.OpenRoot()
 	if err != nil {
 		return nil, fmt.Errorf("readerstore: open files root: %w", err)
 	}
@@ -77,7 +78,7 @@ func (f FileStore) Remove(segments ...string) error {
 	if err != nil {
 		return err
 	}
-	root, err := f.openRoot()
+	root, err := f.OpenRoot()
 	if err != nil {
 		return fmt.Errorf("readerstore: open files root: %w", err)
 	}
@@ -88,7 +89,9 @@ func (f FileStore) Remove(segments ...string) error {
 	return nil
 }
 
-func (f FileStore) openRoot() (*os.Root, error) {
+// OpenRoot grants confined file access; the caller closes the returned handle.
+// Composite durable-file/database mutations must hold LockMutation separately.
+func (f FileStore) OpenRoot() (*os.Root, error) {
 	inside, err := ContainsPath(f.dataRoot, f.root)
 	if err != nil {
 		return nil, fmt.Errorf("readerstore: validate files root: %w", err)
