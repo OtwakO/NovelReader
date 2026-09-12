@@ -56,7 +56,7 @@ type Store struct {
 func NewStore(db *sql.DB, files readerstore.FileStore) *Store { return &Store{db: db, files: files} }
 
 func ReaderSchema() readerstore.ReaderSchema {
-	return readerstore.ReaderSchema{ValidatePortableFiles: validatePortableFiles, Initialize: func(tx *sql.Tx) error {
+	return readerstore.ReaderSchema{ValidatePortableFiles: validatePortableFiles, PreparePortable: preparePortable, Initialize: func(tx *sql.Tx) error {
 		_, err := tx.Exec(`CREATE TABLE txt_files (
  id TEXT PRIMARY KEY,
  original_name TEXT NOT NULL,
@@ -75,6 +75,10 @@ func ReaderSchema() readerstore.ReaderSchema {
  created_at INTEGER NOT NULL,
  updated_at INTEGER NOT NULL
  ); CREATE INDEX idx_txt_files_state ON txt_files(state,id);
+ CREATE TABLE txt_inbox_claims (
+ name TEXT PRIMARY KEY,
+ receipt_id TEXT NOT NULL UNIQUE
+ );
  CREATE TABLE txt_sections (
  receipt_id TEXT NOT NULL REFERENCES txt_files(id) ON DELETE CASCADE,
  idx INTEGER NOT NULL,

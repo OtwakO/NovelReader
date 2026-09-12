@@ -13,6 +13,13 @@ import (
 // validatePortableFiles validates ownership in both directions without decoding
 // originals or rebuilding indexes. Unreferenced files are never swept.
 func validatePortableFiles(ctx context.Context, tx *sql.Tx, root *os.Root) error {
+	var localClaims bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM txt_inbox_claims)`).Scan(&localClaims); err != nil {
+		return err
+	}
+	if localClaims {
+		return fmt.Errorf("txtstore: portable data contains inbox cleanup authority")
+	}
 	items, err := library.ListTx(ctx, tx)
 	if err != nil {
 		return err
@@ -78,4 +85,9 @@ func validatePortableOriginal(root *os.Root, value Receipt) error {
 		return fmt.Errorf("managed original size differs from receipt")
 	}
 	return nil
+}
+
+func preparePortable(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM txt_inbox_claims`)
+	return err
 }

@@ -48,6 +48,9 @@ func (m *Manager) SnapshotHome(ctx context.Context, userID UserID, destination s
 	if err := backupDatabase(ctx, home.DB(), filepath.Join(destination, ReaderDatabaseName)); err != nil {
 		return cleanup(fmt.Errorf("readerstore: snapshot reader database: %w", err))
 	}
+	if err := preparePortableDatabase(ctx, filepath.Join(destination, ReaderDatabaseName), m.schemas); err != nil {
+		return cleanup(err)
+	}
 	if err := initializeCredentialsDatabase(filepath.Join(destination, CredentialsDatabaseName), m.schemas); err != nil {
 		return cleanup(fmt.Errorf("readerstore: initialize snapshot credentials: %w", err))
 	}
@@ -100,6 +103,9 @@ func (m *Manager) PrepareReplacement(ctx context.Context, userID UserID, readerD
 	}
 	if err := copyRegularFile(ctx, readerDatabase, filepath.Join(stagingPath, ReaderDatabaseName), 0o600); err != nil {
 		return cleanup(fmt.Errorf("readerstore: stage reader database: %w", err))
+	}
+	if err := preparePortableDatabase(ctx, filepath.Join(stagingPath, ReaderDatabaseName), m.schemas); err != nil {
+		return cleanup(err)
 	}
 	if err := initializeCredentialsDatabase(filepath.Join(stagingPath, CredentialsDatabaseName), m.schemas); err != nil {
 		return cleanup(fmt.Errorf("readerstore: stage credentials database: %w", err))

@@ -47,3 +47,36 @@ func validatePortableHome(ctx context.Context, homePath string, schemas []Reader
 	}
 	return nil
 }
+
+// preparePortableDatabase strips local-only state after copying and on import.
+func preparePortableDatabase(ctx context.Context, filename string, schemas []ReaderSchema) error {
+	var prepare []func(context.Context, *sql.Tx) error
+	for _, schema := range schemas {
+		if schema.PreparePortable != nil {
+			prepare = append(prepare, schema.PreparePortable)
+		}
+	}
+	if len(prepare) == 0 {
+		return ctx.Err()
+	}
+	// Reject incompatible input before feature callbacks touch its staged copy.
+	if err := validateHomeDatabase(filename, CurrentReaderSchemaVersion, schemas); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", sqliteFileURI(filename)+"?mode=rw")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, callback := range prepare {
+		if err := callback(ctx, tx); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}

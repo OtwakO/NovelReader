@@ -332,6 +332,7 @@ func (h *Home) Files() FileStore {
 		dataRoot: h.manager.root,
 		root:     filepath.Join(h.entry.path, FilesDirectory),
 		mutation: h.entry.fileMutation,
+		readerID: h.entry.id,
 	}
 }
 func (h *Home) Close() error {

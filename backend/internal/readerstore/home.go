@@ -38,6 +38,7 @@ type FileStore struct {
 	dataRoot string
 	root     string
 	mutation chan struct{}
+	readerID UserID
 }
 
 func (f FileStore) WriteFile(data []byte, perm os.FileMode, segments ...string) error {

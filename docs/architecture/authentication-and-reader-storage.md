@@ -37,6 +37,8 @@ bindings/catalog/cache and the other reader modules. Foreign keys are enabled on
 connection. Epoch-9 homes and portable archives are incompatible; there is no automatic migration or
 reset. Preservation and rollback instructions live in the [development reset runbook](../runbooks/development-data-reset.md).
 
+The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT intake is not yet registered in production; see the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
+
 `credentials.db` is separate. Reversible source credentials are encrypted using the installation-level credential key configured by NovelReader. Losing that key requires source reauthentication but must not make Reader Data unreadable.
 
 ## Authentication
@@ -92,6 +94,8 @@ credential store. Reserved `files/.work/` transfer work is excluded from both sn
 `FileStore.OpenRoot()` provides a caller-closed, confined `os.Root` for streaming and range I/O without loading entire files. It does not acquire the mutation gate implicitly.
 
 New durable-file writers must join this boundary around the whole metadata/file operation, not individual raw file calls. The gate prevents concurrent snapshot mismatches; it does not itself provide crash recovery, reference validation, or garbage collection.
+
+`ReaderSchema.PreparePortable` strips installation-local operational authority from the copied database on export and import, without modifying live records. TXT uses it for unresolved inbox claims; even a discarded receipt's leftover claim remains local until explicitly resolved. Copies containing such authority are rejected at publication validation.
 
 Features can contribute `ReaderSchema.ValidatePortableFiles` to check references against the copied read-only database and confined files. Checks run after snapshot copying, after replacement staging, and before replacement publication—not on ordinary home opens. TXT supplies receipt/publication ownership and original-file checks when its schema is composed; its production registration remains tracked in the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md). No live records are repaired or deleted by these checks.
 
