@@ -41,6 +41,8 @@ The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable
 
 `credentials.db` is separate. Reversible source credentials are encrypted using the installation-level credential key configured by NovelReader. Losing that key requires source reauthentication but must not make Reader Data unreadable.
 
+Runtime initialization reserves a per-reader slot before opening storage or running feature initialization. In-flight initialization counts against capacity; competing requests wait rather than constructing losing instances. Quiesce/shutdown wait until initialization and any rejected-instance cleanup finish. Initialization and cleanup execute outside the manager mutex so other readers are not blocked by that mutex.
+
 ## Authentication
 
 - Usernames are unique case-insensitively; passwords use Argon2id.
