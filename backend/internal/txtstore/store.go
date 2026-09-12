@@ -56,7 +56,7 @@ type Store struct {
 func NewStore(db *sql.DB, files readerstore.FileStore) *Store { return &Store{db: db, files: files} }
 
 func ReaderSchema() readerstore.ReaderSchema {
-	return readerstore.ReaderSchema{Initialize: func(tx *sql.Tx) error {
+	return readerstore.ReaderSchema{ValidatePortableFiles: validatePortableFiles, Initialize: func(tx *sql.Tx) error {
 		_, err := tx.Exec(`CREATE TABLE txt_files (
  id TEXT PRIMARY KEY,
  original_name TEXT NOT NULL,

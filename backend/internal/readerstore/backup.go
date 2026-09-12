@@ -54,7 +54,7 @@ func (m *Manager) SnapshotHome(ctx context.Context, userID UserID, destination s
 	if err := copyDurableFiles(ctx, home.Files().root, filepath.Join(destination, FilesDirectory)); err != nil {
 		return cleanup(err)
 	}
-	if err := validateHome(destination, m.schemas); err != nil {
+	if err := validatePortableHome(ctx, destination, m.schemas); err != nil {
 		return cleanup(err)
 	}
 	return nil
@@ -107,7 +107,7 @@ func (m *Manager) PrepareReplacement(ctx context.Context, userID UserID, readerD
 	if err := copyDurableFiles(ctx, filesRoot, filepath.Join(stagingPath, FilesDirectory)); err != nil {
 		return cleanup(err)
 	}
-	if err := validateHome(stagingPath, m.schemas); err != nil {
+	if err := validatePortableHome(ctx, stagingPath, m.schemas); err != nil {
 		return cleanup(err)
 	}
 	return stagingPath, nil
@@ -150,7 +150,7 @@ func (m *Manager) PublishReplacement(ctx context.Context, userID UserID, staging
 			return fmt.Errorf("readerstore: close reader home before replacement: %w", err)
 		}
 	}
-	if err := validateHome(stagingPath, m.schemas); err != nil {
+	if err := validatePortableHome(ctx, stagingPath, m.schemas); err != nil {
 		return err
 	}
 	rollbackPath := homePath + backupRollbackSuffix

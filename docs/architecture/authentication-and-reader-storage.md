@@ -93,6 +93,8 @@ credential store. Reserved `files/.work/` transfer work is excluded from both sn
 
 New durable-file writers must join this boundary around the whole metadata/file operation, not individual raw file calls. The gate prevents concurrent snapshot mismatches; it does not itself provide crash recovery, reference validation, or garbage collection.
 
+Features can contribute `ReaderSchema.ValidatePortableFiles` to check references against the copied read-only database and confined files. Checks run after snapshot copying, after replacement staging, and before replacement publication—not on ordinary home opens. TXT supplies receipt/publication ownership and original-file checks when its schema is composed; its production registration remains tracked in the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md). No live records are repaired or deleted by these checks.
+
 Restore behavior:
 
 1. upload and validate the archive in a bounded staging workspace while reading may continue;

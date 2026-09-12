@@ -1,10 +1,12 @@
 package readerstore
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 )
 
@@ -17,10 +19,14 @@ const (
 
 var ErrReaderSchemaMismatch = errors.New("readerstore: reader database schema mismatch")
 
-// ReaderSchema contributes one feature's authoritative current DDL.
+// ReaderSchema contributes a feature's current DDL and portable-file checks.
 type ReaderSchema struct {
 	Initialize            func(*sql.Tx) error
 	InitializeCredentials func(*sql.Tx) error
+	// ValidatePortableFiles checks feature-owned references in a copied home.
+	// The caller owns the read-only transaction and confined files root. This
+	// callback does not run on ordinary home opens and must not mutate either.
+	ValidatePortableFiles func(context.Context, *sql.Tx, *os.Root) error
 }
 
 func initializeCredentialsDatabase(path string, schemas []ReaderSchema) (err error) {
