@@ -18,7 +18,7 @@ func Open(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("database: mkdir: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", path+"?_journal_mode=WAL&_busy_timeout=5000&_cache_size=-8000&_pragma=foreign_keys(ON)")
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=cache_size(-8000)&_pragma=foreign_keys(ON)")
 	if err != nil {
 		return nil, fmt.Errorf("database: open: %w", err)
 	}
