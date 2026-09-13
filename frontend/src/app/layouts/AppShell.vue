@@ -2,13 +2,14 @@
 import { defineComponent } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { useSessionStore } from '../../stores/session';
+import ImportNavigation from '../../features/imports/ImportNavigation.vue';
 import LocaleSwitcher from '../../ui/components/LocaleSwitcher.vue';
 
 interface NavigationItem { to: string; labelKey: string; short: string; adminOnly?: boolean }
 
 export default defineComponent({
   name: 'AppShell',
-  components: { RouterLink, RouterView, LocaleSwitcher },
+  components: { RouterLink, RouterView, LocaleSwitcher, ImportNavigation },
   data() {
     return {
       primaryNavigation: [
@@ -51,6 +52,7 @@ export default defineComponent({
         <RouterLink v-for="item in primaryNavigation" :key="item.to" :to="item.to"><span aria-hidden="true">{{ item.short }}</span>{{ $t(item.labelKey) }}</RouterLink>
       </nav>
       <nav class="nav-group nav-group--secondary" :aria-label="$t('app.navigation.management')">
+        <ImportNavigation />
         <RouterLink v-for="item in visibleManagementNavigation" :key="item.to" :to="item.to"><span aria-hidden="true">{{ item.short }}</span>{{ $t(item.labelKey) }}</RouterLink>
       </nav>
       <LocaleSwitcher class="desktop-locale" />
@@ -59,9 +61,11 @@ export default defineComponent({
 
     <header class="mobile-header">
       <RouterLink class="mobile-brand" to="/shelf">NovelReader</RouterLink>
+      <ImportNavigation compact />
       <button type="button" class="menu-button" :aria-expanded="mobileMenuOpen" aria-controls="mobile-management" @click="mobileMenuOpen = !mobileMenuOpen">{{ username || $t('app.navigation.account') }}</button>
       <nav v-if="mobileMenuOpen" id="mobile-management" class="mobile-management" :aria-label="$t('app.navigation.accountManagement')">
         <LocaleSwitcher />
+        <ImportNavigation />
         <RouterLink v-for="item in visibleManagementNavigation" :key="item.to" :to="item.to">{{ $t(item.labelKey) }}</RouterLink>
         <button type="button" @click="signOut">{{ $t('app.navigation.signOut') }}</button>
       </nav>

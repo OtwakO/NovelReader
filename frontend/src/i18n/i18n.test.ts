@@ -13,6 +13,9 @@ import enReader from './messages/en/reader';
 import enExplore from './messages/en/explore';
 import enSources from './messages/en/sources';
 import enSettings from './messages/en/settings';
+import enImports from './messages/en/imports';
+import zhCnImports from './messages/zh-CN/imports';
+import zhTwImports from './messages/zh-TW/imports';
 import enBackups from './messages/en/backups';
 import zhCnApp from './messages/zh-CN/app';
 import zhCnAccount from './messages/zh-CN/account';
@@ -80,8 +83,8 @@ describe('locale policy', () => {
   });
 
   it('keeps every supported locale on the same message contract', () => {
-    const english = messageKeys({ app: enApp, account: enAccount, shelf: enShelf, search: enSearch, candidate: enCandidate, candidateBookDetail: enCandidateBookDetail, bookDetail: enBookDetail, sourceRecovery: enSourceRecovery, reader: enReader, explore: enExplore, sources: enSources, settings: enSettings, backups: enBackups }).sort();
-    expect(messageKeys({ app: zhCnApp, account: zhCnAccount, shelf: zhCnShelf, search: zhCnSearch, candidate: zhCnCandidate, candidateBookDetail: zhCnCandidateBookDetail, bookDetail: zhCnBookDetail, sourceRecovery: zhCnSourceRecovery, reader: zhCnReader, explore: zhCnExplore, sources: zhCnSources, settings: zhCnSettings, backups: zhCnBackups }).sort()).toEqual(english);
-    expect(messageKeys({ app: zhTwApp, account: zhTwAccount, shelf: zhTwShelf, search: zhTwSearch, candidate: zhTwCandidate, candidateBookDetail: zhTwCandidateBookDetail, bookDetail: zhTwBookDetail, sourceRecovery: zhTwSourceRecovery, reader: zhTwReader, explore: zhTwExplore, sources: zhTwSources, settings: zhTwSettings, backups: zhTwBackups }).sort()).toEqual(english);
+    const english = messageKeys({ app: enApp, account: enAccount, shelf: enShelf, search: enSearch, candidate: enCandidate, candidateBookDetail: enCandidateBookDetail, bookDetail: enBookDetail, sourceRecovery: enSourceRecovery, reader: enReader, explore: enExplore, sources: enSources, settings: enSettings, backups: enBackups, imports: enImports }).sort();
+    expect(messageKeys({ app: zhCnApp, account: zhCnAccount, shelf: zhCnShelf, search: zhCnSearch, candidate: zhCnCandidate, candidateBookDetail: zhCnCandidateBookDetail, bookDetail: zhCnBookDetail, sourceRecovery: zhCnSourceRecovery, reader: zhCnReader, explore: zhCnExplore, sources: zhCnSources, settings: zhCnSettings, backups: zhCnBackups, imports: zhCnImports }).sort()).toEqual(english);
+    expect(messageKeys({ app: zhTwApp, account: zhTwAccount, shelf: zhTwShelf, search: zhTwSearch, candidate: zhTwCandidate, candidateBookDetail: zhTwCandidateBookDetail, bookDetail: zhTwBookDetail, sourceRecovery: zhTwSourceRecovery, reader: zhTwReader, explore: zhTwExplore, sources: zhTwSources, settings: zhTwSettings, backups: zhTwBackups, imports: zhTwImports }).sort()).toEqual(english);
   });
 });

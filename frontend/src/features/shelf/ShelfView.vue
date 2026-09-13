@@ -83,7 +83,7 @@ export default defineComponent({
       <h2>{{ $t("shelf.emptyTitle") }}</h2>
       <p>{{ $t("shelf.emptyDescription") }}</p>
       <div>
-        <RouterLink to="/explore">{{ $t("shelf.explore") }}</RouterLink><RouterLink to="/search">{{ $t("shelf.search") }}</RouterLink>
+        <RouterLink to="/explore">{{ $t("shelf.explore") }}</RouterLink><RouterLink to="/search">{{ $t("shelf.search") }}</RouterLink><RouterLink to="/imports">{{ $t("imports.title") }}</RouterLink>
       </div>
     </section>
     <div v-else class="library">

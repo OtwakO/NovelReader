@@ -24,6 +24,7 @@ export interface ApiErrorBody {
   nextPage?: number;
   workflow?: string;
   attempts?: unknown;
+  receiptId?: string;
 }
 
 export type ExploreErrorBody = ApiErrorBody;

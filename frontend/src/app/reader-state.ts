@@ -3,6 +3,7 @@ import { watch } from 'vue';
 import { resetReaderRequests } from '../api/transport';
 import { useSessionStore } from '../stores/session';
 import { useSearchStore } from '../features/search/search-store';
+import { useImportQueue } from '../features/imports/import-queue';
 import { useExploreStore } from '../features/explore/explore-store';
 import { clearCandidateOperations } from '../features/candidates/candidate-operation';
 import { clearCandidateSelections } from '../features/search/candidate-selection';
@@ -15,6 +16,7 @@ export function resetReaderState(pinia: Pinia) {
   resetReaderRequests();
   useSearchStore(pinia).resetReaderState();
   useExploreStore(pinia).resetReaderState();
+  useImportQueue(pinia).resetReaderState();
   clearCandidateOperations();
   clearCandidateSelections();
   resetProgressWriter();

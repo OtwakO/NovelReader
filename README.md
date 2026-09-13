@@ -119,13 +119,20 @@ Admitted TXT publications use the existing chapter reader, progress, bookmarks, 
 controls. TXT is displayed as literal prose, not interpreted as HTML. Removing a TXT book also
 deletes its managed original. If file cleanup is incomplete, Book Detail keeps a warning and a
 **Retry file cleanup** action visible; the book is already removed from the library and the cleanup
-record remains recoverable. Authenticated [browser-upload](docs/architecture/authentication-and-reader-storage.md#txt-browser-upload-http)
-and [inbox APIs](docs/architecture/authentication-and-reader-storage.md#txt-inbox-http) support acquisition,
-receipt review and explicit publication; the import UI is still pending. Finish copying inbox files
-before scanning/acquiring them (automated producers should use a temporary name, then rename).
-Uncertain inbox leftovers require explicit review: confirmation removes only a verified duplicate;
-release keeps the file for a later import. After an interrupted acquisition, inspect its receipt and
-inbox claim rather than blindly importing again. Schema epoch 11 is unchanged; no migration layer.
+record remains recoverable. Open **Imports** from navigation (or the empty shelf) to choose browser
+TXT files or scan your server inbox. Review headings and literal sample text, adjust encoding or
+chapter detection if needed, then explicitly add individual or selected ready files to your library.
+Transfers continue one file at a time while navigating within the app; closing/reloading the tab loses
+unsent selections, not acquired files. An outage pauses remaining work without silently replaying an
+uncertain acquisition. Imports also provides pending-discard and retained cleanup-retry controls.
+
+Finish copying inbox files before opening Imports or scanning (automated producers should use a
+temporary name, then rename). Uncertain leftovers require explicit review: confirmation removes only
+a verified duplicate; release keeps the file for a later import. After interruption, inspect its
+receipt and inbox claim rather than blindly importing again. The authenticated
+[browser-upload](docs/architecture/authentication-and-reader-storage.md#txt-browser-upload-http) and
+[inbox APIs](docs/architecture/authentication-and-reader-storage.md#txt-inbox-http) remain available
+for direct clients. Schema epoch 11 is unchanged; no migration layer.
 
 ## Registration and recovery
 

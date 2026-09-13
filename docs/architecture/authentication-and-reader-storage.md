@@ -114,7 +114,28 @@ bind approvals to the exact database lifetime; cache eviction or reader replacem
 a proof before its maximum expiry. Runtime drain invalidates reader proofs before restore/removal;
 shutdown clears them after controls finish. Client JSON/flags never authorize deletion. Limits are
 recorded in the [accepted inbox checkpoint](../plans/2026-09-10-multi-provider-library.md#inbox-http-checkpoint).
-The import/review UI remains pending.
+### TXT frontend ownership
+
+`frontend/src/features/imports` owns the Imports workspace, dedicated interpretation review, inbox
+resolution controls and compact navigation activity. The existing Vue Options API/theme is reused.
+`import-queue.ts` is the only browser acquisition owner: a Pinia store survives page navigation,
+holds lightweight File references or inbox names, and starts one admitted transfer at a time.
+Metadata polling never sends bytes; acquired files continue server analysis independently. File
+references are released at the acquisition boundary. Admission/network outages pause remaining
+work without dropping unsent selections; an uncertain attempted transfer is not replayed. Closing
+or reloading a tab cannot preserve unsent files. No file decoding, persistent browser copies, generic
+job framework or per-file polling is introduced.
+
+The application reader-state reset retires the queue alongside existing reader features. Views own
+bounded page/preview requests through `import-task.ts` and cancel them on unmount; result filters and
+cursors live in route queries so dedicated review can return to the same list. Explicit mutations
+exclude background refresh. Bulk acceptance retains selected analysis versions rather than silently
+approving a refreshed version. Inbox UI sends only retained opaque tokens and requires fresh explicit
+review after an invalid/changed approval; displayed flags are not authority.
+
+Cleanup remains provider-owned. Unpublished import discard uses its pending-only API. Retained
+publication-removal records are reachable from Imports, but retry through common library removal,
+not pending discard; hiding a library item does not make its original an unpublished acquisition.
 
 ## Authentication
 
