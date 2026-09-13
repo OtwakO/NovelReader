@@ -96,8 +96,12 @@ const receiptColumns = `id, original_name, path, state, size, error, created_at,
 const metadataTimeout = 5 * time.Second
 
 func (s *Store) Get(ctx context.Context, id string) (Receipt, error) {
+	return scanReceipt(s.db.QueryRowContext(ctx, `SELECT `+receiptColumns+` FROM txt_files WHERE id=?`, id))
+}
+
+func scanReceipt(row *sql.Row) (Receipt, error) {
 	var value Receipt
-	err := s.db.QueryRowContext(ctx, `SELECT `+receiptColumns+` FROM txt_files WHERE id=?`, id).Scan(&value.ID, &value.OriginalName, &value.Path, &value.State, &value.Size, &value.Error, &value.CreatedAt, &value.UpdatedAt, &value.LibraryID, &value.AnalysisVersion, &value.Options.Encoding, &value.Options.Preset)
+	err := row.Scan(&value.ID, &value.OriginalName, &value.Path, &value.State, &value.Size, &value.Error, &value.CreatedAt, &value.UpdatedAt, &value.LibraryID, &value.AnalysisVersion, &value.Options.Encoding, &value.Options.Preset)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Receipt{}, ErrNotFound
 	}
