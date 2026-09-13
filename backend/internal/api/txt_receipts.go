@@ -1,12 +1,10 @@
 package api
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/otwako/novelreader/internal/txt"
 	"github.com/otwako/novelreader/internal/txtstore"
@@ -16,12 +14,7 @@ import (
 // transfer slots. They neither crawl nor run analysis in an HTTP request.
 func (s *readerAPI) registerTXTReceiptRoutes() {
 	register := func(pattern string, handler http.HandlerFunc) {
-		s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Cache-Control", "no-store")
-			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-			defer cancel()
-			handler(w, r.WithContext(ctx))
-		})
+		s.mux.HandleFunc(pattern, txtControlHandler(handler))
 	}
 	register("GET /api/imports/txt/receipts", s.handleListTXTReceipts)
 	register("GET /api/imports/txt/receipts/{id}", s.handleGetTXTReceipt)
@@ -132,11 +125,7 @@ func (s *readerAPI) handleAnalyzeTXTReceipt(w http.ResponseWriter, r *http.Reque
 		writeTXTError(w, err)
 		return
 	}
-	var warnings []string
-	if err := s.txtImports.Notify(s.home.ID()); err != nil {
-		slog.Warn("TXT analysis queued; wake-up failed", "reader_id", s.home.ID(), "error", err)
-		warnings = []string{"txt_analysis_pending"}
-	}
+	warnings := wakeTXTAnalysis(s.txtImports, s.home.ID(), r.PathValue("id"))
 	writeJSON(w, http.StatusAccepted, struct {
 		Status   string   `json:"status"`
 		Warnings []string `json:"warnings,omitempty"`

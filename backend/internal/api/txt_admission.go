@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -14,20 +13,15 @@ func (s *Server) registerTXTIntakeRoutes() {
 	register := func(pattern string, handler http.HandlerFunc) {
 		s.mux.Handle(pattern, s.auth.RequireIdentity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")
-			// Transfers get their deadline from admission; metadata/cancellation
-			// requests have a short independent deadline.
-			if r.Method != http.MethodPut {
-				ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-				defer cancel()
-				r = r.WithContext(ctx)
-			}
 			handler(w, r)
 		})))
 	}
-	register("POST /api/imports/txt/admission", s.handleRequestTXTAdmission)
-	register("GET /api/imports/txt/admission/{id}", s.handleGetTXTAdmission)
-	register("DELETE /api/imports/txt/admission/{id}", s.handleCancelTXTAdmission)
+	register("POST /api/imports/txt/admission", txtControlHandler(s.handleRequestTXTAdmission))
+	register("GET /api/imports/txt/admission/{id}", txtControlHandler(s.handleGetTXTAdmission))
+	register("DELETE /api/imports/txt/admission/{id}", txtControlHandler(s.handleCancelTXTAdmission))
+	// Both acquisition paths receive their deadline from Admission.Begin.
 	register("PUT /api/imports/txt/uploads/{id}", s.handleUploadTXT)
+	register("POST /api/imports/txt/inbox/acquisitions/{id}", s.handleAcquireTXTInbox)
 }
 
 func writeTXTAdmission(w http.ResponseWriter, ticket txtimport.AdmissionTicket) {

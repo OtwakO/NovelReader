@@ -71,3 +71,13 @@ func (a *Admission) Cancel(ctx context.Context, id readerstore.UserID, ticketID 
 	a.mu.Unlock()
 	return waitTransfer(ctx, done)
 }
+
+// Active reports whether this exact one-use ticket still owns an acquisition.
+// Inbox callers first establish that its durable claim exists: once a recorded
+// acquisition has ended, the same ticket cannot start it again.
+func (a *Admission) Active(id readerstore.UserID, ticketID string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	entry := a.entries[id]
+	return entry != nil && entry.ticket.ID == ticketID && entry.ticket.State == TicketTransferring
+}

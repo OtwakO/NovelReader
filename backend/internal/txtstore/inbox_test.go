@@ -43,7 +43,7 @@ func TestInboxRenameConsumesOnlyTheOwnedEntry(t *testing.T) {
 	if err := otherInbox.WriteFile("novel.txt", []byte("other reader"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	value, err := store.AcquireInbox(t.Context(), "novel.txt")
+	value, err := store.AcquireInbox(t.Context(), rand.Text(), "novel.txt")
 	if err != nil || value.State != Received {
 		t.Fatalf("claim=%+v err=%v", value, err)
 	}
@@ -54,7 +54,7 @@ func TestInboxRenameConsumesOnlyTheOwnedEntry(t *testing.T) {
 	if _, err := inbox.Stat("novel.txt"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("original remains: %v", err)
 	}
-	if claims, err := store.PendingInbox(t.Context()); err != nil || len(claims) != 0 {
+	if claims, err := store.PendingInbox(t.Context(), "", 100); err != nil || len(claims) != 0 {
 		t.Fatalf("finished claim retained: %+v %v", claims, err)
 	}
 	if content, err := otherInbox.ReadFile("novel.txt"); err != nil || string(content) != "other reader" {
@@ -108,7 +108,7 @@ func TestInboxCopyFallbackAndCancellation(t *testing.T) {
 				if err := store.Discard(t.Context(), value.ID); err != nil {
 					t.Fatal(err)
 				}
-				if claims, err := store.PendingInbox(t.Context()); err != nil || len(claims) != 1 {
+				if claims, err := store.PendingInbox(t.Context(), "", 100); err != nil || len(claims) != 1 {
 					t.Fatalf("discard forgot unresolved input: %+v %v", claims, err)
 				}
 				if content, err := inbox.ReadFile(value.OriginalName); err != nil || string(content) != novel {
@@ -139,7 +139,7 @@ func TestInterruptedInboxClaimIsNotReplayedOrExported(t *testing.T) {
 	if err := inbox.WriteFile("novel.txt", []byte(novel), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	value, err := store.AcquireInbox(t.Context(), "novel.txt")
+	value, err := store.AcquireInbox(t.Context(), rand.Text(), "novel.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestInterruptedInboxClaimIsNotReplayedOrExported(t *testing.T) {
 	if err := store.Recover(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	existing, err := store.AcquireInbox(t.Context(), value.OriginalName)
+	existing, err := store.AcquireInbox(t.Context(), rand.Text(), value.OriginalName)
 	if !errors.Is(err, ErrInboxPending) || existing.ID != value.ID {
 		t.Fatalf("unresolved input re-imported: %+v %v", existing, err)
 	}
@@ -183,7 +183,7 @@ func TestInterruptedInboxClaimIsNotReplayedOrExported(t *testing.T) {
 	if err := copied.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if claims, err := store.PendingInbox(t.Context()); err != nil || len(claims) != 1 {
+	if claims, err := store.PendingInbox(t.Context(), "", 100); err != nil || len(claims) != 1 {
 		t.Fatalf("export changed live intent: %+v %v", claims, err)
 	}
 	if err := manager.Create(t.Context(), bob); err != nil {
@@ -205,7 +205,7 @@ func TestInterruptedInboxClaimIsNotReplayedOrExported(t *testing.T) {
 	if err := restoredStore.Recover(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if claims, err := restoredStore.PendingInbox(t.Context()); err != nil || len(claims) != 0 {
+	if claims, err := restoredStore.PendingInbox(t.Context(), "", 100); err != nil || len(claims) != 0 {
 		t.Fatalf("restored deletion authority: %+v %v", claims, err)
 	}
 }

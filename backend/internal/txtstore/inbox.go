@@ -2,10 +2,8 @@ package txtstore
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	"errors"
-	"fmt"
 	"os"
 	"path"
 	"time"
@@ -15,6 +13,8 @@ import (
 
 var ErrInboxPending = errors.New("txtstore: inbox entry has an unresolved claim; review or explicitly retry it")
 var ErrInboxChanged = errors.New("txtstore: inbox entry changed during acquisition")
+var ErrInboxEntryMissing = errors.New("txtstore: inbox entry is missing")
+var ErrInboxEntryType = errors.New("txtstore: inbox entry must be a regular file")
 
 type InboxClaim struct {
 	Name      string
@@ -23,8 +23,8 @@ type InboxClaim struct {
 
 // PendingInbox reports local claims even when their managed receipt was discarded.
 // It never visits or deletes inbox files. Restored databases contain no claims.
-func (s *Store) PendingInbox(ctx context.Context) ([]InboxClaim, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT name,receipt_id FROM txt_inbox_claims ORDER BY name`)
+func (s *Store) PendingInbox(ctx context.Context, after string, limit int) ([]InboxClaim, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT name,receipt_id FROM txt_inbox_claims WHERE name>? ORDER BY name LIMIT ?`, after, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -40,12 +40,22 @@ func (s *Store) PendingInbox(ctx context.Context) ([]InboxClaim, error) {
 	return result, rows.Err()
 }
 
+func (s *Store) GetInboxClaim(ctx context.Context, id string) (InboxClaim, error) {
+	var claim InboxClaim
+	err := s.db.QueryRowContext(ctx, `SELECT name,receipt_id FROM txt_inbox_claims WHERE receipt_id=?`, id).Scan(&claim.Name, &claim.ReceiptID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return claim, ErrNotFound
+	}
+	return claim, err
+}
+
 // AcquireInbox consumes one completed file, recording intent before any move.
+// The caller supplies a server-issued ID, as with browser Receive.
 // The caller holds a Home lease. Concurrent producers are outside the completed-
 // copy contract. An existing claim is never silently replayed or re-imported.
 // A received receipt with an error is durable content with unfinished cleanup.
-func (s *Store) AcquireInbox(ctx context.Context, name string) (Receipt, error) {
-	value := Receipt{ID: rand.Text(), OriginalName: name, State: Receiving, CreatedAt: time.Now().UnixMilli()}
+func (s *Store) AcquireInbox(ctx context.Context, id, name string) (Receipt, error) {
+	value := Receipt{ID: id, OriginalName: name, State: Receiving, CreatedAt: time.Now().UnixMilli()}
 	var err error
 	value.Path, err = managedPath(name, value.ID)
 	if err != nil {
@@ -85,11 +95,17 @@ func (s *Store) claimInbox(ctx context.Context, inbox, managed *os.Root, value R
 		return nil, value, err
 	}
 	info, err := inbox.Lstat(value.OriginalName)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, value, ErrInboxEntryMissing
+	}
 	if err != nil {
 		return nil, value, err
 	}
-	if !info.Mode().IsRegular() || info.Size() > txt.MaxInputBytes {
-		return nil, value, fmt.Errorf("txtstore: inbox entry must be a regular TXT within the input size limit")
+	if !info.Mode().IsRegular() {
+		return nil, value, ErrInboxEntryType
+	}
+	if info.Size() > txt.MaxInputBytes {
+		return nil, value, ErrInputTooLarge
 	}
 	// Check readability before consuming the input; rename preserves its mode.
 	input, err := inbox.Open(value.OriginalName)

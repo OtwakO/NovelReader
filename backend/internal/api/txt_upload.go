@@ -44,11 +44,7 @@ func (s *Server) handleUploadTXT(w http.ResponseWriter, r *http.Request) {
 		writeTXTError(w, err)
 		return
 	}
-	w.Header().Set("Location", "/api/imports/txt/receipts/"+id)
-	writeJSON(w, http.StatusCreated, struct {
-		Receipt  txtReceiptResponse `json:"receipt"`
-		Warnings []string           `json:"warnings,omitempty"`
-	}{txtReceiptDTO(value), warnings})
+	writeTXTAcquired(w, value, warnings)
 }
 
 func (s *Server) receiveTXTUpload(ctx context.Context, readerID readerstore.UserID, id, name string, w http.ResponseWriter, r *http.Request) (txtstore.Receipt, []string, error) {
@@ -64,10 +60,7 @@ func (s *Server) receiveTXTUpload(ctx context.Context, readerID readerstore.User
 	value, receiveErr := txtstore.NewStore(home.DB(), home.Files()).Receive(ctx, id, name, r.Body)
 	var warnings []string
 	if receiveErr == nil {
-		if err := s.txtImports.Notify(readerID); err != nil {
-			slog.Warn("TXT acquired; analysis wake-up failed", "reader_id", readerID, "receipt_id", id, "error", err)
-			warnings = append(warnings, "txt_analysis_pending")
-		}
+		warnings = wakeTXTAnalysis(s.txtImports, readerID, id)
 	}
 	cleanupErr := errors.Join(finishBody(), home.Close())
 	if receiveErr != nil {

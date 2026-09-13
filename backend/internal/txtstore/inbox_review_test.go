@@ -1,6 +1,7 @@
 package txtstore
 
 import (
+	"crypto/rand"
 	"errors"
 	"os"
 	"strings"
@@ -111,7 +112,7 @@ func TestInboxReviewRejectsContentChangeEvenWithPreservedMetadata(t *testing.T) 
 	if content, err := inbox.ReadFile(receipt.OriginalName); err != nil || string(content) != changed {
 		t.Fatalf("release changed bytes: %q %v", content, err)
 	}
-	retried, err := store.AcquireInbox(t.Context(), receipt.OriginalName)
+	retried, err := store.AcquireInbox(t.Context(), rand.Text(), receipt.OriginalName)
 	if err != nil || retried.ID == receipt.ID {
 		t.Fatalf("released input not independently acquirable: %+v %v", retried, err)
 	}
@@ -136,7 +137,7 @@ func TestInboxConfirmationCannotDeleteTheOnlySurvivingCopy(t *testing.T) {
 	if err := store.ReleaseInbox(t.Context(), review); err != nil {
 		t.Fatal(err)
 	}
-	if claims, err := store.PendingInbox(t.Context()); err != nil || len(claims) != 0 {
+	if claims, err := store.PendingInbox(t.Context(), "", 100); err != nil || len(claims) != 0 {
 		t.Fatalf("release retained claim: %+v %v", claims, err)
 	}
 }

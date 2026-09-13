@@ -71,11 +71,7 @@ func (s *Store) ReviewInbox(ctx context.Context, id string) (*InboxReview, error
 }
 
 func (s *Store) settledInboxClaim(ctx context.Context, id string) (InboxClaim, *Receipt, error) {
-	var claim InboxClaim
-	err := s.db.QueryRowContext(ctx, `SELECT name,receipt_id FROM txt_inbox_claims WHERE receipt_id=?`, id).Scan(&claim.Name, &claim.ReceiptID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return claim, nil, ErrNotFound
-	}
+	claim, err := s.GetInboxClaim(ctx, id)
 	if err != nil {
 		return claim, nil, err
 	}

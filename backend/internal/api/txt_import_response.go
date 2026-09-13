@@ -8,11 +8,21 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/otwako/novelreader/internal/txt"
 	"github.com/otwako/novelreader/internal/txtimport"
 	"github.com/otwako/novelreader/internal/txtstore"
 )
+
+func txtControlHandler(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		handler(w, r.WithContext(ctx))
+	}
+}
 
 type txtReceiptResponse struct {
 	ID              string         `json:"id"`
@@ -39,6 +49,18 @@ func writeTXTError(w http.ResponseWriter, err error) {
 	status, code, message := http.StatusInternalServerError, "txt_storage_error", "TXT operation failed; check the receipt before retrying"
 	var sizeError *http.MaxBytesError
 	switch {
+	case errors.Is(err, errInboxControlBusy):
+		status, code, message = http.StatusTooManyRequests, "txt_inbox_busy", err.Error()
+	case errors.Is(err, errInboxProofLimit):
+		status, code, message = http.StatusTooManyRequests, "txt_inbox_review_limit", err.Error()
+	case errors.Is(err, errInboxProofMissing):
+		status, code, message = http.StatusConflict, "txt_inbox_review_expired", err.Error()
+	case errors.Is(err, txtstore.ErrInboxChanged), errors.Is(err, txtstore.ErrInboxNotDuplicate):
+		status, code, message = http.StatusConflict, "txt_inbox_changed", "Inbox input or managed copy changed; review again before continuing"
+	case errors.Is(err, txtstore.ErrInboxEntryMissing):
+		status, code, message = http.StatusNotFound, "txt_inbox_missing", "Inbox entry not found"
+	case errors.Is(err, txtstore.ErrInboxEntryType):
+		status, code, message = http.StatusBadRequest, "txt_invalid_input", "Inbox entry must be a regular TXT file"
 	case errors.Is(err, txtimport.ErrAdmissionFull):
 		status, code, message = http.StatusTooManyRequests, "txt_intake_busy", "TXT intake queue is full"
 	case errors.Is(err, txtimport.ErrPaused), errors.Is(err, txtimport.ErrClosed):
@@ -56,10 +78,13 @@ func writeTXTError(w http.ResponseWriter, err error) {
 	case errors.Is(err, io.ErrUnexpectedEOF):
 		status, code, message = http.StatusBadRequest, "txt_interrupted", "Upload ended before the complete file arrived; check its receipt before retrying"
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		status, code, message = http.StatusRequestTimeout, "txt_interrupted", "TXT operation interrupted; check its receipt before retrying"
+		status, code, message = http.StatusRequestTimeout, "txt_interrupted", "TXT operation interrupted; refresh its current status before retrying"
 	}
 	if status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable {
 		w.Header().Set("Retry-After", "2")
+	}
+	if errors.Is(err, errInboxProofLimit) {
+		w.Header().Set("Retry-After", "30")
 	}
 	if status == http.StatusInternalServerError {
 		slog.Warn("TXT import operation failed", "error", err)
@@ -91,4 +116,12 @@ func txtPageLimit(r *http.Request) (int, error) {
 		return 0, errors.New("limit must be between 1 and 100")
 	}
 	return limit, nil
+}
+
+func writeTXTAcquired(w http.ResponseWriter, value txtstore.Receipt, warnings []string) {
+	w.Header().Set("Location", "/api/imports/txt/receipts/"+value.ID)
+	writeJSON(w, http.StatusCreated, struct {
+		Receipt  txtReceiptResponse `json:"receipt"`
+		Warnings []string           `json:"warnings,omitempty"`
+	}{txtReceiptDTO(value), warnings})
 }

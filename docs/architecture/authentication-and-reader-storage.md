@@ -86,8 +86,35 @@ Authenticated reader-owned routes live under `/api/imports/txt`:
   a currently published book; use the common book removal route. Cleanup-pending responses preserve
   the removal record and warning instead of claiming complete deletion.
 
-Inbox scan/acquisition/confirmation routes and the import UI remain unexposed. Inbox confirmation
-must retain a bounded server-owned proof; client-visible fields are not deletion authority.
+### TXT inbox HTTP
+
+Inbox controls share `/api/imports/txt` and the authenticated reader boundary:
+
+- `GET /inbox` streams directory entries in chunks, retaining only a bounded name-ordered page;
+  `after`/`limit` select pages. Its `directory` is relative to `DATA_DIR`. Invalid/temporary suffixes
+  are ignored; directories, symlinks and oversized TXT entries are not consumable. Claims for the
+  selected names are joined in one query. `GET /inbox/claims` separately pages the durable journal,
+  including missing inputs and discarded receipts. A scan does not consume files or prove completion.
+- The producer finishes copying before scan/acquire. After an admission grant,
+  `POST /inbox/acquisitions/{id}?filename=<encoded-name>` acquires one completed file outside API
+  runtime capacity. It preserves rename-first and cross-device streaming fallback. A `201` with
+  `txt_inbox_cleanup_pending` means managed bytes were acquired but the retained claim needs review;
+  it is not permission to import the same name again.
+- `POST /inbox/claims/{id}/review` requires that claim's acquisition to have ended. It may settle only
+  that receiving receipt with existing managed-file recovery, never recover the whole live home.
+  The result contains display fields and an opaque token for the retained native `InboxReview`.
+- `POST /inbox/reviews/{token}/confirm` deletes only a still-matching duplicate with a surviving
+  managed original. `/release` instead preserves external bytes and releases the claim for a fresh
+  acquisition. `DELETE /inbox/reviews/{token}` abandons approval without touching files or claims.
+  Resolution consumes the token; a changed/expired proof requires explicit fresh review.
+
+The HTTP inbox owner bounds concurrent filesystem controls independently of transfers and retains
+only bounded reader-owned proof metadata, not home leases or file contents. Native checks still
+bind approvals to the exact database lifetime; cache eviction or reader replacement can invalidate
+a proof before its maximum expiry. Runtime drain invalidates reader proofs before restore/removal;
+shutdown clears them after controls finish. Client JSON/flags never authorize deletion. Limits are
+recorded in the [accepted inbox checkpoint](../plans/2026-09-10-multi-provider-library.md#inbox-http-checkpoint).
+The import/review UI remains pending.
 
 ## Authentication
 
