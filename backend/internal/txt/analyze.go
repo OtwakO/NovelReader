@@ -22,8 +22,8 @@ func Analyze(ctx context.Context, original io.Reader, options Options) (Analysis
 	if err := ctx.Err(); err != nil {
 		return Analysis{}, err
 	}
-	if options.Preset != "" && options.Preset != GeneratedSections && headingRules[options.Preset] == nil {
-		return Analysis{}, fmt.Errorf("txt: unsupported preset %q", options.Preset)
+	if err := options.Validate(); err != nil {
+		return Analysis{}, err
 	}
 	reader := bufio.NewReaderSize(original, encodingSampleBytes)
 	enc, start, err := resolveEncoding(reader, options.Encoding)

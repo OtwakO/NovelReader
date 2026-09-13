@@ -27,7 +27,7 @@ func (s *Store) Preview(ctx context.Context, id string) (Interpretation, error) 
 	if err != nil {
 		return Interpretation{}, err
 	}
-	if state != Ready && state != NeedsReview && state != Published {
+	if !hasInterpretation(state) {
 		return Interpretation{}, ErrStateChanged
 	}
 	if err := json.Unmarshal([]byte(reasons), &value.Analysis.ReviewReasons); err != nil {

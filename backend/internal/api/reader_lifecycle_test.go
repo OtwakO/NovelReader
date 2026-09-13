@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -44,11 +45,11 @@ func TestRestoreReconcilesTXTAndReportsCommittedWarning(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := txtstore.NewStore(home.DB(), home.Files())
-	pending, err := store.Receive(t.Context(), "Pending.txt", strings.NewReader("Chapter 1\nOriginal bytes.\n"))
+	pending, err := store.Receive(t.Context(), rand.Text(), "Pending.txt", strings.NewReader("Chapter 1\nOriginal bytes.\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	removing, err := store.Receive(t.Context(), "Removing.txt", strings.NewReader("Obsolete bytes."))
+	removing, err := store.Receive(t.Context(), rand.Text(), "Removing.txt", strings.NewReader("Obsolete bytes."))
 	if err != nil {
 		t.Fatal(err)
 	}

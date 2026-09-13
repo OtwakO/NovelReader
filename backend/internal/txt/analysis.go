@@ -1,7 +1,10 @@
 // Package txt interprets immutable TXT bytes independently of import storage and reader state.
 package txt
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 type Encoding string
 
@@ -51,6 +54,18 @@ const (
 type Options struct {
 	Encoding Encoding
 	Preset   Preset
+}
+
+var ErrInvalidOptions = errors.New("txt: unsupported interpretation options")
+
+func (o Options) Validate() error {
+	if o.Encoding != "" && !validEncoding(o.Encoding) {
+		return fmt.Errorf("%w: encoding %q", ErrInvalidOptions, o.Encoding)
+	}
+	if o.Preset != "" && o.Preset != GeneratedSections && headingRules[o.Preset] == nil {
+		return fmt.Errorf("%w: preset %q", ErrInvalidOptions, o.Preset)
+	}
+	return nil
 }
 
 // Section ranges include headings and whitespace, exclude the initial BOM, and

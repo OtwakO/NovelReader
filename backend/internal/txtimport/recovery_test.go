@@ -2,6 +2,7 @@ package txtimport
 
 import (
 	"context"
+	"crypto/rand"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -32,7 +33,7 @@ func recoveryManager(t *testing.T, capacity int) *readerstore.Manager {
 
 func pendingReceipt(t *testing.T, home *readerstore.Home) txtstore.Receipt {
 	t.Helper()
-	value, err := txtstore.NewStore(home.DB(), home.Files()).Receive(t.Context(), "Example.txt", strings.NewReader("Chapter 1 Beginning\nSome synthetic prose.\n"))
+	value, err := txtstore.NewStore(home.DB(), home.Files()).Receive(t.Context(), rand.Text(), "Example.txt", strings.NewReader("Chapter 1 Beginning\nSome synthetic prose.\n"))
 	if err != nil {
 		t.Fatal(err)
 	}

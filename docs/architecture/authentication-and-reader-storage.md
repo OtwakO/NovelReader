@@ -49,19 +49,45 @@ Runtime initialization reserves a per-reader slot before opening storage or runn
 
 `txtimport` runs two independent workers, at most one file per reader, with fair reader turns and durable receipt work. Idle hints retire; queued readers hold no home lease or per-file job object. `api.ReaderHomeCapacity` budgets API runtime, analysis-worker and transfer homes separately. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.
 
-Before serving, TXT recovery visits retained account homes (including disabled accounts, excluding deleting accounts), then starts workers. Login disabling retains accepted local work. Missing/corrupt homes or failed per-file cleanup are logged without stopping unrelated homes; no inbox originals are replayed or swept. New accounts start empty. Recovery never runs on ordinary runtime initialization or before each job. After restore it runs while that reader remains quiescent. Intake admission is composed outside the API runtime cache; acquisition/review HTTP routes remain unexposed.
+Before serving, TXT recovery visits retained account homes (including disabled accounts, excluding deleting accounts), then starts workers. Login disabling retains accepted local work. Missing/corrupt homes or failed per-file cleanup are logged without stopping unrelated homes; no inbox originals are replayed or swept. New accounts start empty. Recovery never runs on ordinary runtime initialization or before each job. After restore it runs while that reader remains quiescent. Browser-upload admission and transfers are composed outside the API runtime cache. Bounded receipt review/control handlers use ordinary reader runtimes; no HTTP handler performs analysis.
 
 `txtimport.Admission` owns only bounded, reader-fair transfer tickets and cancellation. It neither
 opens homes nor reads files. Waiting/granted tickets expire; active transfers keep their slot until
 I/O and the home lease have ended, even after cancellation. Tickets are reader-bound, single-use,
 process-local permission to start a transfer—not durable receipts or inbox cleanup proofs. The
 [accepted admission contract](../plans/2026-09-10-multi-provider-library.md#accepted-txt-intake-admission)
-owns limits and the remaining HTTP boundary.
+owns scheduling limits and the remaining inbox/UI work.
 
 Restore/deletion stops and drains intake, then API runtimes and TXT workers. Successful deletion
 forgets the drained barriers; failure keeps them for retry. Restore resumes fresh admission without
 replaying old tickets. Shutdown joins transfers before workers and runtimes, even when another
 service reports a cleanup error.
+
+### TXT browser upload HTTP
+
+Authenticated reader-owned routes live under `/api/imports/txt`:
+
+- `POST /admission` and `GET /admission/{id}` allocate/refresh bounded metadata-only admission;
+  waiting responses supply `Retry-After`. `DELETE /admission/{id}` cancels and joins that transfer.
+- After a grant, `PUT /uploads/{id}?filename=<encoded-name>` streams one raw file with
+  `Content-Type: application/octet-stream`. The grant response supplies the maximum byte size.
+  Filename/size/admission checks happen before file consumption. The handler opens its own home
+  lease, interrupts blocked HTTP reads on cancellation, and ends I/O/home ownership before release.
+- The grant ID identifies the durable receipt once intent is recorded. A `201` means acquisition,
+  not publication; background analysis may already have advanced the returned receipt state.
+  A lost response is resolved with `GET /receipts/{id}`, not a blind second upload. Warnings can
+  report retained analysis work or request-cleanup attention after successful acquisition.
+- `GET /receipts` uses bounded ID-cursor pages and optional state filtering. Preview at
+  `/receipts/{id}/preview?analysisVersion=<version>` returns a saved heading page plus a bounded
+  literal sample (`start` selects its first section). No managed paths or byte offsets are exposed.
+- `POST /receipts/{id}/analysis` queues version-guarded encoding/preset changes; workers do the
+  actual analysis. `POST /receipts/{id}/accept` explicitly approves the reviewed version and metadata.
+- `DELETE /receipts/{id}` joins any upload for that ID before pending-only discard. It cannot remove
+  a currently published book; use the common book removal route. Cleanup-pending responses preserve
+  the removal record and warning instead of claiming complete deletion.
+
+Inbox scan/acquisition/confirmation routes and the import UI remain unexposed. Inbox confirmation
+must retain a bounded server-owned proof; client-visible fields are not deletion authority.
 
 ## Authentication
 

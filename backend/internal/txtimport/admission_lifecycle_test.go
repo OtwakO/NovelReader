@@ -76,7 +76,9 @@ func TestAdmissionCancelAndCloseWaitForTransferCleanup(t *testing.T) {
 		bobCtx, finishBob := beginTransfer(t, admission, "bob", requestTicket(t, admission, "bob"))
 		defer finishBob()
 		requestTicket(t, admission, "waiting")
-		if err := admission.Cancel("alice", alice.ID); err != nil || aliceCtx.Err() == nil {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := admission.Cancel(ctx, "alice", alice.ID); !errors.Is(err, context.Canceled) || aliceCtx.Err() == nil {
 			t.Fatalf("active cancellation: %v", err)
 		}
 		closed := make(chan struct{})

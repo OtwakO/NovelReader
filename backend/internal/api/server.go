@@ -129,6 +129,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		return nil, errors.Join(fmt.Errorf("initialize backup service: %w", err), s.Close())
 	}
 	s.backups = backups
+	services.txtImports, services.txtAdmission = s.txtImports, s.txtAdmission
 	s.collectionScheduler = newSourceCollectionScheduler(s.runtimes, services.collectionLoader, authHandler.ListActiveReaderIDs)
 	s.collectionScheduler.Start()
 	authHandler.ConfigureDeletionLifecycle(readers, s.quiesceReader, s.forgetReader)
@@ -137,6 +138,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 }
 
 func (s *Server) registerAuthenticatedRoutes() {
+	s.registerTXTIntakeRoutes()
 	s.mux.HandleFunc("GET /api/healthz", s.handleHealth)
 	s.mux.Handle("GET /api/backups/export", s.auth.RequireBackupScope(auth.BackupExport, http.HandlerFunc(s.handleBackupExport)))
 	s.mux.Handle("POST /api/backups/restores", s.auth.RequireBackupScope(auth.BackupRestore, http.HandlerFunc(s.handlePrepareBackupRestore)))

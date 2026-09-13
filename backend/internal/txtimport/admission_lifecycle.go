@@ -29,6 +29,10 @@ func (a *Admission) Quiesce(ctx context.Context, id readerstore.UserID) error {
 	}
 	a.advanceLocked(time.Now())
 	a.mu.Unlock()
+	return waitTransfer(ctx, done)
+}
+
+func waitTransfer(ctx context.Context, done <-chan struct{}) error {
 	if done != nil {
 		select {
 		case <-done:

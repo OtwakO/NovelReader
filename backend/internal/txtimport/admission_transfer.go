@@ -49,24 +49,25 @@ func (a *Admission) Begin(ctx context.Context, id readerstore.UserID, ticketID s
 	return ctx, release, nil
 }
 
-// Cancel abandons a waiting/granted ticket or requests active cancellation. An
-// active ticket remains visible and occupies its slot until its caller releases.
-// Missing tickets are already retired; a stale cancellation cannot cancel a new one.
-func (a *Admission) Cancel(id readerstore.UserID, ticketID string) error {
+// Cancel abandons a waiting/granted ticket or cancels and joins its active
+// transfer. A timeout retains the active slot until cleanup finishes. Missing
+// tickets are retired; a stale cancellation cannot cancel a reader's newer file.
+func (a *Admission) Cancel(ctx context.Context, id readerstore.UserID, ticketID string) error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	if a.closed {
+		a.mu.Unlock()
 		return ErrClosed
 	}
-	entry := a.entries[id]
-	if entry == nil || entry.ticket.ID != ticketID {
-		return nil
-	}
-	if entry.cancel != nil {
-		entry.cancel()
-	} else {
-		delete(a.entries, id)
+	var done chan struct{}
+	if entry := a.entries[id]; entry != nil && entry.ticket.ID == ticketID {
+		if entry.cancel != nil {
+			entry.cancel()
+			done = entry.done
+		} else {
+			delete(a.entries, id)
+		}
 	}
 	a.advanceLocked(time.Now())
-	return nil
+	a.mu.Unlock()
+	return waitTransfer(ctx, done)
 }

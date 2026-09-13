@@ -70,7 +70,7 @@ func TestAdmissionFairTurnsAndReaderBoundGrants(t *testing.T) {
 	if err != nil || dora.State != TicketGranted {
 		t.Fatalf("FIFO order lost: %+v %v", dora, err)
 	}
-	if err := admission.Cancel("carol", carol.ID); err != nil {
+	if err := admission.Cancel(t.Context(), "carol", carol.ID); err != nil {
 		t.Fatal(err)
 	}
 	alice, err = admission.Status("alice", alice.ID)
@@ -94,7 +94,7 @@ func TestAdmissionBoundsAndDeduplicatesWaitingMetadata(t *testing.T) {
 	if _, err := admission.Request("overflow"); !errors.Is(err, ErrAdmissionFull) {
 		t.Fatalf("unbounded waiting queue: %v", err)
 	}
-	if err := admission.Cancel("first", first.ID); err != nil {
+	if err := admission.Cancel(t.Context(), "first", first.ID); err != nil {
 		t.Fatal(err)
 	}
 	if next := requestTicket(t, admission, "overflow"); next.State != TicketWaiting {

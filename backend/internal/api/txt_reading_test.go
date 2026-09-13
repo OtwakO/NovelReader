@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,7 +42,7 @@ func newTXTReadingFixture(t *testing.T) txtReadingFixture {
 	}
 	t.Cleanup(func() { home.Close() })
 	store := txtstore.NewStore(home.DB(), home.Files())
-	receipt, err := store.Receive(t.Context(), "Example.txt", strings.NewReader("第一章 起点\nLiteral <img src=\"https://invalid.test/private\"> & <script>text</script>.\n第二章 继续\nLast line.\n"))
+	receipt, err := store.Receive(t.Context(), rand.Text(), "Example.txt", strings.NewReader("第一章 起点\nLiteral <img src=\"https://invalid.test/private\"> & <script>text</script>.\n第二章 继续\nLast line.\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +190,7 @@ func TestTXTRemovalWarningAndRetryProtectPendingFiles(t *testing.T) {
 	if response.Code != 200 || strings.Contains(response.Body.String(), "warnings") {
 		t.Fatalf("retry: %s", response.Body.String())
 	}
-	pending, err := f.store.Receive(t.Context(), "Pending.txt", strings.NewReader("original"))
+	pending, err := f.store.Receive(t.Context(), rand.Text(), "Pending.txt", strings.NewReader("original"))
 	if err != nil {
 		t.Fatal(err)
 	}

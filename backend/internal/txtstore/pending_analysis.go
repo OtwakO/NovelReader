@@ -13,6 +13,9 @@ import (
 // preview. Acquisition already leaves new originals Received with automatic options.
 // The caller notifies the worker pool after this write, while still owning its lease.
 func (s *Store) QueueAnalysis(ctx context.Context, id string, version int64, options txt.Options) error {
+	if err := options.Validate(); err != nil {
+		return err
+	}
 	result, err := s.db.ExecContext(ctx, `UPDATE txt_files SET state=?,analysis_version=analysis_version+1,requested_encoding=?,requested_preset=?,error='',updated_at=? WHERE id=? AND analysis_version=? AND state IN (?,?,?,?)`, Received, options.Encoding, options.Preset, time.Now().UnixMilli(), id, version, Received, Ready, NeedsReview, AnalysisFailed)
 	if err != nil {
 		return err

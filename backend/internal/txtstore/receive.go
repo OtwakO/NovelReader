@@ -2,9 +2,7 @@ package txtstore
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path"
@@ -13,11 +11,15 @@ import (
 	"github.com/otwako/novelreader/internal/txt"
 )
 
+var ErrInputTooLarge = errors.New("txtstore: file exceeds the TXT input size limit")
+
 // Receive streams one upload into disposable work, then finalizes its original.
 // Success means durable acquisition, not successful analysis or shelf admission.
+// The caller supplies a server-issued ID (crypto/rand.Text), so an interrupted
+// client can look up its exact receipt without retransmitting the original.
 // On an interrupted finalization the returned receipt remains recoverable.
-func (s *Store) Receive(ctx context.Context, name string, input io.Reader) (Receipt, error) {
-	value := Receipt{ID: rand.Text(), OriginalName: name, State: Receiving, CreatedAt: time.Now().UnixMilli()}
+func (s *Store) Receive(ctx context.Context, id, name string, input io.Reader) (Receipt, error) {
+	value := Receipt{ID: id, OriginalName: name, State: Receiving, CreatedAt: time.Now().UnixMilli()}
 	var err error
 	value.Path, err = managedPath(name, value.ID)
 	if err != nil {
@@ -72,7 +74,7 @@ func receiveWork(ctx context.Context, root *os.Root, destination string, input i
 	}
 	size, copyErr := io.Copy(file, io.LimitReader(receiveReader{ctx: ctx, reader: input}, txt.MaxInputBytes+1))
 	if size > txt.MaxInputBytes {
-		copyErr = fmt.Errorf("txtstore: file exceeds %d bytes", txt.MaxInputBytes)
+		copyErr = ErrInputTooLarge
 	}
 	if copyErr == nil {
 		copyErr = file.Sync()

@@ -3,6 +3,7 @@ package txtstore
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"github.com/otwako/novelreader/internal/txt"
 	"io"
@@ -46,7 +47,7 @@ func receiptStore(t *testing.T) (*Store, *readerstore.Manager, *readerstore.Home
 
 func mustReceive(t *testing.T, store *Store) Receipt {
 	t.Helper()
-	value, err := store.Receive(t.Context(), "小說.txt", strings.NewReader("第一章\nOriginal bytes.\n"))
+	value, err := store.Receive(t.Context(), rand.Text(), "小說.txt", strings.NewReader("第一章\nOriginal bytes.\n"))
 	if err != nil || value.State != Received {
 		t.Fatalf("receipt=%+v err=%v", value, err)
 	}
@@ -131,7 +132,7 @@ func TestInterruptedReceiptRecoveryRetainsCompleteOriginals(t *testing.T) {
 	store, _, home, root := receiptStore(t)
 	complete := mustReceive(t, store)
 	removing := mustReceive(t, store)
-	partial, err := store.Receive(t.Context(), "partial.txt", iotest.ErrReader(io.ErrUnexpectedEOF))
+	partial, err := store.Receive(t.Context(), rand.Text(), "partial.txt", iotest.ErrReader(io.ErrUnexpectedEOF))
 	if !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatal(err)
 	}
@@ -184,7 +185,7 @@ func TestCancelledTransferRemainsAnExplicitFailedReceipt(t *testing.T) {
 	store, _, _, root := receiptStore(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	value, err := store.Receive(ctx, "cancelled.txt", readerFunc(func(data []byte) (int, error) { cancel(); return copy(data, "partial"), nil }))
+	value, err := store.Receive(ctx, rand.Text(), "cancelled.txt", readerFunc(func(data []byte) (int, error) { cancel(); return copy(data, "partial"), nil }))
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancel error=%v", err)
 	}

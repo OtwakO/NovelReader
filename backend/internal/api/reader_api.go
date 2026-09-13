@@ -12,6 +12,7 @@ import (
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/reading"
+	"github.com/otwako/novelreader/internal/txtimport"
 	"github.com/otwako/novelreader/internal/txtstore"
 )
 
@@ -27,6 +28,8 @@ type readerServices struct {
 	candidateOperations *candidate.Manager
 	coverReferenceKey   []byte
 	collectionLoader    *booksource.RemoteLoader
+	txtImports          *txtimport.Pool
+	txtAdmission        *txtimport.Admission
 }
 
 // readerAPI is bound to one runtime for its entire lifetime. Requests never
@@ -52,6 +55,9 @@ func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 			ImageHref: chapterImageHref},
 	}
 	a.registerRoutes()
+	if a.txtStore != nil && services.txtImports != nil {
+		a.registerTXTReceiptRoutes()
+	}
 	return a
 }
 

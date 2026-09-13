@@ -1,6 +1,7 @@
 package txtstore
 
 import (
+	"crypto/rand"
 	"errors"
 	"path"
 	"reflect"
@@ -15,7 +16,7 @@ const novel = "第一章 開始\nFirst paragraph.\n第二章 後續\nSecond para
 
 func analyzedReceipt(t *testing.T, store *Store) (Receipt, Interpretation) {
 	t.Helper()
-	receipt, err := store.Receive(t.Context(), "novel.txt", strings.NewReader(novel))
+	receipt, err := store.Receive(t.Context(), rand.Text(), "novel.txt", strings.NewReader(novel))
 	if err != nil {
 		t.Fatal(err)
 	}

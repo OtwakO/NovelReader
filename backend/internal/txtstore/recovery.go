@@ -15,7 +15,7 @@ import (
 // Discard retains a removal record until all owned bytes have been removed.
 // It is idempotent. Callers cancel any active transfer before discarding it.
 func (s *Store) Discard(ctx context.Context, id string) error {
-	_, err := s.discard(ctx, id, false)
+	_, err := s.discard(ctx, id, removeAny)
 	return err
 }
 
@@ -23,10 +23,24 @@ func (s *Store) Discard(ctx context.Context, id string) error {
 // the publication is hidden but cleanup failed; the error must still be reported.
 // Library IDs equal receipt IDs by schema, including after library_id is cleared.
 func (s *Store) RemovePublication(ctx context.Context, id string) (cleanupPending bool, err error) {
-	return s.discard(ctx, id, true)
+	return s.discard(ctx, id, removePublished)
 }
 
-func (s *Store) discard(ctx context.Context, id string, publicationOnly bool) (bool, error) {
+// DiscardPending cannot remove a publication, including one accepted concurrently.
+// The caller first cancels and joins acquisition for this receipt.
+func (s *Store) DiscardPending(ctx context.Context, id string) (cleanupPending bool, err error) {
+	return s.discard(ctx, id, removePending)
+}
+
+type removalScope int
+
+const (
+	removeAny removalScope = iota
+	removePublished
+	removePending
+)
+
+func (s *Store) discard(ctx context.Context, id string, scope removalScope) (bool, error) {
 	unlock, err := s.files.LockMutation(ctx)
 	if err != nil {
 		return false, err
@@ -39,8 +53,11 @@ func (s *Store) discard(ctx context.Context, id string, publicationOnly bool) (b
 	if err != nil {
 		return false, err
 	}
-	if publicationOnly && value.LibraryID == "" && value.State != Removing {
+	if scope == removePublished && value.LibraryID == "" && value.State != Removing {
 		return false, ErrNotFound
+	}
+	if scope == removePending && (value.LibraryID != "" || value.State == Published) {
+		return false, ErrStateChanged
 	}
 	if err := validateReceiptPath(value); err != nil {
 		return false, err

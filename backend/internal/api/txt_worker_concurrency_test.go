@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -49,7 +50,7 @@ func TestTXTWorkersLeaveForegroundCapacityAndReleaseHomes(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer home.Close()
-			receipt, err := txtstore.NewStore(home.DB(), home.Files()).Receive(t.Context(), "novel.txt", strings.NewReader("Chapter 1\nStart.\nChapter 2\nEnd.\n"))
+			receipt, err := txtstore.NewStore(home.DB(), home.Files()).Receive(t.Context(), rand.Text(), "novel.txt", strings.NewReader("Chapter 1\nStart.\nChapter 2\nEnd.\n"))
 			if err != nil {
 				t.Fatal(err)
 			}

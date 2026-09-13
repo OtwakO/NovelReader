@@ -119,8 +119,10 @@ Admitted TXT publications use the existing chapter reader, progress, bookmarks, 
 controls. TXT is displayed as literal prose, not interpreted as HTML. Removing a TXT book also
 deletes its managed original. If file cleanup is incomplete, Book Detail keeps a warning and a
 **Retry file cleanup** action visible; the book is already removed from the library and the cleanup
-record remains recoverable. Upload/inbox controls and the import/review UI are not yet exposed.
-This reading integration leaves schema epoch 11 unchanged and adds no migration layer.
+record remains recoverable. An authenticated [browser-upload API](docs/architecture/authentication-and-reader-storage.md#txt-browser-upload-http)
+now supports streaming acquisition, receipt review and explicit publication. The import UI and inbox
+controls are not yet exposed. After an interrupted upload, inspect its known receipt ID rather than
+blindly uploading again. These changes leave schema epoch 11 unchanged and add no migration layer.
 
 ## Registration and recovery
 
