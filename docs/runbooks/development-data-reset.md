@@ -10,6 +10,10 @@ from an older epoch is not an upgrade/migration path into a new one. Keep the ma
 revision with any cold copy needed for rollback; returning to that revision also requires its
 compatible data. Do not edit schema markers or replace only a reader database to bypass validation.
 
+The current epoch is **11** (managed TXT schema registration). Epoch-10 homes and archives are not
+accepted as an in-place upgrade. Preserve that full data tree with its matching epoch-10 application
+if you need to return to it; the reset procedure below is only for explicitly disposable data.
+
 ## Reset old development data
 
 1. Stop NovelReader and any WebView worker or test process using its files.

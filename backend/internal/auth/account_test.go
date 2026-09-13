@@ -372,3 +372,28 @@ func insertTestSession(t *testing.T, store *Store, id string) {
 		t.Fatal(err)
 	}
 }
+
+func TestReaderHomeDiscoveryRetainsDisabledAndExcludesDeleting(t *testing.T) {
+	store := openTestStore(t)
+	defer store.Close()
+	insertTestUserWithID(t, store, testUserID, "Active", RoleAdmin, StatusActive)
+	insertTestUserWithID(t, store, secondTestUserID, "Disabled", RoleReader, StatusDisabled)
+	insertTestUserWithID(t, store, readerstore.UserID("33333333-3333-4333-8333-333333333333"), "Deleting", RoleReader, StatusDeleting)
+	handler, err := NewHTTPHandler(store, HTTPConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	retained, err := handler.ListReaderHomeIDs(t.Context())
+	if err != nil || len(retained) != 2 {
+		t.Fatalf("retained=%v, %v", retained, err)
+	}
+	active, err := handler.ListActiveReaderIDs(t.Context())
+	if err != nil || len(active) != 1 || active[0] != testUserID {
+		t.Fatalf("active=%v, %v", active, err)
+	}
+	for _, id := range retained {
+		if id != testUserID && id != secondTestUserID {
+			t.Fatalf("unexpected retained identity: %s", id)
+		}
+	}
+}

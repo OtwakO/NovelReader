@@ -3,16 +3,15 @@ package txtimport
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/txtstore"
 )
 
 func analyzeNext(ctx context.Context, readers *readerstore.Manager, id readerstore.UserID) (bool, error) {
-	openCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	home, err := readers.Open(openCtx, id)
-	cancel()
+	// A queued job may wait for capacity without losing its wake-up. Quiesce and
+	// shutdown cancel this wait; a capacity timeout would strand durable work.
+	home, err := readers.Open(ctx, id)
 	if err != nil {
 		return false, err
 	}

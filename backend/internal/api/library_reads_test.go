@@ -55,6 +55,14 @@ func TestLibraryReadsSeparateSharedStateFromBookSourceContext(t *testing.T) {
 	if err := json.Unmarshal(native.Body.Bytes(), &context); err != nil || native.Code != http.StatusOK || context.SourceID != "source" || context.Name != "Same title" {
 		t.Fatalf("native status=%d body=%s err=%v", native.Code, native.Body.String(), err)
 	}
+	// Until that provider's lifecycle is routed here, shared deletion must not
+	// bypass it and orphan native records or files.
+	if got := performAPIRequest(server, http.MethodDelete, "/api/books?id=independent", nil); got.Code != http.StatusNotImplemented {
+		t.Fatalf("unrouted provider deletion: status=%d body=%s", got.Code, got.Body.String())
+	}
+	if got := performAPIRequest(server, http.MethodGet, "/api/books/independent", nil); got.Code != http.StatusOK {
+		t.Fatalf("unrouted publication was lost: status=%d", got.Code)
+	}
 	for _, path := range []string{"/api/books/independent/booksource", "/api/books/missing"} {
 		if response := performAPIRequest(server, http.MethodGet, path, nil); response.Code != http.StatusNotFound {
 			t.Fatalf("%s status=%d body=%s", path, response.Code, response.Body.String())

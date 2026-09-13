@@ -81,7 +81,7 @@ NovelReader stores its data in the `data` folder beside `docker-compose.yml`. Th
 
 ## Update
 
-This revision requires reader schema epoch 10. Existing epoch-9 homes and portable
+This revision requires reader schema epoch 11. Existing epoch-10 (or older) homes and portable
 archives cannot be migrated automatically. Before upgrading an existing deployment,
 stop it and preserve a complete `DATA_DIR` copy; follow the
 [compatibility and reset runbook](docs/runbooks/development-data-reset.md) rather than
@@ -110,7 +110,14 @@ tar -czf novelreader-data-$(date +%F).tar.gz data/
 docker compose start app
 ```
 
-NovelReader also provides per-reader backup and restore from the web interface.
+NovelReader also provides per-reader backup and restore from the web interface. A successful
+replacement may report a TXT recovery warning: the data is restored, but unfinished import or
+cleanup records need attention. Those records are retained for retry; check server logs. Corrupt
+or incompatible archives are still rejected before replacement.
+
+The TXT storage schema and two-worker background analysis pool are registered. TXT upload/inbox
+controls, provider reading/management routes, and import UI are not yet exposed. The current
+BookSource-only delete endpoint rejects file-backed publications to protect their managed data.
 
 ## Registration and recovery
 

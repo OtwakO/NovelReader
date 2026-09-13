@@ -86,7 +86,7 @@ func TestOpenStoresCreatesCompleteCurrentReaderSchema(t *testing.T) {
 	if version != readerstore.CurrentReaderSchemaVersion {
 		t.Fatalf("reader schema version=%d", version)
 	}
-	for _, table := range []string{"book_sources", "books", "chapters", "bookmarks", "chapter_cache", "fonts"} {
+	for _, table := range []string{"book_sources", "library_items", "books", "chapters", "bookmarks", "chapter_cache", "fonts", "txt_files", "txt_sections", "txt_inbox_claims"} {
 		var count int
 		if err := home.DB().QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&count); err != nil || count != 1 {
 			t.Fatalf("table %s count=%d error=%v", table, count, err)

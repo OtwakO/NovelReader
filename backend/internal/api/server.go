@@ -5,9 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/auth"
@@ -22,6 +24,7 @@ import (
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/sourceinteraction"
+	"github.com/otwako/novelreader/internal/txtimport"
 )
 
 // Server owns process services and the authentication/backup boundary.
@@ -35,6 +38,7 @@ type Server struct {
 	health              interface{ PingContext(context.Context) error }
 	collectionScheduler *sourceCollectionScheduler
 	backups             *backupservice.Service
+	txtImports          *txtimport.Pool
 }
 
 func (s *Server) Mux() *http.ServeMux { return s.mux }
@@ -49,23 +53,23 @@ func (s *Server) Close() error {
 	if s.standalone != nil && s.standalone.catalogs != nil {
 		s.standalone.catalogs.Close()
 	}
+	var closeErr error
 	if s.backups != nil {
-		if err := s.backups.Close(); err != nil {
-			return err
-		}
+		closeErr = errors.Join(closeErr, s.backups.Close())
 	}
 	if s.collectionScheduler != nil {
 		s.collectionScheduler.Close()
 	}
+	if s.txtImports != nil {
+		s.txtImports.Close()
+	}
 	if s.services != nil && s.services.chineseConversion != nil {
-		if err := s.services.chineseConversion.Close(); err != nil {
-			return err
-		}
+		closeErr = errors.Join(closeErr, s.services.chineseConversion.Close())
 	}
-	if s.runtimes == nil {
-		return nil
+	if s.runtimes != nil {
+		closeErr = errors.Join(closeErr, s.runtimes.Close())
 	}
-	return s.runtimes.Close()
+	return closeErr
 }
 
 // NewServer binds one standalone reader. The signature is retained for existing
@@ -104,17 +108,26 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
 	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services}
-	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, 32, limits.SessionTTL, services)
+	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, readerRuntimeCapacity, limits.SessionTTL, services)
 	services.runtimes = s.runtimes
-	backups, err := backupservice.NewService(readers, dataRoot, s.runtimes.quiesce, s.runtimes.resume)
+	// Startup is the admission gate: recover before routes or schedulers run.
+	startupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	ids, err := authHandler.ListReaderHomeIDs(startupCtx)
+	if err == nil {
+		s.txtImports, err = txtimport.Start(startupCtx, readers, ids)
+	}
 	if err != nil {
-		_ = s.runtimes.Close()
-		return nil, fmt.Errorf("initialize backup service: %w", err)
+		return nil, errors.Join(fmt.Errorf("initialize TXT work: %w", err), s.Close())
+	}
+	backups, err := backupservice.NewService(readers, dataRoot, s.quiesceReader, s.resumeReader, s.recoverRestoredTXT)
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("initialize backup service: %w", err), s.Close())
 	}
 	s.backups = backups
 	s.collectionScheduler = newSourceCollectionScheduler(s.runtimes, services.collectionLoader, authHandler.ListActiveReaderIDs)
 	s.collectionScheduler.Start()
-	authHandler.ConfigureDeletionQuiescer(readers, s.runtimes.quiesce)
+	authHandler.ConfigureDeletionLifecycle(readers, s.quiesceReader, s.forgetReader)
 	s.registerAuthenticatedRoutes()
 	return s, nil
 }

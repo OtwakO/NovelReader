@@ -25,7 +25,7 @@ func TestReaderDeletionRequiresExactUsernameAndProtectsAdministrators(t *testing
 		t.Fatal(err)
 	}
 	admin, _ := accountByID(context.Background(), store.db, testUserID)
-	service := NewDeletionService(store, readers, func(context.Context, readerstore.UserID) error { return nil })
+	service := NewDeletionService(store, readers, func(context.Context, readerstore.UserID) error { return nil }, nil)
 	if _, err := service.Delete(context.Background(), secondTestUserID, "bob", admin, 200); !errors.Is(err, ErrUsernameConfirmation) {
 		t.Fatalf("confirmation error=%v", err)
 	}
@@ -53,7 +53,7 @@ func TestReaderDeletionRollsBackStatusWhenDurableJobCreationFails(t *testing.T) 
 	`); err != nil {
 		t.Fatal(err)
 	}
-	service := NewDeletionService(store, readers, func(context.Context, readerstore.UserID) error { return nil })
+	service := NewDeletionService(store, readers, func(context.Context, readerstore.UserID) error { return nil }, nil)
 	if _, err := service.Delete(context.Background(), secondTestUserID, "Bob", admin, 200); err == nil {
 		t.Fatal("deletion started without durable job")
 	}
@@ -84,6 +84,12 @@ func TestReaderDeletionCompletesDurablyAndRetriesIdempotently(t *testing.T) {
 			t.Fatalf("quiesced user=%s", userID)
 		}
 		quiesced++
+		return nil
+	}, func(id readerstore.UserID) error {
+		homePath := filepath.Join(filepath.Dir(store.Path()), readerstore.UsersDirectory, string(id))
+		if _, err := os.Lstat(homePath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("forgot workers before removing the home: %v", err)
+		}
 		return nil
 	})
 	job, err := service.Delete(context.Background(), secondTestUserID, "Bob", admin, 200)
@@ -117,7 +123,7 @@ func TestReaderDeletionConcurrentRetriesConvergeOnCompletedJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin, _ := accountByID(context.Background(), store.db, testUserID)
-	service := NewDeletionService(store, readers, func(context.Context, readerstore.UserID) error { return nil })
+	service := NewDeletionService(store, readers, func(context.Context, readerstore.UserID) error { return nil }, nil)
 	start := make(chan struct{})
 	results := make(chan struct {
 		job DeletionJob
@@ -173,7 +179,7 @@ func TestReaderDeletionRemovingAccountRestartRechecksAndRemovesPresentHome(t *te
 	service := NewDeletionService(store, readers, func(context.Context, readerstore.UserID) error {
 		quiesced++
 		return nil
-	})
+	}, nil)
 	completed, err := service.Delete(context.Background(), secondTestUserID, "ignored", admin, 200)
 	if err != nil || completed.Status != "complete" || quiesced != 1 {
 		t.Fatalf("completed=%#v error=%v quiesced=%d", completed, err, quiesced)
@@ -196,12 +202,13 @@ func TestReaderDeletionFailureKeepsDeletingAccountAndRetryRollsForward(t *testin
 	}
 	admin, _ := accountByID(context.Background(), store.db, testUserID)
 	fail := true
+	forgotten := 0
 	service := NewDeletionService(store, readers, func(context.Context, readerstore.UserID) error {
 		if fail {
 			return errors.New("in-flight request did not drain")
 		}
 		return nil
-	})
+	}, func(readerstore.UserID) error { forgotten++; return nil })
 	if _, err := service.Delete(context.Background(), secondTestUserID, "Bob", admin, 200); err == nil {
 		t.Fatal("deletion unexpectedly succeeded")
 	}
@@ -213,10 +220,13 @@ func TestReaderDeletionFailureKeepsDeletingAccountAndRetryRollsForward(t *testin
 	if err != nil || job.Status != "failed" || job.LastError == "" {
 		t.Fatalf("job=%#v error=%v", job, err)
 	}
+	if forgotten != 0 {
+		t.Fatal("failed deletion released the worker barrier")
+	}
 	fail = false
 	completed, err := service.Delete(context.Background(), secondTestUserID, "Bob", admin, 201)
-	if err != nil || completed.Status != "complete" {
-		t.Fatalf("completed=%#v error=%v", completed, err)
+	if err != nil || completed.Status != "complete" || forgotten != 1 {
+		t.Fatalf("completed=%#v error=%v forgotten=%d", completed, err, forgotten)
 	}
 }
 

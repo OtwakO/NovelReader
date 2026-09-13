@@ -30,6 +30,7 @@ import (
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/sourceexec"
 	"github.com/otwako/novelreader/internal/sourceprofile"
+	"github.com/otwako/novelreader/internal/txtstore"
 	"github.com/otwako/novelreader/internal/webview"
 )
 
@@ -210,8 +211,8 @@ func openStores(dataDir string) (*auth.Store, *readerstore.Manager, error) {
 		return nil, nil, fmt.Errorf("system database: %w", err)
 	}
 	systemStore.HoldRootLock(rootLock)
-	readers, err := readerstore.NewManager(dataDir, 32,
-		booksource.ReaderSchema(), library.ReaderSchema(), book.ReaderSchema(), fontstore.ReaderSchema(), sourceprofile.ReaderSchema())
+	readers, err := readerstore.NewManager(dataDir, api.ReaderHomeCapacity,
+		booksource.ReaderSchema(), library.ReaderSchema(), book.ReaderSchema(), fontstore.ReaderSchema(), sourceprofile.ReaderSchema(), txtstore.ReaderSchema())
 	if err != nil {
 		_ = systemStore.Close()
 		return nil, nil, fmt.Errorf("reader stores: %w", err)

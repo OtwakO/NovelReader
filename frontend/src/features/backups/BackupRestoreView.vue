@@ -1,5 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
+import { resetReaderState } from '../../app/reader-state';
 import { cancelRestore, commitRestore, createBackupToken, downloadBackup, listBackupTokens, prepareRestore, revokeBackupToken, type BackupToken, type BackupTokenCredential, type PreparedRestore } from '../../api/backups';
 import AppButton from '../../ui/components/AppButton.vue';
 import FeatureScaffold from '../../ui/components/FeatureScaffold.vue';
@@ -89,7 +90,7 @@ Authorization: Bearer <DESTINATION_RESTORE_TOKEN>`,
 
 export default defineComponent({
   name: 'BackupRestoreView', components: { AppButton, FeatureScaffold },
-  data() { return { exporting: false, exportError: '', restoreFile: null as File | null, preparing: false, restoreError: '', prepared: null as PreparedRestore | null, confirmation: '', committing: false, tokenLoading: true, tokenError: '', tokens: [] as BackupToken[], tokenName: '', tokenCanExport: true, tokenCanRestore: false, currentPassword: '', tokenExpiry: '', creatingToken: false, revealedToken: null as BackupTokenCredential | null, copied: false, activeApiExample: 'curl' as ApiExample, apiExampleTabs: ['curl', 'python', 'javascript', 'rest'] as ApiExample[] }; },
+  data() { return { exporting: false, exportError: '', restoreFile: null as File | null, preparing: false, restoreError: '', restoreWarning: '', prepared: null as PreparedRestore | null, confirmation: '', committing: false, tokenLoading: true, tokenError: '', tokens: [] as BackupToken[], tokenName: '', tokenCanExport: true, tokenCanRestore: false, currentPassword: '', tokenExpiry: '', creatingToken: false, revealedToken: null as BackupTokenCredential | null, copied: false, activeApiExample: 'curl' as ApiExample, apiExampleTabs: ['curl', 'python', 'javascript', 'rest'] as ApiExample[] }; },
   computed: {
     canCommit(): boolean { return this.confirmation === this.$t('backups.restore.confirmWord') && !this.committing; },
     apiExampleCode(): string { return apiExamples[this.activeApiExample]; },
@@ -99,9 +100,26 @@ export default defineComponent({
     formatDate(value?: string | number) { if (!value) return ''; const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value); return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date); },
     async exportBackup() { this.exporting = true; this.exportError = ''; try { const { blob, filename } = await downloadBackup(); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url); } catch (cause) { this.exportError = cause instanceof Error ? cause.message : this.$t('backups.export.failed'); } finally { this.exporting = false; } },
     selectRestore(event: Event) { this.restoreFile = (event.target as HTMLInputElement).files?.[0] ?? null; this.restoreError = ''; },
-    async prepare() { if (!this.restoreFile) return; this.preparing = true; this.restoreError = ''; try { this.prepared = await prepareRestore(this.restoreFile); this.confirmation = ''; } catch (cause) { this.restoreError = cause instanceof Error ? cause.message : this.$t('backups.restore.failed'); } finally { this.preparing = false; } },
+    async prepare() { if (!this.restoreFile) return; this.preparing = true; this.restoreError = ''; this.restoreWarning = ''; try { this.prepared = await prepareRestore(this.restoreFile); this.confirmation = ''; } catch (cause) { this.restoreError = cause instanceof Error ? cause.message : this.$t('backups.restore.failed'); } finally { this.preparing = false; } },
     async cancelPrepared() { if (!this.prepared) return; const operationId = this.prepared.operationId; this.prepared = null; this.confirmation = ''; try { await cancelRestore(operationId); } catch { /* The prepared restore is already unusable locally. */ } },
-    async commit() { if (!this.prepared || !this.canCommit) return; this.committing = true; this.restoreError = ''; try { await commitRestore(this.prepared.operationId); window.location.reload(); } catch (cause) { this.restoreError = cause instanceof Error ? cause.message : this.$t('backups.restore.failed'); this.committing = false; } },
+    async commit() {
+      if (!this.prepared || !this.canCommit) return;
+      this.committing = true;
+      this.restoreError = '';
+      let result;
+      try { result = await commitRestore(this.prepared.operationId); }
+      catch (cause) { this.restoreError = cause instanceof Error ? cause.message : this.$t('backups.restore.failed'); return; }
+      finally { this.committing = false; }
+      this.prepared = null;
+      this.restoreFile = null;
+      this.confirmation = '';
+      resetReaderState(this.$pinia);
+      if (result.warnings?.length) {
+        // Keep the committed outcome visible instead of reloading it away or
+        // presenting a retry button for a restore that already succeeded.
+        this.restoreWarning = this.$t('backups.restore.recoveryWarning');
+      } else { window.location.reload(); }
+    },
     async loadTokens() { this.tokenLoading = true; this.tokenError = ''; try { this.tokens = await listBackupTokens(); } catch (cause) { this.tokenError = cause instanceof Error ? cause.message : ''; } finally { this.tokenLoading = false; } },
     async createToken() { if (!this.tokenName.trim() || (!this.tokenCanExport && !this.tokenCanRestore)) return; this.creatingToken = true; this.tokenError = ''; try { this.revealedToken = await createBackupToken({ name: this.tokenName.trim(), canExport: this.tokenCanExport, canRestore: this.tokenCanRestore, currentPassword: this.tokenCanRestore ? this.currentPassword : undefined, expiresAt: this.tokenExpiry ? Math.floor(new Date(this.tokenExpiry).getTime() / 1000) : undefined }); this.tokens = [this.revealedToken, ...this.tokens]; this.tokenName = ''; this.currentPassword = ''; this.tokenExpiry = ''; this.copied = false; } catch (cause) { this.tokenError = cause instanceof Error ? cause.message : ''; } finally { this.creatingToken = false; } },
     async copyToken() { if (!this.revealedToken) return; await navigator.clipboard.writeText(this.revealedToken.token); this.copied = true; },
@@ -124,6 +142,7 @@ export default defineComponent({
 
       <section class="panel restore-panel">
         <header><div><h2>{{ $t('backups.restore.title') }}</h2><p>{{ $t('backups.restore.description') }}</p></div></header>
+        <p v-if="restoreWarning" class="warning" role="status">{{ restoreWarning }}</p>
         <div v-if="!prepared" class="restore-upload">
           <label class="file-control"><strong>{{ $t('backups.restore.choose') }}</strong><span v-if="restoreFile" class="file-name">{{ restoreFile.name }}</span><input class="file-input" type="file" accept=".tar.gz,.tgz,application/gzip,application/x-gzip,application/octet-stream" :disabled="preparing" @change="selectRestore"></label>
           <AppButton :disabled="!restoreFile" :busy="preparing" @click="prepare">{{ preparing ? $t('backups.restore.preparing') : $t('backups.restore.prepare') }}</AppButton>

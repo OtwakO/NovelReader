@@ -351,6 +351,18 @@ func (s *readerAPI) handleClearBookSources(w http.ResponseWriter, r *http.Reques
 
 func (s *readerAPI) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
+	item, err := s.libraryStore.Get(r.Context(), id)
+	if err != nil {
+		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load book")
+		return
+	}
+	// This handler still owns only BookSource removal. File-backed publications
+	// must use their provider lifecycle, not lose their shared row in isolation.
+	// Replace this capability gate when TXT management routes are connected.
+	if item != nil && item.Provider != library.BookSource {
+		writeErrorCode(w, http.StatusNotImplemented, "provider_not_supported", "removal is not yet available for this publication provider")
+		return
+	}
 	if s.catalogs != nil {
 		s.catalogs.Invalidate(id)
 	}

@@ -42,7 +42,31 @@ func TestServiceExportsTimestampedPortableArchiveAndRestoresAcrossReaders(t *tes
 		t.Fatal(err)
 	}
 	alice.Close()
-	service, err := NewService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {})
+	paused, recovered := false, false
+	service, err := NewService(readers, root, func(context.Context, readerstore.UserID) error {
+		paused = true
+		return nil
+	}, func(readerstore.UserID) {
+		if !recovered {
+			t.Error("resumed before post-publication recovery")
+		}
+		paused = false
+	}, func(ctx context.Context, id readerstore.UserID) []string {
+		if !paused || id != backupBob {
+			t.Fatal("recovery ran outside the destination barrier")
+		}
+		home, err := readers.Open(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer home.Close()
+		var value string
+		if err := home.DB().QueryRowContext(ctx, `SELECT value FROM values_table`).Scan(&value); err != nil || value != "alice" {
+			t.Fatalf("recovery did not see replaced data: %q, %v", value, err)
+		}
+		recovered = true
+		return []string{"test_recovery_incomplete"}
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,8 +109,9 @@ func TestServiceExportsTimestampedPortableArchiveAndRestoresAcrossReaders(t *tes
 	if prepared.ExportedFromUsername != "Alice / 測試" || prepared.Compatibility != "compatible" {
 		t.Fatalf("prepared=%#v", prepared)
 	}
-	if _, err := service.CommitRestore(context.Background(), backupBob, prepared.ID); err != nil {
-		t.Fatal(err)
+	result, err := service.CommitRestore(context.Background(), backupBob, prepared.ID)
+	if err != nil || !result.Restored || len(result.Warnings) != 1 || result.Warnings[0] != "test_recovery_incomplete" || paused {
+		t.Fatalf("restore result=%+v error=%v paused=%v", result, err, paused)
 	}
 	bob, err := readers.Open(context.Background(), backupBob)
 	if err != nil {
@@ -144,7 +169,7 @@ func TestPreparedRestoreIsOwnerScopedAndCancelable(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	service, err := NewService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {})
+	service, err := NewService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +204,7 @@ func TestServiceJanitorRemovesExpiredRestoreWithoutAPITraffic(t *testing.T) {
 		t.Fatal(err)
 	}
 	ticks := make(chan time.Time)
-	service, err := newService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {}, ticks)
+	service, err := newService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {}, nil, ticks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +248,7 @@ func TestServiceStartupRemovesOnlyOwnedAbandonedWorkspaces(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	service, err := NewService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {})
+	service, err := NewService(readers, root, func(context.Context, readerstore.UserID) error { return nil }, func(readerstore.UserID) {}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

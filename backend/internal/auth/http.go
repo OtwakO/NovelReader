@@ -194,14 +194,20 @@ func NewHTTPHandler(store *Store, config HTTPConfig) (*HTTPHandler, error) {
 	return handler, nil
 }
 
-// ConfigureDeletionQuiescer completes deletion wiring after the API runtime manager exists.
-func (h *HTTPHandler) ConfigureDeletionQuiescer(readers *readerstore.Manager, quiesce func(context.Context, readerstore.UserID) error) {
-	h.deletions = NewDeletionService(h.accounts.store, readers, quiesce)
+// ConfigureDeletionLifecycle wires request/worker drain and post-removal cleanup.
+func (h *HTTPHandler) ConfigureDeletionLifecycle(readers *readerstore.Manager, quiesce func(context.Context, readerstore.UserID) error, forget func(readerstore.UserID) error) {
+	h.deletions = NewDeletionService(h.accounts.store, readers, quiesce, forget)
 	h.deleteReader = h.deletions.Delete
 }
 
 func (h *HTTPHandler) ListActiveReaderIDs(ctx context.Context) ([]readerstore.UserID, error) {
 	return h.accounts.ListActiveReaderIDs(ctx)
+}
+
+// ListReaderHomeIDs includes disabled accounts: disabling login retains their
+// data and already-accepted local work. Deleting accounts must not be restarted.
+func (h *HTTPHandler) ListReaderHomeIDs(ctx context.Context) ([]readerstore.UserID, error) {
+	return h.accounts.listReaderIDs(ctx, true)
 }
 
 // VerifyCurrentPassword reauthenticates the Reader Account already resolved by RequireIdentity.

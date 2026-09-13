@@ -20,6 +20,7 @@ import (
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/sourceprofile"
+	"github.com/otwako/novelreader/internal/txtstore"
 )
 
 const ownershipBob readerstore.UserID = "22222222-2222-4222-8222-222222222222"
@@ -204,7 +205,7 @@ func newOwnershipServer(t *testing.T) (*Server, *auth.SessionService, *readersto
 		t.Fatal(err)
 	}
 	readers, err := readerstore.NewManager(root, 4,
-		booksource.ReaderSchema(), library.ReaderSchema(), book.ReaderSchema(), fontstore.ReaderSchema(), sourceprofile.ReaderSchema())
+		booksource.ReaderSchema(), library.ReaderSchema(), book.ReaderSchema(), fontstore.ReaderSchema(), sourceprofile.ReaderSchema(), txtstore.ReaderSchema())
 	if err != nil {
 		t.Fatal(err)
 	}

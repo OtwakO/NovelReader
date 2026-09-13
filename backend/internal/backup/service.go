@@ -44,7 +44,8 @@ type PreparedRestore struct {
 }
 
 type RestoreResult struct {
-	Restored bool `json:"restored"`
+	Restored bool     `json:"restored"`
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type operation struct {
@@ -56,10 +57,12 @@ type operation struct {
 
 // Service owns archive staging and delegates Reader-home lifecycle to readerstore.
 type Service struct {
-	readers      *readerstore.Manager
-	root         string
-	quiesce      func(context.Context, readerstore.UserID) error
-	resume       func(readerstore.UserID)
+	readers *readerstore.Manager
+	root    string
+	quiesce func(context.Context, readerstore.UserID) error
+	resume  func(readerstore.UserID)
+	// Runs after publication while quiescent; returns safe warning codes, not raw errors.
+	afterRestore func(context.Context, readerstore.UserID) []string
 	now          func() time.Time
 	mu           sync.Mutex
 	byID         map[string]operation
@@ -71,9 +74,9 @@ type Service struct {
 	closed       bool
 }
 
-func NewService(readers *readerstore.Manager, dataRoot string, quiesce func(context.Context, readerstore.UserID) error, resume func(readerstore.UserID)) (*Service, error) {
+func NewService(readers *readerstore.Manager, dataRoot string, quiesce func(context.Context, readerstore.UserID) error, resume func(readerstore.UserID), afterRestore func(context.Context, readerstore.UserID) []string) (*Service, error) {
 	timer := time.NewTicker(restoreCleanupInterval)
-	service, err := newService(readers, dataRoot, quiesce, resume, timer.C)
+	service, err := newService(readers, dataRoot, quiesce, resume, afterRestore, timer.C)
 	if err != nil {
 		timer.Stop()
 		return nil, err
@@ -82,12 +85,12 @@ func NewService(readers *readerstore.Manager, dataRoot string, quiesce func(cont
 	return service, nil
 }
 
-func newService(readers *readerstore.Manager, dataRoot string, quiesce func(context.Context, readerstore.UserID) error, resume func(readerstore.UserID), ticks <-chan time.Time) (*Service, error) {
+func newService(readers *readerstore.Manager, dataRoot string, quiesce func(context.Context, readerstore.UserID) error, resume func(readerstore.UserID), afterRestore func(context.Context, readerstore.UserID) []string, ticks <-chan time.Time) (*Service, error) {
 	if err := removeAbandonedWorkspaces(dataRoot); err != nil {
 		return nil, err
 	}
 	service := &Service{
-		readers: readers, root: dataRoot, quiesce: quiesce, resume: resume, now: time.Now,
+		readers: readers, root: dataRoot, quiesce: quiesce, resume: resume, afterRestore: afterRestore, now: time.Now,
 		byID: make(map[string]operation), byReader: make(map[readerstore.UserID]string), janitorTicks: ticks,
 		janitorStop: make(chan struct{}), janitorDone: make(chan struct{}),
 	}
@@ -210,7 +213,15 @@ func (s *Service) CommitRestore(ctx context.Context, userID readerstore.UserID, 
 	if err := s.readers.PublishReplacement(ctx, userID, operation.staging); err != nil {
 		return RestoreResult{}, err
 	}
-	return RestoreResult{Restored: true}, nil
+	result := RestoreResult{Restored: true}
+	if s.afterRestore != nil {
+		// Publication has committed. Reconciliation is bounded but must not be
+		// abandoned just because the requester disconnected after replacement.
+		recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		result.Warnings = s.afterRestore(recoveryCtx, userID)
+	}
+	return result, nil
 }
 
 // Close removes every uncommitted restore staged by this process.

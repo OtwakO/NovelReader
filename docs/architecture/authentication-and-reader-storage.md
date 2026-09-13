@@ -14,7 +14,7 @@ Describe the current ownership, storage, authentication, credential, and backup 
 - HTTP input never supplies the authoritative Reader Account ID for Reader Data access. Authentication resolves identity first; readerstore resolves the home.
 - Ordinary authenticated Reader Data requests acquire the target reader runtime. Feature modules do not construct reader paths; backup/restore uses the separate boundary described below.
 
-`api.Server` owns authentication, health, backup/restore and process shutdown. Each `readerRuntime` owns one `readerAPI` with routes registered at runtime construction; the handler binds directly to that runtime and borrows explicitly assembled `readerServices`. Authenticated requests acquire a lease, invoke the cached handler and release the lease—no Server copy or per-request dependency replacement. A replacement runtime gets a new handler and reader-specific cover scope. Candidate operations acquire their own additional lease so they can outlive the starting request. Standalone `NewServer` binds one reader explicitly and preserves its existing HTTP wrapper.
+`api.Server` owns authentication, health, backup/restore, TXT worker lifecycle and process shutdown. Each `readerRuntime` owns one `readerAPI` with routes registered at runtime construction; the handler binds directly to that runtime and borrows explicitly assembled `readerServices`. Authenticated requests acquire a lease, invoke the cached handler and release the lease—no Server copy or per-request dependency replacement. A replacement runtime gets a new handler and reader-specific cover scope. Candidate operations acquire their own additional lease so they can outlive the starting request. Standalone `NewServer` binds one reader explicitly and preserves its existing HTTP wrapper.
 
 ## Reader home
 
@@ -27,21 +27,31 @@ data/users/<immutable-reader-id>/
     fonts/
     covers/
     chapter-assets/
+    txt/<readable-name>--<id>/original.txt
+    .work/txt/                 # disposable transfer work, not portable
 ```
 
 `reader.db` and ordinary files are portable plaintext Reader Data: BookSources, shelf books, chapters, progress, bookmarks, caches, preferences, source profiles, and file metadata. They remain inspectable without an application secret. Browser-only Reader preferences are outside
 this storage/backup boundary; see [Reader state](discovery-and-reading.md#reader-state).
 
-Reader schema epoch 10 composes library-owned shared metadata/state/bookmarks with BookSource-owned
-bindings/catalog/cache and the other reader modules. Foreign keys are enabled on every pooled reader
-connection. Epoch-9 homes and portable archives are incompatible; there is no automatic migration or
+Reader schema epoch 11 composes library-owned shared metadata/state/bookmarks, BookSource-owned
+bindings/catalog/cache, managed TXT receipts/indexes and the other reader modules. Foreign keys are enabled on every pooled reader
+connection. Epoch-10 or older homes and portable archives are incompatible; there is no automatic migration or
 reset. Preservation and rollback instructions live in the [development reset runbook](../runbooks/development-data-reset.md).
 
-The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT intake is not yet registered in production; see the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
+The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT storage and recovery are registered; intake and provider-reading routes are not yet exposed. See the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
 
 `credentials.db` is separate. Reversible source credentials are encrypted using the installation-level credential key configured by NovelReader. Losing that key requires source reauthentication but must not make Reader Data unreadable.
 
 Runtime initialization reserves a per-reader slot before opening storage or running feature initialization. In-flight initialization counts against capacity; competing requests wait rather than constructing losing instances. Quiesce/shutdown wait until initialization and any rejected-instance cleanup finish. Initialization and cleanup execute outside the manager mutex so other readers are not blocked by that mutex.
+
+### TXT background ownership
+
+`txtimport` runs two independent workers, at most one file per reader, with fair reader turns and durable receipt work. Idle hints retire; queued readers hold no home lease or per-file job object. Production budgets 32 API runtime homes plus two worker homes. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.
+
+Before serving, TXT recovery visits retained account homes (including disabled accounts, excluding deleting accounts), then starts workers. Login disabling retains accepted local work. Missing/corrupt homes or failed per-file cleanup are logged without stopping unrelated homes; no inbox originals are replayed or swept. New accounts start empty. Recovery never runs on ordinary runtime initialization or before each job. After restore it runs while that reader remains quiescent. Future upload intake must have its own bounded allowance and lifecycle admission outside the API runtime cache.
+
+Restore/deletion gate and drain API runtimes, then TXT workers. Successful deletion forgets both barriers; failure keeps the deletion barrier for retry. Shutdown joins workers and closes runtimes even when another service reports a cleanup error.
 
 ## Authentication
 
@@ -54,7 +64,7 @@ Runtime initialization reserves a per-reader slot before opening storage or runn
 - Source JavaScript receives one stable opaque device identity per Reader Account through `java.androidId()` and `java.deviceID()`. It is derived from the immutable Reader ID, shared across that reader's sources, and does not expose the Reader ID itself.
 - Recovery can restore Administrator access without claiming or rewriting Reader Data.
 - Reader deletion is durable, retryable, and coordinated with runtime and filesystem ownership. Closing runtimes remain tracked and capacity-counted until cleanup completes; same-reader acquisition/quiescence waits are cancellable, while browser/catalog draining runs outside the runtime-manager lock.
-- In the frontend, `app/reader-state.ts` owns account transitions: it aborts prior-identity requests, resets reader-owned discovery/candidate/progress state, and prevents late responses from repopulating it. Tab restoration is retained only for the recorded Reader Account ID; browser-owned appearance preferences are not cleared.
+- In the frontend, `app/reader-state.ts` owns account transitions and post-restore cache resets: it aborts prior-identity requests, resets reader-owned discovery/candidate/progress state, and prevents late responses from repopulating it. Tab restoration is retained only for the recorded Reader Account ID; browser-owned appearance preferences are not cleared.
 
 ## Source interaction state
 
@@ -99,15 +109,18 @@ New durable-file writers must join this boundary around the whole metadata/file 
 
 `ReaderSchema.PreparePortable` strips installation-local operational authority from the copied database on export and import, without modifying live records. TXT uses it for unresolved inbox claims; even a discarded receipt's leftover claim remains local until explicitly resolved. Copies containing such authority are rejected at publication validation.
 
-Features can contribute `ReaderSchema.ValidatePortableFiles` to check references against the copied read-only database and confined files. Checks run after snapshot copying, after replacement staging, and before replacement publication—not on ordinary home opens. TXT supplies receipt/publication ownership and original-file checks when its schema is composed; its production registration remains tracked in the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md). No live records are repaired or deleted by these checks.
+Features can contribute `ReaderSchema.ValidatePortableFiles` to check references against the copied read-only database and confined files. Checks run after snapshot copying, after replacement staging, and before replacement publication—not on ordinary home opens. TXT supplies receipt/publication ownership and original-file checks in production; further intake work is tracked in the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md). No live records are repaired or deleted by these checks.
 
 Restore behavior:
 
 1. upload and validate the archive in a bounded staging workspace while reading may continue;
 2. prepare a complete replacement reader home;
-3. briefly quiesce that reader runtime;
+3. quiesce and drain that reader's API runtime and TXT workers;
 4. atomically replace Reader Data on the same filesystem;
-5. roll back or reconcile interrupted replacement states on startup.
+5. reconcile unfinished TXT records against the new home, bounded independently of request disconnects;
+6. resume the reader, returning `restored: true` plus `warnings: ["txt_recovery_incomplete"]` if TXT reconciliation could not finish. Raw diagnostic details remain in server logs; pending records remain available for retry. The frontend clears old reader caches and keeps the translated warning visible instead of reloading it away.
+
+Replacement itself remains atomic; provider reconciliation warnings do not undo a committed replacement or bypass archive validation. Interrupted filesystem replacement states are reconciled on startup.
 
 Prepared restores are reader-owned and expire. Backup routes authenticate before acquiring ordinary Reader Data request leases so replacement never deadlocks against the runtime being quiesced.
 

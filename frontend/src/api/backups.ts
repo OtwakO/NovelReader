@@ -34,7 +34,7 @@ export async function downloadBackup() {
 export function prepareRestore(file: File) { return requestUpload<PreparedRestore>('/backups/restores', file); }
 export function getPreparedRestore(operationId: string) { return request<PreparedRestore>(`/backups/restores/${encodeURIComponent(operationId)}`); }
 export function cancelRestore(operationId: string) { return request<void>(`/backups/restores/${encodeURIComponent(operationId)}`, { method: 'DELETE' }); }
-export function commitRestore(operationId: string) { return request<{ restored: boolean }>(`/backups/restores/${encodeURIComponent(operationId)}/commit`, { method: 'POST' }); }
+export function commitRestore(operationId: string) { return request<{ restored: boolean; warnings?: string[] }>(`/backups/restores/${encodeURIComponent(operationId)}/commit`, { method: 'POST' }); }
 
 export async function listBackupTokens() {
   const response = await request<{ tokens: BackupToken[] | null }>('/auth/backup-tokens');

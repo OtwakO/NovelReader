@@ -10,6 +10,16 @@ import { resetProgressWriter } from '../features/reader/progress-writer';
 
 const ownerKey = 'novelreader.reader-state-owner';
 
+// Identity changes and home replacement share the same cache/request lifetime.
+export function resetReaderState(pinia: Pinia) {
+  resetReaderRequests();
+  useSearchStore(pinia).resetReaderState();
+  useExploreStore(pinia).resetReaderState();
+  clearCandidateOperations();
+  clearCandidateSelections();
+  resetProgressWriter();
+}
+
 // The application owns identity transitions; features own their reset semantics.
 // Remembering the owner preserves tab restoration for the same reader on reload.
 export function installReaderStateBoundary(pinia: Pinia) {
@@ -21,12 +31,7 @@ export function installReaderStateBoundary(pinia: Pinia) {
     let storedOwner: string | null = null;
     try { storedOwner = sessionStorage.getItem(ownerKey); } catch { /* no restoration when storage is disabled */ }
     if (!reader || reader !== storedOwner || previous !== undefined) {
-      resetReaderRequests();
-      useSearchStore(pinia).resetReaderState();
-      useExploreStore(pinia).resetReaderState();
-      clearCandidateOperations();
-      clearCandidateSelections();
-      resetProgressWriter();
+      resetReaderState(pinia);
     }
     previous = reader;
     try {

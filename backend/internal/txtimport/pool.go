@@ -28,7 +28,7 @@ type readerWork struct {
 
 // Pool owns fixed workers and deduplicated reader wake-ups, not per-file jobs or
 // reader runtimes. Create one pool per application. Persist work before Notify;
-// receiving records already represent pending automatic analysis. Caller-owned
+// received records already represent pending automatic analysis. Caller-owned
 // startup/intake recovery must finish before admitting transfers or notifications.
 type Pool struct {
 	mu      sync.Mutex
