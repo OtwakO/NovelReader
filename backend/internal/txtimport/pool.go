@@ -1,4 +1,5 @@
-// Package txtimport schedules durable TXT analysis independently of API runtimes.
+// Package txtimport coordinates TXT intake admission and durable analysis
+// independently of API runtimes.
 package txtimport
 
 import (
@@ -15,7 +16,7 @@ import (
 const Workers = 2
 
 var (
-	ErrClosed = errors.New("txtimport: worker pool closed")
+	ErrClosed = errors.New("txtimport: imports closed")
 	ErrPaused = errors.New("txtimport: reader imports paused")
 )
 

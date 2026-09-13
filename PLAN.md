@@ -35,7 +35,7 @@ Repository ownership:
 - `backend/internal/analyzer/` — Legado-compatible rules and JavaScript bridge.
 - `backend/internal/library/` — shared publication metadata, reading state, bookmarks, and revision contracts.
 - `backend/internal/reading/` — common catalogs/prose documents and revision-qualified reading operations over BookSource/TXT.
-- `backend/internal/txtstore/` and `backend/internal/txtimport/` — managed TXT originals/indexes, acquisition/removal/recovery, and bounded analysis workers.
+- `backend/internal/txtstore/` and `backend/internal/txtimport/` — managed TXT originals/indexes, acquisition/removal/recovery, bounded intake admission and analysis workers.
 - `backend/internal/book/` — BookSource Search, Explore, Book Info, native catalogs/content, bindings, and cache.
 - `backend/internal/candidate/` — bounded metadata-first shelf admission.
 - `backend/internal/sourceinteraction/` — reader-owned source settings, credentials, actions, and browser continuations.
@@ -99,13 +99,13 @@ The completed [architecture and code quality improvements](docs/plans/2026-09-05
 
 ## Active Work
 
-[Multi-provider library and imported books](docs/plans/2026-09-10-multi-provider-library.md) — shared ownership, managed TXT lifecycle/portable validation, and independent analysis workers are implemented. Admitted TXT publications now use the common catalog, prose reader, progress/bookmarks and provider-owned removal path; incomplete file cleanup remains visible and retryable. **Epoch 11 is unchanged; no migration layer.** Full backend tests, affected race tests, frontend build and 36 focused frontend tests pass. No existing data was changed or deployment performed. Next: bounded intake outside API runtime slots, HTTP review-proof retention, and import/review UI. The scoped plan owns precise verification and remaining boundaries.
+[Multi-provider library and imported books](docs/plans/2026-09-10-multi-provider-library.md) — shared ownership, managed TXT lifecycle/portable validation, independent analysis workers and common TXT reading/removal are implemented. Server-owned, reader-fair intake admission is now bounded and lifecycle-wired, with a separate transfer-home allowance; its component and API/composition race tests pass. **Epoch 11 is unchanged; no migration layer.** No existing data was changed or deployment performed. Next: admission/acquisition HTTP adapters outside API runtime slots for transfers, retained inbox review-proof controls, then import/review UI. The scoped plan owns exact verification and limits; no intake HTTP route or 1,000-user throughput claim is made.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities
 
-1. Continue the [multi-provider library workstream](docs/plans/2026-09-10-multi-provider-library.md#next-action) with bounded intake and the core import/review UI. Reuse the completed reading, storage and lifecycle owners. Intake must not consume API runtime slots or bypass reader quiescence. Do not repeat broad reassessment or reopen settled product choices.
+1. Continue the [multi-provider library workstream](docs/plans/2026-09-10-multi-provider-library.md#next-action) with intake/review HTTP adapters and the core import/review UI. Reuse the completed admission, reading, storage and lifecycle owners. Transfers must not consume API runtime slots or bypass reader quiescence. Do not repeat broad reassessment or reopen settled product choices.
 2. Keep implementation proportional to the workstream's [effort and abstraction guardrail](docs/plans/2026-09-10-multi-provider-library.md#effort-and-abstraction-guardrail): appropriate patterns, focused verification, no defensive framework or extreme-case expansion. Keep advanced controls subsequent; maintain accepted/proposed status and verification in the same plan as work progresses.
 3. The accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), bounded browser-UA provider and [browser lifecycle hardening](docs/plans/browser-worker-lifecycle.md) are implemented. Confirm any next compatibility slice with the user before implementation; retain the recorded verification limits. Do not claim universal compatibility.
 4. Select further compatibility slices from current evidence rather than historical unchecked boxes; introduce image-sequence documents and structured locations only when that modality becomes active work.

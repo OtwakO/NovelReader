@@ -28,6 +28,13 @@ func TestRestoreReconcilesTXTAndReportsCommittedWarning(t *testing.T) {
 	if err := server.txtImports.Notify(alice); !errors.Is(err, txtimport.ErrPaused) {
 		t.Fatalf("source not paused: %v", err)
 	}
+	if _, err := server.txtAdmission.Request(alice); !errors.Is(err, txtimport.ErrPaused) {
+		t.Fatalf("intake not paused: %v", err)
+	}
+	oldTicket, err := server.txtAdmission.Request(ownershipBob)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// The other reader is still usable while the source is quiescent.
 	if got := authenticatedOwnershipRequest(t, server, sessions, ownershipBob, "/api/books"); got.Code != http.StatusOK {
 		t.Fatalf("other reader blocked: %s", got.Body.String())
@@ -87,7 +94,14 @@ func TestRestoreReconcilesTXTAndReportsCommittedWarning(t *testing.T) {
 	if response.Code != http.StatusOK || !result.Restored || len(result.Warnings) != 1 || result.Warnings[0] != "txt_recovery_incomplete" {
 		t.Fatalf("status=%d result=%+v", response.Code, result)
 	}
-	// Runtime and worker admission resume despite the warning, using new data.
+	// Old intake authority is invalidated; fresh admission and existing readers
+	// resume despite the warning, using new data.
+	if _, err := server.txtAdmission.Status(ownershipBob, oldTicket.ID); !errors.Is(err, txtimport.ErrTicketNotFound) {
+		t.Fatalf("pre-restore admission survived: %v", err)
+	}
+	if _, err := server.txtAdmission.Request(ownershipBob); err != nil {
+		t.Fatal(err)
+	}
 	if err := server.txtImports.Notify(ownershipBob); err != nil {
 		t.Fatal(err)
 	}
@@ -146,6 +160,9 @@ func TestServerCloseDrainsWorkersAndRuntimesAfterOtherCleanupFails(t *testing.T)
 	}
 	if err := server.txtImports.Notify(alice); !errors.Is(err, txtimport.ErrClosed) {
 		t.Fatalf("workers still admitted work: %v", err)
+	}
+	if _, err := server.txtAdmission.Request(alice); !errors.Is(err, txtimport.ErrClosed) {
+		t.Fatalf("intake still admitted work: %v", err)
 	}
 	if _, release, err := server.runtimes.acquire(t.Context(), alice); err == nil {
 		release()

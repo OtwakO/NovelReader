@@ -11,24 +11,26 @@ import (
 
 const readerRuntimeCapacity = 32
 
-// ReaderHomeCapacity includes independent active worker homes, not just cached
-// API runtimes. Upload intake must add its own bounded allowance when exposed.
-const ReaderHomeCapacity = readerRuntimeCapacity + txtimport.Workers
+// ReaderHomeCapacity budgets separate foreground, analysis and transfer leases.
+// Waiting admission tickets never reserve or open reader homes.
+const ReaderHomeCapacity = readerRuntimeCapacity + txtimport.Workers + txtimport.Transfers
 
 func (s *Server) quiesceReader(ctx context.Context, id readerstore.UserID) error {
-	// Gate new HTTP requests before cancelling work. No replacement/removal is
-	// allowed unless both owners drained; the caller resumes or retries on error.
+	// Stop intake first so no new transfers enter while foreground work drains.
+	// All owners must drain before replacement/removal; errors retain barriers.
+	intakeErr := s.txtAdmission.Quiesce(ctx, id)
 	runtimeErr := s.runtimes.quiesce(ctx, id)
-	return errors.Join(runtimeErr, s.txtImports.Quiesce(ctx, id))
+	return errors.Join(intakeErr, runtimeErr, s.txtImports.Quiesce(ctx, id))
 }
 
 func (s *Server) resumeReader(id readerstore.UserID) {
 	s.txtImports.Resume(id)
 	s.runtimes.resume(id)
+	s.txtAdmission.Resume(id)
 }
 
 func (s *Server) forgetReader(id readerstore.UserID) error {
-	if err := s.txtImports.Forget(id); err != nil {
+	if err := errors.Join(s.txtAdmission.Forget(id), s.txtImports.Forget(id)); err != nil {
 		return err
 	}
 	// The home has been removed and account admission disabled. Release the

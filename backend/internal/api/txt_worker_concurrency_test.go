@@ -26,7 +26,7 @@ import (
 func TestTXTWorkersLeaveForegroundCapacityAndReleaseHomes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const foregroundSlots = 2
-		readers, err := readerstore.NewManager(t.TempDir(), foregroundSlots+txtimport.Workers,
+		readers, err := readerstore.NewManager(t.TempDir(), foregroundSlots+txtimport.Workers+txtimport.Transfers,
 			library.ReaderSchema(), booksource.ReaderSchema(), book.ReaderSchema(), fontstore.ReaderSchema(), sourceprofile.ReaderSchema(), txtstore.ReaderSchema())
 		if err != nil {
 			t.Fatal(err)
@@ -76,6 +76,40 @@ func TestTXTWorkersLeaveForegroundCapacityAndReleaseHomes(t *testing.T) {
 				t.Fatal("worker did not reach the storage boundary")
 			}
 		}
+		// Active transfers have their own home allowance; queued readers hold none.
+		admission := txtimport.NewAdmission()
+		defer admission.Close()
+		type heldTransfer struct {
+			home    *readerstore.Home
+			release func()
+		}
+		transfers := make([]heldTransfer, 0, txtimport.Transfers)
+		for index := range txtimport.Transfers {
+			id := readerstore.UserID(fmt.Sprintf("%08x-3333-4333-8333-333333333333", index+1))
+			if err := readers.Create(t.Context(), id); err != nil {
+				t.Fatal(err)
+			}
+			ticket, err := admission.Request(id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, release, err := admission.Begin(t.Context(), id, ticket.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer release()
+			home, err := readers.Open(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer home.Close()
+			transfers = append(transfers, heldTransfer{home: home, release: release})
+		}
+		// This reader has no home: scheduling cannot create one or borrow a slot.
+		waiting, err := admission.Request("cccccccc-3333-4333-8333-333333333333")
+		if err != nil || waiting.State != txtimport.TicketWaiting {
+			t.Fatalf("unexpected intake admission: %+v %v", waiting, err)
+		}
 		limits := book.DefaultSearcherLimits()
 		js := analyzer.NewJSVM()
 		searcher := book.NewSearcherWithLimits(fetcher.New(), js, analyzer.NewCacheManager(), nil, nil, limits)
@@ -121,6 +155,18 @@ func TestTXTWorkersLeaveForegroundCapacityAndReleaseHomes(t *testing.T) {
 		}
 		synctest.Wait()
 		pool.Close()
+		for _, transfer := range transfers {
+			if err := transfer.home.Close(); err != nil {
+				t.Fatal(err)
+			}
+			transfer.release()
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			err := readers.Remove(ctx, transfer.home.ID())
+			cancel()
+			if err != nil {
+				t.Fatalf("transfer leaked a home lease: %v", err)
+			}
+		}
 		for _, current := range held {
 			stored, err := txtstore.NewStore(current.home.DB(), current.home.Files()).Get(t.Context(), current.receipt.ID)
 			if err != nil || stored.State != txtstore.Ready {

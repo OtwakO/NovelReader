@@ -47,11 +47,21 @@ Runtime initialization reserves a per-reader slot before opening storage or runn
 
 ### TXT background ownership
 
-`txtimport` runs two independent workers, at most one file per reader, with fair reader turns and durable receipt work. Idle hints retire; queued readers hold no home lease or per-file job object. Production budgets 32 API runtime homes plus two worker homes. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.
+`txtimport` runs two independent workers, at most one file per reader, with fair reader turns and durable receipt work. Idle hints retire; queued readers hold no home lease or per-file job object. `api.ReaderHomeCapacity` budgets API runtime, analysis-worker and transfer homes separately. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.
 
-Before serving, TXT recovery visits retained account homes (including disabled accounts, excluding deleting accounts), then starts workers. Login disabling retains accepted local work. Missing/corrupt homes or failed per-file cleanup are logged without stopping unrelated homes; no inbox originals are replayed or swept. New accounts start empty. Recovery never runs on ordinary runtime initialization or before each job. After restore it runs while that reader remains quiescent. Future upload intake must have its own bounded allowance and lifecycle admission outside the API runtime cache.
+Before serving, TXT recovery visits retained account homes (including disabled accounts, excluding deleting accounts), then starts workers. Login disabling retains accepted local work. Missing/corrupt homes or failed per-file cleanup are logged without stopping unrelated homes; no inbox originals are replayed or swept. New accounts start empty. Recovery never runs on ordinary runtime initialization or before each job. After restore it runs while that reader remains quiescent. Intake admission is composed outside the API runtime cache; acquisition/review HTTP routes remain unexposed.
 
-Restore/deletion gate and drain API runtimes, then TXT workers. Successful deletion forgets both barriers; failure keeps the deletion barrier for retry. Shutdown joins workers and closes runtimes even when another service reports a cleanup error.
+`txtimport.Admission` owns only bounded, reader-fair transfer tickets and cancellation. It neither
+opens homes nor reads files. Waiting/granted tickets expire; active transfers keep their slot until
+I/O and the home lease have ended, even after cancellation. Tickets are reader-bound, single-use,
+process-local permission to start a transfer—not durable receipts or inbox cleanup proofs. The
+[accepted admission contract](../plans/2026-09-10-multi-provider-library.md#accepted-txt-intake-admission)
+owns limits and the remaining HTTP boundary.
+
+Restore/deletion stops and drains intake, then API runtimes and TXT workers. Successful deletion
+forgets the drained barriers; failure keeps them for retry. Restore resumes fresh admission without
+replaying old tickets. Shutdown joins transfers before workers and runtimes, even when another
+service reports a cleanup error.
 
 ## Authentication
 

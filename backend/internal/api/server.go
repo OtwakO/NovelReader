@@ -39,6 +39,7 @@ type Server struct {
 	collectionScheduler *sourceCollectionScheduler
 	backups             *backupservice.Service
 	txtImports          *txtimport.Pool
+	txtAdmission        *txtimport.Admission
 }
 
 func (s *Server) Mux() *http.ServeMux { return s.mux }
@@ -59,6 +60,9 @@ func (s *Server) Close() error {
 	}
 	if s.collectionScheduler != nil {
 		s.collectionScheduler.Close()
+	}
+	if s.txtAdmission != nil {
+		s.txtAdmission.Close()
 	}
 	if s.txtImports != nil {
 		s.txtImports.Close()
@@ -107,7 +111,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		webViewProbe: webViewProbe, chineseConversion: conversion,
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
-	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services}
+	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services, txtAdmission: txtimport.NewAdmission()}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, readerRuntimeCapacity, limits.SessionTTL, services)
 	services.runtimes = s.runtimes
 	// Startup is the admission gate: recover before routes or schedulers run.
