@@ -115,9 +115,12 @@ replacement may report a TXT recovery warning: the data is restored, but unfinis
 cleanup records need attention. Those records are retained for retry; check server logs. Corrupt
 or incompatible archives are still rejected before replacement.
 
-The TXT storage schema and two-worker background analysis pool are registered. TXT upload/inbox
-controls, provider reading/management routes, and import UI are not yet exposed. The current
-BookSource-only delete endpoint rejects file-backed publications to protect their managed data.
+Admitted TXT publications use the existing chapter reader, progress, bookmarks, and removal
+controls. TXT is displayed as literal prose, not interpreted as HTML. Removing a TXT book also
+deletes its managed original. If file cleanup is incomplete, Book Detail keeps a warning and a
+**Retry file cleanup** action visible; the book is already removed from the library and the cleanup
+record remains recoverable. Upload/inbox controls and the import/review UI are not yet exposed.
+This reading integration leaves schema epoch 11 unchanged and adds no migration layer.
 
 ## Registration and recovery
 

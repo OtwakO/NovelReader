@@ -4,8 +4,8 @@ import type { Chapter } from '../../api/models';
 import TocChapterList from './TocChapterList.vue';
 
 const chapters: Chapter[] = [
-  { id: 'volume', bookId: 'book-1', index: 0, title: 'Volume One', url: '', isVolume: true },
-  { id: 'chapter', bookId: 'book-1', index: 1, title: 'A deliberately long chapter title', url: '/1', isVolume: false },
+  { index: 0, title: 'Volume One', isVolume: true },
+  { index: 1, title: 'A deliberately long chapter title', isVolume: false },
 ];
 
 describe('TocChapterList', () => {

@@ -63,7 +63,8 @@ Candidate operations are transient, reader-owned, bounded, reconnectable over SS
 
 ## Catalog synchronization
 
-Catalog availability is separate from shelf existence.
+Catalog availability is separate from shelf existence. The synchronization workflow below is
+BookSource-owned; TXT reads its already-published index without crawling or reanalysis.
 
 - Cached chapters are read from SQLite.
 - A missing catalog starts or joins one active synchronization for that book.
@@ -73,13 +74,22 @@ Catalog availability is separate from shelf existence.
 - Successful catalog state leaves process memory; failures remain observable until explicit retry.
 - Book deletion and source switching invalidate/drain old work for prompt cleanup, while the transactional source/version guard provides correctness.
 
-`GET /api/books/{id}/chapters` returns `{chapters, contentRevision}`, `202` synchronization state, or a typed failure. `POST /api/books/{id}/chapters/sync` retries a retained failure; it does not force-refresh an already ready catalog.
+`GET /api/books/{id}/chapters` returns `{chapters, contentRevision}` for both providers. Common
+chapter entries contain only `index`, `title`, and `isVolume`; native IDs, URLs and file paths stay
+behind the reading interface. BookSource may instead return `202` synchronization state or a typed failure. `POST /api/books/{id}/chapters/sync` retries a retained failure; it does not force-refresh an already ready catalog.
 
 See the completed [catalog synchronization plan](../plans/2026-08-31-catalog-synchronization.md).
 
 ## Reading documents and resources
 
-The current BookSource path opens each chapter as a versioned **Prose Document** containing ordered paragraph and inline-image blocks. This is an explicit current modality, not a universal media-block model: future image-sequence or audio reading should add their own Reading Document and renderer behavior behind [decision 0002](../decisions/0002-reading-documents-and-resources.md).
+`backend/internal/reading` coordinates provider selection, catalog/document adaptation and
+revision-qualified locations above the native stores. Its private provider interface covers only
+catalog lookup, document opening and chapter lookup; acquisition, source management and file
+removal are separate operations. HTTP still owns authorization and issues image resource URLs.
+
+Both BookSource and TXT open chapters as versioned **Prose Documents**. BookSource supplies ordered
+paragraph and inline-image blocks; TXT reads one saved byte range and supplies literal paragraphs,
+without passing the original through HTML extraction or source-specific text cleanup. This is an explicit current modality, not a universal media-block model: future image-sequence or audio reading should add their own Reading Document and renderer behavior behind [decision 0002](../decisions/0002-reading-documents-and-resources.md).
 
 Inline-image blocks expose only opaque NovelReader-controlled Content Resource references. Source image origins remain backend-only in the bounded chapter cache. Authenticated chapter-image endpoints resolve remote resources from the active Exact Source Binding with source headers, cookies, request options, sessions, and portable decoding; bounded `data:image/...` resources are decoded locally through the same resource path. Existing text-only cached chapters without stored blocks are translated into paragraph blocks at the response seam rather than requiring a cache migration.
 
@@ -96,8 +106,10 @@ The frontend Reading Session owns chapter loading, navigation, common chrome, re
 
 `library` owns publication IDs, provider discrimination, display metadata, catalog summaries,
 revision-qualified chapter/index and normalized in-chapter progress, and bookmarks. BookSource owns
-active/alternate bindings, native chapters and the bounded processed chapter cache. There is no shared
-section table or duplicate shared metadata in BookSource storage.
+active/alternate bindings, native chapters and the bounded processed chapter cache. TXT owns its
+published byte-range index and managed original. The reading module validates each provider's
+readable chapter/title before library CAS commits progress or bookmarks. There is no shared section
+table or duplicate shared metadata in BookSource storage.
 
 `GET /api/books` and `/api/books/{id}` return shared library fields plus optional cover/display-label
 enrichment. `/api/books/{id}/booksource` exposes the combined BookSource-context projection separately.
@@ -138,6 +150,16 @@ images removes their figures, captions, placeholders, and image requests rather 
 
 The Vue frontend owns presentation and interaction: shelf filtering/sorting/restoration, TOC filtering/ordering/current positioning, keyboard/tap navigation, wake lock, typography, overlays, responsive behavior, and modality-specific rendering. It never crawls or evaluates source rules and does not reconstruct provider resource locations.
 
+## Publication removal
+
+The common delete route dispatches to the owning lifecycle. TXT removal first hides the library
+item and cascades its bookmarks, then deletes owned bytes/index/receipt. Cleanup failure returns
+`status: removed` with warning `txt_cleanup_pending`; it is not a claim of complete byte deletion.
+Book Detail retains a focused result screen and retry control rather than navigating away and
+losing the warning. Retrying the same book ID reaches the retained removal record even when the
+shelf row is gone. Pending unpublished acquisitions cannot be discarded through this route.
+Unrecognized providers remain explicitly unsupported; unrelated files are never swept.
+
 ## Failure model
 
 - BookSource failures are typed by workflow and remain distinct from storage/not-found failures.
@@ -153,4 +175,6 @@ Both implementations run the shared synthetic cases in `testdata/book-identity.j
 
 ## Narrow chapter lookups
 
-Chapter content reads fetch the exact chapter and its immediate catalog successor (including volume headings), together with the owning BookSource binding and library revision in one SQLite read transaction. The transaction ends before network work. Progress validation checks readable-chapter existence directly. Both queries use the `(book_id, idx)` chapter index. Full-catalog reads remain for catalog display and workflows that need the complete list. Missing indices are not silently advanced; shared progress CAS validates content revision and state version.
+Chapter content reads fetch the exact chapter and its immediate catalog successor (including volume headings), together with the owning BookSource binding and library revision in one SQLite read transaction. The transaction ends before network work. Progress/bookmark validation uses that bounded snapshot to obtain the readable chapter and title.
+TXT catalog and location lookups join only published receipts with indexed sections, with no file
+read during progress/bookmark validation. The native queries use their chapter/section indexes. Full-catalog reads remain for catalog display and workflows that need the complete list. Missing indices are not silently advanced; shared progress CAS validates content revision and state version.

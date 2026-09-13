@@ -7,4 +7,4 @@ export function getBook(id: string) { return request<LibraryBook>(`/books/${enco
 export function getBookSource(id: string) { return request<Book>(`/books/${encodeURIComponent(id)}/booksource`); }
 export function mergeBookSources(id: string, sources: AltSource[]) { return request<Book>(`/books/${encodeURIComponent(id)}/sources`, { method: 'POST', body: JSON.stringify({ sources }) }); }
 export function clearBookSources(id: string) { return request<Book>(`/books/${encodeURIComponent(id)}/sources`, { method: 'DELETE' }); }
-export function deleteBook(id: string) { return request<{ status: string }>(`/books?id=${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+export function deleteBook(id: string) { return request<{ status: string; warnings?: string[] }>(`/books?id=${encodeURIComponent(id)}`, { method: 'DELETE' }); }

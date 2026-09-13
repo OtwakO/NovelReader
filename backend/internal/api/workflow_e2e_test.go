@@ -17,6 +17,7 @@ import (
 	"github.com/otwako/novelreader/internal/database"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/reading"
 )
 
 func TestRawSourceAPIWorkflowReadsFirstMiddleLastChapters(t *testing.T) {
@@ -99,13 +100,13 @@ func TestRawSourceAPIWorkflowReadsFirstMiddleLastChapters(t *testing.T) {
 	}
 
 	response = waitForCatalogRoute(t, server, "book-1")
-	var catalog catalogResponse
+	var catalog reading.Catalog
 	if err := json.Unmarshal(response.Body.Bytes(), &catalog); err != nil || response.Code != http.StatusOK || len(catalog.Chapters) != 5 {
 		t.Fatalf("toc status=%d catalog=%+v err=%v body=%s", response.Code, catalog, err, response.Body.String())
 	}
 	for _, index := range []int{0, 2, 4} {
 		response = performAPIRequest(server, http.MethodGet, fmt.Sprintf("/api/books/book-1/chapters/%d/content?contentRevision=%d", index, catalog.ContentRevision), nil)
-		var content chapterContentResponse
+		var content reading.Content
 		expected := fmt.Sprintf("content %d begins here with enough meaningful narrative prose to verify this source as readable while preserving deterministic first, middle, and last chapter checks.", index+1)
 		if err := json.Unmarshal(response.Body.Bytes(), &content); err != nil || response.Code != http.StatusOK || content.Document.Kind != "prose" || len(content.Document.Blocks) != 1 || content.Document.Blocks[0].Kind != processor.ProseBlockParagraph || content.Document.Blocks[0].Text != expected {
 			t.Fatalf("chapter %d status=%d content=%+v err=%v body=%s", index, response.Code, content, err, response.Body.String())

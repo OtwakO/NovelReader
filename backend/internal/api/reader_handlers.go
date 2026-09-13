@@ -18,7 +18,7 @@ import (
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/library"
-	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/reading"
 	"github.com/otwako/novelreader/internal/sourceinteraction"
 	"github.com/otwako/novelreader/internal/sourceprofile"
 )
@@ -356,19 +356,30 @@ func (s *readerAPI) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load book")
 		return
 	}
-	// This handler still owns only BookSource removal. File-backed publications
-	// must use their provider lifecycle, not lose their shared row in isolation.
-	// Replace this capability gate when TXT management routes are connected.
-	if item != nil && item.Provider != library.BookSource {
-		writeErrorCode(w, http.StatusNotImplemented, "provider_not_supported", "removal is not yet available for this publication provider")
+	// A hidden TXT publication can still have a removal record under its stable
+	// ID. Retry that lifecycle rather than treating a missing shelf row as done.
+	if s.txtStore != nil && (item == nil || item.Provider == library.TXT) {
+		pending, err := s.txtStore.RemovePublication(r.Context(), id)
+		if pending {
+			slog.Warn("TXT publication removed; file cleanup pending", "book_id", id, "error", err)
+			writeJSON(w, http.StatusOK, map[string]any{"status": "removed", "warnings": []string{"txt_cleanup_pending"}})
+			return
+		}
+		if err != nil {
+			writeReadingError(w, err)
+			return
+		}
+	} else if item != nil && item.Provider != library.BookSource {
+		writeErrorCode(w, http.StatusNotImplemented, "provider_not_supported", "removal is not available for this publication provider")
 		return
-	}
-	if s.catalogs != nil {
-		s.catalogs.Invalidate(id)
-	}
-	if err := s.bookStore.DeleteBook(id); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+	} else {
+		if s.catalogs != nil {
+			s.catalogs.Invalidate(id)
+		}
+		if err := s.bookStore.DeleteBook(id); err != nil {
+			writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to remove book")
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
@@ -378,72 +389,33 @@ func (s *readerAPI) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 // --- Chapters ---
 
 func (s *readerAPI) handleGetChapters(w http.ResponseWriter, r *http.Request) {
-	if s.catalogs == nil {
-		writeErrorCode(w, http.StatusServiceUnavailable, "catalog_unavailable", "catalog synchronization is unavailable")
-		return
-	}
-	writeCatalogResult(w, s.catalogs.Get(r.PathValue("id")))
+	s.writeCatalog(w, r, false)
 }
 
 func (s *readerAPI) handleRetryChapters(w http.ResponseWriter, r *http.Request) {
-	if s.catalogs == nil {
-		writeErrorCode(w, http.StatusServiceUnavailable, "catalog_unavailable", "catalog synchronization is unavailable")
+	s.writeCatalog(w, r, true)
+}
+
+func (s *readerAPI) writeCatalog(w http.ResponseWriter, r *http.Request, retry bool) {
+	result, err := s.reading.Catalog(r.Context(), r.PathValue("id"), retry)
+	if err != nil {
+		writeReadingError(w, err)
 		return
 	}
-	writeCatalogResult(w, s.catalogs.Retry(r.PathValue("id")))
-}
-
-type catalogResponse struct {
-	Chapters        []book.Chapter `json:"chapters"`
-	ContentRevision int64          `json:"contentRevision"`
-}
-
-func writeCatalogResult(w http.ResponseWriter, result book.CatalogResult) {
-	switch result.State {
-	case book.CatalogReady:
-		writeJSON(w, http.StatusOK, catalogResponse{Chapters: result.Chapters, ContentRevision: result.ContentRevision})
-	case book.CatalogSyncing:
+	if result.Syncing {
 		w.Header().Set("Retry-After", "1")
-		writeJSON(w, http.StatusAccepted, map[string]string{"state": string(book.CatalogSyncing)})
-	case book.CatalogFailed:
-		switch result.Failure {
-		case book.CatalogFailureBookNotFound:
-			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		case book.CatalogFailureSourceNotFound:
-			writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
-		case book.CatalogFailureStorage:
-			writeErrorCode(w, http.StatusInternalServerError, "storage_error", "catalog storage unavailable")
-		case book.CatalogFailureUpstream:
-			if result.Err != nil {
-				writeCrawlError(w, "toc", result.Err)
-				return
-			}
-			writeErrorCode(w, http.StatusBadGateway, "catalog_sync_failed", "catalog synchronization failed")
-		default:
-			writeErrorCode(w, http.StatusBadGateway, "catalog_sync_failed", "catalog synchronization failed")
-		}
-	default:
-		writeErrorCode(w, http.StatusInternalServerError, "catalog_state_invalid", "invalid catalog synchronization state")
+		writeJSON(w, http.StatusAccepted, map[string]string{"state": "syncing"})
+		return
 	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *readerAPI) handleGetChapterContent(w http.ResponseWriter, r *http.Request) {
-	bookID := r.PathValue("id")
 	idx := r.PathValue("idx")
-
 	index, err := strconv.Atoi(idx)
-	// Preserve the previous exact decimal match (e.g. "01" is not chapter 1).
+	// Keep exact decimal addressing: "01" is not chapter 1.
 	if err != nil || strconv.Itoa(index) != idx {
 		writeErrorCode(w, http.StatusNotFound, "chapter_not_found", "chapter not found")
-		return
-	}
-	b, ch, next, err := s.bookStore.GetChapterSnapshot(r.Context(), bookID, index)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load chapters failed")
-		return
-	}
-	if b == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
 		return
 	}
 	revision, err := strconv.ParseInt(r.URL.Query().Get("contentRevision"), 10, 64)
@@ -451,56 +423,12 @@ func (s *readerAPI) handleGetChapterContent(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "contentRevision is required")
 		return
 	}
-	if revision != b.ContentRevision {
-		writeErrorCode(w, http.StatusConflict, "state_changed", "book interpretation changed")
-		return
-	}
-	if ch == nil {
-		writeErrorCode(w, http.StatusNotFound, "chapter_not_found", "chapter not found")
-		return
-	}
-
-	src, err := s.sourceStore.GetByID(b.SourceID)
+	content, err := s.reading.Open(r.Context(), r.PathValue("id"), revision, index)
 	if err != nil {
-		if s.writeChapterCacheFallback(w, r, b, ch) {
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "load source failed")
+		writeReadingError(w, err)
 		return
 	}
-	if src == nil {
-		if s.writeChapterCacheFallback(w, r, b, ch) {
-			return
-		}
-		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
-		return
-	}
-
-	rawContent, contentTitle, err := s.searcher.GetChapterContentForBookContext(r.Context(), *src, b, ch, next)
-	if err == nil && strings.TrimSpace(rawContent) == "" {
-		err = errors.New("content: empty extraction")
-	}
-	if err != nil {
-		if s.writeChapterCacheFallback(w, r, b, ch) {
-			return
-		}
-		writeCrawlError(w, "content", err)
-		return
-	}
-
-	displayTitle := ch.Title
-	if contentTitle != "" {
-		displayTitle = contentTitle
-	}
-
-	if !s.validateChapterSnapshot(w, r, b) {
-		return
-	}
-	proc := processor.New(s.processorCfg)
-	result := proc.Process(displayTitle, rawContent)
-	s.saveChapterCache(b, ch, result)
-
-	writeJSON(w, http.StatusOK, newChapterContentResponse(b.ID, b.ContentRevision, ch.Index, result.Title, result.Paragraphs, result.Blocks, false))
+	writeJSON(w, http.StatusOK, content)
 }
 
 // --- Progress ---
@@ -530,39 +458,13 @@ func (s *readerAPI) handleUpdateProgress(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	chapterIndex, position := *req.ChapterIndex, *req.Position
-	storedBook, err := s.libraryStore.Get(r.Context(), bookID)
+	stateVersion, err := s.reading.UpdateProgress(r.Context(), bookID, library.Revision{Content: *req.ContentRevision, State: *req.StateVersion}, chapterIndex, position)
 	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load book")
-		return
-	}
-	if storedBook == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-	if storedBook.ContentRevision != *req.ContentRevision || storedBook.StateVersion != *req.StateVersion {
-		writeErrorCode(w, http.StatusConflict, "state_changed", "book state changed before progress was saved")
-		return
-	}
-	validChapter, err := s.bookStore.HasReadableChapter(r.Context(), bookID, chapterIndex)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load chapters")
-		return
-	}
-	if !validChapter {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "chapterIndex is not a readable chapter")
-		return
-	}
-	stateVersion, err := s.bookStore.UpdateProgress(bookID, *req.ContentRevision, *req.StateVersion, chapterIndex, position)
-	if err != nil {
-		if errors.Is(err, book.ErrBookNotFound) {
-			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
+		if errors.Is(err, reading.ErrInvalidLocation) {
+			writeErrorCode(w, http.StatusBadRequest, "invalid_progress", "chapterIndex is not a readable chapter")
 			return
 		}
-		if errors.Is(err, book.ErrBookStateChanged) {
-			writeErrorCode(w, http.StatusConflict, "state_changed", "book state changed before progress was saved")
-			return
-		}
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to save progress")
+		writeReadingError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "saved", "stateVersion": stateVersion})

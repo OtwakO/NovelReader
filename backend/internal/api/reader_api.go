@@ -11,6 +11,8 @@ import (
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
+	"github.com/otwako/novelreader/internal/reading"
+	"github.com/otwako/novelreader/internal/txtstore"
 )
 
 // readerServices are assembled once by Server and borrowed by reader handlers.
@@ -34,12 +36,20 @@ type readerAPI struct {
 	*readerServices
 	mux             *http.ServeMux
 	coverCacheScope string
+	reading         *reading.Service
+	txtStore        *txtstore.Store
 }
 
 func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 	a := &readerAPI{readerRuntime: runtime, readerServices: services, mux: http.NewServeMux(), coverCacheScope: "standalone"}
 	if runtime.home != nil {
 		a.coverCacheScope = readerstore.DeviceID(runtime.home.ID())
+		a.txtStore = txtstore.NewStore(runtime.db, runtime.home.Files())
+	}
+	a.reading = &reading.Service{Library: runtime.libraryStore, TXT: a.txtStore,
+		BookSource: &reading.BookSource{Store: runtime.bookStore, Sources: runtime.sourceStore,
+			Catalogs: runtime.catalogs, Searcher: runtime.searcher, ProcessorConfig: services.processorCfg,
+			ImageHref: chapterImageHref},
 	}
 	a.registerRoutes()
 	return a

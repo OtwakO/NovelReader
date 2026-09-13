@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/otwako/novelreader/internal/book"
-	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/reading"
 )
 
 func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
@@ -70,8 +70,8 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 		t.Fatal("invalid or stale revision reached upstream")
 	}
 	response := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content?contentRevision=1", nil)
-	var fresh chapterContentResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &fresh); err != nil || response.Code != http.StatusOK || fresh.OfflineCopy || fresh.ContentRevision != 1 || fresh.Version != proseDocumentVersion || fresh.Document.Kind != "prose" || len(fresh.Document.Blocks) != 2 || fresh.Document.Blocks[1].Resource == nil {
+	var fresh reading.Content
+	if err := json.Unmarshal(response.Body.Bytes(), &fresh); err != nil || response.Code != http.StatusOK || fresh.OfflineCopy || fresh.ContentRevision != 1 || fresh.Version != reading.DocumentVersion || fresh.Document.Kind != "prose" || len(fresh.Document.Blocks) != 2 || fresh.Document.Blocks[1].Resource == nil {
 		t.Fatalf("fresh status=%d result=%+v err=%v body=%s", response.Code, fresh, err, response.Body.String())
 	}
 	for _, index := range []string{"00", "1"} {
@@ -80,7 +80,7 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 			t.Fatalf("non-exact chapter %q: status=%d", index, response.Code)
 		}
 	}
-	var cached chapterContentResponse
+	var cached reading.Content
 	for _, upstreamMode := range []int32{2, 1} {
 		mode.Store(upstreamMode)
 		response = performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content?contentRevision=1", nil)
@@ -109,21 +109,5 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 	}
 	if response := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content?contentRevision=3", nil); response.Code != http.StatusBadGateway {
 		t.Fatalf("changed URL unexpectedly used cache: %s", response.Body.String())
-	}
-}
-
-func TestChapterContentTranslatesLegacyTextBlocksAtResponseSeam(t *testing.T) {
-	blocks := []processor.ProseBlock{
-		{Kind: "text", Text: "before"},
-		{Kind: processor.ProseBlockImage, Src: "https://source.test/image"},
-		{Kind: "text", Text: "after"},
-	}
-
-	response := newChapterContentResponse("book", 3, 2, "Chapter", nil, blocks, true)
-	if len(response.Document.Blocks) != 3 || response.Document.Blocks[0].Kind != processor.ProseBlockParagraph || response.Document.Blocks[1].Kind != processor.ProseBlockImage || response.Document.Blocks[2].Kind != processor.ProseBlockParagraph {
-		t.Fatalf("blocks=%+v", response.Document.Blocks)
-	}
-	if response.Document.Blocks[1].Resource == nil || response.Document.Blocks[1].Resource.Href != "/api/books/book/chapters/2/images/0?contentRevision=3" {
-		t.Fatalf("image block=%+v", response.Document.Blocks[1])
 	}
 }

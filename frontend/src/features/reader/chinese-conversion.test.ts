@@ -6,7 +6,7 @@ import { convertReaderDisplay, createReaderDisplayConverter } from './chinese-co
 
 vi.mock('../../api/system', () => ({ convertChineseTexts: vi.fn() }));
 
-const chapters: Chapter[] = [{ id: 'chapter-1', bookId: 'book-1', index: 0, title: '软件后台', url: '/1', isVolume: false }];
+const chapters: Chapter[] = [{ index: 0, title: '软件后台', isVolume: false }];
 const content: ChapterContent = {
   version: 1, contentRevision: 7,
   document: {

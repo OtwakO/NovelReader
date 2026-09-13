@@ -15,30 +15,46 @@ import (
 // Discard retains a removal record until all owned bytes have been removed.
 // It is idempotent. Callers cancel any active transfer before discarding it.
 func (s *Store) Discard(ctx context.Context, id string) error {
+	_, err := s.discard(ctx, id, false)
+	return err
+}
+
+// RemovePublication also retries a retained removal record. A true return means
+// the publication is hidden but cleanup failed; the error must still be reported.
+// Library IDs equal receipt IDs by schema, including after library_id is cleared.
+func (s *Store) RemovePublication(ctx context.Context, id string) (cleanupPending bool, err error) {
+	return s.discard(ctx, id, true)
+}
+
+func (s *Store) discard(ctx context.Context, id string, publicationOnly bool) (bool, error) {
 	unlock, err := s.files.LockMutation(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer unlock()
 	value, err := s.Get(ctx, id)
 	if errors.Is(err, ErrNotFound) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
+	}
+	if publicationOnly && value.LibraryID == "" && value.State != Removing {
+		return false, ErrNotFound
 	}
 	if err := validateReceiptPath(value); err != nil {
-		return err
+		return false, err
 	}
 	root, err := s.files.OpenRoot()
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer root.Close()
 	if err := s.beginRemoval(ctx, value); err != nil {
-		return err
+		return false, err
 	}
-	return s.finishRemoval(ctx, root, value)
+	err = s.finishRemoval(ctx, root, value)
+	return err != nil, err
 }
 
 func (s *Store) finishRemoval(ctx context.Context, root *os.Root, value Receipt) error {

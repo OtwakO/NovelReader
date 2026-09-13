@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/otwako/novelreader/internal/library"
+	"github.com/otwako/novelreader/internal/reading"
 )
 
 func (s *readerAPI) handleListBookmarks(w http.ResponseWriter, r *http.Request) {
@@ -60,40 +61,20 @@ func (s *readerAPI) handleAddBookmark(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_bookmark", "bookmark fields are required and must be valid")
 		return
 	}
-	stored, err := s.libraryStore.Get(r.Context(), bookID)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load book")
-		return
-	}
-	if stored == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-	if stored.ContentRevision != *req.ContentRevision {
-		writeErrorCode(w, http.StatusConflict, "state_changed", "book interpretation changed before bookmark was saved")
-		return
-	}
-	chapter, _, err := s.bookStore.GetChapterWithNext(r.Context(), bookID, *req.ChapterIndex)
-	if err != nil {
-		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load chapter")
-		return
-	}
-	if chapter == nil || chapter.IsVolume || chapter.Title == "" {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_bookmark", "chapterIndex is not a readable chapter")
-		return
-	}
-	mark := library.Bookmark{ID: req.ID, BookID: bookID, ChapterIndex: *req.ChapterIndex, ChapterTitle: chapter.Title, Position: *req.Position, Note: strings.TrimSpace(req.Note)}
-	stateVersion, err := s.libraryStore.AddBookmark(r.Context(), &mark, library.Revision{Content: *req.ContentRevision, State: *req.StateVersion})
+	mark := library.Bookmark{ID: req.ID, BookID: bookID, ChapterIndex: *req.ChapterIndex, Position: *req.Position, Note: strings.TrimSpace(req.Note)}
+	stateVersion, err := s.reading.AddBookmark(r.Context(), &mark, library.Revision{Content: *req.ContentRevision, State: *req.StateVersion})
 	if err != nil {
 		switch {
 		case errors.Is(err, library.ErrNotFound):
 			writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
 		case errors.Is(err, library.ErrStateChanged):
 			writeErrorCode(w, http.StatusConflict, "state_changed", "book state changed before bookmark was saved")
+		case errors.Is(err, reading.ErrInvalidLocation):
+			writeErrorCode(w, http.StatusBadRequest, "invalid_bookmark", "chapterIndex is not a readable chapter")
 		case errors.Is(err, library.ErrBookmarkConflict):
 			writeErrorCode(w, http.StatusConflict, "bookmark_conflict", "bookmark ID already exists with different content")
 		default:
-			writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to save bookmark")
+			writeReadingError(w, err)
 		}
 		return
 	}

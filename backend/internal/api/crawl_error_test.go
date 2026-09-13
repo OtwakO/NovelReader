@@ -14,6 +14,8 @@ import (
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/database"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/reading"
 )
 
 func TestHandleGetChaptersExposesTypedPaginationFailure(t *testing.T) {
@@ -75,7 +77,7 @@ func TestHandleGetChaptersStartsAndReturnsSynchronizedCatalog(t *testing.T) {
 		t.Fatalf("start status=%d headers=%v body=%s", started.Code, started.Header(), started.Body.String())
 	}
 	ready := waitForCatalogResponse(t, server, "book-1", http.StatusOK)
-	var catalog catalogResponse
+	var catalog reading.Catalog
 	if err := json.Unmarshal(ready.Body.Bytes(), &catalog); err != nil || len(catalog.Chapters) != 1 || catalog.Chapters[0].Title != "第一章" || catalog.ContentRevision != 1 {
 		t.Fatalf("catalog=%+v error=%v", catalog, err)
 	}
@@ -159,8 +161,7 @@ func TestHandlersDistinguishNotFoundFromStorageFailure(t *testing.T) {
 	initializeBookAPITestSchema(t, db)
 	sourceStore := booksource.NewStore(db)
 	searcher := book.NewSearcher(fetcher.NewInsecure(time.Second), analyzer.NewJSVM(), nil, sourceStore, bookStore)
-	server := newReaderTestServer(&readerRuntime{bookStore: bookStore, sourceStore: sourceStore, searcher: searcher})
-	server.standalone.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
+	server := NewServer(sourceStore, bookStore, searcher, nil, nil, nil, nil, processor.Config{}, t.TempDir(), db)
 	defer server.standalone.catalogs.Close()
 
 	missing := invokeBookRoute(server.standalone.handleGetChapters, "missing", "")
@@ -191,8 +192,7 @@ func newCrawlAPIServer(t *testing.T) (*Server, crawlStores, func()) {
 	bookStore := book.NewStore(db)
 	initializeBookAndSourceAPITestSchema(t, db)
 	searcher := book.NewSearcher(fetcher.NewInsecure(2*time.Second), analyzer.NewJSVM(), nil, sourceStore, bookStore)
-	server := newReaderTestServer(&readerRuntime{sourceStore: sourceStore, bookStore: bookStore, searcher: searcher})
-	server.standalone.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
+	server := NewServer(sourceStore, bookStore, searcher, nil, nil, nil, nil, processor.Config{}, t.TempDir(), db)
 	return server, crawlStores{sourceStore, bookStore}, func() { server.standalone.catalogs.Close(); _ = db.Close() }
 }
 

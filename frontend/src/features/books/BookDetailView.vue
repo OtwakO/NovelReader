@@ -46,6 +46,8 @@ export default defineComponent({
       switching: false,
       removing: false,
       confirmingRemove: false,
+      removedBookId: "",
+      cleanupPending: false,
       persistence: Promise.resolve() as Promise<void>,
     };
   },
@@ -73,6 +75,8 @@ export default defineComponent({
       this.book = null;
       this.nativeBook = null;
       this.chapters = [];
+      this.removedBookId = "";
+      this.cleanupPending = false;
       void this.load();
     },
   },
@@ -188,13 +192,25 @@ export default defineComponent({
       }
     },
     async removeBook() {
-      if (!this.book || this.removing) return;
+      const bookId = this.book?.id || this.removedBookId;
+      if (!bookId || this.removing) return;
       this.removing = true;
+      this.bookError = "";
       try {
-        const bookId = this.book.id;
-        await deleteBook(bookId);
+        const result = await deleteBook(bookId);
         clearCandidateCommittedBook(bookId);
-        await this.$router.replace("/shelf");
+        if (bookId !== this.bookId) return;
+        ++this.loadGeneration;
+        this.book = null;
+        this.nativeBook = null;
+        this.chapters = [];
+        this.removedBookId = bookId;
+        this.cleanupPending = Boolean(result.warnings?.includes('txt_cleanup_pending'));
+        if (!this.cleanupPending) await this.$router.replace("/shelf");
+        else {
+          await this.$nextTick();
+          (this.$refs.removalStatus as HTMLElement | undefined)?.focus();
+        }
       } catch (cause) {
         this.bookError =
           cause instanceof Error
@@ -215,6 +231,15 @@ export default defineComponent({
     :description="$t('bookDetail.description')"
   >
     <p v-if="loading" aria-busy="true">{{ $t("bookDetail.loading") }}</p>
+    <section v-else-if="removedBookId" class="state" aria-live="polite">
+      <h2 ref="removalStatus" tabindex="-1">{{ $t('bookDetail.removed') }}</h2>
+      <p v-if="cleanupPending" role="alert">{{ $t('bookDetail.cleanupPending') }}</p>
+      <p v-if="bookError" class="banner-error" role="alert">{{ bookError }}</p>
+      <div class="cleanup-actions">
+        <AppButton v-if="cleanupPending" variant="secondary" :busy="removing" @click="removeBook">{{ $t('bookDetail.retryCleanup') }}</AppButton>
+        <RouterLink to="/shelf">{{ $t('bookDetail.back') }}</RouterLink>
+      </div>
+    </section>
     <section v-else-if="!book" class="state">
       <p role="alert">{{ bookError || $t("bookDetail.notFound") }}</p>
       <RouterLink to="/shelf">{{ $t("bookDetail.back") }}</RouterLink>
@@ -267,7 +292,7 @@ export default defineComponent({
       >
         <strong>{{ $t("bookDetail.confirmRemoveTitle") }}</strong>
         <p>
-          {{ $t("bookDetail.confirmRemoveDescription", { name: book.name }) }}
+          {{ $t(book.provider === 'txt' ? 'bookDetail.confirmRemoveTXT' : 'bookDetail.confirmRemoveDescription', { name: book.name }) }}
         </p>
         <div>
           <AppButton variant="secondary" @click="confirmingRemove = false">
@@ -316,6 +341,7 @@ export default defineComponent({
 </template>
 
 <style scoped>
+.cleanup-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
 .state,
 .confirmation,
 .catalog-status,

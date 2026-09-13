@@ -69,10 +69,7 @@ export interface Book extends LibraryBook {
 }
 
 export interface Chapter {
-  id: string;
-  bookId: string;
   index: number;
   title: string;
-  url: string;
   isVolume: boolean;
 }

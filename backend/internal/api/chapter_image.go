@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/otwako/novelreader/internal/book"
@@ -100,4 +101,21 @@ func cachedImageURL(cached *book.CachedChapter, requested int) string {
 		imageIndex++
 	}
 	return ""
+}
+
+func chapterImageHref(bookID string, contentRevision int64, chapterIndex, imageIndex int) string {
+	return "/api/books/" + url.PathEscape(bookID) + "/chapters/" + strconv.Itoa(chapterIndex) + "/images/" + strconv.Itoa(imageIndex) + "?contentRevision=" + strconv.FormatInt(contentRevision, 10)
+}
+
+func (s *readerAPI) validateChapterSnapshot(w http.ResponseWriter, r *http.Request, snapshot *book.Book) bool {
+	current, err := s.bookStore.IsChapterSnapshotCurrent(r.Context(), snapshot)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "validate chapter interpretation failed")
+		return false
+	}
+	if !current {
+		writeErrorCode(w, http.StatusConflict, "state_changed", "book interpretation changed while loading content")
+		return false
+	}
+	return true
 }

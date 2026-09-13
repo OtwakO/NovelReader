@@ -1,0 +1,41 @@
+// Package reading coordinates provider-owned content with shared library state.
+package reading
+
+type Chapter struct {
+	Index    int    `json:"index"`
+	Title    string `json:"title"`
+	IsVolume bool   `json:"isVolume"`
+}
+
+type Catalog struct {
+	Chapters        []Chapter `json:"chapters"`
+	ContentRevision int64     `json:"contentRevision"`
+	Syncing         bool      `json:"-"`
+}
+
+const DocumentVersion = 1
+
+type ResourceReference struct {
+	Href string `json:"href"`
+}
+type Block struct {
+	Kind     string             `json:"kind"`
+	Text     string             `json:"text,omitempty"`
+	Resource *ResourceReference `json:"resource,omitempty"`
+	Alt      string             `json:"alt,omitempty"`
+}
+type Document struct {
+	Kind   string  `json:"kind"`
+	Title  string  `json:"title"`
+	Blocks []Block `json:"blocks"`
+}
+type Content struct {
+	ContentRevision int64    `json:"contentRevision"`
+	Version         int      `json:"version"`
+	Document        Document `json:"document"`
+	OfflineCopy     bool     `json:"offlineCopy,omitempty"`
+}
+
+func prose(revision int64, title string, blocks []Block) Content {
+	return Content{ContentRevision: revision, Version: DocumentVersion, Document: Document{Kind: "prose", Title: title, Blocks: blocks}}
+}

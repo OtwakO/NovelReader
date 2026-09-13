@@ -106,3 +106,20 @@ describe('reader navigation lifecycle',()=>{
     expect(getChapterContent).toHaveBeenCalledTimes(3);
   });
 });
+
+it('reads TXT through the existing reader without source context or recovery', async () => {
+  vi.mocked(getBook).mockResolvedValue({id:'book',provider:'txt',name:'Imported novel',author:'Author',coverUrl:'',intro:'',kind:'',lastChapter:'',durChapterIndex:0,durChapterPos:0,totalChapterNum:3,contentRevision:7,stateVersion:0});
+  vi.mocked(waitForCatalog).mockResolvedValue({contentRevision:7,chapters:[0,1,2].map(index=>({index,title:String(index),isVolume:false}))});
+  const vm=await open();
+  expect(getBookSource).not.toHaveBeenCalled();
+  expect(vm.displayContent?.document.title).toBe('old 0');
+  expect(wrapper.find('reader-source-sheet-stub').exists()).toBe(false);
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new Error('Managed file unavailable'));
+  await vm.navigate(1);
+  expect(vm.error).toBe('Managed file unavailable');
+  expect(vm.activeSheet).not.toBe('sources');
+  await vm.navigate(1);
+  expect(vm.displayContent?.document.title).toBe('old 1');
+  await expect(vm.captureBookmark()).resolves.toEqual({contentRevision:7,chapterIndex:1,position:0});
+  expect(saveProgress).toHaveBeenLastCalledWith('book',7,expect.any(Number),1,0);
+});

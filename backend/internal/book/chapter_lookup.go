@@ -32,13 +32,6 @@ func getChapterWithNext(ctx context.Context, query interface {
 	return &chapters[0], &chapters[1], nil
 }
 
-// HasReadableChapter validates one progress target without loading the catalog.
-func (s *Store) HasReadableChapter(ctx context.Context, bookID string, index int) (bool, error) {
-	var readable bool
-	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM chapters WHERE book_id = ? AND idx = ? AND is_volume = 0)`, bookID, index).Scan(&readable)
-	return readable, err
-}
-
 // GetChapterSnapshot reads the binding, interpretation revision and chapter pair
 // from one database snapshot. Network work must happen after this transaction ends.
 func (s *Store) GetChapterSnapshot(ctx context.Context, bookID string, index int) (*Book, *Chapter, *Chapter, error) {

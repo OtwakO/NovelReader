@@ -10,7 +10,7 @@ const i18n = createI18n({
   messages: { en: {
     app: { common: { unknownAuthor: 'Unknown' } },
     bookDetail: {
-      title: 'Book details', description: 'Description', loading: 'Loading', loadFailed: 'Load failed', tocFailed: 'TOC failed', tocSyncing: 'Synchronizing the chapter list…', retryToc: 'Retry chapter list', notFound: 'Not found', back: 'Back', coverAlt: 'Cover of {name}', tocEntries: '{count} entries', progress: '{percent}% read', latest: 'Latest: {chapter}', currentSource: 'Current source: {source}', continue: 'Continue', remove: 'Remove', confirmRemoveTitle: 'Remove?', confirmRemoveDescription: 'Remove {name}?', cancel: 'Cancel', confirmRemove: 'Remove', synopsis: 'Synopsis', chapters: 'Chapters', noChapters: 'No chapters', showAll: 'Show all {count}',
+      title: 'Book details', description: 'Description', loading: 'Loading', loadFailed: 'Load failed', tocFailed: 'TOC failed', tocSyncing: 'Synchronizing the chapter list…', retryToc: 'Retry chapter list', notFound: 'Not found', back: 'Back', coverAlt: 'Cover of {name}', tocEntries: '{count} entries', progress: '{percent}% read', latest: 'Latest: {chapter}', currentSource: 'Current source: {source}', continue: 'Continue', remove: 'Remove', confirmRemoveTitle: 'Remove?', confirmRemoveDescription: 'Remove {name}?', cancel: 'Cancel', confirmRemove: 'Remove', confirmRemoveTXT: 'Delete managed original for {name}?', removed: 'Removed from your library', cleanupPending: 'File cleanup pending. You can retry.', retryCleanup: 'Retry file cleanup', synopsis: 'Synopsis', chapters: 'Chapters', noChapters: 'No chapters', showAll: 'Show all {count}',
     },
     reader: { toc: { readableSummary: '{readable} readable', summary: '{readable}/{total}', search: 'Search', searchPlaceholder: 'Search', clearSearch: 'Clear', ascending: 'Ascending', descending: 'Descending', jumpCurrent: 'Current', matches: '{count} matches', noMatches: 'No matches' } },
     sourceRecovery: { title: 'Sources', cleared: 'Cleared' },
@@ -114,5 +114,47 @@ it('renders provider-neutral details without requesting BookSource context', asy
     expect(wrapper.text()).toContain('Local publication');
     expect(wrapper.find('source-recovery-panel-stub').exists()).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  } finally { wrapper.unmount(); }
+});
+
+it('keeps TXT removal warnings visible and retries cleanup without restoring a shelf row', async () => {
+  const item = { id:'local',provider:'txt',name:'Local publication',author:'Author',coverUrl:'',intro:'',kind:'',lastChapter:'',durChapterIndex:0,durChapterPos:0,totalChapterNum:1,contentRevision:2,stateVersion:0 };
+  let removals = 0;
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url === '/api/books/local') return new Response(JSON.stringify(item));
+    if (url === '/api/books/local/chapters') return new Response(JSON.stringify({chapters:[{index:0,title:'First',isVolume:false}],contentRevision:2}));
+    if (url === '/api/books?id=local' && init?.method === 'DELETE') {
+      removals++;
+      if (removals === 2) return new Response(JSON.stringify({error:'Cleanup unavailable'}), {status:500});
+      return new Response(JSON.stringify(removals === 1 ? {status:'removed',warnings:['txt_cleanup_pending']} : {status:'deleted'}));
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const replace = vi.fn();
+  const wrapper = mount(BookDetailView, {attachTo:document.body,global:{
+    plugins:[i18n], mocks:{$route:{params:{bookId:'local'}},$router:{replace}},
+    stubs:{RouterLink:{template:'<a><slot /></a>'},FeatureScaffold:{template:'<main><slot /></main>'},BookCover:true,BookDetailSection:true,BookDetailToc:true,SourceRecoveryPanel:true},
+  }});
+  try {
+    await flushPromises();
+    await wrapper.findAll('button').find(button=>button.text()==='Remove')!.trigger('click');
+    expect(wrapper.text()).toContain('Delete managed original for Local publication?');
+    await wrapper.findAll('button').filter(button=>button.text()==='Remove').at(-1)!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Removed from your library');
+    expect(wrapper.text()).toContain('File cleanup pending');
+    expect(document.activeElement).toBe(wrapper.get('h2').element);
+    expect(wrapper.find('book-detail-toc-stub').exists()).toBe(false);
+    expect(replace).not.toHaveBeenCalled();
+    await wrapper.findAll('button').find(button=>button.text()==='Retry file cleanup')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Cleanup unavailable');
+    expect(wrapper.text()).toContain('File cleanup pending');
+    await wrapper.findAll('button').find(button=>button.text()==='Retry file cleanup')!.trigger('click');
+    await flushPromises();
+    expect(removals).toBe(3);
+    expect(replace).toHaveBeenCalledWith('/shelf');
   } finally { wrapper.unmount(); }
 });

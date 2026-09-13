@@ -11,6 +11,7 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/reading"
 )
 
 func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
@@ -57,8 +58,8 @@ func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
 	if contentResponse.Code != http.StatusOK || bytes.Contains(contentResponse.Body.Bytes(), []byte("image.bin")) {
 		t.Fatalf("content status=%d body=%s", contentResponse.Code, contentResponse.Body.String())
 	}
-	var content chapterContentResponse
-	if err := json.Unmarshal(contentResponse.Body.Bytes(), &content); err != nil || content.Version != proseDocumentVersion || content.Document.Kind != "prose" || len(content.Document.Blocks) != 3 {
+	var content reading.Content
+	if err := json.Unmarshal(contentResponse.Body.Bytes(), &content); err != nil || content.Version != reading.DocumentVersion || content.Document.Kind != "prose" || len(content.Document.Blocks) != 3 {
 		t.Fatalf("content=%+v err=%v body=%s", content, err, contentResponse.Body.String())
 	}
 	imageBlock := content.Document.Blocks[1]
