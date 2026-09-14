@@ -51,7 +51,7 @@ func TestStartRecoversBeforeDiscoveringPendingWork(t *testing.T) {
 		complete := pendingReceipt(t, home)
 		incomplete := pendingReceipt(t, home)
 		stuckRemoval := pendingReceipt(t, home)
-		if _, err := home.DB().Exec(`UPDATE txt_files SET state = ?`, txtstore.Receiving); err != nil {
+		if _, err := home.DB().Exec(`DELETE FROM txt_interpretations; UPDATE txt_files SET state='receiving',generation=0`); err != nil {
 			t.Fatal(err)
 		}
 		root, err := home.Files().OpenRoot()
@@ -64,8 +64,8 @@ func TestStartRecoversBeforeDiscoveringPendingWork(t *testing.T) {
 		if err := root.WriteFile(filepath.Join(filepath.Dir(stuckRemoval.Path), "keep.txt"), []byte("unowned"), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := home.DB().Exec(`UPDATE txt_files SET state = ? WHERE id = ?`, txtstore.Removing, stuckRemoval.ID); err != nil {
-			t.Fatal(err)
+		if err := txtstore.NewStore(home.DB(), home.Files()).Discard(t.Context(), stuckRemoval.ID); err == nil {
+			t.Fatal("expected retained cleanup record")
 		}
 		root.Close()
 		home.Close()

@@ -55,7 +55,7 @@ func TestRestoreReconcilesTXTAndReportsCommittedWarning(t *testing.T) {
 	}
 	// Model a snapshot taken during analysis and a retryable removal. An
 	// unexpected file must survive; it makes cleanup report an honest warning.
-	if _, err := home.DB().Exec(`UPDATE txt_files SET state = CASE id WHEN ? THEN ? ELSE ? END`, pending.ID, txtstore.Analyzing, txtstore.Removing); err != nil {
+	if _, err := home.DB().Exec(`UPDATE txt_interpretations SET state=? WHERE file_id=? AND role='candidate'`, txtstore.Analyzing, pending.ID); err != nil {
 		t.Fatal(err)
 	}
 	root, err := home.Files().OpenRoot()
@@ -67,6 +67,9 @@ func TestRestoreReconcilesTXTAndReportsCommittedWarning(t *testing.T) {
 		t.Fatal(err)
 	}
 	root.Close()
+	if pending, err := store.DiscardPending(t.Context(), removing.ID); err == nil || !pending {
+		t.Fatalf("expected retryable cleanup: %v %v", pending, err)
+	}
 	if err := book.NewStore(home.DB()).AddBook(&book.Book{ID: "restored-book", Name: "Restored", SourceURL: "synthetic", BookURL: "/book"}); err != nil {
 		t.Fatal(err)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 
 	"github.com/otwako/novelreader/internal/txt"
 )
@@ -18,22 +17,23 @@ func (s *Store) Preview(ctx context.Context, id string) (Interpretation, error) 
 	}
 	defer tx.Rollback()
 	var value Interpretation
-	var state State
-	var reasons string
-	err = tx.QueryRowContext(ctx, `SELECT state,analysis_version,requested_encoding,requested_preset,encoding,preset,parser_version,review_reasons FROM txt_files WHERE id=?`, id).Scan(&state, &value.Version, &value.Options.Encoding, &value.Options.Preset, &value.Analysis.Encoding, &value.Analysis.Preset, &value.Analysis.ParserVersion, &reasons)
-	if errors.Is(err, sql.ErrNoRows) {
-		return Interpretation{}, ErrNotFound
-	}
+	receipt, err := scanReceipt(tx.QueryRowContext(ctx, `SELECT `+receiptColumns+` FROM txt_receipts WHERE id=?`, id))
 	if err != nil {
 		return Interpretation{}, err
 	}
-	if !hasInterpretation(state) {
+	if !hasInterpretation(receipt.State) {
 		return Interpretation{}, ErrStateChanged
+	}
+	value.Version, value.Options = receipt.AnalysisVersion, receipt.Options
+	var reasons string
+	err = tx.QueryRowContext(ctx, `SELECT encoding,preset,parser_version,review_reasons FROM txt_interpretations WHERE file_id=? AND generation=?`, id, value.Version).Scan(&value.Analysis.Encoding, &value.Analysis.Preset, &value.Analysis.ParserVersion, &reasons)
+	if err != nil {
+		return Interpretation{}, err
 	}
 	if err := json.Unmarshal([]byte(reasons), &value.Analysis.ReviewReasons); err != nil {
 		return Interpretation{}, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT title,start_byte,end_byte,generated FROM txt_sections WHERE receipt_id=? ORDER BY idx`, id)
+	rows, err := tx.QueryContext(ctx, `SELECT title,start_byte,end_byte,generated FROM txt_sections WHERE file_id=? AND generation=? ORDER BY idx`, id, value.Version)
 	if err != nil {
 		return Interpretation{}, err
 	}

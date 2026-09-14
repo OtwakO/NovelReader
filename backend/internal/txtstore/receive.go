@@ -58,7 +58,7 @@ func (s *Store) Receive(ctx context.Context, id, name string, input io.Reader) (
 	if err := root.Rename(workPath(value.ID), value.Path); err != nil {
 		return value, err
 	}
-	if err := s.transition(finalCtx, value.ID, Receiving, Received, value.Size, ""); err != nil {
+	if err := s.finalizeAcquisition(finalCtx, value.ID, value.Size); err != nil {
 		return value, err
 	}
 	return s.Get(finalCtx, value.ID)

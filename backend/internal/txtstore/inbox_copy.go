@@ -53,11 +53,14 @@ func (s *Store) copyInbox(ctx context.Context, inbox, managed *os.Root, value Re
 	if err := managed.Rename(workPath(value.ID), value.Path); err != nil {
 		return value, err
 	}
-	if err := s.transition(finalCtx, value.ID, Receiving, Received, size, ""); err != nil {
+	if err := s.finalizeAcquisition(finalCtx, value.ID, size); err != nil {
 		return value, err
 	}
-	value.State = Received
-	value.Size = size
+	stored, err := s.Get(finalCtx, value.ID)
+	if err != nil {
+		return value, err
+	}
+	value = stored
 	current, err = inbox.Lstat(value.OriginalName)
 	if err != nil {
 		return value, err

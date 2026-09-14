@@ -20,41 +20,31 @@ type Interpretation struct {
 // Analyze claims a pending version before decoding outside the file gate. Only
 // that version may publish the result. Published interpretations cannot be edited.
 func (s *Store) Analyze(ctx context.Context, id string, options txt.Options) (Interpretation, error) {
-	value, err := s.claimAnalysis(ctx, `UPDATE txt_files SET state=?, analysis_version=analysis_version+1, requested_encoding=?, requested_preset=?, error='', updated_at=? WHERE id=? AND state IN (?,?,?,?) RETURNING `+receiptColumns, Analyzing, options.Encoding, options.Preset, time.Now().UnixMilli(), id, Received, Ready, NeedsReview, AnalysisFailed)
+	value, err := s.Get(ctx, id)
+	if err != nil {
+		return Interpretation{}, err
+	}
+	if err := s.QueueAnalysis(ctx, id, value.AnalysisVersion, options); err != nil {
+		return Interpretation{}, err
+	}
+	claim, err := s.claimAnalysis(ctx, id)
 	if errors.Is(err, ErrNotFound) {
-		if _, err := s.Get(ctx, id); err != nil {
-			return Interpretation{}, err
-		}
 		return Interpretation{}, ErrStateChanged
 	}
 	if err != nil {
 		return Interpretation{}, err
 	}
-	return s.analyzeClaim(ctx, value)
-}
-
-// Wait for a connection cancellably, then finish the short claim independently of
-// request cancellation. Otherwise UPDATE could commit just as Scan is cancelled,
-// leaving a claimed version the worker never received and cannot release.
-func (s *Store) claimAnalysis(ctx context.Context, query string, args ...any) (Receipt, error) {
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return Receipt{}, err
-	}
-	defer conn.Close()
-	if err := ctx.Err(); err != nil {
-		return Receipt{}, err
-	}
-	claimCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataTimeout)
-	defer cancel()
-	return scanReceipt(conn.QueryRowContext(claimCtx, query, args...))
+	return s.analyzeClaim(ctx, claim)
 }
 
 func (s *Store) analyzeClaim(ctx context.Context, value Receipt) (Interpretation, error) {
 	file, err := s.openOriginal(value)
 	var result txt.Analysis
 	if err == nil {
-		result, err = txt.Analyze(ctx, file, value.Options)
+		input := &candidateReader{ctx: ctx, store: s, fileID: value.ID, generation: value.AnalysisVersion, input: file}
+		if err = input.check(); err == nil {
+			result, err = txt.Analyze(ctx, input, value.Options)
+		}
 		err = errors.Join(err, file.Close())
 	}
 	if err == nil {
@@ -67,9 +57,9 @@ func (s *Store) analyzeClaim(ctx context.Context, value Receipt) (Interpretation
 		if ctx.Err() != nil {
 			// Cancellation stops this attempt, not the durable request. A worker
 			// paused for shutdown/restore can resume it without losing options.
-			state = Received
+			state = queued
 		}
-		_, updateErr := s.db.ExecContext(failureCtx, `UPDATE txt_files SET state=?,error=?,updated_at=? WHERE id=? AND state=? AND analysis_version=?`, state, err.Error(), time.Now().UnixMilli(), value.ID, Analyzing, value.AnalysisVersion)
+		_, updateErr := s.db.ExecContext(failureCtx, `UPDATE txt_interpretations SET state=?,error=?,updated_at=? WHERE file_id=? AND generation=? AND role='candidate' AND state=?`, state, err.Error(), time.Now().UnixMilli(), value.ID, value.AnalysisVersion, Analyzing)
 		return Interpretation{}, errors.Join(err, updateErr)
 	}
 	return Interpretation{Version: value.AnalysisVersion, Options: value.Options, Analysis: result}, nil
@@ -112,7 +102,7 @@ func (s *Store) saveInterpretation(ctx context.Context, id string, version int64
 		return err
 	}
 	defer tx.Rollback()
-	updated, err := tx.ExecContext(ctx, `UPDATE txt_files SET state=?,encoding=?,preset=?,parser_version=?,review_reasons=?,updated_at=? WHERE id=? AND state=? AND analysis_version=?`, state, result.Encoding, result.Preset, result.ParserVersion, string(reasons), time.Now().UnixMilli(), id, Analyzing, version)
+	updated, err := tx.ExecContext(ctx, `UPDATE txt_interpretations SET state=?,encoding=?,preset=?,parser_version=?,review_reasons=?,updated_at=? WHERE file_id=? AND generation=? AND role='candidate' AND state=?`, state, result.Encoding, result.Preset, result.ParserVersion, string(reasons), time.Now().UnixMilli(), id, version, Analyzing)
 	if err != nil {
 		return err
 	}
@@ -123,16 +113,13 @@ func (s *Store) saveInterpretation(ctx context.Context, id string, version int64
 	if count != 1 {
 		return ErrStateChanged
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM txt_sections WHERE receipt_id=?`, id); err != nil {
-		return err
-	}
-	insert, err := tx.PrepareContext(ctx, `INSERT INTO txt_sections(receipt_id,idx,title,start_byte,end_byte,generated) VALUES(?,?,?,?,?,?)`)
+	insert, err := tx.PrepareContext(ctx, `INSERT INTO txt_sections(file_id,generation,idx,title,start_byte,end_byte,generated) VALUES(?,?,?,?,?,?,?)`)
 	if err != nil {
 		return err
 	}
 	defer insert.Close()
 	for index, section := range result.Sections {
-		if _, err := insert.ExecContext(ctx, id, index, section.Title, section.Start, section.End, section.Generated); err != nil {
+		if _, err := insert.ExecContext(ctx, id, version, index, section.Title, section.Start, section.End, section.Generated); err != nil {
 			return err
 		}
 	}

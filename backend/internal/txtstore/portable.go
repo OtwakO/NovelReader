@@ -24,13 +24,13 @@ func validatePortableFiles(ctx context.Context, tx *sql.Tx, root *os.Root) error
 	if err != nil {
 		return err
 	}
-	publications := make(map[string]bool)
+	publications := make(map[string]library.Item)
 	for _, item := range items {
 		if item.Provider == library.TXT {
-			publications[item.ID] = true
+			publications[item.ID] = item
 		}
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id,path,state,size,COALESCE(library_id,'') FROM txt_files ORDER BY id`)
+	rows, err := tx.QueryContext(ctx, `SELECT id,path,state,size,COALESCE(library_id,''),generation FROM txt_files ORDER BY id`)
 	if err != nil {
 		return err
 	}
@@ -40,16 +40,19 @@ func validatePortableFiles(ctx context.Context, tx *sql.Tx, root *os.Root) error
 			return err
 		}
 		var value Receipt
-		if err := rows.Scan(&value.ID, &value.Path, &value.State, &value.Size, &value.LibraryID); err != nil {
+		var generation int64
+		if err := rows.Scan(&value.ID, &value.Path, &value.State, &value.Size, &value.LibraryID, &generation); err != nil {
 			return err
 		}
-		if value.State == Published {
-			if value.LibraryID != value.ID || !publications[value.ID] {
+		item, published := publications[value.ID]
+		if value.LibraryID != "" {
+			if value.State != acquired || value.LibraryID != value.ID || !published {
 				return fmt.Errorf("txtstore: receipt %s has no matching TXT publication", value.ID)
 			}
 			delete(publications, value.ID)
-		} else if value.LibraryID != "" {
-			return fmt.Errorf("txtstore: unpublished receipt %s has a library link", value.ID)
+		}
+		if err := validatePortableInterpretations(ctx, tx, value, generation, item); err != nil {
+			return fmt.Errorf("txtstore: receipt %s: %w", value.ID, err)
 		}
 		if err := validatePortableOriginal(root, value); err != nil {
 			return fmt.Errorf("txtstore: receipt %s: %w", value.ID, err)

@@ -15,8 +15,8 @@ func ReadSection(ctx context.Context, original io.ReaderAt, enc Encoding, sectio
 	if !validEncoding(enc) {
 		return "", fmt.Errorf("txt: unsupported encoding %q", enc)
 	}
-	if section.Start < 0 || section.End <= section.Start || section.End-section.Start > maxSectionSourceBytes {
-		return "", fmt.Errorf("txt: invalid section range [%d, %d)", section.Start, section.End)
+	if err := ValidateSectionRange(section.Start, section.End); err != nil {
+		return "", err
 	}
 	length := section.End - section.Start
 	reader := bufio.NewReader(io.NewSectionReader(original, section.Start, length))
@@ -39,4 +39,13 @@ func ReadSection(ctx context.Context, original io.ReaderAt, enc Encoding, sectio
 		return "", fmt.Errorf("txt: truncated section: %w", io.ErrUnexpectedEOF)
 	}
 	return text.String(), nil
+}
+
+// ValidateSectionRange checks the byte-range bounds shared by reading and portable
+// index validation. It performs no decoding and does not verify the original.
+func ValidateSectionRange(start, end int64) error {
+	if start < 0 || end <= start || end-start > maxSectionSourceBytes {
+		return fmt.Errorf("txt: invalid section range [%d, %d)", start, end)
+	}
+	return nil
 }

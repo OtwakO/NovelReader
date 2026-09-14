@@ -144,9 +144,7 @@ func TestInterruptedInboxClaimIsNotReplayedOrExported(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Crash after moving bytes but before publishing the receipt/clearing intent.
-	if _, err := home.DB().Exec(`UPDATE txt_files SET state=? WHERE id=?`, Receiving, value.ID); err != nil {
-		t.Fatal(err)
-	}
+	interruptAcquisition(t, store, value.ID)
 	if _, err := home.DB().Exec(`INSERT INTO txt_inbox_claims(name,receipt_id) VALUES(?,?)`, value.OriginalName, value.ID); err != nil {
 		t.Fatal(err)
 	}

@@ -86,7 +86,7 @@ func TestPublishedPortableReferencesAndMissingOriginal(t *testing.T) {
 }
 
 func TestPortableOwnershipRejectsBrokenLinks(t *testing.T) {
-	for _, corruption := range []string{"missing-library", "wrong-provider", "missing-receipt", "foreign-path", "wrong-size"} {
+	for _, corruption := range []string{"missing-library", "wrong-provider", "missing-receipt", "foreign-path", "wrong-size", "missing-active", "section-gap", "generation-counter"} {
 		t.Run(corruption, func(t *testing.T) {
 			store, manager, home, root := receiptStore(t)
 			receipt, preview := analyzedReceipt(t, store)
@@ -95,6 +95,18 @@ func TestPortableOwnershipRejectsBrokenLinks(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch corruption {
+			case "missing-active":
+				if _, err := home.DB().Exec(`DELETE FROM txt_interpretations WHERE file_id=?`, receipt.ID); err != nil {
+					t.Fatal(err)
+				}
+			case "section-gap":
+				if _, err := home.DB().Exec(`UPDATE txt_sections SET start_byte=start_byte+1 WHERE file_id=? AND idx=1`, receipt.ID); err != nil {
+					t.Fatal(err)
+				}
+			case "generation-counter":
+				if _, err := home.DB().Exec(`UPDATE txt_files SET generation=0 WHERE id=?`, receipt.ID); err != nil {
+					t.Fatal(err)
+				}
 			case "missing-library":
 				tx, err := home.DB().BeginTx(t.Context(), nil)
 				if err != nil {
@@ -128,17 +140,15 @@ func TestPortableOwnershipRejectsBrokenLinks(t *testing.T) {
 }
 
 func TestPortableUnfinishedReceiptsRemainRecoverable(t *testing.T) {
-	store, manager, home, root := receiptStore(t)
+	store, manager, _, root := receiptStore(t)
 	receiving := mustReceive(t, store)
 	removing := mustReceive(t, store)
-	for _, value := range []struct {
-		receipt Receipt
-		state   State
-	}{{receiving, Receiving}, {removing, Removing}} {
-		if _, err := home.DB().Exec(`UPDATE txt_files SET state=? WHERE id=?`, value.state, value.receipt.ID); err != nil {
-			t.Fatal(err)
-		}
-		if err := root.Remove(value.receipt.Path); err != nil {
+	interruptAcquisition(t, store, receiving.ID)
+	if err := store.beginRemoval(t.Context(), removing); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []Receipt{receiving, removing} {
+		if err := root.Remove(value.Path); err != nil {
 			t.Fatal(err)
 		}
 	}

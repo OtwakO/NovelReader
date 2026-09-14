@@ -87,7 +87,7 @@ func (s *Store) finishRemoval(ctx context.Context, root *os.Root, value Receipt)
 }
 
 // Recover runs with intake quiescent, before workers are admitted. It only visits
-// unfinished acquisition/removal records; ordinary section opens never call it.
+// unfinished acquisitions, removals and candidate attempts; section opens never call it.
 // It never touches external inbox paths or deletes an unreferenced managed file.
 func (s *Store) Recover(ctx context.Context) error {
 	unlock, err := s.files.LockMutation(ctx)
@@ -100,7 +100,11 @@ func (s *Store) Recover(ctx context.Context) error {
 		return err
 	}
 	defer root.Close()
-	rows, err := s.db.QueryContext(ctx, `SELECT id FROM txt_files WHERE state IN (?,?,?) ORDER BY id`, Receiving, Removing, Analyzing)
+	// Recovery revokes attempts, not requests. Active generations never change.
+	if _, err := s.db.ExecContext(ctx, `UPDATE txt_interpretations SET state='queued',error='txtstore: analysis interrupted; retry',updated_at=? WHERE role='candidate' AND state='analyzing'`, time.Now().UnixMilli()); err != nil {
+		return err
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id FROM txt_files WHERE state IN (?,?) ORDER BY id`, Receiving, Removing)
 	if err != nil {
 		return err
 	}
@@ -140,9 +144,6 @@ func (s *Store) recoverReceipt(ctx context.Context, root *os.Root, id string) er
 	if value.State == Removing {
 		return s.finishRemoval(ctx, root, value)
 	}
-	if value.State == Analyzing {
-		return s.transition(ctx, id, Analyzing, Received, value.Size, "txtstore: analysis interrupted; retry")
-	}
 	info, err := root.Lstat(value.Path)
 	if errors.Is(err, os.ErrNotExist) {
 		// An incomplete transfer is a per-file failure, not a failed recovery pass.
@@ -156,7 +157,7 @@ func (s *Store) recoverReceipt(ctx context.Context, root *os.Root, id string) er
 		_, err := s.recordFailure(ctx, root, value, fmt.Errorf("managed original does not match acquisition intent"))
 		return err
 	}
-	return s.transition(ctx, id, Receiving, Received, value.Size, "")
+	return s.finalizeAcquisition(ctx, id, value.Size)
 }
 
 var errInterruptedTransfer = errors.New("txtstore: transfer interrupted; upload the file again or discard this receipt")
@@ -168,7 +169,7 @@ func (s *Store) beginRemoval(ctx context.Context, value Receipt) error {
 		return err
 	}
 	defer tx.Rollback()
-	result, err := tx.ExecContext(ctx, `UPDATE txt_files SET state=?,error='',updated_at=? WHERE id=? AND state=?`, Removing, time.Now().UnixMilli(), value.ID, value.State)
+	result, err := tx.ExecContext(ctx, `UPDATE txt_files SET state=?,error='',updated_at=? WHERE id=? AND COALESCE(library_id,'')=?`, Removing, time.Now().UnixMilli(), value.ID, value.LibraryID)
 	if err != nil {
 		return err
 	}
@@ -178,6 +179,9 @@ func (s *Store) beginRemoval(ctx context.Context, value Receipt) error {
 	}
 	if count != 1 {
 		return ErrStateChanged
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM txt_interpretations WHERE file_id=?`, value.ID); err != nil {
+		return err
 	}
 	if value.LibraryID != "" {
 		if err := library.DeleteTx(ctx, tx, value.LibraryID); err != nil {

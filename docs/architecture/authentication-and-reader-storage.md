@@ -34,20 +34,36 @@ data/users/<immutable-reader-id>/
 `reader.db` and ordinary files are portable plaintext Reader Data: BookSources, shelf books, chapters, progress, bookmarks, caches, preferences, source profiles, and file metadata. They remain inspectable without an application secret. Browser-only Reader preferences are outside
 this storage/backup boundary; see [Reader state](discovery-and-reading.md#reader-state).
 
-Reader schema epoch 11 composes library-owned shared metadata/state/bookmarks, BookSource-owned
-bindings/catalog/cache, managed TXT receipts/indexes and the other reader modules. Foreign keys are enabled on every pooled reader
-connection. Epoch-10 or older homes and portable archives are incompatible; there is no automatic migration or
+Reader schema epoch 12 composes library-owned shared metadata/state/bookmarks, BookSource-owned
+bindings/catalog/cache, managed TXT files/interpretations/indexes and the other reader modules. Foreign keys are enabled on every pooled reader
+connection. Epoch-11 or older homes and portable archives are incompatible; there is no automatic migration or
 reset. Preservation and rollback instructions live in the [development reset runbook](../runbooks/development-data-reset.md).
 
-The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT storage and recovery are registered; intake and provider-reading routes are not yet exposed. See the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
+The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT intake, review, reading and removal are connected. Custom-pattern and published-reparse controls remain unexposed. See the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
 
 `credentials.db` is separate. Reversible source credentials are encrypted using the installation-level credential key configured by NovelReader. Losing that key requires source reauthentication but must not make Reader Data unreadable.
 
 Runtime initialization reserves a per-reader slot before opening storage or running feature initialization. In-flight initialization counts against capacity; competing requests wait rather than constructing losing instances. Quiesce/shutdown wait until initialization and any rejected-instance cleanup finish. Initialization and cleanup execute outside the manager mutex so other readers are not blocked by that mutex.
 
+### TXT interpretations
+
+`txt_files` owns acquisition/removal and the never-reused generation counter. `txt_interpretations`
+owns the candidate/active roles and their options, diagnostics and result metadata; `txt_sections`
+is keyed by file and generation. The initial candidate is created atomically when acquisition
+finishes. Workers claim it without changing its generation, and acceptance promotes it alongside
+library publication. Reading uses only the active role and a library-owned revision read in the
+same database snapshot. `txt_receipts` projects existing import response states without duplicating
+them in storage; a publication stays published while another interpretation is prepared.
+
+Supersession checks occur before decoding, every roughly 1 MiB of source reads, and at the final
+result transaction. Quiescent recovery requeues interrupted candidates without touching active data.
+Removal drops both interpretation roles when hiding the library item; failed byte cleanup retains
+only the file/cleanup record. Published-reparse operations and their UI are the next checkpoint in
+the [accepted plan](../plans/2026-09-10-multi-provider-library.md#advanced-txt-patterns-and-reparse--design-proposal).
+
 ### TXT background ownership
 
-`txtimport` runs two independent workers, at most one file per reader, with fair reader turns and durable receipt work. Idle hints retire; queued readers hold no home lease or per-file job object. `api.ReaderHomeCapacity` budgets API runtime, analysis-worker and transfer homes separately. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.
+`txtimport` runs two independent workers, at most one file per reader, with fair reader turns and durable candidate work. Idle hints retire; queued readers hold no home lease or per-file job object. `api.ReaderHomeCapacity` budgets API runtime, analysis-worker and transfer homes separately. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.
 
 Before serving, TXT recovery visits retained account homes (including disabled accounts, excluding deleting accounts), then starts workers. Login disabling retains accepted local work. Missing/corrupt homes or failed per-file cleanup are logged without stopping unrelated homes; no inbox originals are replayed or swept. New accounts start empty. Recovery never runs on ordinary runtime initialization or before each job. After restore it runs while that reader remains quiescent. Browser-upload admission and transfers are composed outside the API runtime cache. Bounded receipt review/control handlers use ordinary reader runtimes; no HTTP handler performs analysis.
 
@@ -56,7 +72,7 @@ opens homes nor reads files. Waiting/granted tickets expire; active transfers ke
 I/O and the home lease have ended, even after cancellation. Tickets are reader-bound, single-use,
 process-local permission to start a transfer—not durable receipts or inbox cleanup proofs. The
 [accepted admission contract](../plans/2026-09-10-multi-provider-library.md#accepted-txt-intake-admission)
-owns scheduling limits and the remaining inbox/UI work.
+owns the scheduling limits.
 
 Restore/deletion stops and drains intake, then API runtimes and TXT workers. Successful deletion
 forgets the drained barriers; failure keeps them for retry. Restore resumes fresh admission without
@@ -193,7 +209,7 @@ New durable-file writers must join this boundary around the whole metadata/file 
 
 `ReaderSchema.PreparePortable` strips installation-local operational authority from the copied database on export and import, without modifying live records. TXT uses it for unresolved inbox claims; even a discarded receipt's leftover claim remains local until explicitly resolved. Copies containing such authority are rejected at publication validation.
 
-Features can contribute `ReaderSchema.ValidatePortableFiles` to check references against the copied read-only database and confined files. Checks run after snapshot copying, after replacement staging, and before replacement publication—not on ordinary home opens. TXT supplies receipt/publication ownership and original-file checks in production; further intake work is tracked in the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md). No live records are repaired or deleted by these checks.
+Features can contribute `ReaderSchema.ValidatePortableFiles` to check references against the copied read-only database and confined files. Checks run after snapshot copying, after replacement staging, and before replacement publication—not on ordinary home opens. TXT validates file/publication ownership, legal interpretation roles/generations, completed section ranges and original files. Interrupted acquisition/removal records retain their lifecycle-specific allowances for missing or damaged originals. Validation never decodes the novel or executes stored patterns; pending reparse work is tracked in the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md). No live records are repaired or deleted by these checks.
 
 Restore behavior:
 

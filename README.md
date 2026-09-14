@@ -81,7 +81,7 @@ NovelReader stores its data in the `data` folder beside `docker-compose.yml`. Th
 
 ## Update
 
-This revision requires reader schema epoch 11. Existing epoch-10 (or older) homes and portable
+This revision requires reader schema epoch 12. Existing epoch-11 (or older) homes and portable
 archives cannot be migrated automatically. Before upgrading an existing deployment,
 stop it and preserve a complete `DATA_DIR` copy; follow the
 [compatibility and reset runbook](docs/runbooks/development-data-reset.md) rather than
@@ -132,7 +132,8 @@ a verified duplicate; release keeps the file for a later import. After interrupt
 receipt and inbox claim rather than blindly importing again. The authenticated
 [browser-upload](docs/architecture/authentication-and-reader-storage.md#txt-browser-upload-http) and
 [inbox APIs](docs/architecture/authentication-and-reader-storage.md#txt-inbox-http) remain available
-for direct clients. Schema epoch 11 is unchanged; no migration layer.
+for direct clients. Epoch 12 separates TXT file lifecycle from active/candidate interpretations;
+custom-pattern and published-reparse controls are not yet exposed. There is no migration layer.
 
 ## Registration and recovery
 
@@ -148,7 +149,7 @@ You can also set `REGISTRATION_INVITE_CODE` to require an invite code.
 
 ## Local development
 
-The current Reader Data schema includes font-cleanup metadata and an ordered chapter index. Older reader schemas are rejected rather than migrated during internal development, so schema changes require fresh or matching-version Reader Data. No data is reset automatically. Use the [development reset runbook](docs/runbooks/development-data-reset.md) if needed; preserve a cold copy before resetting anything you want to keep.
+The current Reader Data schema includes font-cleanup metadata, an ordered chapter index, and generation-qualified TXT interpretations. Older reader schemas are rejected rather than migrated during internal development, so schema changes require fresh or matching-version Reader Data. No data is reset automatically. Use the [development reset runbook](docs/runbooks/development-data-reset.md) if needed; preserve a cold copy before resetting anything you want to keep.
 
 ### Docker Compose from the checkout
 

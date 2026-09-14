@@ -14,23 +14,35 @@ type IndexedSection struct {
 	txt.Section
 }
 
-const publicationSections = ` FROM library_items l
- JOIN txt_files f ON f.library_id=l.id AND f.state='published'
- JOIN txt_sections s ON s.receipt_id=f.id WHERE l.id=? AND l.provider='txt'`
+const publicationSections = ` FROM txt_files f
+ JOIN txt_interpretations i ON i.file_id=f.id AND i.role='active'
+ JOIN txt_sections s ON s.file_id=i.file_id AND s.generation=i.generation
+ WHERE f.library_id=? AND f.state='acquired'`
 
-// GetCatalog reads the published index and its revision in one database snapshot.
-// It does not decode original bytes or expose pending analysis previews.
+// GetCatalog reads the active index and its library revision in one snapshot.
+// Candidate work never becomes part of a reading query.
 func (s *Store) GetCatalog(ctx context.Context, id string) ([]IndexedSection, int64, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT l.content_revision,s.idx,s.title,s.start_byte,s.end_byte,s.generated`+publicationSections+` ORDER BY s.idx`, id)
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, 0, err
+	}
+	defer tx.Rollback()
+	item, err := library.GetTx(ctx, tx, id)
+	if err != nil {
+		return nil, 0, err
+	}
+	if item == nil || item.Provider != library.TXT {
+		return nil, 0, ErrNotFound
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT s.idx,s.title,s.start_byte,s.end_byte,s.generated`+publicationSections+` ORDER BY s.idx`, id)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer rows.Close()
-	var revision int64
 	sections := make([]IndexedSection, 0)
 	for rows.Next() {
 		var section IndexedSection
-		if err := rows.Scan(&revision, &section.Index, &section.Title, &section.Start, &section.End, &section.Generated); err != nil {
+		if err := rows.Scan(&section.Index, &section.Title, &section.Start, &section.End, &section.Generated); err != nil {
 			return nil, 0, err
 		}
 		sections = append(sections, section)
@@ -41,22 +53,30 @@ func (s *Store) GetCatalog(ctx context.Context, id string) ([]IndexedSection, in
 	if len(sections) == 0 {
 		return nil, 0, ErrNotFound
 	}
-	return sections, revision, nil
+	return sections, item.ContentRevision, nil
 }
 
 // GetSection validates a location using only its indexed row, without file I/O.
 func (s *Store) GetSection(ctx context.Context, id string, revision int64, index int) (IndexedSection, error) {
 	var section IndexedSection
-	var current int64
-	err := s.db.QueryRowContext(ctx, `SELECT l.content_revision,s.idx,s.title,s.start_byte,s.end_byte,s.generated`+publicationSections+` AND s.idx=?`, id, index).Scan(&current, &section.Index, &section.Title, &section.Start, &section.End, &section.Generated)
-	if errors.Is(err, sql.ErrNoRows) {
-		return section, ErrNotFound
-	}
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return section, err
 	}
-	if current != revision {
+	defer tx.Rollback()
+	item, err := library.GetTx(ctx, tx, id)
+	if err != nil {
+		return section, err
+	}
+	if item == nil || item.Provider != library.TXT {
+		return section, ErrNotFound
+	}
+	if item.ContentRevision != revision {
 		return section, library.ErrStateChanged
 	}
-	return section, nil
+	err = tx.QueryRowContext(ctx, `SELECT s.idx,s.title,s.start_byte,s.end_byte,s.generated`+publicationSections+` AND s.idx=?`, id, index).Scan(&section.Index, &section.Title, &section.Start, &section.End, &section.Generated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return section, ErrNotFound
+	}
+	return section, err
 }

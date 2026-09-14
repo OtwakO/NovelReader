@@ -129,7 +129,7 @@ func TestReceiptOriginalIsPortableAndDiscardIsIsolated(t *testing.T) {
 }
 
 func TestInterruptedReceiptRecoveryRetainsCompleteOriginals(t *testing.T) {
-	store, _, home, root := receiptStore(t)
+	store, _, _, root := receiptStore(t)
 	complete := mustReceive(t, store)
 	removing := mustReceive(t, store)
 	partial, err := store.Receive(t.Context(), rand.Text(), "partial.txt", iotest.ErrReader(io.ErrUnexpectedEOF))
@@ -137,14 +137,12 @@ func TestInterruptedReceiptRecoveryRetainsCompleteOriginals(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, value := range []Receipt{complete, partial} {
-		if _, err := home.DB().Exec(`UPDATE txt_files SET state=? WHERE id=?`, Receiving, value.ID); err != nil {
-			t.Fatal(err)
-		}
+		interruptAcquisition(t, store, value.ID)
 	}
 	if err := root.WriteFile(workPath(partial.ID), []byte("incomplete"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := home.DB().Exec(`UPDATE txt_files SET state=? WHERE id=?`, Removing, removing.ID); err != nil {
+	if err := store.beginRemoval(t.Context(), removing); err != nil {
 		t.Fatal(err)
 	}
 	if err := root.Remove(removing.Path); err != nil {
@@ -240,5 +238,25 @@ func TestRemovalFailureRemainsRetryable(t *testing.T) {
 	}
 	if _, err := store.Get(t.Context(), value.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("removal retry failed: %v", err)
+	}
+}
+
+// Recreate a crash after the original was finalized on disk but before the
+// receiving-to-acquired transaction created its first candidate.
+func interruptAcquisition(t *testing.T, store *Store, id string) {
+	t.Helper()
+	tx, err := store.db.BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM txt_interpretations WHERE file_id=?`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(`UPDATE txt_files SET state='receiving',generation=0 WHERE id=? AND library_id IS NULL`, id); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
 	}
 }

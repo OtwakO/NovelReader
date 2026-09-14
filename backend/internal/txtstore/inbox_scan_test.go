@@ -53,13 +53,11 @@ func TestInboxPagesAreBoundedAndKeepClaimedNamesVisible(t *testing.T) {
 }
 
 func TestSettlingOneAcquisitionDoesNotRecoverActiveAnalysisOrConsumeInbox(t *testing.T) {
-	store, _, home, managed := receiptStore(t)
+	store, _, _, managed := receiptStore(t)
 	receipt := mustReceive(t, store)
-	if _, err := home.DB().Exec(`UPDATE txt_files SET state=? WHERE id=?`, Receiving, receipt.ID); err != nil {
-		t.Fatal(err)
-	}
+	interruptAcquisition(t, store, receipt.ID)
 	other := mustReceive(t, store)
-	if _, err := home.DB().Exec(`UPDATE txt_files SET state=? WHERE id=?`, Analyzing, other.ID); err != nil {
+	if _, err := store.claimAnalysis(t.Context(), other.ID); err != nil {
 		t.Fatal(err)
 	}
 	value, err := store.SettleAcquisition(t.Context(), receipt.ID)

@@ -16,26 +16,29 @@ func (s *Store) QueueAnalysis(ctx context.Context, id string, version int64, opt
 	if err := options.Validate(); err != nil {
 		return err
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE txt_files SET state=?,analysis_version=analysis_version+1,requested_encoding=?,requested_preset=?,error='',updated_at=? WHERE id=? AND analysis_version=? AND state IN (?,?,?,?)`, Received, options.Encoding, options.Preset, time.Now().UnixMilli(), id, version, Received, Ready, NeedsReview, AnalysisFailed)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	count, err := result.RowsAffected()
-	if err != nil {
+	defer tx.Rollback()
+	if err := requireChange(tx.ExecContext(ctx, `UPDATE txt_files SET generation=generation+1,updated_at=? WHERE id=? AND state='acquired' AND library_id IS NULL AND EXISTS(SELECT 1 FROM txt_interpretations WHERE file_id=? AND generation=? AND role='candidate')`, time.Now().UnixMilli(), id, id, version)); err != nil {
 		return err
 	}
-	if count != 1 {
-		return ErrStateChanged
+	if _, err := tx.ExecContext(ctx, `DELETE FROM txt_interpretations WHERE file_id=? AND role='candidate'`, id); err != nil {
+		return err
 	}
-	return nil
+	if _, err := tx.ExecContext(ctx, `INSERT INTO txt_interpretations(file_id,generation,role,state,requested_encoding,requested_preset,queued_at,updated_at) SELECT id,generation,'candidate','queued',?,?,updated_at,updated_at FROM txt_files WHERE id=?`, options.Encoding, options.Preset, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
-// AnalyzeNext atomically claims at most one received original and loads its saved
+// AnalyzeNext atomically claims at most one queued candidate and loads its saved
 // options. It returns whether it claimed work, even on a per-file failure, so the
 // scheduler can advance to another file. It retains neither results nor file handles.
 // Call Recover only with intake quiescent, not before individual worker attempts.
 func (s *Store) AnalyzeNext(ctx context.Context) (bool, error) {
-	value, err := s.claimAnalysis(ctx, `UPDATE txt_files SET state=?,analysis_version=analysis_version+1,error='',updated_at=? WHERE id=(SELECT id FROM txt_files WHERE state=? ORDER BY id LIMIT 1) AND state=? RETURNING `+receiptColumns, Analyzing, time.Now().UnixMilli(), Received, Received)
+	value, err := s.claimAnalysis(ctx, "")
 	if errors.Is(err, ErrNotFound) {
 		return false, nil
 	}

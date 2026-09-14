@@ -50,7 +50,10 @@ func TestTXTInboxReviewRejectsActiveChangedAndInvalidatedApprovals(t *testing.T)
 	}
 	finish()
 	// Model a finished but incompletely finalized receipt; review settles only it.
-	if _, err := home.DB().Exec(`UPDATE txt_files SET state=? WHERE id=?`, txtstore.Receiving, value.ID); err != nil {
+	if _, err := home.DB().Exec(`DELETE FROM txt_interpretations WHERE file_id=?`, value.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := home.DB().Exec(`UPDATE txt_files SET state=?,generation=0 WHERE id=?`, txtstore.Receiving, value.ID); err != nil {
 		t.Fatal(err)
 	}
 	review := func() inboxReviewResponse {

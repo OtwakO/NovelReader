@@ -99,7 +99,7 @@ func TestReanalysisRevokesStalePreview(t *testing.T) {
 		t.Fatalf("failed replacement left old approval usable: %v", err)
 	}
 	// Restart recovery makes a claimed analysis retryable without publishing its old index.
-	if _, err := home.DB().Exec(`UPDATE txt_files SET state=? WHERE id=?`, Analyzing, receipt.ID); err != nil {
+	if _, err := home.DB().Exec(`UPDATE txt_interpretations SET state=? WHERE file_id=? AND role='candidate'`, Analyzing, receipt.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Recover(t.Context()); err != nil {
@@ -184,7 +184,7 @@ func TestPublishedRemovalHidesLibraryBeforeRetryableFileCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	var count int
-	if err := home.DB().QueryRow(`SELECT count(*) FROM txt_sections WHERE receipt_id=?`, receipt.ID).Scan(&count); err != nil || count != 0 {
+	if err := home.DB().QueryRow(`SELECT count(*) FROM txt_sections WHERE file_id=?`, receipt.ID).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("orphan indexes=%d err=%v", count, err)
 	}
 }

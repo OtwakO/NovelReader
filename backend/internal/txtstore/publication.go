@@ -55,7 +55,7 @@ func (s *Store) Accept(ctx context.Context, id string, version int64, name, auth
 		return library.Item{}, err
 	}
 	defer tx.Rollback()
-	result, err := tx.ExecContext(ctx, `UPDATE txt_files SET state=?,updated_at=? WHERE id=? AND analysis_version=? AND state IN (?,?)`, Published, time.Now().UnixMilli(), id, version, Ready, NeedsReview)
+	result, err := tx.ExecContext(ctx, `UPDATE txt_interpretations SET role='active',updated_at=? WHERE file_id=? AND generation=? AND role='candidate' AND state IN (?,?) AND EXISTS(SELECT 1 FROM txt_files WHERE id=? AND state='acquired' AND library_id IS NULL)`, time.Now().UnixMilli(), id, version, Ready, NeedsReview, id)
 	if err != nil {
 		return library.Item{}, err
 	}
@@ -67,7 +67,7 @@ func (s *Store) Accept(ctx context.Context, id string, version int64, name, auth
 		return library.Item{}, ErrStateChanged
 	}
 	item := library.Item{ID: id, Provider: library.TXT, Name: strings.TrimSpace(name), Author: strings.TrimSpace(author), ContentRevision: 1, CreatedAt: time.Now().UnixMilli(), UpdatedAt: time.Now().UnixMilli()}
-	if err := tx.QueryRowContext(ctx, `SELECT count(*),COALESCE((SELECT title FROM txt_sections WHERE receipt_id=? AND idx=0),'') FROM txt_sections WHERE receipt_id=?`, id, id).Scan(&item.TotalChapterNum, &item.CurrentChapterTitle); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT count(*),COALESCE((SELECT title FROM txt_sections WHERE file_id=? AND generation=? AND idx=0),'') FROM txt_sections WHERE file_id=? AND generation=?`, id, version, id, version).Scan(&item.TotalChapterNum, &item.CurrentChapterTitle); err != nil {
 		return library.Item{}, err
 	}
 	if item.TotalChapterNum == 0 {
@@ -112,9 +112,10 @@ func (s *Store) ReadSection(ctx context.Context, id string, revision int64, inde
 	if item.ContentRevision != revision {
 		return SectionContent{}, library.ErrStateChanged
 	}
-	err = tx.QueryRowContext(ctx, `SELECT f.id,f.path,f.size,f.encoding,s.title,s.start_byte,s.end_byte
- FROM txt_files f JOIN txt_sections s ON s.receipt_id=f.id
- WHERE f.library_id=? AND f.state=? AND s.idx=?`, id, Published, index).Scan(&value.ID, &value.Path, &value.Size, &encoding, &section.Title, &section.Start, &section.End)
+	err = tx.QueryRowContext(ctx, `SELECT f.id,f.path,f.size,i.encoding,s.title,s.start_byte,s.end_byte
+ FROM txt_files f JOIN txt_interpretations i ON i.file_id=f.id AND i.role='active'
+ JOIN txt_sections s ON s.file_id=i.file_id AND s.generation=i.generation
+ WHERE f.library_id=? AND f.state='acquired' AND s.idx=?`, id, index).Scan(&value.ID, &value.Path, &value.Size, &encoding, &section.Title, &section.Start, &section.End)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SectionContent{}, ErrNotFound
 	}

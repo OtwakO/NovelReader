@@ -57,10 +57,13 @@ func TestFailedPendingFileDoesNotBlockNextOriginal(t *testing.T) {
 }
 
 func TestCancelledAnalysisReturnsOnlyItsClaimToPending(t *testing.T) {
-	store, _, home, _ := receiptStore(t)
+	store, _, _, _ := receiptStore(t)
 	receipt := mustReceive(t, store)
 	// Stop after the durable claim, at the seam used by both analysis entry points.
-	claim, err := scanReceipt(home.DB().QueryRow(`UPDATE txt_files SET state=?,analysis_version=analysis_version+1,requested_preset=? WHERE id=? RETURNING `+receiptColumns, Analyzing, txt.GeneratedSections, receipt.ID))
+	if err := store.QueueAnalysis(t.Context(), receipt.ID, receipt.AnalysisVersion, txt.Options{Preset: txt.GeneratedSections}); err != nil {
+		t.Fatal(err)
+	}
+	claim, err := store.claimAnalysis(t.Context(), receipt.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

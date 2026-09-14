@@ -12,7 +12,7 @@ This is the canonical handoff for this workstream; conversation memory and older
 | Need | Read / action |
 |---|---|
 | What the user has decided | [Confirmed product decisions](#confirmed-product-decisions-and-delivery-order), together with [prior preferences](#previously-confirmed-preferences). Do not restart that questionnaire. |
-| Architecture and implementation authority | Methodical implementation is authorized; see [delivery steps](#delivery-steps). The [refined design](#refined-design-recommendation--proposed) still does not fix unexamined schemas or lifecycle mechanisms. |
+| Architecture and implementation authority | Methodical implementation is authorized. The [advanced TXT design](#advanced-txt-patterns-and-reparse--design-proposal) is accepted, including epoch 12 without migrations; see its current checkpoint and delivery order. |
 | What exists and what to inspect | [Existing foundations](#existing-foundations-and-evidence), then [current state](#current-state) and [verification](#verification). Check Git before assuming the branch is unchanged. |
 | What to do next | [Next action](#next-action) and [delivery steps](#delivery-steps). Continue the current bounded step; do not repeat the broad architecture review or start coding from a historical blueprint. |
 
@@ -444,8 +444,9 @@ the existing transport, theme, localization, and reader-state ownership; keep se
 
 ## Advanced TXT Patterns and Reparse — Design Proposal
 
-**Status:** revised after a focused code-backed design review; awaiting the user's implementation
-signal and the cutover/contract decisions below. No implementation or schema change is authorized.
+**Status:** accepted; implementation in progress. The user authorized epoch 12 without a migration
+layer during internal development and will reset test data manually. Do not modify existing data.
+The reviewed response/version contracts and legacy-link policy are accepted.
 The user confirmed **one custom pattern per interpretation**, not a reusable named-pattern library. Existing
 encoding, conservative relocation, immutable-original and core-before-advanced decisions still apply.
 This section is the current proposal for these two features, superseding tentative mechanisms above.
@@ -511,7 +512,7 @@ an import/reparse/reading controller, or extract pass-through services around th
 
 ### One original, one active interpretation, one candidate
 
-Conceptual storage, with exact DDL reviewed before implementation:
+Accepted storage layout; the implementation checkpoint uses `schema.go` as the exact DDL authority:
 
 ```text
 txt_files
@@ -730,17 +731,16 @@ No push-notification infrastructure is required.
   cleanup must still export and restore. Acquired/active data requires its valid original. Do not
   rebuild indexes or execute stored regexes; analyzing candidates resume only through quiescent
   recovery. Inbox authority remains stripped.
-- This storage correction requires a new reader schema epoch (12 if no intervening change), not an
-  epoch-11 marker tweak. Existing policy has no migration layer: old homes/archives need the matching
-  application unless compatibility work is separately approved. Before implementation, explicitly
-  confirm the cutover/data-preservation approach. No reset, migration or live-data edit is authorized
-  here. Rollback needs the previous application and preserved compatible data, not just a code revert.
+- The storage correction is registered as reader schema epoch 12. The user approved no migration
+  layer during internal development and will reset development data manually. Existing epoch-11
+  homes/archives remain untouched and need their matching application. Rollback needs that application
+  and preserved compatible data, not just a code revert. No automatic reset or live-data edit.
 
 ### Delivery and proportionate verification
 
-1. Accept this design and settle the schema/public-contract checkpoint. Implement the interpretation
-   separation while preserving the complete existing import/read/remove/restore behavior; no new UI
-   exposure until that step works. This is the necessary correction, not a standalone framework.
+1. **Storage separation implemented.** Epoch 12, generation-qualified interpretations and the existing
+   import/read/remove/restore paths are connected. This is the necessary correction, not a standalone
+   framework; no reparse UI or endpoint is exposed by this checkpoint.
 2. Add custom matching end-to-end for pending imports, reusing the existing preview and acceptance.
 3. Add published candidate preparation, impact and atomic Apply; connect the focused UI and reader
    revision handling. Keep it usable with built-in methods as well as custom patterns.
@@ -771,18 +771,31 @@ sections; this reduces unnecessary foreground work without adding another proces
 Exact-range correspondence remains intentionally conservative; adding title heuristics or a persistent
 mapping engine would weaken its safety or add scope without an established need.
 
-Evidence was checked in `txtstore/analyze.go`, `catalog.go`, `publication.go`, `review.go`, `recovery.go`
-and `portable.go`, `library/state.go` and `bookmark.go`, the existing pool/lifecycle implementation and
-reader consumers. `go test ./internal/txtstore ./internal/library -count=1` passes for the existing
-implementation. These tests confirm the reused primitives, not the unimplemented design. No new tests,
-benchmarks, application edits or schema changes were made; the earlier scoped AFT inspection failed
-at its transport and provides no diagnostic assurance.
+The design review checked TXT persistence/reading/recovery, library transactions, worker ownership
+and reader consumers; baseline TXT storage/library tests passed before implementation. The current
+checkpoint's verification below supersedes that baseline. AFT inspection timed out, so Go compilation,
+scoped normal/race tests and diff review supply the implementation evidence.
 
-**Wait for the user's explicit implementation signal.** Before production edits, confirm the reader-
-schema preservation/cutover policy and the proposed legacy-link/public response contracts. Then record
-the exact DDL and compatibility decision here as implementation details of this design; do not repeat
-a broad architecture review or introduce a framework. A future provider is not a reason to move these
-TXT-specific internals into a common package until a second real implementation needs the same seam.
+**Implementation authorized.** Epoch 12 has no migration layer; use fresh isolated homes for
+verification and preserve existing data untouched. Rollback requires the prior application and its
+compatible epoch-11 data, not edited schema markers or old archives restored into epoch 12.
+The user handles development resets manually. The proposed legacy-link and public version semantics
+are accepted. A future provider is not a reason to move these TXT-specific internals into a common
+package until a second real implementation needs the same seam.
+
+**Current checkpoint:** storage separation is implemented. `backend/internal/txtstore/schema.go`
+owns the exact epoch-12 DDL: physical file lifecycle, role-unique interpretations, generation-qualified
+section keys/start-byte indexes, and the SQL receipt projection preserving the initial-import API.
+The schema and view include the forthcoming custom-pattern option; matching/controls are not yet
+implemented. Acquisition creates its default candidate atomically; claims/retries keep its generation;
+supersession stops obsolete decoding; reading selects only active indexes; removal clears both roles.
+Portable validation checks saved roles, generations, index ranges and lifecycle-specific file rules.
+**Next:** add custom matching for pending imports through the existing preview/acceptance workflow,
+then published candidate preparation, impact, atomic Apply and focused UI/revision handling. No more
+architecture approval is needed unless new evidence changes the accepted contract.
+**Verification:** affected normal/race backend suites pass, including the final `txt`, `txtstore`
+and `cmd/server` race run after the range/schema and completed/failed candidate assertions.
+No frontend changes, new browser run, deployment or existing-data modification in this checkpoint.
 
 ## Delivery Steps
 
@@ -799,14 +812,14 @@ TXT-specific internals into a common package until a second real implementation 
 - Per-home snapshot/file-mutation coordination and caller-owned BookSource catalog transactions are complete.
 - The epoch-10 shared-library cutover is implemented and verified across storage, runtime, HTTP and frontend. `library` owns common metadata/progress/bookmarks; BookSource owns bindings/catalog/cache. Catalog/content and reading-state revisions are separate. Source switching retains atomic mapping and BookSource identity merging is preserved.
 - Common list/detail responses contain library fields and display enrichment; `/books/:id/booksource` supplies native context separately. Shelf enrichment is batched. Content/caches/images and client loading are revision-qualified; progress and bookmarks share one queue. Orphan deletion guards current state while retaining old location identity.
-- `backend/internal/txtstore` now implements managed upload receipts: persisted intent, bounded streaming into disposable work, gated finalization, quiescent recovery and retryable discard. Synthetic reader-home tests cover portable pending originals and reader isolation. It is registered in production at epoch 11, with startup/restore recovery. Browser-upload and inbox HTTP controls are exposed.
+- `backend/internal/txtstore` now implements managed upload receipts: persisted intent, bounded streaming into disposable work, gated finalization, quiescent recovery and retryable discard. Synthetic reader-home tests cover portable pending originals and reader isolation. It is registered in production at epoch 12, with separate file/interpretation lifecycle and startup/restore recovery. Browser-upload and inbox HTTP controls are exposed.
 - The isolated TXT component now persists requested/resolved interpretation settings, review reasons, parser version and indexed original-byte ranges. Pending analysis versions guard acceptance; admission is atomic and idempotent, equal names/authors remain independent publications, and published re-analysis is rejected. Shared progress/bookmarks and indexed reads work without BookSource tables; removal hides shared state before retryable physical cleanup.
 - Feature-owned portable-reference validation is implemented and tested against copied reader homes: required managed originals must exist as regular files with matching sizes, published receipts and TXT library items must correspond in both directions, and incomplete acquisition/removal may lack an original. Failed/removing receipts can retain damaged bytes for explicit cleanup. Validation neither reparses nor sweeps files; size checks rely on the accepted immutable-managed-file policy, not content hashing.
 - Single-file inbox acquisition is implemented as a backend component: same-filesystem rename, cross-device streaming fallback, atomic receipt/journal intent, guarded consumption and unresolved-name deduplication. Recovery never deletes inbox leftovers; export/import strips the operational journal from copies only. Inboxes are outside replaceable reader homes and remain unclaimed external input on home removal.
 - Backend leftover review/confirmation and explicit release are tested. Review proofs are scoped to the current database lifetime; confirmation checks identity/content and a matching surviving managed copy. Release preserves files and permits normal later acquisition with a fresh receipt; it neither silently retries nor discards an existing receipt.
 - Reader runtime initialization now has one owner per reader, including during quiesce/shutdown and capacity accounting. Targeted concurrency regressions and the API package pass.
-- The independent `backend/internal/txtimport` pool and persisted analysis scheduling are production-wired. Analysis claims load original metadata/options atomically, complete their short claim independently of cancellation, and return interrupted attempts to `received` without overwriting a later version. Indexed selection takes one pending file; active homes/results are released between fair reader turns. Idle scheduling entries and completed job state are not retained.
-- Epoch-11 TXT schema registration, pre-serving recovery of retained account homes (including disabled accounts), post-restore recovery, combined intake/runtime/worker drain/resume, deletion barrier retirement and joined shutdown are implemented. Startup per-home errors do not block unrelated homes. Permanent storage errors are logged and pending work remains durable for a later wake/restart; no automatic retry engine was added.
+- The independent `backend/internal/txtimport` pool and persisted analysis scheduling are production-wired. Analysis claims load original metadata/options atomically, complete their short claim independently of cancellation, and return interrupted candidates to `queued` without changing their generation or overwriting a later request (`received` remains the unpublished HTTP projection). Indexed selection takes one pending file; active homes/results are released between fair reader turns. Idle scheduling entries and completed job state are not retained.
+- TXT schema registration (now epoch 12), pre-serving recovery of retained account homes (including disabled accounts), post-restore recovery, combined intake/runtime/worker drain/resume, deletion barrier retirement and joined shutdown are implemented. Startup per-home errors do not block unrelated homes. Permanent storage errors are logged and pending work remains durable for a later wake/restart; no automatic retry engine was added.
 - Restore returns `restored: true` with a safe warning if TXT reconciliation fails after publication. The frontend clears pre-restore reader state and keeps a translated warning visible. Corrupt/incompatible archives remain rejected before replacement. The common deletion route now uses TXT's recoverable removal lifecycle; unrecognized providers remain explicitly unsupported.
 - `backend/internal/reading` now owns common catalog/prose adaptation and location validation over concrete BookSource/TXT implementations. Catalog entries expose only index/title/heading flags. TXT uses one indexed original-byte read and literal paragraphs; native processing/cache/resource behavior stays BookSource-specific. Progress and bookmarks commit through the library's shared CAS operations.
 - TXT removal reports `txt_cleanup_pending` after successful hiding but incomplete cleanup. Book Detail keeps a focused warning/retry result, retries by the stable publication ID, and does not silently restore a shelf row or allow unpublished acquisitions to be removed as books. Existing-reader integration and failure recovery require no source context for TXT.
@@ -814,17 +827,27 @@ TXT-specific internals into a common package until a second real implementation 
 - `txtimport.Admission` now implements the accepted intake scheduling contract, independently of file storage, parsing and HTTP. The server owns its restore/deletion/shutdown lifecycle and budgets separate transfer homes. Queued/granted tickets hold no home leases; cancelled active transfers retain capacity until their caller releases after cleanup. Queue access/completion drives expiry and FIFO promotion, with no additional scheduler goroutine.
 - Browser-upload HTTP is implemented: metadata-only admission, raw bounded streaming outside API runtime slots, paginated receipt/status review, version-qualified heading/sample previews, queued re-analysis, explicit acceptance and pending-only discard. The grant ID becomes the durable upload receipt ID, so clients can resolve interrupted outcomes without blind retransmission. Transfer cancellation joins real HTTP body interruption and home cleanup before release/removal; published items remain protected from pending discard.
 - Inbox HTTP is implemented: chunked name-cursor directory pages, bounded journal pages, admission-qualified rename/copy acquisition with truthful cleanup warnings, and actual server-retained review/confirm/release tokens. The HTTP inbox owner bounds filesystem controls and approval metadata separately from transfers. Explicit review requires the recorded acquisition to have ended, may settle only that receiving receipt, and never runs whole-home recovery during live work. Native database/file proof checks remain authoritative; runtime drain and shutdown invalidate cached approvals.
-- Normal and race runs of `txtstore`, `txtimport`, `api`, `readerstore`, `backup` and `cmd/server` pass for the inbox checkpoint. AFT inspection timed out; compiler/tests and scoped diff review are the authority. No schema change, migration, existing-data reset or deployment occurred. The core import/review UI is implemented with Options API views, a feature-owned acquisition queue, version-qualified individual/bulk acceptance, inbox proof controls, and bounded result/preview pages. The production frontend build, scoped lint and 27 focused frontend tests (eight files) pass. Isolated real-server browser checks cover 13 synthetic browser acquisitions continuing after navigation, inbox acquisition, explicit bulk acceptance, literal prose reading, bookmark creation, publication removal, and portable export/restore with the book and bookmark recovered. Latest-build desktop/mobile Imports, inbox and review layouts were inspected without horizontal overflow. A 250-file component check verifies lightweight references and a 25-row rendered queue page, not throughput or memory profiling. Advanced controls and EPUB remain deferred.
+- Normal and race runs of `txtstore`, `txtimport`, `api`, `readerstore`, `backup` and `cmd/server` pass for the inbox checkpoint. AFT inspection timed out; compiler/tests and scoped diff review are the authority. No schema change, migration, existing-data reset or deployment occurred. The core import/review UI is implemented with Options API views, a feature-owned acquisition queue, version-qualified individual/bulk acceptance, inbox proof controls, and bounded result/preview pages. The production frontend build, scoped lint and 27 focused frontend tests (eight files) pass. Isolated real-server browser checks cover 13 synthetic browser acquisitions continuing after navigation, inbox acquisition, explicit bulk acceptance, literal prose reading, bookmark creation, publication removal, and portable export/restore with the book and bookmark recovered. Latest-build desktop/mobile Imports, inbox and review layouts were inspected without horizontal overflow. A 250-file component check verifies lightweight references and a 25-row rendered queue page, not throughput or memory profiling. Advanced controls/reparse are accepted and in progress; EPUB remains deferred.
 
 ## Next Action
 
-The core TXT path is complete at the verification scope below. The [custom-pattern and reparse proposal](#advanced-txt-patterns-and-reparse--design-proposal) has completed its focused revision; existing TXT storage/library tests pass, but no proposed behavior is implemented or runtime-verified. Await the user's explicit implementation signal and confirmation of schema preservation/cutover and public-contract choices. Do not start production edits or repeat broad design review while waiting. After authorization and those decisions, record the exact cutover and begin the contained interpretation-storage correction. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
+The core TXT path is complete at the verification scope below. The [custom-pattern and reparse design](#advanced-txt-patterns-and-reparse--design-proposal) is accepted, including epoch 12 without migrations and the reviewed public contracts. Storage separation is implemented and verified at the recorded scope. Next add custom matching for pending imports, then published-reparse transactions and HTTP/UI controls. Keep existing data untouched; the user handles development resets manually. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
 
 Keep the confirmed intake constraints: finish copying before Imports/Scan; rename-first with streaming cross-device fallback; one immutable managed original; no silent consumption of unresolved inbox leftovers. HTTP review/confirmation must retain the server-issued proof scoped to the current reader/database lifetime, not reconstruct authorization from displayed fields. Reuse the existing journal and operations; no generic import or backup framework.
 
 Do not restart the shared-state cutover, repeat broad architecture review, or make advanced parsing/reparse controls prerequisites. Record consequential choices before production edits; the core scope and operational choices remain authorized.
 
 ## Verification
+
+- Epoch-12 storage separation: normal and race runs of `internal/txtstore`, `internal/library`,
+  `internal/reading`, `internal/txtimport`, `internal/api`, `internal/readerstore`, `internal/backup`
+  and `cmd/server` pass. New regressions cover generation allocation before work, early supersession,
+  active reading during candidate work, and portable active/candidate state. Existing corrupt-archive
+  checks now include a missing active interpretation, gapped ranges and invalid generation counters.
+  Crash fixtures now model legal split lifecycle states. Existing API/worker/restore/reading coverage
+  is reused rather than duplicated. The final `txt`, `txtstore` and `cmd/server` race run also passes,
+  covering the shared read/portable range validator and completed/failed candidate isolation. AFT timed out;
+  no frontend/browser run, deployment or live-data modification is claimed for this increment.
 
 - Core import UI: `npm run build` and scoped ESLint pass. `npm test -- src/features/imports src/api/txt-imports.test.ts src/app/reader-state.test.ts src/app/router.test.ts src/i18n/i18n.test.ts src/features/books/BookDetailView.test.ts src/features/backups/BackupRestoreView.test.ts` passes **27 tests in eight files**. Tests cover queue lifetime and admission, pause/resume, unsent selection retention during outages, no replay of ambiguous acquisitions, reset/late-completion isolation, a bounded 250-file queue page, literal preview/version-qualified acceptance, partial bulk success, one-use inbox proofs, and both pending and publication-owned cleanup retries. Existing detail/removal and restore consumers are included.
 - Browser checks used an isolated temporary epoch-11 data root and synthetic TXT files, not the existing deployment. An unmocked 13-file batch completed after immediate navigation away; inbox acquisition and two-file bulk acceptance passed. Individual review/admission, literal reading, a bookmark, removal (receipt subsequently 404), and UI backup export/restore (HTTP 200, `restored: true`, content/bookmark recovered) passed. Desktop 1280×900 and mobile 390×844 Imports/inbox/review captures were inspected after clearing stale test-browser assets; no horizontal overflow or visible request errors in those final checks. Local screenshots/scripts are ignored under `.playwright-cli/txt-import-ui/`, not required by CI. An earlier response-interception experiment was discarded; it is not evidence for the unmocked journey. The UI detector returned no findings. No new backend test run, live BookSource audit, deployment, host-load benchmark, or memory profile is claimed for this UI increment. AFT inspection timed out; build/tests are the gate.

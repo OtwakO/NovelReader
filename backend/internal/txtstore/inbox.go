@@ -142,11 +142,14 @@ func (s *Store) claimInbox(ctx context.Context, inbox, managed *os.Root, value R
 	if err != nil {
 		return nil, value, err
 	}
-	if err := s.transition(finalCtx, value.ID, Receiving, Received, value.Size, ""); err != nil {
+	if err := s.finalizeAcquisition(finalCtx, value.ID, value.Size); err != nil {
 		return nil, value, err
 	}
-	value.State = Received
-	return nil, value, s.clearInboxClaim(finalCtx, value.ID)
+	stored, err := s.Get(finalCtx, value.ID)
+	if err != nil {
+		return nil, value, err
+	}
+	return nil, stored, s.clearInboxClaim(finalCtx, value.ID)
 }
 
 func (s *Store) recordInboxIntent(ctx context.Context, value Receipt) error {

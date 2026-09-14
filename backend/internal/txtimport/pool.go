@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/otwako/novelreader/internal/readerstore"
+	"github.com/otwako/novelreader/internal/txtstore"
 )
 
 // Workers is the initial process-wide analysis bound. Production storage must
@@ -29,7 +30,7 @@ type readerWork struct {
 
 // Pool owns fixed workers and deduplicated reader wake-ups, not per-file jobs or
 // reader runtimes. Create one pool per application. Persist work before Notify;
-// received records already represent pending automatic analysis. Caller-owned
+// queued candidates already represent pending automatic analysis. Caller-owned
 // startup/intake recovery must finish before admitting transfers or notifications.
 type Pool struct {
 	mu      sync.Mutex
@@ -114,7 +115,7 @@ func (p *Pool) run() {
 		worked, err := p.process(ctx, id)
 		if err != nil {
 			level := slog.LevelWarn
-			if ctx.Err() != nil {
+			if ctx.Err() != nil || errors.Is(err, txtstore.ErrStateChanged) {
 				level = slog.LevelInfo
 			}
 			// Keep joined cleanup errors visible even when cancellation is expected.

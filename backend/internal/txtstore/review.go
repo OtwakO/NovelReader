@@ -10,10 +10,10 @@ import (
 	"github.com/otwako/novelreader/internal/txt"
 )
 
-// List uses the receipt primary key (and state index when filtered). The caller
+// List queries the receipt projection without loading unbounded state. The caller
 // bounds limit; an ID cursor is stable but does not imply chronological ordering.
 func (s *Store) List(ctx context.Context, after string, state State, limit int) ([]Receipt, error) {
-	query := `SELECT ` + receiptColumns + ` FROM txt_files WHERE id>?`
+	query := `SELECT ` + receiptColumns + ` FROM txt_receipts WHERE id>?`
 	args := []any{after}
 	if state != "" {
 		query += ` AND state=?`
@@ -65,7 +65,7 @@ func (s *Store) Review(ctx context.Context, id string, version int64, start, lim
 		return Review{}, err
 	}
 	defer tx.Rollback()
-	value, err := scanReceipt(tx.QueryRowContext(ctx, `SELECT `+receiptColumns+` FROM txt_files WHERE id=?`, id))
+	value, err := scanReceipt(tx.QueryRowContext(ctx, `SELECT `+receiptColumns+` FROM txt_receipts WHERE id=?`, id))
 	if err != nil {
 		return Review{}, err
 	}
@@ -74,14 +74,14 @@ func (s *Store) Review(ctx context.Context, id string, version int64, start, lim
 	}
 	var result Review
 	var reasons string
-	err = tx.QueryRowContext(ctx, `SELECT analysis_version,encoding,preset,parser_version,review_reasons,(SELECT count(*) FROM txt_sections WHERE receipt_id=?) FROM txt_files WHERE id=?`, id, id).Scan(&result.Version, &result.Encoding, &result.Preset, &result.ParserVersion, &reasons, &result.TotalSections)
+	err = tx.QueryRowContext(ctx, `SELECT generation,encoding,preset,parser_version,review_reasons,(SELECT count(*) FROM txt_sections WHERE file_id=? AND generation=?) FROM txt_interpretations WHERE file_id=? AND generation=?`, id, version, id, version).Scan(&result.Version, &result.Encoding, &result.Preset, &result.ParserVersion, &reasons, &result.TotalSections)
 	if err != nil {
 		return Review{}, err
 	}
 	if err := json.Unmarshal([]byte(reasons), &result.ReviewReasons); err != nil {
 		return Review{}, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT idx,title,generated,start_byte,end_byte FROM txt_sections WHERE receipt_id=? AND idx>=? ORDER BY idx LIMIT ?`, id, start, limit+1)
+	rows, err := tx.QueryContext(ctx, `SELECT idx,title,generated,start_byte,end_byte FROM txt_sections WHERE file_id=? AND generation=? AND idx>=? ORDER BY idx LIMIT ?`, id, version, start, limit+1)
 	if err != nil {
 		return Review{}, err
 	}
@@ -129,7 +129,7 @@ func (s *Store) Review(ctx context.Context, id string, version int64, start, lim
 	if err != nil {
 		return Review{}, err
 	}
-	if current.AnalysisVersion != version || !hasInterpretation(current.State) {
+	if current.AnalysisVersion != version || current.State != value.State {
 		return Review{}, ErrStateChanged
 	}
 	return result, nil
