@@ -70,21 +70,12 @@ func TestPublishedReadingIgnoresCandidateWork(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Arrange the legal published+candidate state. Public reparse controls are a
-			// later checkpoint; the existing worker must already honor interpretation roles.
-			tx, err := home.DB().BeginTx(t.Context(), nil)
+			generation, err := store.QueueReparse(t.Context(), item.ID, item.ContentRevision, 0, txt.Options{Preset: txt.GeneratedSections, Encoding: test.encoding})
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer tx.Rollback()
-			if _, err := tx.Exec(`UPDATE txt_files SET generation=generation+1 WHERE id=?`, receipt.ID); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := tx.Exec(`INSERT INTO txt_interpretations(file_id,generation,role,state,requested_preset,requested_encoding,base_content_revision,queued_at,updated_at) SELECT id,generation,'candidate','queued',?,?,?,0,0 FROM txt_files WHERE id=?`, txt.GeneratedSections, test.encoding, item.ContentRevision, receipt.ID); err != nil {
-				t.Fatal(err)
-			}
-			if err := tx.Commit(); err != nil {
-				t.Fatal(err)
+			if _, err := store.QueueReparse(t.Context(), item.ID, item.ContentRevision, 0, txt.Options{}); !errors.Is(err, ErrStateChanged) {
+				t.Fatalf("stale absence=%v", err)
 			}
 			claim, err := store.claimAnalysis(t.Context(), receipt.ID)
 			if err != nil {
@@ -126,6 +117,26 @@ func TestPublishedReadingIgnoresCandidateWork(t *testing.T) {
 				t.Fatalf("candidate result=%s", candidateState)
 			}
 			assertActive()
+			if test.encoding == "" {
+				preview, err := store.ReviewReparse(t.Context(), item.ID, generation, 0, 1)
+				if err != nil || preview.Version != generation || len(preview.Headings) != 1 {
+					t.Fatalf("candidate review=%+v: %v", preview, err)
+				}
+			}
+			if err := store.DiscardReparse(t.Context(), item.ID, item.ContentRevision, generation); err != nil {
+				t.Fatal(err)
+			}
+			assertActive()
+			if _, err := store.ReviewReparse(t.Context(), item.ID, generation, 0, 1); !errors.Is(err, ErrStateChanged) {
+				t.Fatalf("discarded preview=%v", err)
+			}
+			newGeneration, err := store.QueueReparse(t.Context(), item.ID, item.ContentRevision, 0, txt.Options{})
+			if err != nil || newGeneration <= generation {
+				t.Fatalf("generation reused=%d: %v", newGeneration, err)
+			}
+			if err := store.DiscardReparse(t.Context(), item.ID, item.ContentRevision, generation); !errors.Is(err, ErrStateChanged) {
+				t.Fatalf("old discard revoked new candidate: %v", err)
+			}
 			if err := store.Discard(t.Context(), receipt.ID); err != nil {
 				t.Fatal(err)
 			}

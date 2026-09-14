@@ -24,10 +24,7 @@ func (s *Store) QueueAnalysis(ctx context.Context, id string, version int64, opt
 	if err := requireChange(tx.ExecContext(ctx, `UPDATE txt_files SET generation=generation+1,updated_at=? WHERE id=? AND state='acquired' AND library_id IS NULL AND EXISTS(SELECT 1 FROM txt_interpretations WHERE file_id=? AND generation=? AND role='candidate')`, time.Now().UnixMilli(), id, id, version)); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM txt_interpretations WHERE file_id=? AND role='candidate'`, id); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO txt_interpretations(file_id,generation,role,state,requested_encoding,requested_preset,requested_pattern,queued_at,updated_at) SELECT id,generation,'candidate','queued',?,?,?,updated_at,updated_at FROM txt_files WHERE id=?`, options.Encoding, options.Preset, options.Pattern, id); err != nil {
+	if err := replaceCandidateTx(ctx, tx, id, 0, options); err != nil {
 		return err
 	}
 	return tx.Commit()

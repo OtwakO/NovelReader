@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+
+	"github.com/otwako/novelreader/internal/txt"
 )
 
 // The file lifecycle and interpretation lifecycle are separate. Public receipt
@@ -27,6 +29,16 @@ func (s *Store) finalizeAcquisition(ctx context.Context, id string, size int64) 
 		return err
 	}
 	return tx.Commit()
+}
+
+// Replace a candidate after the caller reserves the writer and allocates its
+// generation. Both pending imports and published reparses use the same work record.
+func replaceCandidateTx(ctx context.Context, tx *sql.Tx, id string, base int64, options txt.Options) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM txt_interpretations WHERE file_id=? AND role='candidate'`, id); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO txt_interpretations(file_id,generation,role,state,requested_encoding,requested_preset,requested_pattern,base_content_revision,queued_at,updated_at) SELECT id,generation,'candidate','queued',?,?,?,?,updated_at,updated_at FROM txt_files WHERE id=?`, options.Encoding, options.Preset, options.Pattern, base, id)
+	return err
 }
 
 // Every guarded interpretation write must affect its exact current row.

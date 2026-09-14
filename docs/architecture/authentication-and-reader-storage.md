@@ -58,8 +58,23 @@ them in storage; a publication stays published while another interpretation is p
 Supersession checks occur before decoding, every roughly 1 MiB of source reads, and at the final
 result transaction. Quiescent recovery requeues interrupted candidates without touching active data.
 Removal drops both interpretation roles when hiding the library item; failed byte cleanup retains
-only the file/cleanup record. Published-reparse operations and their UI are the next checkpoint in
-the [accepted plan](../plans/2026-09-10-multi-provider-library.md#advanced-txt-patterns-and-reparse--design-proposal).
+only the file/cleanup record.
+
+Published reparse is implemented at the `txtstore` boundary, not yet exposed by HTTP or UI.
+`QueueReparse`/`DiscardReparse` compare the active content revision and exact candidate generation
+(zero means observed absence when queueing). They change neither readable content nor library revisions.
+`ReviewReparse` reuses bounded preview sampling and rechecks the candidate role after file I/O.
+`ReparseImpact` reads interpretation and reading state in one snapshot, resolving only referenced
+sections by exact byte-range equality and equal encoding. It does not infer correspondence from titles
+or ordinal proximity, and never revives older/orphaned bookmarks.
+
+`ApplyReparse` validates the managed original under the file-mutation gate, then reserves SQLite's
+writer through a TXT-owned row before reading library state. It recomputes mappings, checks reviewed
+versions, updates library-owned progress/bookmarks, and swaps interpretation roles in one transaction.
+Unmapped progress requires an explicit section choice at position zero; unresolved bookmarks retain
+original location data. Content/state revisions advance once; an already-active generation returns
+current state without another mutation. The next [accepted checkpoint](../plans/2026-09-10-multi-provider-library.md#advanced-txt-patterns-and-reparse--design-proposal)
+connects HTTP/UI controls together with revision-coherent reader loading and qualified navigation.
 
 ### TXT background ownership
 

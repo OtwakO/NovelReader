@@ -743,8 +743,9 @@ No push-notification infrastructure is required.
    framework; no reparse UI or endpoint is exposed by this checkpoint.
 2. **Custom matching for pending imports is implemented and verified**, through the existing
    preview/acceptance path with exact persisted options and localized validation feedback.
-3. Add published candidate preparation, impact and atomic Apply; connect the focused UI and reader
-   revision handling. Keep it usable with built-in methods as well as custom patterns.
+3. **Published-reparse storage is implemented and verified:** candidate preparation/discard,
+   bounded review, coherent impact and atomic Apply. Next connect HTTP and the focused UI together
+   with reader revision handling. Keep built-in methods and custom patterns on the same path.
 
 Use a few focused groups, extending existing fixtures rather than duplicating the core suite:
 
@@ -797,9 +798,18 @@ Direct compilation avoids malformed input escaping concatenated anchors; prefix 
 hide a valid full-line alternative. Exact options survive generated fallback, worker reload and receipt
 responses. The existing review form exposes custom patterns, localized errors and version/option gates.
 No schema change, pattern library, JavaScript regex validation or additional processing owner.
-**Next:** published candidate preparation, impact, atomic Apply and focused UI/revision handling. No more
-architecture approval is needed unless new evidence changes the accepted contract.
-**Verification:** custom-pattern normal/race suites pass for `txt`, `txtstore`, `txtimport` and `api`.
+**Published-reparse storage checkpoint complete:** `txtstore/reparse.go` owns candidate status and
+version-guarded preparation/discard; `reparse_impact.go` derives referenced-section correspondence in
+one snapshot; `reparse_apply.go` atomically promotes the candidate and relocates library-owned state.
+`ReviewReparse` shares bounded sampling while checking the intended role after I/O. Initial receipt
+semantics remain unchanged. Existing workers, file gates and library transaction functions are reused;
+there is no new schema, worker, mapping journal or approval-token owner.
+**Next:** connect HTTP controls and the focused reparse UI together with coherent Reader loading and
+revision-qualified section/bookmark links. Do not expose Apply before that reader integration. This
+checkpoint makes no HTTP/frontend change and does not modify existing data. No more architecture
+approval is needed unless new evidence changes the accepted contract. The [verification section](#verification)
+records the storage/race evidence and bounded-index measurement.
+**Custom-pattern verification (previous checkpoint):** normal/race suites pass for `txt`, `txtstore`, `txtimport` and `api`.
 Frontend typecheck, scoped ESLint, production build and 13 tests across import views, transport and i18n
 pass. A desktop/mobile production-build browser check used synthetic API responses to verify draft
 rejection, validation feedback and refreshed-preview gating; screenshots were inspected without
@@ -823,7 +833,7 @@ No deployment or existing-data modification.
 - The epoch-10 shared-library cutover is implemented and verified across storage, runtime, HTTP and frontend. `library` owns common metadata/progress/bookmarks; BookSource owns bindings/catalog/cache. Catalog/content and reading-state revisions are separate. Source switching retains atomic mapping and BookSource identity merging is preserved.
 - Common list/detail responses contain library fields and display enrichment; `/books/:id/booksource` supplies native context separately. Shelf enrichment is batched. Content/caches/images and client loading are revision-qualified; progress and bookmarks share one queue. Orphan deletion guards current state while retaining old location identity.
 - `backend/internal/txtstore` now implements managed upload receipts: persisted intent, bounded streaming into disposable work, gated finalization, quiescent recovery and retryable discard. Synthetic reader-home tests cover portable pending originals and reader isolation. It is registered in production at epoch 12, with separate file/interpretation lifecycle and startup/restore recovery. Browser-upload and inbox HTTP controls are exposed.
-- The isolated TXT component now persists requested/resolved interpretation settings, review reasons, parser version and indexed original-byte ranges. Pending analysis versions guard acceptance; admission is atomic and idempotent, equal names/authors remain independent publications, and published re-analysis is rejected. Shared progress/bookmarks and indexed reads work without BookSource tables; removal hides shared state before retryable physical cleanup.
+- The isolated TXT component now persists requested/resolved interpretation settings, review reasons, parser version and indexed original-byte ranges. Pending analysis versions guard acceptance; admission is atomic and idempotent, equal names/authors remain independent publications, and the pending-only analysis API still rejects published files. Published reparse now has a separate verified storage operation, not yet HTTP/UI controls. Shared progress/bookmarks and indexed reads work without BookSource tables; removal hides shared state before retryable physical cleanup.
 - Feature-owned portable-reference validation is implemented and tested against copied reader homes: required managed originals must exist as regular files with matching sizes, published receipts and TXT library items must correspond in both directions, and incomplete acquisition/removal may lack an original. Failed/removing receipts can retain damaged bytes for explicit cleanup. Validation neither reparses nor sweeps files; size checks rely on the accepted immutable-managed-file policy, not content hashing.
 - Single-file inbox acquisition is implemented as a backend component: same-filesystem rename, cross-device streaming fallback, atomic receipt/journal intent, guarded consumption and unresolved-name deduplication. Recovery never deletes inbox leftovers; export/import strips the operational journal from copies only. Inboxes are outside replaceable reader homes and remain unclaimed external input on home removal.
 - Backend leftover review/confirmation and explicit release are tested. Review proofs are scoped to the current database lifetime; confirmation checks identity/content and a matching surviving managed copy. Release preserves files and permits normal later acquisition with a fresh receipt; it neither silently retries nor discards an existing receipt.
@@ -841,13 +851,26 @@ No deployment or existing-data modification.
 
 ## Next Action
 
-The core TXT path is complete at the verification scope below. The [custom-pattern and reparse design](#advanced-txt-patterns-and-reparse--design-proposal) is accepted, including epoch 12 without migrations and the reviewed public contracts. Storage separation is implemented and verified at the recorded scope. Custom matching for pending imports is also implemented and verified. Next implement published-reparse transactions and HTTP/UI controls. Keep existing data untouched; the user handles development resets manually. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
+The core TXT path is complete at the verification scope below. The [custom-pattern and reparse design](#advanced-txt-patterns-and-reparse--design-proposal) is accepted, including epoch 12 without migrations and the reviewed public contracts. Storage separation is implemented and verified at the recorded scope. Custom matching for pending imports is also implemented and verified. Published-reparse storage transactions are also implemented and verified. Next connect HTTP/UI controls together with coherent reader loads and revision-qualified navigation; keep Apply unexposed until that integration is complete. Keep existing data untouched; the user handles development resets manually. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
 
 Keep the confirmed intake constraints: finish copying before Imports/Scan; rename-first with streaming cross-device fallback; one immutable managed original; no silent consumption of unresolved inbox leftovers. HTTP review/confirmation must retain the server-issued proof scoped to the current reader/database lifetime, not reconstruct authorization from displayed fields. Reuse the existing journal and operations; no generic import or backup framework.
 
 Do not restart the shared-state cutover, repeat broad architecture review, or make advanced parsing/reparse controls prerequisites. Record consequential choices before production edits; the core scope and operational choices remain authorized.
 
 ## Verification
+
+- Published-reparse storage: `go test ./internal/txtstore ./internal/library ./internal/txtimport
+  ./internal/reading ./internal/api ./internal/readerstore ./internal/backup -count=1` and the same
+  packages under `-race` pass. `reparse_test.go` covers exact-range relocation across changed ordinals,
+  stale reading-state rejection, explicit resume, orphan retention/non-revival, atomic rollback and
+  harmless Apply retry. Existing interpretation/portable fixtures now use real candidate operations
+  for active-reading isolation, discard/generation guards, restored interrupted preparation, explicit
+  Apply and export of the resulting active index. Initial-import/reader HTTP regressions still pass.
+  A single local synthetic 2,000-section Apply, including old-index deletion, took **7.78 ms**; the
+  check also rejects correspondence across encodings despite equal byte ranges. This is neither a
+  throughput benchmark nor a latency guarantee. AFT inspection timed out; Go compilation, tests and
+  scoped diff review are the evidence. No HTTP exposure, frontend/browser test, schema change,
+  deployment or existing-data modification in this checkpoint.
 
 - Custom patterns: normal and race runs of `internal/txt`, `internal/txtstore`, `internal/txtimport`
   and `internal/api` pass. Parser tests cover full-line alternation, trimmed titles/original offsets,

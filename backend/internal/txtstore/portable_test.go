@@ -27,6 +27,14 @@ func TestPublishedPortableReferencesAndMissingOriginal(t *testing.T) {
 	if _, err := store.db.Exec(`UPDATE txt_interpretations SET requested_pattern='(' WHERE file_id=?`, receipt.ID); err != nil {
 		t.Fatal(err)
 	}
+	// A portable candidate is preparation, not permission to replace active content.
+	generation, err := store.QueueReparse(t.Context(), item.ID, item.ContentRevision, 0, txt.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.claimAnalysis(t.Context(), receipt.ID); err != nil {
+		t.Fatal(err)
+	}
 	snapshot := filepath.Join(t.TempDir(), "snapshot")
 	if err := manager.SnapshotHome(t.Context(), alice, snapshot); err != nil {
 		t.Fatal(err)
@@ -57,10 +65,30 @@ func TestPublishedPortableReferencesAndMissingOriginal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := NewStore(restored.DB(), restored.Files()).ReadSection(t.Context(), item.ID, item.ContentRevision, 0)
-	restored.Close()
+	restoredTXT := NewStore(restored.DB(), restored.Files())
+	content, err := restoredTXT.ReadSection(t.Context(), item.ID, item.ContentRevision, 0)
 	if err != nil || !strings.Contains(content.Text, "First paragraph.") {
 		t.Fatalf("restored read=%+v err=%v", content, err)
+	}
+	if err := restoredTXT.Recover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if worked, err := restoredTXT.AnalyzeNext(t.Context()); !worked || err != nil {
+		t.Fatalf("restored candidate=%v: %v", worked, err)
+	}
+	status, err := restoredTXT.ReparseStatus(t.Context(), item.ID)
+	if err != nil || status.ActiveGeneration != preview.Version || status.Candidate == nil || status.Candidate.Generation != generation {
+		t.Fatalf("recovery changed active/candidate identity=%+v: %v", status, err)
+	}
+	index := 1
+	applied, err := restoredTXT.ApplyReparse(t.Context(), item.ID, ApplyReparseRequest{Generation: generation, ActiveGeneration: preview.Version, Expected: item.Revision(), ResumeChapter: &index})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item = applied.Item
+	restored.Close()
+	if err := manager.SnapshotHome(t.Context(), bob, filepath.Join(t.TempDir(), "applied-snapshot")); err != nil {
+		t.Fatalf("applied index is not portable: %v", err)
 	}
 	// An incomplete archive must not replace the working reader home.
 	if err := os.Remove(filepath.Join(files, filepath.FromSlash(receipt.Path))); err != nil {

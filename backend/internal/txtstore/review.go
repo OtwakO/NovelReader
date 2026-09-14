@@ -60,6 +60,15 @@ const reviewSampleBytes = 4096
 // It does not build a full catalog or reparse the original. Callers bound the page
 // size and provide the exact analysis version they are reviewing.
 func (s *Store) Review(ctx context.Context, id string, version int64, start, limit int) (Review, error) {
+	return s.review(ctx, id, version, start, limit, false)
+}
+
+// ReviewReparse samples only the named completed candidate of a live publication.
+func (s *Store) ReviewReparse(ctx context.Context, id string, generation int64, start, limit int) (Review, error) {
+	return s.review(ctx, id, generation, start, limit, true)
+}
+
+func (s *Store) review(ctx context.Context, id string, version int64, start, limit int, reparse bool) (Review, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return Review{}, err
@@ -69,12 +78,25 @@ func (s *Store) Review(ctx context.Context, id string, version int64, start, lim
 	if err != nil {
 		return Review{}, err
 	}
-	if value.AnalysisVersion != version || !hasInterpretation(value.State) {
-		return Review{}, ErrStateChanged
+	role := "candidate"
+	if reparse {
+		if value.State != Published {
+			return Review{}, ErrStateChanged
+		}
+	} else {
+		if value.AnalysisVersion != version || !hasInterpretation(value.State) {
+			return Review{}, ErrStateChanged
+		}
+		if value.State == Published {
+			role = "active"
+		}
 	}
 	var result Review
 	var reasons string
-	err = tx.QueryRowContext(ctx, `SELECT generation,encoding,preset,parser_version,review_reasons,(SELECT count(*) FROM txt_sections WHERE file_id=? AND generation=?) FROM txt_interpretations WHERE file_id=? AND generation=?`, id, version, id, version).Scan(&result.Version, &result.Encoding, &result.Preset, &result.ParserVersion, &reasons, &result.TotalSections)
+	err = tx.QueryRowContext(ctx, `SELECT generation,encoding,preset,parser_version,review_reasons,(SELECT count(*) FROM txt_sections WHERE file_id=? AND generation=?) FROM txt_interpretations WHERE file_id=? AND generation=? AND role=? AND state IN ('ready','needs_review')`, id, version, id, version, role).Scan(&result.Version, &result.Encoding, &result.Preset, &result.ParserVersion, &reasons, &result.TotalSections)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Review{}, ErrStateChanged
+	}
 	if err != nil {
 		return Review{}, err
 	}
@@ -125,11 +147,14 @@ func (s *Store) Review(ctx context.Context, id string, version int64, start, lim
 		}
 		result.Sample, result.SampleTruncated = text[:end], end < len(text)
 	}
-	current, err := s.Get(ctx, id)
+	// Apply/discard must invalidate a sample even when the generation still exists
+	// under another role. Do not use the published receipt's active-version alias.
+	var current bool
+	err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM txt_interpretations i JOIN txt_files f ON f.id=i.file_id WHERE i.file_id=? AND i.generation=? AND i.role=? AND i.state IN ('ready','needs_review') AND f.state='acquired' AND COALESCE(f.library_id,'')=?)`, id, version, role, value.LibraryID).Scan(&current)
 	if err != nil {
 		return Review{}, err
 	}
-	if current.AnalysisVersion != version || current.State != value.State {
+	if !current {
 		return Review{}, ErrStateChanged
 	}
 	return result, nil
