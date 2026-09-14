@@ -281,11 +281,28 @@ Restore behavior:
 3. quiesce and drain that reader's API runtime and TXT workers;
 4. atomically replace Reader Data on the same filesystem;
 5. reconcile unfinished TXT records against the new home, bounded independently of request disconnects;
-6. resume the reader, returning `restored: true` plus `warnings: ["txt_recovery_incomplete"]` if TXT reconciliation could not finish. Raw diagnostic details remain in server logs; pending records remain available for retry. The frontend clears old reader caches and keeps the translated warning visible instead of reloading it away.
+6. resume the reader, returning `restored: true` plus warnings when recovery or cleanup cannot finish (`txt_recovery_incomplete`, `reader_cleanup_pending`, or `restore_staging_cleanup_pending`). Raw diagnostics remain server-side; retained records/files remain recoverable. A typed readerstore cleanup error distinguishes committed replacement from a failure before publication, so cleanup failure cannot invite replay of a completed restore. The frontend keeps the translated warning visible instead of reloading it away.
 
 Replacement itself remains atomic; provider reconciliation warnings do not undo a committed replacement or bypass archive validation. Interrupted filesystem replacement states are reconciled on startup.
 
-Prepared restores are reader-owned and expire. Backup routes authenticate before acquiring ordinary Reader Data request leases so replacement never deadlocks against the runtime being quiesced.
+Restore operations are reader-owned and process-local. The existing status GET is no-store and returns
+`prepared`, `committing`, `committed` (with the original result/warnings), or `failed`. One operation per
+reader is retained; preparation and terminal results expire after 30 minutes, and a fresh preparation
+can supersede a terminal result. A committing operation cannot be canceled, superseded, expired or
+replayed; shutdown joins it before cleaning staging. Commit attempts consume their preparation even
+on failure. Status recovery never invokes replacement again. A missing record means unavailable
+outcome evidence—not success or failure. No durable operation ledger or schema change is involved.
+Backup routes authenticate before acquiring ordinary Reader Data request leases so replacement never
+deadlocks against the runtime being quiesced.
+
+In the initiating browser tab, a reader-bound session marker is retained before commit. The existing
+reader-state reset retires uploads and cached feature state, and the transport's reader request lifetime
+stays aborted while outcome is unresolved. Auth/restore controls use a separate lifetime that still
+cancels on reader identity/reset changes. Navigation/reload returns to recovery. A `prepared` status
+alone cannot prove that an earlier POST will not arrive later: explicit cancellation retires that
+preparation before releasing the client barrier. Missing records require acknowledgement and fresh
+state; connection failures keep the barrier. This is tab-local recovery, not cross-client coordination
+or a durable completion guarantee for automation clients.
 
 Scoped hash-only automation tokens expose separate backup-export and backup-restore authority. Restore-scope issuance requires current-password reauthentication.
 

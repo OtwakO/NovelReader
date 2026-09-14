@@ -107,6 +107,8 @@ CI/deployment and high-load throughput remain unverified.
 
 ## Active Work
 
+[Restore outcome recovery and TXT failure guidance](docs/plans/2026-09-15-restore-outcome-and-txt-errors.md) — confirmed post-milestone correctness fixes; implemented and verified, awaiting the two focused commits. No existing-data or schema changes.
+
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities

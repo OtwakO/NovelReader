@@ -34,13 +34,15 @@ type ExportInfo struct {
 }
 
 type PreparedRestore struct {
-	ID                   string `json:"operationId"`
-	CreatedAt            string `json:"createdAt"`
-	ExportedFromUsername string `json:"exportedFromUsername"`
-	ReaderSchemaVersion  int    `json:"readerSchemaVersion"`
-	CurrentSchemaVersion int    `json:"currentSchemaVersion"`
-	Compatibility        string `json:"compatibility"`
-	ExpiresAt            string `json:"expiresAt"`
+	ID                   string         `json:"operationId"`
+	CreatedAt            string         `json:"createdAt"`
+	ExportedFromUsername string         `json:"exportedFromUsername"`
+	ReaderSchemaVersion  int            `json:"readerSchemaVersion"`
+	CurrentSchemaVersion int            `json:"currentSchemaVersion"`
+	Compatibility        string         `json:"compatibility"`
+	ExpiresAt            string         `json:"expiresAt"`
+	State                string         `json:"state"`
+	Result               *RestoreResult `json:"result,omitempty"`
 }
 
 type RestoreResult struct {
@@ -72,6 +74,7 @@ type Service struct {
 	janitorStop  chan struct{}
 	janitorDone  chan struct{}
 	closed       bool
+	commits      sync.WaitGroup
 }
 
 func NewService(readers *readerstore.Manager, dataRoot string, quiesce func(context.Context, readerstore.UserID) error, resume func(readerstore.UserID), afterRestore func(context.Context, readerstore.UserID) []string) (*Service, error) {
@@ -122,9 +125,13 @@ func (s *Service) PrepareRestore(ctx context.Context, userID readerstore.UserID,
 		return PreparedRestore{}, err
 	}
 	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return PreparedRestore{}, ErrRestoreConflict
+	}
 	if existingID := s.byReader[userID]; existingID != "" {
 		existing, ok := s.byID[existingID]
-		if !ok || now.Before(existing.expiresAt) {
+		if !ok || existing.summary.State == "committing" || (existing.summary.State == "prepared" && now.Before(existing.expiresAt)) {
 			s.mu.Unlock()
 			return PreparedRestore{}, ErrRestoreConflict
 		}
@@ -167,61 +174,18 @@ func (s *Service) PrepareRestore(ctx context.Context, userID readerstore.UserID,
 	summary := PreparedRestore{
 		ID: operationID, CreatedAt: manifest.CreatedAt, ExportedFromUsername: manifest.ExportedFromUsername,
 		ReaderSchemaVersion: manifest.ReaderSchemaVersion, CurrentSchemaVersion: readerstore.CurrentReaderSchemaVersion,
-		Compatibility: "compatible", ExpiresAt: expiresAt.Format(time.RFC3339),
+		Compatibility: "compatible", ExpiresAt: expiresAt.Format(time.RFC3339), State: "prepared",
 	}
 	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		_ = os.RemoveAll(staging)
+		return PreparedRestore{}, ErrRestoreConflict
+	}
 	s.byID[operationID] = operation{owner: userID, staging: staging, expiresAt: expiresAt, summary: summary}
 	s.mu.Unlock()
 	reserved = false
 	return summary, nil
-}
-
-func (s *Service) GetRestore(userID readerstore.UserID, operationID string) (PreparedRestore, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	operation, ok := s.byID[operationID]
-	if !ok || operation.owner != userID || !s.now().Before(operation.expiresAt) {
-		if ok && operation.owner == userID {
-			delete(s.byID, operationID)
-			delete(s.byReader, userID)
-			_ = os.RemoveAll(operation.staging)
-		}
-		return PreparedRestore{}, ErrRestoreNotFound
-	}
-	return operation.summary, nil
-}
-
-func (s *Service) CancelRestore(userID readerstore.UserID, operationID string) error {
-	operation, err := s.takeOperation(userID, operationID)
-	if err != nil {
-		return err
-	}
-	return os.RemoveAll(operation.staging)
-}
-
-func (s *Service) CommitRestore(ctx context.Context, userID readerstore.UserID, operationID string) (RestoreResult, error) {
-	operation, err := s.takeOperation(userID, operationID)
-	if err != nil {
-		return RestoreResult{}, err
-	}
-	defer os.RemoveAll(operation.staging)
-	if err := s.quiesce(ctx, userID); err != nil {
-		s.resume(userID)
-		return RestoreResult{}, err
-	}
-	defer s.resume(userID)
-	if err := s.readers.PublishReplacement(ctx, userID, operation.staging); err != nil {
-		return RestoreResult{}, err
-	}
-	result := RestoreResult{Restored: true}
-	if s.afterRestore != nil {
-		// Publication has committed. Reconciliation is bounded but must not be
-		// abandoned just because the requester disconnected after replacement.
-		recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-		defer cancel()
-		result.Warnings = s.afterRestore(recoveryCtx, userID)
-	}
-	return result, nil
 }
 
 // Close removes every uncommitted restore staged by this process.
@@ -238,6 +202,7 @@ func (s *Service) Close() error {
 	close(s.janitorStop)
 	s.mu.Unlock()
 	<-s.janitorDone
+	s.commits.Wait() // Never remove staging or lifecycle ownership from a live commit.
 	operations := s.takeExpiredOperations(time.Time{})
 	var cleanupErr error
 	for _, pending := range operations {
@@ -267,7 +232,7 @@ func (s *Service) takeExpiredOperations(cutoff time.Time) []operation {
 	defer s.mu.Unlock()
 	operations := make([]operation, 0)
 	for id, pending := range s.byID {
-		if !cutoff.IsZero() && cutoff.Before(pending.expiresAt) {
+		if pending.summary.State == "committing" || (!cutoff.IsZero() && cutoff.Before(pending.expiresAt)) {
 			continue
 		}
 		operations = append(operations, pending)
@@ -296,23 +261,6 @@ func removeAbandonedWorkspaces(root string) error {
 		}
 	}
 	return nil
-}
-
-func (s *Service) takeOperation(userID readerstore.UserID, operationID string) (operation, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	operation, ok := s.byID[operationID]
-	if !ok || operation.owner != userID || !s.now().Before(operation.expiresAt) {
-		if ok && operation.owner == userID {
-			delete(s.byID, operationID)
-			delete(s.byReader, userID)
-			_ = os.RemoveAll(operation.staging)
-		}
-		return operation, ErrRestoreNotFound
-	}
-	delete(s.byID, operationID)
-	delete(s.byReader, userID)
-	return operation, nil
 }
 
 func newOperationID() (string, error) {

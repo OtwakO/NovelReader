@@ -110,10 +110,16 @@ tar -czf novelreader-data-$(date +%F).tar.gz data/
 docker compose start app
 ```
 
-NovelReader also provides per-reader backup and restore from the web interface. A successful
-replacement may report a TXT recovery warning: the data is restored, but unfinished import or
-cleanup records need attention. Those records are retained for retry; check server logs. Corrupt
-or incompatible archives are still rejected before replacement.
+NovelReader also provides per-reader backup and restore from the web interface. Confirming restore
+retires this tab's old reader work and unsent uploads before replacement begins. If the response is
+lost, use **Check restore status**; do not resend the commit. Navigation/reload returns this tab to
+recovery until resolved. A prepared-but-unstarted request must be canceled before continuing. If the
+server's process-local record is gone, explicitly continue with fresh state and inspect the library;
+an unknown result does not mean success or failure.
+
+A successful replacement may report recovery or old-file cleanup warnings: the new data is already
+active, while retained records/files need attention; check server logs. Corrupt or incompatible
+archives are still rejected before replacement.
 
 ## TXT imports and re-analysis
 

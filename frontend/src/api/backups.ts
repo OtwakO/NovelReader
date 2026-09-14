@@ -1,4 +1,11 @@
-import { request, requestBinary, requestUpload } from './transport';
+import { request, requestControl, requestBinary, requestUpload } from './transport';
+
+export interface RestoreResult { restored: boolean; warnings?: string[] }
+
+export interface RestoreStatus extends PreparedRestore {
+  state: 'prepared' | 'committing' | 'committed' | 'failed';
+  result?: RestoreResult;
+}
 
 export interface PreparedRestore {
   operationId: string;
@@ -32,9 +39,9 @@ export async function downloadBackup() {
 }
 
 export function prepareRestore(file: File) { return requestUpload<PreparedRestore>('/backups/restores', file); }
-export function getPreparedRestore(operationId: string) { return request<PreparedRestore>(`/backups/restores/${encodeURIComponent(operationId)}`); }
-export function cancelRestore(operationId: string) { return request<void>(`/backups/restores/${encodeURIComponent(operationId)}`, { method: 'DELETE' }); }
-export function commitRestore(operationId: string) { return request<{ restored: boolean; warnings?: string[] }>(`/backups/restores/${encodeURIComponent(operationId)}/commit`, { method: 'POST' }); }
+export function getRestoreStatus(operationId: string) { return requestControl<RestoreStatus>(`/backups/restores/${encodeURIComponent(operationId)}`, { signal: AbortSignal.timeout(10000) }); }
+export function cancelRestore(operationId: string) { return requestControl<void>(`/backups/restores/${encodeURIComponent(operationId)}`, { method: 'DELETE', signal: AbortSignal.timeout(10000) }); }
+export function commitRestore(operationId: string) { return requestControl<RestoreResult>(`/backups/restores/${encodeURIComponent(operationId)}/commit`, { method: 'POST', signal: AbortSignal.timeout(120000) }); }
 
 export async function listBackupTokens() {
   const response = await request<{ tokens: BackupToken[] | null }>('/auth/backup-tokens');

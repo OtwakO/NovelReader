@@ -113,6 +113,13 @@ func TestServiceExportsTimestampedPortableArchiveAndRestoresAcrossReaders(t *tes
 	if err != nil || !result.Restored || len(result.Warnings) != 1 || result.Warnings[0] != "test_recovery_incomplete" || paused {
 		t.Fatalf("restore result=%+v error=%v paused=%v", result, err, paused)
 	}
+	status, err := service.GetRestore(backupBob, prepared.ID)
+	if err != nil || status.State != "committed" || status.Result == nil || !status.Result.Restored {
+		t.Fatalf("lost commit response cannot be recovered from status: %+v %v", status, err)
+	}
+	if _, err := service.CommitRestore(context.Background(), backupBob, prepared.ID); !errors.Is(err, ErrRestoreConflict) {
+		t.Fatalf("completed restore was replayed: %v", err)
+	}
 	bob, err := readers.Open(context.Background(), backupBob)
 	if err != nil {
 		t.Fatal(err)

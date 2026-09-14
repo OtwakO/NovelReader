@@ -119,6 +119,9 @@ func (m *Manager) PrepareReplacement(ctx context.Context, userID UserID, readerD
 	return stagingPath, nil
 }
 
+// ErrReplacementCleanupPending means replacement committed, but old-home cleanup failed.
+var ErrReplacementCleanupPending = errors.New("readerstore: replacement cleanup pending")
+
 // PublishReplacement atomically replaces one reader home and restores the previous
 // home if the replacement cannot be validated or opened. The caller must first drain
 // feature-level runtimes so no lease remains against the old home.
@@ -186,10 +189,10 @@ func (m *Manager) PublishReplacement(ctx context.Context, userID UserID, staging
 	entry.references = 0
 	m.entries[userID] = entry
 	published = true
-	if err := os.RemoveAll(rollbackPath); err != nil {
-		return fmt.Errorf("readerstore: remove replacement rollback: %w", err)
-	}
 	m.signalLocked()
+	if err := os.RemoveAll(rollbackPath); err != nil {
+		return fmt.Errorf("%w: %v", ErrReplacementCleanupPending, err)
+	}
 	return nil
 }
 

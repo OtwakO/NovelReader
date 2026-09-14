@@ -1,4 +1,4 @@
-import { request } from './transport';
+import { requestControl as request } from './transport';
 
 export interface SetupStatus { status: 'open' | 'claimed' | 'closed'; available: boolean }
 export interface AuthAccount { id: string; username: string; role: 'reader' | 'admin' }

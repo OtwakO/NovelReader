@@ -66,6 +66,10 @@ func (s *Server) handleCancelBackupRestore(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := s.backups.CancelRestore(account.ID, r.PathValue("id")); err != nil {
+		if errors.Is(err, backupservice.ErrRestoreConflict) {
+			writeErrorCode(w, http.StatusConflict, "restore_conflict", "restore has already been attempted; check its status")
+			return
+		}
 		writeErrorCode(w, http.StatusNotFound, "restore_not_found", "restore operation not found")
 		return
 	}
@@ -82,15 +86,19 @@ func (s *Server) handleCommitBackupRestore(w http.ResponseWriter, r *http.Reques
 		writeErrorCode(w, http.StatusNotFound, "restore_not_found", "restore operation not found")
 		return
 	}
+	if errors.Is(err, backupservice.ErrRestoreConflict) {
+		writeErrorCode(w, http.StatusConflict, "restore_conflict", "restore has already been attempted; check its status")
+		return
+	}
 	if err != nil {
-		w.Header().Set("Retry-After", "1")
-		writeErrorCode(w, http.StatusServiceUnavailable, "restore_failed", "Reader Data restore failed; previous data remains active")
+		writeErrorCode(w, http.StatusServiceUnavailable, "restore_failed", "Reader Data restore did not complete; check status before preparing another restore")
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) backupIdentity(w http.ResponseWriter, r *http.Request, _ auth.BackupScope) (auth.Account, bool) {
+	w.Header().Set("Cache-Control", "no-store")
 	account, ok := auth.IdentityFromContext(r.Context())
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "authentication required")

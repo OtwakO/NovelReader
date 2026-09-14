@@ -2,6 +2,7 @@ import type { Pinia } from 'pinia';
 import { createRouter, createWebHashHistory, type RouteLocationNormalized } from 'vue-router';
 import { pinia } from './pinia';
 import { useSessionStore } from '../stores/session';
+import { pendingRestore } from '../features/backups/restore-session';
 import LoadingView from './views/LoadingView.vue';
 import StartupErrorView from './views/StartupErrorView.vue';
 import NotFoundView from './views/NotFoundView.vue';
@@ -84,6 +85,7 @@ export function createAppRouter(appPinia: Pinia = pinia) {
     if (session.phase === 'setup-unavailable' && to.name !== 'setup-unavailable') return { name: 'setup-unavailable' };
 
     if (session.isAuthenticated) {
+      if (session.account && pendingRestore(session.account.id) && to.name !== 'backups') return { name: 'backups' };
       if (to.meta.administrator && !session.isAdministrator) return { name: 'shelf' };
       if (publicNames.has(String(to.name))) return session.returnTo || '/shelf';
       if (to.path === '/') return { name: 'shelf' };
