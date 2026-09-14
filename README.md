@@ -115,6 +115,8 @@ replacement may report a TXT recovery warning: the data is restored, but unfinis
 cleanup records need attention. Those records are retained for retry; check server logs. Corrupt
 or incompatible archives are still rejected before replacement.
 
+## TXT imports and re-analysis
+
 Admitted TXT publications use the existing chapter reader, progress, bookmarks, and removal
 controls. TXT is displayed as literal prose, not interpreted as HTML. Removing a TXT book also
 deletes its managed original. If file cleanup is incomplete, Book Detail keeps a warning and a
@@ -133,15 +135,27 @@ receipt and inbox claim rather than blindly importing again. The authenticated
 [browser-upload](docs/architecture/authentication-and-reader-storage.md#txt-browser-upload-http) and
 [inbox APIs](docs/architecture/authentication-and-reader-storage.md#txt-inbox-http) remain available
 for direct clients. Epoch 12 separates TXT file lifecycle from active/candidate interpretations;
-custom patterns are available for pending imports, while published-book reparse is not yet exposed.
+custom patterns are available both during import and when re-analyzing published books.
 There is no migration layer.
 
-For custom chapter detection, select **Custom pattern** in a pending file's review. Enter a Go/RE2
-expression, for example `(?i)part [0-9]+.*`, then analyze and review the saved headings before adding.
+For custom chapter detection, select **Custom pattern** in the import or re-analysis review. Enter a Go/RE2
+expression, for example `(?i)part [0-9]+.*`, then prepare and review the saved headings before adding or applying.
 Patterns are limited to 2 KiB of UTF-8 and match whole trimmed lines (up to 512 bytes); captures do
 not replace titles. Lookarounds, backreferences and empty-text matches are unsupported. Invalid
 patterns leave the previous interpretation intact. If no headings match, generated divisions still
 require review. The exact requested pattern is retained even with that fallback.
+
+To change an existing TXT book, open **Book details → Re-analyze TXT**. Prepare an interpretation,
+inspect its headings/sample and reading-state impact, then explicitly confirm **Apply reviewed
+interpretation**. The current book remains readable while preparation runs. Only proven section
+matches preserve positions; otherwise choose a resume section or **Start at the beginning**.
+Unresolved bookmarks keep their notes and old locations but cannot navigate into the new interpretation.
+Applying replaces the old index; there is no index history/undo. Export a backup first if you need one.
+
+**Discard prepared interpretation** keeps the current book and its original file. If a review becomes
+stale or a response is lost, refresh status before another decision; unsent option edits are preserved.
+An old reader tab that detects the changed revision stops writes and offers **Reopen current saved
+location** rather than silently reusing its former section or position.
 
 ## Registration and recovery
 

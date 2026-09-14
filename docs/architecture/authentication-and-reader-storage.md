@@ -39,7 +39,7 @@ bindings/catalog/cache, managed TXT files/interpretations/indexes and the other 
 connection. Epoch-11 or older homes and portable archives are incompatible; there is no automatic migration or
 reset. Preservation and rollback instructions live in the [development reset runbook](../runbooks/development-data-reset.md).
 
-The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT intake, review, reading and removal are connected. Custom patterns are available for pending imports; published-reparse controls remain unexposed. See the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
+The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT intake, review, reading and removal are connected. Custom patterns and explicit published-reparse controls are available through the shared interpretation workflow. See the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
 
 `credentials.db` is separate. Reversible source credentials are encrypted using the installation-level credential key configured by NovelReader. Losing that key requires source reauthentication but must not make Reader Data unreadable.
 
@@ -60,7 +60,8 @@ result transaction. Quiescent recovery requeues interrupted candidates without t
 Removal drops both interpretation roles when hiding the library item; failed byte cleanup retains
 only the file/cleanup record.
 
-Published reparse is implemented at the `txtstore` boundary, not yet exposed by HTTP or UI.
+Published reparse is implemented at the `txtstore` boundary and exposed through authenticated HTTP
+controls and the Book Detail re-analysis flow.
 `QueueReparse`/`DiscardReparse` compare the active content revision and exact candidate generation
 (zero means observed absence when queueing). They change neither readable content nor library revisions.
 `ReviewReparse` reuses bounded preview sampling and rechecks the candidate role after file I/O.
@@ -74,8 +75,7 @@ versions, updates library-owned progress/bookmarks, and swaps interpretation rol
 Unmapped progress requires an explicit section choice at position zero; unresolved bookmarks retain
 original location data. Content/state revisions advance once; an already-active generation returns
 current state without another mutation. Revision-coherent reader loading and qualified navigation are
-implemented; the next [accepted checkpoint](../plans/2026-09-10-multi-provider-library.md#advanced-txt-patterns-and-reparse--design-proposal)
-connects reparse HTTP/UI controls.
+implemented and connected to the reparse controls.
 
 The shared reader loads book state and catalog as a revision-matched pair, retrying that pair once
 before requiring an explicit reopen. Catalog failures retain BookSource recovery metadata without
@@ -105,6 +105,32 @@ Restore/deletion stops and drains intake, then API runtimes and TXT workers. Suc
 forgets the drained barriers; failure keeps them for retry. Restore resumes fresh admission without
 replaying old tickets. Shutdown joins transfers before workers and runtimes, even when another
 service reports a cleanup error.
+
+### TXT published-reparse HTTP
+
+`/api/books/{id}/txt/reparse` is a reader-runtime, no-store TXT control resource with the existing
+30-second deadline and strict bounded JSON decoder. `GET` returns book name, active generation/options
+and optional candidate status, not raw storage errors. `POST` prepares/replaces a candidate using
+`contentRevision`, `generation` (explicit zero means absence) and interpretation options; it wakes the
+existing analysis pool rather than parsing inside HTTP. `DELETE` discards only the named candidate.
+
+- `GET /preview?generation=…&start=…&limit=…` shares the bounded heading/sample DTO with initial
+  import. Its existing `analysisVersion` field identifies the interpretation generation, not the
+  library content revision; no native paths or byte offsets are exposed.
+- `GET /impact?generation=…` returns the coherent reviewed generations/revisions, resume correspondence
+  and preserved/unresolved bookmark counts. The client never supplies a mapping table.
+- `POST /apply` requires `generation`, `activeGeneration`, `contentRevision` and `stateVersion`, plus
+  an optional `resumeChapter` choice. Reading-state conflicts return `409 state_changed`; candidate
+  conflicts return `409 txt_state_changed`. Missing/invalid resume choices have explicit safe codes.
+  Successful retries report `alreadyApplied` without advancing state again.
+
+The Book Detail entry opens a separate `TXTReparseView`, sharing only interpretation-option and preview
+presentation with initial import. Preparation, discard and Apply are distinct actions; Apply/discard
+have explicit confirmations. Polling occurs only while the visible page has processing work. Unknown
+mutation outcomes block further mutations until refresh; active-generation status resolves a lost Apply
+response. Refresh preserves unsent drafts and renews impact/confirmation rather than silently accepting
+new state. After Apply, only the affected book's writer state is invalidated; normal reader loading
+selects the newly saved resume. No extra worker, lease owner, revision history or schema change.
 
 ### TXT browser upload HTTP
 

@@ -286,7 +286,7 @@ export default defineComponent({
               :to="readerResumeLocation(book)"
               >
 {{ $t("bookDetail.continue") }}
-</RouterLink><AppButton variant="danger" @click="confirmingRemove = true">
+</RouterLink><RouterLink v-if="book.provider === 'txt'" :to="{name:'txt-reparse',params:{bookId:book.id}}">{{ $t('imports.reparse.title') }}</RouterLink><AppButton variant="danger" @click="confirmingRemove = true">
 {{
               $t("bookDetail.remove")
             }}

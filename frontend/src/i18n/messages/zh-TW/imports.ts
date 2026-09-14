@@ -1,4 +1,18 @@
 export default {
+  reparse: {
+    ready: '已準備好，請檢查', fromBeginning: '從書籍開頭繼續閱讀。',
+    active: '目前解析選項', analysisPending: '解析工作已儲存，但暫時無法排程。請重新整理查看狀態；目前書籍未改變。',
+    title: '重新解析 TXT', intro: '使用同一原始檔準備新的解析結果。在您明確套用已檢查的結果前，目前書籍仍可正常閱讀。',
+    prepare: '準備解析結果', replace: '替換待套用的解析結果', savedOptions: '使用已儲存的選項', draft: '這些選項與待套用的結果不同。請先重新解析並檢查。',
+    impact: '閱讀狀態影響', bookmarks: '保留 {kept} 個書籤 · {unresolved} 個無法定位', orphans: '無法定位的書籤保留備註及原始位置，但不能跳轉至新的解析結果。',
+    preserved: '將保留您在「{title}」中的閱讀位置。', selected: '從「{title}」的開頭繼續閱讀。', chooseResume: '無法確認目前閱讀位置在新結果中的對應關係。請從預覽選擇章節，或從頭開始。',
+    resumeHere: '從這裡繼續', beginning: '從頭開始', usePreserved: '保留已對應的位置',
+    apply: '檢查並套用', confirm: '確認替換目前解析結果，並依上述說明更新閱讀狀態？此操作無法恢復舊章節索引。', confirmApply: '套用已檢查的結果',
+    discard: '捨棄待套用的解析結果', discardHint: '僅捨棄此次解析？目前書籍、書籤及原始檔將保留。', confirmDiscard: '捨棄此次解析',
+    applied: '此解析結果已生效。開啟目前書籍即可繼續閱讀。', readCurrent: '閱讀目前書籍',
+    stateChanged: '閱讀進度或書籤已改變。請重新整理並再次檢查影響；待套用的解析結果仍會保留。',
+    refreshRequired: '請先重新整理目前狀態，再進行操作。即使未收到回應，請求也可能已經完成。',
+  },
   title: '匯入', intro: '將 TXT 小說加入書架：先接收檔案，再檢查解析結果，最後確認新增。',
   activity: '{count} 項匯入', navigationStatus: '{pending} 項待處理 · {attention} 項需關注', browser: '從本機匯入',
   browserHint: '請選擇已複製完成的 TXT 檔案。切換應用程式頁面不會停止傳輸，解析由伺服器完成。關閉或重新整理此分頁會遺失尚未傳輸的選擇，已接收檔案不會遺失。',

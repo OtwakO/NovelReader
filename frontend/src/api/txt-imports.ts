@@ -52,3 +52,22 @@ export function acquireTXT(id: string, input: File | string, signal: AbortSignal
     body: inbox ? undefined : input, signal: AbortSignal.any([signal, AbortSignal.timeout(31 * 60_000)]),
   });
 }
+
+export interface TXTReparseStatus {
+  name: string;
+  activeGeneration: number; contentRevision: number; stateVersion: number; activeOptions: TXTOptions;
+  candidate?: { generation: number; state: 'queued' | 'analyzing' | 'ready' | 'needs_review' | 'analysis_failed'; options: TXTOptions; baseContentRevision: number; hasError: boolean };
+}
+export interface TXTReparseImpact {
+  generation: number; activeGeneration: number; contentRevision: number; stateVersion: number; totalSections: number;
+  resume: { chapterIndex: number; chapterTitle: string; position: number } | null;
+  preservedBookmarks: number; unresolvedBookmarks: number;
+}
+export interface TXTApplyRequest { generation: number; activeGeneration: number; contentRevision: number; stateVersion: number; resumeChapter?: number }
+const reparsePath = (id: string) => `/books/${encodeURIComponent(id)}/txt/reparse`;
+export const getTXTReparse = (id: string, signal: AbortSignal) => control<TXTReparseStatus>(reparsePath(id), signal);
+export const prepareTXTReparse = (id: string, contentRevision: number, generation: number, options: TXTOptions, signal: AbortSignal) => control<TXTWarnings & { generation: number }>(reparsePath(id), signal, 'POST', { contentRevision, generation, ...options });
+export const discardTXTReparse = (id: string, contentRevision: number, generation: number, signal: AbortSignal) => control<void>(reparsePath(id), signal, 'DELETE', { contentRevision, generation });
+export const previewTXTReparse = (id: string, generation: number, start: number, signal: AbortSignal) => control<TXTPreview>(`${reparsePath(id)}/preview?generation=${generation}&start=${start}&limit=25`, signal);
+export const impactTXTReparse = (id: string, generation: number, signal: AbortSignal) => control<TXTReparseImpact>(`${reparsePath(id)}/impact?generation=${generation}`, signal);
+export const applyTXTReparse = (id: string, input: TXTApplyRequest, signal: AbortSignal) => control<{ libraryId: string; contentRevision: number; stateVersion: number; alreadyApplied: boolean }>(`${reparsePath(id)}/apply`, signal, 'POST', input);

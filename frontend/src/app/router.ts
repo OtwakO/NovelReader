@@ -24,6 +24,7 @@ const SourceManagementView = () => import('../features/sources/SourceManagementV
 const SettingsView = () => import('../features/settings/SettingsView.vue');
 const AccountView = () => import('../features/account/AccountView.vue');
 const ImportsView = () => import('../features/imports/ImportsView.vue');
+const TXTReparseView = () => import('../features/imports/TXTReparseView.vue');
 const ImportReviewView = () => import('../features/imports/ImportReviewView.vue');
 const BackupRestoreView = () => import('../features/backups/BackupRestoreView.vue');
 const ReaderAdministrationView = () => import('../features/account/ReaderAdministrationView.vue');
@@ -59,6 +60,7 @@ export function createAppRouter(appPinia: Pinia = pinia) {
           { path: 'search', name: 'search', component: SearchView },
           { path: 'books/candidate', name: 'candidate-book-detail', component: CandidateBookDetailView },
           { path: 'books/:bookId', name: 'book-detail', component: BookDetailView },
+          { path: 'books/:bookId/txt/reparse', name: 'txt-reparse', component: TXTReparseView },
           { path: 'books/:bookId/read/:chapterIndex?', name: 'reader', component: ReaderView },
           { path: 'sources', name: 'sources', component: SourceManagementView },
           { path: 'settings', name: 'settings', component: SettingsView },

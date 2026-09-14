@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/txt"
 	"github.com/otwako/novelreader/internal/txtimport"
 	"github.com/otwako/novelreader/internal/txtstore"
@@ -50,6 +51,12 @@ func writeTXTError(w http.ResponseWriter, err error) {
 	status, code, message := http.StatusInternalServerError, "txt_storage_error", "TXT operation failed; check the receipt before retrying"
 	var sizeError *http.MaxBytesError
 	switch {
+	case errors.Is(err, library.ErrStateChanged):
+		status, code, message = http.StatusConflict, "state_changed", "Reading state changed; refresh the impact review before applying"
+	case errors.Is(err, txtstore.ErrResumeRequired):
+		status, code, message = http.StatusConflict, "txt_resume_required", "Choose a resume section before applying"
+	case errors.Is(err, txtstore.ErrInvalidResume):
+		status, code, message = http.StatusBadRequest, "txt_invalid_resume", "Resume section is not in the candidate"
 	case errors.Is(err, errInboxControlBusy):
 		status, code, message = http.StatusTooManyRequests, "txt_inbox_busy", err.Error()
 	case errors.Is(err, errInboxProofLimit):

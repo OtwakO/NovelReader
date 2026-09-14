@@ -1,4 +1,18 @@
 export default {
+  reparse: {
+    ready: '已准备好，请检查', fromBeginning: '从书籍开头继续阅读。',
+    active: '当前解析选项', analysisPending: '解析任务已保存，但暂时无法调度。请刷新查看状态；当前书籍未改变。',
+    title: '重新解析 TXT', intro: '使用同一原文件准备新的解析结果。在您明确应用已检查的结果前，当前书籍仍可正常阅读。',
+    prepare: '准备解析结果', replace: '替换待应用的解析结果', savedOptions: '使用已保存的选项', draft: '这些选项与待应用的结果不同。请先重新解析并检查。',
+    impact: '阅读状态影响', bookmarks: '保留 {kept} 个书签 · {unresolved} 个无法定位', orphans: '无法定位的书签保留备注和原始位置，但不能跳转到新的解析结果。',
+    preserved: '将保留您在“{title}”中的阅读位置。', selected: '从“{title}”的开头继续阅读。', chooseResume: '无法确认当前阅读位置在新结果中的对应关系。请从预览中选择章节，或从头开始。',
+    resumeHere: '从这里继续', beginning: '从头开始', usePreserved: '保留已对应的位置',
+    apply: '检查并应用', confirm: '确认替换当前解析结果，并按上述说明更新阅读状态？此操作无法恢复旧章节索引。', confirmApply: '应用已检查的结果',
+    discard: '丢弃待应用的解析结果', discardHint: '仅丢弃此次解析？当前书籍、书签及原文件将保留。', confirmDiscard: '丢弃此次解析',
+    applied: '此解析结果已生效。打开当前书籍即可继续阅读。', readCurrent: '阅读当前书籍',
+    stateChanged: '阅读进度或书签已改变。请刷新并重新检查影响；待应用的解析结果仍会保留。',
+    refreshRequired: '请先刷新当前状态，再进行操作。即使未收到响应，请求也可能已经完成。',
+  },
   title: '导入', intro: '将 TXT 小说加入书架：先接收文件，再检查解析结果，最后确认添加。',
   activity: '{count} 项导入', navigationStatus: '{pending} 项待处理 · {attention} 项需关注', browser: '从本机导入',
   browserHint: '请选择已复制完成的 TXT 文件。切换应用页面不会停止传输，解析由服务器完成。关闭或刷新此标签页会丢失尚未传输的选择，已接收文件不会丢失。',

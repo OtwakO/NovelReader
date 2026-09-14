@@ -21,6 +21,7 @@ type Candidate struct {
 }
 
 type ReparseStatus struct {
+	Name             string
 	ActiveGeneration int64
 	ContentRevision  int64
 	StateVersion     int64
@@ -48,6 +49,7 @@ func reparseStatusTx(ctx context.Context, tx *sql.Tx, id string) (ReparseStatus,
 	if item == nil || item.Provider != library.TXT {
 		return status, nil, ErrNotFound
 	}
+	status.Name = item.Name
 	status.ContentRevision, status.StateVersion = item.ContentRevision, item.StateVersion
 	err = tx.QueryRowContext(ctx, `SELECT i.generation,i.requested_encoding,i.requested_preset,i.requested_pattern,i.encoding FROM txt_interpretations i JOIN txt_files f ON f.id=i.file_id WHERE f.id=? AND f.library_id=? AND f.state='acquired' AND i.role='active'`, id, id).Scan(&status.ActiveGeneration, &status.ActiveOptions.Encoding, &status.ActiveOptions.Preset, &status.ActiveOptions.Pattern, &status.ActiveEncoding)
 	if errors.Is(err, sql.ErrNoRows) {

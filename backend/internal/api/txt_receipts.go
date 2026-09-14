@@ -13,6 +13,7 @@ import (
 // These bounded review/control operations use the ordinary reader runtime, not
 // transfer slots. They neither crawl nor run analysis in an HTTP request.
 func (s *readerAPI) registerTXTReceiptRoutes() {
+	s.registerTXTReparseRoutes()
 	register := func(pattern string, handler http.HandlerFunc) {
 		s.mux.HandleFunc(pattern, txtControlHandler(handler))
 	}
@@ -85,27 +86,7 @@ func (s *readerAPI) handlePreviewTXTReceipt(w http.ResponseWriter, r *http.Reque
 		writeTXTError(w, err)
 		return
 	}
-	type heading struct {
-		Index     int    `json:"index"`
-		Title     string `json:"title"`
-		Generated bool   `json:"generated"`
-	}
-	headings := make([]heading, 0, len(value.Headings))
-	for _, item := range value.Headings {
-		headings = append(headings, heading{item.Index, item.Title, item.Generated})
-	}
-	writeJSON(w, http.StatusOK, struct {
-		AnalysisVersion int64              `json:"analysisVersion"`
-		Encoding        txt.Encoding       `json:"encoding"`
-		Preset          txt.Preset         `json:"preset"`
-		ParserVersion   int                `json:"parserVersion"`
-		ReviewReasons   []txt.ReviewReason `json:"reviewReasons"`
-		TotalSections   int                `json:"totalSections"`
-		Headings        []heading          `json:"headings"`
-		HasMore         bool               `json:"hasMore"`
-		Sample          string             `json:"sample"`
-		SampleTruncated bool               `json:"sampleTruncated"`
-	}{value.Version, value.Encoding, value.Preset, value.ParserVersion, value.ReviewReasons, value.TotalSections, headings, value.HasMore, value.Sample, value.SampleTruncated})
+	writeTXTPreview(w, value)
 }
 
 func (s *readerAPI) handleAnalyzeTXTReceipt(w http.ResponseWriter, r *http.Request) {

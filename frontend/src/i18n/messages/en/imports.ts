@@ -1,4 +1,18 @@
 export default {
+  reparse: {
+    ready: 'Prepared for review', fromBeginning: 'Resume at the beginning of the book.',
+    active: 'Current interpretation options', analysisPending: 'Preparation is saved, but analysis could not be scheduled immediately. Refresh to check its status; the current book is unchanged.',
+    title: 'Re-analyze TXT', intro: 'Prepare a new interpretation of the same original. Your current book stays readable until you explicitly apply the reviewed result.',
+    prepare: 'Prepare interpretation', replace: 'Replace prepared interpretation', savedOptions: 'Use saved options', draft: 'These options differ from the prepared result. Prepare and review them before applying.',
+    impact: 'Reading-state impact', bookmarks: '{kept} bookmarks preserved · {unresolved} unresolved', orphans: 'Unresolved bookmarks keep their notes and original locations, but cannot navigate to the new interpretation.',
+    preserved: 'Your reading position is preserved in “{title}”.', selected: 'Resume at the beginning of “{title}”.', chooseResume: 'Your current position cannot be proven equivalent. Choose a section from the preview or start at the beginning.',
+    resumeHere: 'Resume here', beginning: 'Start at the beginning', usePreserved: 'Keep preserved position',
+    apply: 'Review and apply', confirm: 'Replace the current interpretation and update reading state as shown above? This cannot restore the previous index.', confirmApply: 'Apply reviewed interpretation',
+    discard: 'Discard prepared interpretation', discardHint: 'Discard only this preparation? Your current book, bookmarks and original file are kept.', confirmDiscard: 'Discard preparation',
+    applied: 'This interpretation is now active. Open the current book to continue reading.', readCurrent: 'Read current book',
+    stateChanged: 'Reading progress or bookmarks changed. Refresh and review the impact again; the prepared interpretation is kept.',
+    refreshRequired: 'Refresh current status before another decision. A request may have completed even if its response was lost.',
+  },
   title: 'Imports', intro: 'Bring TXT books into your library. Acquire files, review the interpretation, then choose what to add.',
   activity: '{count} imports', navigationStatus: '{pending} pending · {attention} need attention', browser: 'From this device',
   browserHint: 'Choose completed TXT files. Transfers continue while you use the app; analysis runs on the server. Closing or reloading this tab loses unsent selections, not acquired files.',
