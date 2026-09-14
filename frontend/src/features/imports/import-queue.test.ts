@@ -11,6 +11,7 @@ const acquired = (id: string): api.TXTAcquisition => ({ receipt: { id, state: 'r
 let serial = 0;
 beforeEach(() => {
   setActivePinia(createPinia()); serial = 0;
+  vi.spyOn(api, 'getTXTReceipt').mockImplementation(async id => acquired(id).receipt);
   vi.spyOn(api, 'requestTXTAdmission').mockImplementation(async () => ({ id: String(++serial), state: 'granted', expiresAt: '', maxInputBytes: 1000 }));
 });
 afterEach(() => { useImportQueue().resetReaderState(); vi.useRealTimers(); vi.restoreAllMocks(); });

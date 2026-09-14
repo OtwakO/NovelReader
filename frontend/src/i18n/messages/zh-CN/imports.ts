@@ -1,4 +1,15 @@
 export default {
+  flow: {
+    title: '导入书籍', hint: '选择 TXT 文件，我们会自动识别章节并加入书架。', choose: '选择文件',
+    pageHint: '让书籍准备好，开始阅读。只有需要检查的文件才会请你处理。',
+    readyCount: '已就绪：{count}', pendingCount: '准备中：{count}', checkCount: '待检查：{count}',
+    preview: '章节与正文', chapters: '章节', textPreview: '正文预览', sampleNote: '此处仅显示一小段正文。',
+    queued: '等待上传', waiting: '等待上传', transferring: '正在上传…', preparing: '正在识别章节…', added: '已加入书架', check: '需要检查一下',
+    read: '阅读', checkBook: '检查书籍', clear: '清除已完成项', pauseUploads: '暂停上传', paused: '上传已暂停，已上传的书籍会继续处理。',
+    history: '之前的导入', serverFiles: '从服务器文件夹导入', closeReview: '关闭', adjustChapters: '调整章节识别', bookDetails: '书籍信息（可选）',
+    reviewHint: '检查章节和正文是否正常。可以直接加入书架，也可以调整章节识别方式。', chapterCount: '共 {count} 章',
+    cleanupNote: '文件需要检查清理状态，无需重新上传。',
+  },
   reparse: {
     ready: '已准备好，请检查', fromBeginning: '从书籍开头继续阅读。',
     active: '当前解析选项', analysisPending: '解析任务已保存，但暂时无法调度。请刷新查看状态；当前书籍未改变。',

@@ -199,21 +199,31 @@ shutdown clears them after controls finish. Client JSON/flags never authorize de
 recorded in the [accepted inbox checkpoint](../plans/2026-09-10-multi-provider-library.md#inbox-http-checkpoint).
 ### TXT frontend ownership
 
-`frontend/src/features/imports` owns the Imports workspace, dedicated interpretation review, inbox
-resolution controls and compact navigation activity. The existing Vue Options API/theme is reused.
-`import-queue.ts` is the only browser acquisition owner: a Pinia store survives page navigation,
-holds lightweight File references or inbox names, and starts one admitted transfer at a time.
-Metadata polling never sends bytes; acquired files continue server analysis independently. File
-references are released at the acquisition boundary. Admission/network outages pause remaining
-work without dropping unsent selections; an uncertain attempted transfer is not replayed. Closing
-or reloading a tab cannot preserve unsent files. No file decoding, persistent browser copies, generic
-job framework or per-file polling is introduced.
+`frontend/src/features/imports/ImportWorkspace.vue` is shared by Shelf and Imports: choose files,
+follow one progress list, handle exceptions inline and open the current saved reader location directly.
+History and server-inbox controls are secondary disclosures; the inbox is not scanned until opened.
+The existing Vue Options API, theme tokens and controls are reused. Review takes a receipt prop rather
+than owning navigation; legacy `/imports/:id` links redirect to `/imports?review=id`.
 
-The application reader-state reset retires the queue alongside existing reader features. Views own
-bounded page/preview requests through `import-task.ts` and cancel them on unmount; result filters and
-cursors live in route queries so dedicated review can return to the same list. Explicit mutations
-exclude background refresh. Bulk acceptance retains selected analysis versions rather than silently
-approving a refreshed version. Inbox UI sends only retained opaque tokens and requires fresh explicit
+`import-queue.ts` is the only browser import owner. Its Pinia lifetime survives page navigation,
+holds lightweight File references or inbox names, and starts one admitted byte transfer at a time.
+One independent round-robin loop checks at most 16 owned receipts per round, with a 1.5-second pause;
+there is no timer per file. It automatically accepts only warning-free, ready initial generations from
+this tab's newly selected files. Different generations, review warnings and failures stop automatic
+approval. Uncertain acquisitions/additions are not replayed; inline review reads authoritative status.
+The server API still requires explicit acceptance—there is no server-side auto-publication policy.
+
+File references are released at acquisition. Outages preserve unsent selections and pause uploads;
+analysis/addition of acquired work may continue. Closing/reloading loses unsent files and this tab's
+automatic-approval intent, not durable receipts. Earlier receipts require explicit Add. No browser file
+decoding/copies, persistent browser file storage, generic workflow framework or schema change.
+
+The application reader-state reset cancels both queue activities alongside existing reader features.
+A library revision counter refreshes a visible shelf quietly after additions; stale list responses
+cannot overwrite a newer refresh. Views own bounded page/preview requests through `import-task.ts`
+and cancel them on unmount. History filters/cursors remain local, and review expands in the same
+workspace. Explicit mutations exclude background refresh. One-click bulk acceptance of historical
+ready receipts retains selected analysis versions rather than silently approving a refreshed version. Inbox UI sends only retained opaque tokens and requires fresh explicit
 review after an invalid/changed approval; displayed flags are not authority. The custom-pattern
 field is shown only for that heading choice, retains drafts and displays server validation beside
 its input. Pattern edits invalidate acceptance until options and saved preview match. Switching to

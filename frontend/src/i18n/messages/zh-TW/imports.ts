@@ -1,4 +1,15 @@
 export default {
+  flow: {
+    title: '匯入書籍', hint: '選擇 TXT 檔案，我們會自動辨識章節並加入書架。', choose: '選擇檔案',
+    pageHint: '讓書籍準備好，開始閱讀。只有需要檢查的檔案才會請你處理。',
+    readyCount: '已就緒：{count}', pendingCount: '準備中：{count}', checkCount: '待檢查：{count}',
+    preview: '章節與正文', chapters: '章節', textPreview: '正文預覽', sampleNote: '此處僅顯示一小段正文。',
+    queued: '等待上傳', waiting: '等待上傳', transferring: '正在上傳…', preparing: '正在辨識章節…', added: '已加入書架', check: '需要檢查一下',
+    read: '閱讀', checkBook: '檢查書籍', clear: '清除已完成項', pauseUploads: '暫停上傳', paused: '上傳已暫停，已上傳的書籍會繼續處理。',
+    history: '之前的匯入', serverFiles: '從伺服器資料夾匯入', closeReview: '關閉', adjustChapters: '調整章節辨識', bookDetails: '書籍資訊（選填）',
+    reviewHint: '檢查章節與正文是否正常。可以直接加入書架，也可以調整章節辨識方式。', chapterCount: '共 {count} 章',
+    cleanupNote: '檔案需要檢查清理狀態，無需重新上傳。',
+  },
   reparse: {
     ready: '已準備好，請檢查', fromBeginning: '從書籍開頭繼續閱讀。',
     active: '目前解析選項', analysisPending: '解析工作已儲存，但暫時無法排程。請重新整理查看狀態；目前書籍未改變。',

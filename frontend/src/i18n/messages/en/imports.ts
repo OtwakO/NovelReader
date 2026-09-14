@@ -1,4 +1,15 @@
 export default {
+  flow: {
+    title: 'Import books', hint: 'Choose TXT files. We’ll find the chapters and add your books.', choose: 'Choose files',
+    pageHint: 'Your books, ready to read. Only files that need a check will ask for your attention.',
+    readyCount: 'Ready: {count}', pendingCount: 'Preparing: {count}', checkCount: 'To check: {count}',
+    preview: 'Chapters and text', chapters: 'Chapters', textPreview: 'Text preview', sampleNote: 'This is a short sample of the book.',
+    queued: 'Waiting to upload', waiting: 'Waiting to upload', transferring: 'Uploading…', preparing: 'Finding chapters…', added: 'Added to your shelf', check: 'Needs a quick check',
+    read: 'Read', checkBook: 'Check book', clear: 'Clear finished', pauseUploads: 'Pause uploads', paused: 'Uploads are paused. Books already uploaded will continue processing.',
+    history: 'Earlier imports', serverFiles: 'Import from server folder', closeReview: 'Close', adjustChapters: 'Adjust chapters', bookDetails: 'Book details (optional)',
+    reviewHint: 'Check that the chapters and text look right. You can add the book as it is, or adjust how chapters are found.', chapterCount: 'Chapters: {count}',
+    cleanupNote: 'The file needs a cleanup check. You don’t need to upload it again.',
+  },
   reparse: {
     ready: 'Prepared for review', fromBeginning: 'Resume at the beginning of the book.',
     active: 'Current interpretation options', analysisPending: 'Preparation is saved, but analysis could not be scheduled immediately. Refresh to check its status; the current book is unchanged.',
@@ -13,7 +24,7 @@ export default {
     stateChanged: 'Reading progress or bookmarks changed. Refresh and review the impact again; the prepared interpretation is kept.',
     refreshRequired: 'Refresh current status before another decision. A request may have completed even if its response was lost.',
   },
-  title: 'Imports', intro: 'Bring TXT books into your library. Acquire files, review the interpretation, then choose what to add.',
+  title: 'Imports', intro: 'Bring TXT books into your library. Choose files and let us prepare them. Check only the books that need attention.',
   activity: '{count} imports', navigationStatus: '{pending} pending · {attention} need attention', browser: 'From this device',
   browserHint: 'Choose completed TXT files. Transfers continue while you use the app; analysis runs on the server. Closing or reloading this tab loses unsent selections, not acquired files.',
   transferDetails: 'Transfer details and receipts', chooseFiles: 'Choose TXT files', pause: 'Pause after current file', resume: 'Resume transfers', pauseHint: 'No further files will start. A transfer already in progress finishes first.',
@@ -21,7 +32,7 @@ export default {
   checkReceipt: 'Check receipt', sections: 'Import sections', results: 'Acquired files', resultsHint: 'Files are not added automatically. Review uncertain interpretations individually; select ready files for explicit bulk addition.',
   filter: 'Status', all: 'All', refresh: 'Refresh', addSelected: 'Add selected ({count})',
   batchResult: '{added} added · {failed} unsuccessful', bulkConfirm: 'Add these {count} selected ready interpretations? Titles use filenames without .txt. Open individual review to change a title or author.',
-  confirmAdd: 'Add to library', noResults: 'No files on this page. Choose files above, use the server inbox, or change the status filter.',
+  confirmAdd: 'Add book', noResults: 'No files on this page. Choose files above, use the server inbox, or change the status filter.',
   selectFile: 'Select {name}', openBook: 'Open book', review: 'Review file', back: 'Back to Imports',
   inbox: 'Server inbox', inboxHint: 'Finish copying before opening Imports or scanning. For automated copies, use a temporary name and rename to .txt only when complete. Acquiring a file moves it into managed storage.',
   scan: 'Scan inbox', acquireSelected: 'Acquire selected ({count})', inboxEmpty: 'No completed TXT files on this page.',

@@ -30,3 +30,58 @@
 
 .import-pattern { max-width: 48rem; }
 .import-pattern textarea { width: 100%; margin-top: .4rem; resize: vertical; font: 1rem/1.5 monospace; }
+
+/* Import is an inline task, using the same paper, ink and controls as the shelf. */
+.import-workspace { margin-block: 1.5rem 2rem; }
+.import-page-heading { margin-bottom: 1.5rem; }
+.import-page-heading h1 { margin-bottom: .5rem; }
+.import-page-heading p { color: var(--color-ink-muted); }
+.import-upload-bar { display: flex; align-items: center; gap: 1.25rem; padding: 1.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-paper-raised); }
+.import-upload-icon { width: 1.75rem; height: 1.75rem; flex-shrink: 0; color: var(--color-accent); }
+.import-upload-copy { flex: 1; min-width: 0; }
+.import-upload-copy h2 { margin: 0; font-size: 1.1rem; }
+.import-upload-copy p { margin: .35rem 0 0; font-size: .95rem; }
+.imports-page .import-picker, .imports-page .import-read { display: inline-flex; align-items: center; justify-content: center; position: relative; min-height: 2.75rem; padding: .65rem 1.15rem; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--color-accent); color: var(--color-paper-raised); font-weight: 650; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.imports-page .import-picker:hover, .imports-page .import-read:hover { background: var(--color-accent-strong); }
+.import-picker input[type='file'] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; padding: 0; }
+.import-picker:focus-within, .import-read:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.import-progress-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .75rem; }
+.import-progress-summary p { margin: 0; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.import-progress-summary .import-actions { margin: 0; }
+.import-progress-list { margin: .25rem 0; }
+.import-progress-list .import-copy p { margin: .15rem 0; font-size: .9rem; }
+.import-progress-list .import-copy span { font-size: .9rem; }
+.import-state-mark { display: flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; border: 1px solid var(--color-border); border-radius: 50%; flex-shrink: 0; }
+.import-state-mark svg { width: 1.15rem; height: 1.15rem; }
+.import-state-mark.is-complete { color: var(--color-success); border: 0; }
+.import-state-mark.is-working { border: 2px solid var(--color-border); border-top-color: var(--color-accent); animation: import-working 1s linear infinite; }
+.import-needs-attention .import-state-mark { border-color: var(--color-warm); color: var(--color-warm); }
+.import-note { color: var(--color-ink-muted); font-size: .9rem; }
+.import-secondary { display: flex; flex-wrap: wrap; gap: 0 1.5rem; margin-top: .5rem; font-size: .9rem; }
+.import-secondary > details[open] { flex-basis: 100%; }
+.import-secondary summary { color: var(--color-accent); min-height: 2.75rem; }
+.import-editor { margin-block: 1.5rem; padding: 1.5rem; background: var(--color-paper-raised); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.import-editor-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; }
+.import-editor-heading .import-actions { margin: 0; }
+#import-review-title { scroll-margin-top: 5.5rem; }
+.import-editor-heading h2 { margin: 0; overflow-wrap: anywhere; }
+.import-editor .import-section { margin-block: 1rem; padding-block: 1rem; }
+.import-editor .import-options { margin-block: .75rem; }
+.import-editor .import-options summary { font-weight: 600; color: var(--color-accent); }
+.import-editor .import-options label { margin-block: .75rem; }
+.import-editor .import-sample { max-height: 14rem; background: var(--color-paper); border: 0; }
+.import-editor .import-preview { gap: 1.5rem; }
+.import-editor .import-preview ol { max-height: 14rem; overflow-y: auto; padding-left: 1.75rem; }
+@keyframes import-working { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .import-state-mark.is-working { animation: none; } }
+@media (max-width: 40rem) {
+  .import-upload-bar { flex-wrap: wrap; gap: .85rem; }
+  .imports-page .import-picker { width: 100%; }
+  .import-upload-copy { flex-basis: calc(100% - 3rem); }
+  .import-progress-summary { align-items: flex-start; }
+  .import-editor { padding: 1rem; }
+  .import-progress-list .import-copy { min-width: 0; flex: 1; }
+  .import-progress-list > li { flex-wrap: nowrap; }
+  .import-progress-list > li > .import-read, .import-progress-list > li > button { flex-shrink: 0; }
+  .import-editor-heading h2 { flex-basis: 100%; }
+}

@@ -13,7 +13,7 @@ afterEach(() => { wrappers.splice(0).forEach(view => view.unmount()); vi.restore
 const receipt = (changes: Partial<api.TXTReceipt> = {}): api.TXTReceipt => ({ id: 'sample', originalName: 'sample.txt', state: 'needs_review', size: 100, createdAt: 0, updatedAt: 0, analysisVersion: 1, encoding: '', preset: '', hasError: false, ...changes });
 const preview = (version = 1): api.TXTPreview => ({ analysisVersion: version, encoding: 'utf-8', preset: 'generated-sections', parserVersion: 1, reviewReasons: ['no-headings'], totalSections: 1, headings: [{ index: 0, title: 'Section 1', generated: true }], hasMore: false, sample: '<script>literal prose</script>', sampleTruncated: true });
 async function routerFor(path: string) {
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/imports/:id?', component: { template: '<div />' } }] });
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/imports/:id?', component: { template: '<div />' } }, { path: '/books/:bookId/read', name: 'reader', component: { template: '<div />' } }] });
   await router.push(path); await router.isReady(); return router;
 }
 function button(view: VueWrapper, key: string) { return view.findAll('button').find(item => item.text() === key)!; }
@@ -23,12 +23,12 @@ it('renders literal bounded preview and only admits the explicitly reviewed vers
   const sample = vi.spyOn(api, 'previewTXT').mockResolvedValue(preview());
   const analyze = vi.spyOn(api, 'analyzeTXT').mockResolvedValue({});
   const accept = vi.spyOn(api, 'acceptTXT').mockResolvedValue({ libraryId: 'sample' });
-  const view = mount(ImportReviewView, { global: { plugins: [createPinia(), await routerFor('/imports/sample?state=needs_review')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  const view = mount(ImportReviewView, { props: { receiptId: 'sample' }, global: { plugins: [createPinia(), await routerFor('/imports/sample?state=needs_review')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
   await flushPromises();
   expect(view.get('pre').text()).toBe('<script>literal prose</script>');
   expect(view.find('script').exists()).toBe(false);
-  expect(view.text()).toContain('imports.generated');
-  expect(view.text()).toContain('imports.presets.generated-sections');
+  expect(view.text()).toContain('imports.flow.reviewHint');
+  expect(view.text()).toContain('imports.flow.chapterCount');
   await view.findAll('select')[0]!.setValue('big5');
   expect(button(view, 'imports.confirmAdd').attributes('disabled')).toBeDefined();
   expect(analyze).not.toHaveBeenCalled();
@@ -41,13 +41,13 @@ it('renders literal bounded preview and only admits the explicitly reviewed vers
   get.mockResolvedValue(receipt({ state: 'published', analysisVersion: 3, encoding: 'big5', libraryId: 'sample' }));
   await view.get('form').trigger('submit'); await flushPromises();
   expect(accept).toHaveBeenCalledWith('sample', 3, 'sample', '', expect.any(AbortSignal));
-  expect(view.text()).toContain('imports.openBook');
+  expect(view.text()).toContain('imports.flow.read');
 });
 
 it('keeps incomplete cleanup visible through a failed retry', async () => {
   vi.spyOn(api, 'getTXTReceipt').mockResolvedValue(receipt()); vi.spyOn(api, 'previewTXT').mockResolvedValue(preview());
   const discard = vi.spyOn(api, 'discardTXT').mockResolvedValueOnce({ status: 'removed', warnings: ['txt_cleanup_pending'] }).mockRejectedValueOnce(new Error('unavailable')).mockResolvedValue({ status: 'deleted' });
-  const view = mount(ImportReviewView, { global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  const view = mount(ImportReviewView, { props: { receiptId: 'sample' }, global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
   await flushPromises(); await button(view, 'imports.discard').trigger('click'); await button(view, 'imports.confirmDiscard').trigger('click'); await flushPromises();
   expect(view.text()).toContain('imports.cleanupPending'); expect(view.find('form').exists()).toBe(false);
   await button(view, 'imports.retryCleanup').trigger('click'); await flushPromises();
@@ -80,7 +80,7 @@ it('bulk admission retains selected versions and reports partial success', async
   expect(inputs[2]!.attributes('disabled')).toBeDefined();
   list.mockResolvedValue({ items: [receipt({ id: 'a', state: 'ready', analysisVersion: 9 }), receipt({ id: 'b', state: 'ready' })] });
   await button(view, 'imports.refresh').trigger('click'); await flushPromises();
-  await button(view, 'imports.addSelected').trigger('click'); await button(view, 'imports.confirmAdd').trigger('click'); await flushPromises();
+  await button(view, 'imports.addSelected').trigger('click'); await flushPromises();
   expect(accept.mock.calls.map(call => call.slice(0, 2))).toEqual([['a', 1], ['b', 1]]);
   expect(view.text()).toContain('imports.batchResult'); expect(view.text()).toContain('imports.errors.changed');
 });
@@ -89,7 +89,7 @@ it('routes a persisted publication cleanup retry through library removal, not pe
   vi.spyOn(api, 'getTXTReceipt').mockResolvedValue(receipt({ state: 'removing', libraryId: 'sample' }));
   const pending = vi.spyOn(api, 'discardTXT');
   const remove = vi.spyOn(books, 'deleteBook').mockResolvedValue({ status: 'deleted' });
-  const view = mount(ImportReviewView, { global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  const view = mount(ImportReviewView, { props: { receiptId: 'sample' }, global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
   await flushPromises(); expect(view.text()).toContain('imports.libraryCleanupPending');
   await button(view, 'imports.retryCleanup').trigger('click'); await flushPromises();
   expect(remove).toHaveBeenCalledWith('sample', expect.any(AbortSignal)); expect(pending).not.toHaveBeenCalled();
@@ -103,10 +103,9 @@ it('retains custom drafts, shows server validation, and requires their saved pre
   const sample = vi.spyOn(api, 'previewTXT').mockResolvedValue(preview());
   const analyze = vi.spyOn(api, 'analyzeTXT').mockRejectedValueOnce(new ApiError(400, { code: 'txt_invalid_pattern' })).mockResolvedValue({});
   const accept = vi.spyOn(api, 'acceptTXT');
-  const view = mount(ImportReviewView, { global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  const view = mount(ImportReviewView, { props: { receiptId: 'sample' }, global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
   await flushPromises();
   expect((view.get('textarea').element as HTMLTextAreaElement).value).toBe(original);
-  expect(view.text()).toContain('imports.savedPattern');
   await view.get('textarea').setValue('(?=part)part');
   expect(button(view, 'imports.confirmAdd').attributes('disabled')).toBeDefined();
   await view.get('form').trigger('submit'); expect(accept).not.toHaveBeenCalled();
@@ -142,7 +141,7 @@ it.each([
   ['/private/error', 'generic'],
 ])('shows safe analysis guidance for receipt code %s', async (errorCode, key) => {
   vi.spyOn(api, 'getTXTReceipt').mockResolvedValue({ ...receipt({ state: 'analysis_failed', hasError: true }), errorCode });
-  const view = mount(ImportReviewView, { global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (value: string) => value } } }); wrappers.push(view);
+  const view = mount(ImportReviewView, { props: { receiptId: 'sample' }, global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (value: string) => value } } }); wrappers.push(view);
   await flushPromises();
   expect(view.text()).toContain(`imports.analysisErrors.${key}`);
   expect(view.text()).not.toContain('/private/error');

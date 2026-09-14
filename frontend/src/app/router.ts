@@ -26,7 +26,6 @@ const SettingsView = () => import('../features/settings/SettingsView.vue');
 const AccountView = () => import('../features/account/AccountView.vue');
 const ImportsView = () => import('../features/imports/ImportsView.vue');
 const TXTReparseView = () => import('../features/imports/TXTReparseView.vue');
-const ImportReviewView = () => import('../features/imports/ImportReviewView.vue');
 const BackupRestoreView = () => import('../features/backups/BackupRestoreView.vue');
 const ReaderAdministrationView = () => import('../features/account/ReaderAdministrationView.vue');
 
@@ -67,7 +66,7 @@ export function createAppRouter(appPinia: Pinia = pinia) {
           { path: 'settings', name: 'settings', component: SettingsView },
           { path: 'account', name: 'account', component: AccountView },
           { path: 'imports', name: 'imports', component: ImportsView },
-          { path: 'imports/:id', name: 'import-review', component: ImportReviewView },
+          { path: 'imports/:id', name: 'import-review', redirect: to => ({ path: '/imports', query: { review: String(to.params.id) } }) },
           { path: 'backups', name: 'backups', component: BackupRestoreView },
           { path: 'account/readers', name: 'reader-admin', component: ReaderAdministrationView, meta: { administrator: true } },
         ],

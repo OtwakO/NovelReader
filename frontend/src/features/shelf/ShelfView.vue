@@ -1,5 +1,7 @@
 <script lang="ts">
 import { defineComponent, nextTick } from "vue";
+import ImportWorkspace from '../imports/ImportWorkspace.vue';
+import { useImportQueue } from '../imports/import-queue';
 import { readerResumeLocation } from '../reader/reader-session';
 import { listBooks } from "../../api/books";
 import type { LibraryBook } from "../../api/models";
@@ -12,10 +14,10 @@ import { loadShelfViewState, saveShelfViewState, visibleShelfBooks, type ShelfSo
 
 export default defineComponent({
   name: "ShelfView",
-  components: { AppButton, BookCover, FeatureScaffold },
+  components: { AppButton, BookCover, FeatureScaffold, ImportWorkspace },
   data() {
     const view = loadShelfViewState();
-    return { books: [] as LibraryBook[], loading: true, error: "", query: view.query, sort: view.sort as ShelfSort, restoreScrollY: view.scrollY };
+    return { imports: useImportQueue(), loadGeneration: 0, books: [] as LibraryBook[], loading: true, error: "", query: view.query, sort: view.sort as ShelfSort, restoreScrollY: view.scrollY };
   },
   computed: {
     continueBook(): LibraryBook | null {
@@ -24,6 +26,7 @@ export default defineComponent({
     visibleBooks(): LibraryBook[] { return visibleShelfBooks(this.books, this.query, this.sort); },
   },
   watch: {
+    'imports.libraryRevision'() { void this.load(true); },
     query() { this.saveView(); },
     sort() { this.saveView(); },
   },
@@ -33,22 +36,26 @@ export default defineComponent({
     await nextTick();
     window.scrollTo({ top: this.restoreScrollY });
   },
-  beforeUnmount() { this.captureScroll(); window.removeEventListener('scroll', this.captureScroll); },
+  beforeUnmount() { this.loadGeneration++; this.captureScroll(); window.removeEventListener('scroll', this.captureScroll); },
   methods: {
     readerResumeLocation,
     saveView(scrollY = window.scrollY) { saveShelfViewState({ query: this.query, sort: this.sort, scrollY }); },
     captureScroll() { this.saveView(); },
     clearQuery() { this.query = ''; },
-    async load() {
-      this.loading = true;
+    async load(quiet = false) {
+      const generation = ++this.loadGeneration;
+      if (!quiet) this.loading = true;
       this.error = "";
       try {
-        this.books = await listBooks();
+        const books = await listBooks();
+        if (generation !== this.loadGeneration) return;
+        this.books = books;
       } catch (cause) {
+        if (generation !== this.loadGeneration) return;
         this.error =
           cause instanceof Error ? cause.message : this.$t("shelf.failed");
       } finally {
-        this.loading = false;
+        if (generation === this.loadGeneration) this.loading = false;
       }
     },
     progress(book: LibraryBook) {
@@ -74,10 +81,12 @@ export default defineComponent({
     :title="$t('shelf.title')"
     :description="$t('shelf.description')"
   >
+    <ImportWorkspace class="shelf-imports" />
+    <p v-if="error && books.length" role="alert">{{ error }} <AppButton variant="quiet" @click="load(true)">{{ $t('app.common.retry') }}</AppButton></p>
     <p v-if="loading" aria-busy="true">{{ $t("shelf.loading") }}</p>
-    <section v-else-if="error" class="state">
+    <section v-else-if="error && !books.length" class="state">
       <p role="alert">{{ error }}</p>
-      <AppButton variant="secondary" @click="load">
+      <AppButton variant="secondary" @click="load()">
         {{ $t("app.common.retry") }}
       </AppButton>
     </section>
@@ -85,7 +94,7 @@ export default defineComponent({
       <h2>{{ $t("shelf.emptyTitle") }}</h2>
       <p>{{ $t("shelf.emptyDescription") }}</p>
       <div>
-        <RouterLink to="/explore">{{ $t("shelf.explore") }}</RouterLink><RouterLink to="/search">{{ $t("shelf.search") }}</RouterLink><RouterLink to="/imports">{{ $t("imports.title") }}</RouterLink>
+        <RouterLink to="/explore">{{ $t("shelf.explore") }}</RouterLink><RouterLink to="/search">{{ $t("shelf.search") }}</RouterLink>
       </div>
     </section>
     <div v-else class="library">

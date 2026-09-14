@@ -109,6 +109,10 @@ Post-review [restore outcome recovery and TXT failure guidance](docs/plans/2026-
 are also implemented and verified. The initiating tab retires old work before restoration and recovers
 uncertain outcomes without replay; analysis errors now provide safe, specific guidance.
 
+The [simple TXT import experience](docs/plans/2026-09-15-simple-txt-import.md) is implemented and verified:
+new warning-free files are added automatically from the shelf, exceptions stay inline, and mobile/desktop
+presentation follows the existing theme. Manual usability feedback is next; other app screens were not redesigned.
+
 ## Active Work
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.

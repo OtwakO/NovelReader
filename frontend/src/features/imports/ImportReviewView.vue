@@ -11,13 +11,15 @@ import { createImportTask } from './import-task';
 import './imports.css';
 export default defineComponent({
   components: { RouterLink, AppButton, TXTInterpretationOptions, TXTPreview },
+  props: { receiptId: { type: String, required: true } },
+  emits: ['updated', 'removed', 'close'],
   data: () => ({
     task: createImportTask(), receipt: undefined as TXTReceipt | undefined, preview: undefined as Preview | undefined,
     name: '', author: '', encoding: '' as TXTEncoding, preset: '' as TXTPreset, pattern: '', start: 0, warnings: [] as string[],
     confirmDiscard: false, removed: false, cleanupPending: false, timer: undefined as ReturnType<typeof setInterval> | undefined,
   }),
   computed: {
-    id(): string { return String(this.$route.params.id); },
+    id(): string { return this.receiptId; },
     canAnalyze(): boolean { return !!this.receipt && ['received', 'ready', 'needs_review', 'analysis_failed'].includes(this.receipt.state); },
     requestedPattern(): string { return this.preset === 'custom' ? this.pattern : ''; },
     patternError(): boolean { return !!this.task.error && importErrorKey(this.task.error) === 'imports.errors.pattern'; },
@@ -47,6 +49,7 @@ export default defineComponent({
         if (previousVersion !== value.analysisVersion) { this.start = 0; this.preview = undefined; }
         if (!this.preview) { const preview = await previewTXT(value.id, value.analysisVersion, this.start, signal); signal.throwIfAborted(); this.preview = preview; }
       } else this.preview = undefined;
+      this.$emit('updated', value);
     },
     refresh() { void this.task.run(this.load); },
     previewPage(offset: number) { void this.task.run(async signal => {
@@ -71,15 +74,15 @@ export default defineComponent({
         : await discardTXT(this.id, signal);
       signal.throwIfAborted(); this.removed = true; this.confirmDiscard = false;
       this.cleanupPending = !!result.warnings?.length; this.warnings = result.warnings || [];
+      if (!this.cleanupPending) this.$emit('removed', this.id);
     }); },
   },
 });
 </script>
 
 <template>
-  <div class="imports-page">
-    <RouterLink :to="{ path: '/imports', query: $route.query }">{{ $t('imports.back') }}</RouterLink>
-    <h1>{{ receipt?.originalName || $t('imports.review') }}</h1>
+  <section class="import-editor" aria-labelledby="import-review-title">
+    <header class="import-editor-heading"><h2 id="import-review-title" tabindex="-1">{{ receipt?.originalName || $t('imports.review') }}</h2><div class="import-actions"><AppButton v-if="receipt && ['ready', 'needs_review'].includes(receipt.state)" type="submit" form="import-add-form" :busy="task.busy" :disabled="!canAccept">{{ $t('imports.confirmAdd') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="$emit('close')">{{ $t('imports.flow.closeReview') }}</AppButton></div></header>
     <p v-if="task.error && !(patternError && canAnalyze && preset === 'custom')" role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
     <template v-if="removed">
       <p role="status">{{ $t(cleanupPending ? (receipt?.libraryId ? 'imports.libraryCleanupPending' : 'imports.cleanupPending') : 'imports.discarded') }}</p>
@@ -88,21 +91,23 @@ export default defineComponent({
     <template v-else>
       <div class="import-actions"><span v-if="receipt" role="status">{{ $t(`imports.state.${receipt.state}`) }}</span><AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton></div>
       <p v-if="warnings.length" role="status">{{ $t('imports.retainedWarning') }}</p>
-      <RouterLink v-if="receipt?.libraryId" :to="`/books/${receipt.libraryId}`">{{ $t('imports.openBook') }}</RouterLink>
+      <RouterLink v-if="receipt?.libraryId" class="import-read" :to="{ name: 'reader', params: { bookId: receipt.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
       <p v-if="receipt?.state === 'failed'">{{ $t('imports.failedHint') }}</p>
       <p v-if="receipt?.state === 'analysis_failed'">{{ $t(analysisErrorKey(receipt.errorCode)) }}</p>
-      <section v-if="canAnalyze" class="import-section" aria-labelledby="interpretation-title">
-        <h2 id="interpretation-title">{{ $t('imports.interpretation') }}</h2>
+      <p v-if="receipt?.state === 'needs_review'">{{ $t('imports.flow.reviewHint') }}</p>
+      <details v-if="canAnalyze" class="import-options" :open="receipt?.state === 'analysis_failed'">
+        <summary>{{ $t('imports.flow.adjustChapters') }}</summary>
         <TXTInterpretationOptions v-model:encoding="encoding" v-model:preset="preset" v-model:pattern="pattern" :busy="task.busy" :pattern-error="patternError" @update:pattern="clearPatternError" />
         <div class="import-actions"><AppButton variant="secondary" :busy="task.busy" :disabled="preset === 'custom' && !pattern" @click="analyze">{{ $t('imports.analyze') }}</AppButton></div>
         <p v-if="optionsChanged">{{ $t('imports.unappliedOptions') }}</p>
-      </section>
-      <TXTPreview v-if="preview" :preview="preview" :start="start" :pattern="receipt?.pattern" :busy="task.busy" @page="previewPage" />
-      <form v-if="receipt && ['ready', 'needs_review'].includes(receipt.state)" class="import-section" @submit.prevent="accept">
-        <h2>{{ $t('imports.addToLibrary') }}</h2>
+      </details>
+      <TXTPreview v-if="preview" compact :preview="preview" :start="start" :pattern="receipt?.pattern" :busy="task.busy" @page="previewPage" />
+      <form v-if="receipt && ['ready', 'needs_review'].includes(receipt.state)" id="import-add-form" class="import-section" @submit.prevent="accept">
+        <details class="import-options">
+<summary>{{ $t('imports.flow.bookDetails') }}</summary>
         <label>{{ $t('imports.bookTitle') }}<input v-model="name" required maxlength="256" :disabled="task.busy"></label>
         <label>{{ $t('imports.author') }}<input v-model="author" maxlength="128" :disabled="task.busy"></label>
-        <AppButton type="submit" :busy="task.busy" :disabled="!canAccept">{{ $t('imports.confirmAdd') }}</AppButton>
+        </details>
       </form>
       <section v-if="receipt && !receipt.libraryId" class="import-section">
         <AppButton variant="quiet" :disabled="task.busy" @click="confirmDiscard = true">{{ $t('imports.discard') }}</AppButton>
@@ -112,5 +117,5 @@ export default defineComponent({
         </div>
       </section>
     </template>
-  </div>
+  </section>
 </template>
