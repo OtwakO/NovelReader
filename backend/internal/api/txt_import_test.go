@@ -96,14 +96,29 @@ func TestTXTBrowserUploadReviewAndPublication(t *testing.T) {
 		invalid := fmt.Sprintf(`{"analysisVersion":%d,"encoding":"invalid"}`, value.AnalysisVersion)
 		requireTXTStatus(t, request(http.MethodPost, receiptPath+"/analysis", invalid), http.StatusBadRequest)
 		oldVersion := value.AnalysisVersion
-		requireTXTStatus(t, request(http.MethodPost, receiptPath+"/analysis", fmt.Sprintf(`{"analysisVersion":%d}`, oldVersion)), http.StatusAccepted)
+		badPattern := request(http.MethodPost, receiptPath+"/analysis", fmt.Sprintf(`{"analysisVersion":%d,"preset":"custom","pattern":"(?=Chapter)Chapter"}`, oldVersion))
+		requireTXTStatus(t, badPattern, http.StatusBadRequest)
+		if !strings.Contains(badPattern.Body.String(), "txt_invalid_pattern") || readReceipt().AnalysisVersion != oldVersion {
+			t.Fatal("invalid pattern changed the prepared interpretation")
+		}
+		requireTXTStatus(t, request(http.MethodGet, fmt.Sprintf("%s/preview?analysisVersion=%d", receiptPath, oldVersion), ""), http.StatusOK)
+		requireTXTStatus(t, request(http.MethodPost, receiptPath+"/analysis", fmt.Sprintf(`{"analysisVersion":%d,"preset":"custom","pattern":"(?i)chapter ([0-9]+)"}`, oldVersion)), http.StatusAccepted)
 		synctest.Wait()
 		value = readReceipt()
+		if value.Preset != txt.CustomPattern || value.Pattern != `(?i)chapter ([0-9]+)` {
+			t.Fatalf("custom request lost: %+v", value)
+		}
+		customPreview := request(http.MethodGet, fmt.Sprintf("%s/preview?analysisVersion=%d", receiptPath, value.AnalysisVersion), "")
+		requireTXTStatus(t, customPreview, http.StatusOK)
+		if !strings.Contains(customPreview.Body.String(), `"preset":"custom"`) || !strings.Contains(customPreview.Body.String(), `"title":"Chapter 1"`) {
+			t.Fatalf("custom interpretation not used: %s", customPreview.Body.String())
+		}
 		requireTXTStatus(t, request(http.MethodPost, receiptPath+"/accept", fmt.Sprintf(`{"analysisVersion":%d,"name":"Example"}`, oldVersion)), http.StatusConflict)
 		accept := fmt.Sprintf(`{"analysisVersion":%d,"name":"Example","author":"Synthetic"}`, value.AnalysisVersion)
 		requireTXTStatus(t, request(http.MethodPost, receiptPath+"/accept", accept), http.StatusOK)
 		requireTXTStatus(t, request(http.MethodPost, receiptPath+"/accept", accept), http.StatusOK)
 		requireTXTStatus(t, request(http.MethodDelete, receiptPath, ""), http.StatusConflict)
+		requireTXTStatus(t, request(http.MethodPost, receiptPath+"/analysis", fmt.Sprintf(`{"analysisVersion":%d,"preset":"custom","pattern":"other"}`, value.AnalysisVersion)), http.StatusConflict)
 		requireTXTStatus(t, request(http.MethodGet, "/api/books/"+ticket.ID+"/chapters", ""), http.StatusOK)
 	})
 }

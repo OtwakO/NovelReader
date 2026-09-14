@@ -10,11 +10,6 @@ import (
 	"regexp"
 )
 
-var headingRules = map[Preset]*regexp.Regexp{
-	ChineseChapters: regexp.MustCompile(`^第[0-9０-９零〇一二三四五六七八九十百千万萬亿億两兩]+[章回节節卷部篇].*$`),
-	EnglishChapters: regexp.MustCompile(`(?i)^chapter[ \t]+([0-9]+|[ivxlcdm]+)([ \t:.\-–—].*)?$`),
-}
-
 // Analyze reads an original from byte zero without modifying or retaining its
 // contents. Automatic candidates share one bounded decoding pass. Any failure
 // returns no partial index; persistence, admission and job lifetime are callers' work.
@@ -22,7 +17,8 @@ func Analyze(ctx context.Context, original io.Reader, options Options) (Analysis
 	if err := ctx.Err(); err != nil {
 		return Analysis{}, err
 	}
-	if err := options.Validate(); err != nil {
+	rule, err := options.headingRule()
+	if err != nil {
 		return Analysis{}, err
 	}
 	reader := bufio.NewReaderSize(original, encodingSampleBytes)
@@ -36,7 +32,11 @@ func Analyze(ctx context.Context, original io.Reader, options Options) (Analysis
 	}
 	builders := make([]indexBuilder, len(presets))
 	for i, preset := range presets {
-		builders[i] = indexBuilder{preset: preset, rule: headingRules[preset], start: start, title: "Introduction", part: 1}
+		selectedRule := rule
+		if options.Preset == "" {
+			selectedRule = headingRules[preset]
+		}
+		builders[i] = indexBuilder{preset: preset, rule: selectedRule, start: start, title: "Introduction", part: 1}
 	}
 	lines := lineReader{decoder: newDecoder(ctx, reader, enc, start), offset: start}
 	readable := false
@@ -117,7 +117,7 @@ type indexBuilder struct {
 
 func (b *indexBuilder) append(line textLine) error {
 	trimmed := bytes.TrimSpace(line.text)
-	if b.rule != nil && line.complete && !line.continued && len(trimmed) <= maxHeadingBytes && b.rule.Match(trimmed) {
+	if b.rule != nil && line.complete && !line.continued && len(trimmed) > 0 && len(trimmed) <= maxHeadingBytes && matchesWholeHeading(b.rule, trimmed) {
 		if b.hasText {
 			if err := b.emit(line.start, false); err != nil {
 				return err

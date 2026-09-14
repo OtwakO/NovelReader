@@ -7,7 +7,7 @@
 .import-section { margin-block: 1.5rem; padding-block: 1.5rem; border-top: 1px solid var(--color-border); }
 .import-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; margin-block: .75rem; }
 .imports-page label { display: grid; gap: .4rem; }
-.imports-page select, .imports-page input:not([type='checkbox']):not([type='file']) { max-width: 100%; min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .55rem .75rem; background: var(--color-paper-raised); color: var(--color-ink); }
+.imports-page textarea, .imports-page select, .imports-page input:not([type='checkbox']):not([type='file']) { max-width: 100%; min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .55rem .75rem; background: var(--color-paper-raised); color: var(--color-ink); }
 .imports-page input[type='checkbox'] { width: 1.2rem; height: 1.2rem; accent-color: var(--color-accent); flex-shrink: 0; }
 .imports-page input[type='file'] { max-width: 100%; padding-block: .5rem; }
 .imports-page input::file-selector-button { min-height: 2.75rem; margin-right: .75rem; padding-inline: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-ink); background: var(--color-paper-raised); cursor: pointer; }
@@ -27,3 +27,6 @@
 
 .imports-page .import-selection { display: flex; align-items: center; justify-content: center; min-width: 2.75rem; min-height: 2.75rem; }
 .imports-page summary { cursor: pointer; padding-block: .75rem; }
+
+.import-pattern { max-width: 48rem; }
+.import-pattern textarea { width: 100%; margin-top: .4rem; resize: vertical; font: 1rem/1.5 monospace; }

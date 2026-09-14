@@ -9,13 +9,22 @@ import (
 
 	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/readerstore"
+	"github.com/otwako/novelreader/internal/txt"
 )
 
 func TestPublishedPortableReferencesAndMissingOriginal(t *testing.T) {
 	store, manager, _, root := receiptStore(t)
 	receipt, preview := analyzedReceipt(t, store)
+	preview, err := store.Analyze(t.Context(), receipt.ID, txt.Options{Preset: txt.CustomPattern, Pattern: `Chapter [0-9]+`})
+	if err != nil {
+		t.Fatal(err)
+	}
 	item, err := store.Accept(t.Context(), receipt.ID, preview.Version, "Novel", "")
 	if err != nil {
+		t.Fatal(err)
+	}
+	// Saved content remains portable/readable without recompiling request syntax.
+	if _, err := store.db.Exec(`UPDATE txt_interpretations SET requested_pattern='(' WHERE file_id=?`, receipt.ID); err != nil {
 		t.Fatal(err)
 	}
 	snapshot := filepath.Join(t.TempDir(), "snapshot")

@@ -27,7 +27,7 @@ func (s *Store) QueueAnalysis(ctx context.Context, id string, version int64, opt
 	if _, err := tx.ExecContext(ctx, `DELETE FROM txt_interpretations WHERE file_id=? AND role='candidate'`, id); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO txt_interpretations(file_id,generation,role,state,requested_encoding,requested_preset,queued_at,updated_at) SELECT id,generation,'candidate','queued',?,?,updated_at,updated_at FROM txt_files WHERE id=?`, options.Encoding, options.Preset, id); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO txt_interpretations(file_id,generation,role,state,requested_encoding,requested_preset,requested_pattern,queued_at,updated_at) SELECT id,generation,'candidate','queued',?,?,?,updated_at,updated_at FROM txt_files WHERE id=?`, options.Encoding, options.Preset, options.Pattern, id); err != nil {
 		return err
 	}
 	return tx.Commit()

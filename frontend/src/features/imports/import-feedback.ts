@@ -3,7 +3,7 @@ import { ApiError } from '../../api/transport';
 export function importErrorKey(cause: unknown): string {
   if (!(cause instanceof ApiError)) return 'imports.errors.request';
   const keys: Record<string, string> = {
-    txt_invalid_input: 'invalid', txt_too_large: 'size', txt_state_changed: 'changed',
+    txt_invalid_input: 'invalid', txt_invalid_pattern: 'pattern', txt_too_large: 'size', txt_state_changed: 'changed',
     txt_receipt_not_found: 'missing', txt_ticket_not_found: 'uncertain', txt_interrupted: 'uncertain',
     txt_inbox_pending: 'claim', txt_inbox_changed: 'proof', txt_inbox_review_expired: 'proof',
     txt_intake_busy: 'busy', txt_inbox_busy: 'busy', txt_inbox_review_limit: 'proofLimit',

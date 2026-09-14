@@ -3,7 +3,6 @@ package txt
 
 import (
 	"errors"
-	"fmt"
 )
 
 type Encoding string
@@ -22,6 +21,7 @@ const (
 	ChineseChapters   Preset = "chinese-chapters"
 	EnglishChapters   Preset = "english-chapters"
 	GeneratedSections Preset = "generated-sections"
+	CustomPattern     Preset = "custom"
 )
 
 // These are analyzer/read bounds, not upload or batch policy. Bound decoded bytes
@@ -54,19 +54,10 @@ const (
 type Options struct {
 	Encoding Encoding
 	Preset   Preset
+	Pattern  string // Exact Go/RE2 expression; only used with CustomPattern.
 }
 
 var ErrInvalidOptions = errors.New("txt: unsupported interpretation options")
-
-func (o Options) Validate() error {
-	if o.Encoding != "" && !validEncoding(o.Encoding) {
-		return fmt.Errorf("%w: encoding %q", ErrInvalidOptions, o.Encoding)
-	}
-	if o.Preset != "" && o.Preset != GeneratedSections && headingRules[o.Preset] == nil {
-		return fmt.Errorf("%w: preset %q", ErrInvalidOptions, o.Preset)
-	}
-	return nil
-}
 
 // Section ranges include headings and whitespace, exclude the initial BOM, and
 // partition the original bytes. They are not progress/bookmark coordinates.

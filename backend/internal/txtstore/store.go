@@ -55,7 +55,7 @@ type Store struct {
 // reader-home lease and must keep it valid for each operation.
 func NewStore(db *sql.DB, files readerstore.FileStore) *Store { return &Store{db: db, files: files} }
 
-const receiptColumns = `id, original_name, path, state, size, error, created_at, updated_at, COALESCE(library_id,''), analysis_version, requested_encoding, requested_preset`
+const receiptColumns = `id, original_name, path, state, size, error, created_at, updated_at, COALESCE(library_id,''), analysis_version, requested_encoding, requested_preset, requested_pattern`
 const metadataTimeout = 5 * time.Second
 
 func (s *Store) Get(ctx context.Context, id string) (Receipt, error) {
@@ -64,7 +64,7 @@ func (s *Store) Get(ctx context.Context, id string) (Receipt, error) {
 
 func scanReceipt(row interface{ Scan(...any) error }) (Receipt, error) {
 	var value Receipt
-	err := row.Scan(&value.ID, &value.OriginalName, &value.Path, &value.State, &value.Size, &value.Error, &value.CreatedAt, &value.UpdatedAt, &value.LibraryID, &value.AnalysisVersion, &value.Options.Encoding, &value.Options.Preset)
+	err := row.Scan(&value.ID, &value.OriginalName, &value.Path, &value.State, &value.Size, &value.Error, &value.CreatedAt, &value.UpdatedAt, &value.LibraryID, &value.AnalysisVersion, &value.Options.Encoding, &value.Options.Preset, &value.Options.Pattern)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Receipt{}, ErrNotFound
 	}

@@ -35,13 +35,14 @@ type txtReceiptResponse struct {
 	AnalysisVersion int64          `json:"analysisVersion"`
 	Encoding        txt.Encoding   `json:"encoding"`
 	Preset          txt.Preset     `json:"preset"`
+	Pattern         string         `json:"pattern,omitempty"`
 	HasError        bool           `json:"hasError"`
 }
 
 func txtReceiptDTO(value txtstore.Receipt) txtReceiptResponse {
 	return txtReceiptResponse{ID: value.ID, OriginalName: value.OriginalName, State: value.State,
 		Size: value.Size, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, LibraryID: value.LibraryID,
-		AnalysisVersion: value.AnalysisVersion, Encoding: value.Options.Encoding, Preset: value.Options.Preset, HasError: value.Error != ""}
+		AnalysisVersion: value.AnalysisVersion, Encoding: value.Options.Encoding, Preset: value.Options.Preset, Pattern: value.Options.Pattern, HasError: value.Error != ""}
 }
 
 // Raw filesystem errors and managed paths are never part of import responses.
@@ -73,6 +74,8 @@ func writeTXTError(w http.ResponseWriter, err error) {
 		status, code, message = http.StatusConflict, "txt_state_changed", "TXT state changed; refresh before continuing"
 	case errors.Is(err, txtstore.ErrInputTooLarge), errors.As(err, &sizeError):
 		status, code, message = http.StatusRequestEntityTooLarge, "txt_too_large", "File exceeds the TXT input size limit"
+	case errors.Is(err, txt.ErrInvalidPattern):
+		status, code, message = http.StatusBadRequest, "txt_invalid_pattern", err.Error()
 	case errors.Is(err, txtstore.ErrInvalidFilename), errors.Is(err, txt.ErrInvalidOptions):
 		status, code, message = http.StatusBadRequest, "txt_invalid_input", err.Error()
 	case errors.Is(err, io.ErrUnexpectedEOF):

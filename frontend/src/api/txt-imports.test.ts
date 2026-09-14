@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { acquireTXT, acceptTXT, resolveTXTInbox } from './txt-imports';
+import { acquireTXT, acceptTXT, analyzeTXT, resolveTXTInbox } from './txt-imports';
 import { resetReaderRequests } from './transport';
 afterEach(() => { resetReaderRequests(); vi.unstubAllGlobals(); });
 
@@ -23,4 +23,12 @@ it('keeps version-qualified admission separate from opaque-token inbox resolutio
   expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual({ analysisVersion: 7, name: 'Title', author: 'Author' });
   expect(fetch.mock.calls[1]![0]).toBe('/api/imports/txt/inbox/reviews/opaque-token/release');
   expect(fetch.mock.calls[1]![1].body).toBeUndefined();
+});
+
+it('sends the exact custom expression with its reviewed generation', async () => {
+  const fetch = vi.fn().mockResolvedValue(new Response('{}'));
+  vi.stubGlobal('fetch', fetch);
+  const options = { encoding: 'utf-8' as const, preset: 'custom' as const, pattern: String.raw`(?i)part\s+\d+` };
+  await analyzeTXT('receipt', 7, options, new AbortController().signal);
+  expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual({ analysisVersion: 7, ...options });
 });

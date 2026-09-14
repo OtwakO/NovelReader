@@ -501,7 +501,7 @@ an import/reparse/reading controller, or extract pass-through services around th
   Fragments of oversized lines are not heading candidates.
   Require a full-line match; the entire trimmed line is its title. Captures have no title-template
   meaning. No multiline headings, replacements or content rewriting. Inline flags use Go syntax.
-- Propose a 2 KiB pattern limit. Reject invalid syntax and patterns matching an empty line before
+- Use the accepted 2 KiB pattern limit. Reject invalid syntax and patterns matching an empty line before
   invalidating an existing candidate. Existing input, section-size and 50,000-section limits remain.
 - Custom matching uses the same index builder and bounded decoding pass. No matches still produces
   the disclosed generated-section fallback with review required; excessive sections or invalid
@@ -741,7 +741,8 @@ No push-notification infrastructure is required.
 1. **Storage separation implemented.** Epoch 12, generation-qualified interpretations and the existing
    import/read/remove/restore paths are connected. This is the necessary correction, not a standalone
    framework; no reparse UI or endpoint is exposed by this checkpoint.
-2. Add custom matching end-to-end for pending imports, reusing the existing preview and acceptance.
+2. **Custom matching for pending imports is implemented and verified**, through the existing
+   preview/acceptance path with exact persisted options and localized validation feedback.
 3. Add published candidate preparation, impact and atomic Apply; connect the focused UI and reader
    revision handling. Keep it usable with built-in methods as well as custom patterns.
 
@@ -786,16 +787,25 @@ package until a second real implementation needs the same seam.
 **Current checkpoint:** storage separation is implemented. `backend/internal/txtstore/schema.go`
 owns the exact epoch-12 DDL: physical file lifecycle, role-unique interpretations, generation-qualified
 section keys/start-byte indexes, and the SQL receipt projection preserving the initial-import API.
-The schema and view include the forthcoming custom-pattern option; matching/controls are not yet
-implemented. Acquisition creates its default candidate atomically; claims/retries keep its generation;
+The schema and view retain exact custom-pattern options; pending-import matching/controls are now
+implemented without another schema change. Acquisition creates its default candidate atomically; claims/retries keep its generation;
 supersession stops obsolete decoding; reading selects only active indexes; removal clears both roles.
 Portable validation checks saved roles, generations, index ranges and lifecycle-specific file rules.
-**Next:** add custom matching for pending imports through the existing preview/acceptance workflow,
-then published candidate preparation, impact, atomic Apply and focused UI/revision handling. No more
+**Custom-pattern checkpoint complete:** Go/RE2 expressions are validated before queue replacement,
+compiled directly once per analysis and matched as whole trimmed lines using longest-match semantics.
+Direct compilation avoids malformed input escaping concatenated anchors; prefix alternatives cannot
+hide a valid full-line alternative. Exact options survive generated fallback, worker reload and receipt
+responses. The existing review form exposes custom patterns, localized errors and version/option gates.
+No schema change, pattern library, JavaScript regex validation or additional processing owner.
+**Next:** published candidate preparation, impact, atomic Apply and focused UI/revision handling. No more
 architecture approval is needed unless new evidence changes the accepted contract.
-**Verification:** affected normal/race backend suites pass, including the final `txt`, `txtstore`
-and `cmd/server` race run after the range/schema and completed/failed candidate assertions.
-No frontend changes, new browser run, deployment or existing-data modification in this checkpoint.
+**Verification:** custom-pattern normal/race suites pass for `txt`, `txtstore`, `txtimport` and `api`.
+Frontend typecheck, scoped ESLint, production build and 13 tests across import views, transport and i18n
+pass. A desktop/mobile production-build browser check used synthetic API responses to verify draft
+rejection, validation feedback and refreshed-preview gating; screenshots were inspected without
+horizontal overflow. This is not a new real-server browser round trip. The real worker/HTTP path and
+custom-index portability/reading are tested in Go. AFT timed out; the scoped UI detector had no findings.
+No deployment or existing-data modification.
 
 ## Delivery Steps
 
@@ -831,13 +841,21 @@ No frontend changes, new browser run, deployment or existing-data modification i
 
 ## Next Action
 
-The core TXT path is complete at the verification scope below. The [custom-pattern and reparse design](#advanced-txt-patterns-and-reparse--design-proposal) is accepted, including epoch 12 without migrations and the reviewed public contracts. Storage separation is implemented and verified at the recorded scope. Next add custom matching for pending imports, then published-reparse transactions and HTTP/UI controls. Keep existing data untouched; the user handles development resets manually. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
+The core TXT path is complete at the verification scope below. The [custom-pattern and reparse design](#advanced-txt-patterns-and-reparse--design-proposal) is accepted, including epoch 12 without migrations and the reviewed public contracts. Storage separation is implemented and verified at the recorded scope. Custom matching for pending imports is also implemented and verified. Next implement published-reparse transactions and HTTP/UI controls. Keep existing data untouched; the user handles development resets manually. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
 
 Keep the confirmed intake constraints: finish copying before Imports/Scan; rename-first with streaming cross-device fallback; one immutable managed original; no silent consumption of unresolved inbox leftovers. HTTP review/confirmation must retain the server-issued proof scoped to the current reader/database lifetime, not reconstruct authorization from displayed fields. Reuse the existing journal and operations; no generic import or backup framework.
 
 Do not restart the shared-state cutover, repeat broad architecture review, or make advanced parsing/reparse controls prerequisites. Record consequential choices before production edits; the core scope and operational choices remain authorized.
 
 ## Verification
+
+- Custom patterns: normal and race runs of `internal/txt`, `internal/txtstore`, `internal/txtimport`
+  and `internal/api` pass. Parser tests cover full-line alternation, trimmed titles/original offsets,
+  bounded-line fallback, invalid/empty/oversized syntax and wrapper-escape rejection. Existing pending,
+  portable and HTTP tests cover exact option retention, non-destructive validation, stale acceptance
+  and saved-index reading/restore without compiling stored patterns. Frontend typecheck, scoped lint,
+  build and 13 focused tests pass; a desktop/mobile browser pass with synthetic API responses verifies
+  the form, not a full real-server journey. No schema or existing-data change.
 
 - Epoch-12 storage separation: normal and race runs of `internal/txtstore`, `internal/library`,
   `internal/reading`, `internal/txtimport`, `internal/api`, `internal/readerstore`, `internal/backup`

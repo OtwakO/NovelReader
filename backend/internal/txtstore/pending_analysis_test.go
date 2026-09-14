@@ -11,7 +11,7 @@ import (
 func TestPendingAnalysisPersistsOptionsAndRevokesPreview(t *testing.T) {
 	store, _, home, _ := receiptStore(t)
 	receipt, preview := analyzedReceipt(t, store)
-	options := txt.Options{Encoding: txt.UTF8, Preset: txt.GeneratedSections}
+	options := txt.Options{Encoding: txt.UTF8, Preset: txt.CustomPattern, Pattern: `Part [0-9]+: .+`}
 	if err := store.QueueAnalysis(t.Context(), receipt.ID, preview.Version, options); err != nil {
 		t.Fatal(err)
 	}
@@ -28,6 +28,9 @@ func TestPendingAnalysisPersistsOptionsAndRevokesPreview(t *testing.T) {
 	current, err := reopened.Preview(t.Context(), receipt.ID)
 	if err != nil || current.Options != options || current.Version <= preview.Version {
 		t.Fatalf("saved request lost: %+v %v", current, err)
+	}
+	if current.Analysis.Preset != txt.GeneratedSections || len(current.Analysis.ReviewReasons) != 1 || current.Analysis.ReviewReasons[0] != txt.NoHeadings {
+		t.Fatalf("custom fallback lost: %+v", current.Analysis)
 	}
 	if worked, err := reopened.AnalyzeNext(t.Context()); err != nil || worked {
 		t.Fatalf("completed analysis repeated: %v %v", worked, err)

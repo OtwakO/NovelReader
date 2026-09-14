@@ -2,10 +2,11 @@ import { request } from './transport';
 
 export type TXTState = 'receiving' | 'received' | 'analyzing' | 'ready' | 'needs_review' | 'analysis_failed' | 'failed' | 'published' | 'removing';
 export type TXTEncoding = '' | 'utf-8' | 'utf-16le' | 'utf-16be' | 'gb18030' | 'big5';
-export type TXTPreset = '' | 'chinese-chapters' | 'english-chapters' | 'generated-sections';
-export interface TXTReceipt {
+export type TXTPreset = '' | 'chinese-chapters' | 'english-chapters' | 'generated-sections' | 'custom';
+export interface TXTOptions { encoding: TXTEncoding; preset: TXTPreset; pattern?: string }
+export interface TXTReceipt extends TXTOptions {
   id: string; originalName: string; state: TXTState; size: number; createdAt: number; updatedAt: number;
-  libraryId?: string; analysisVersion: number; encoding: TXTEncoding; preset: TXTPreset; hasError: boolean;
+  libraryId?: string; analysisVersion: number; hasError: boolean;
 }
 export interface TXTPage<T> { items: T[]; nextCursor?: string }
 export interface TXTWarnings { warnings?: string[] }
@@ -32,7 +33,7 @@ export const getTXTAdmission = (id: string, signal: AbortSignal) => control<TXTA
 export const getTXTReceipt = (id: string, signal: AbortSignal) => control<TXTReceipt>(idPath(id), signal);
 export const listTXTReceipts = (after: string, state: string, signal: AbortSignal) => control<TXTPage<TXTReceipt>>(`${base}/receipts?${new URLSearchParams({ after, state, limit: '25' })}`, signal);
 export const previewTXT = (id: string, version: number, start: number, signal: AbortSignal) => control<TXTPreview>(`${idPath(id)}/preview?analysisVersion=${version}&start=${start}&limit=25`, signal);
-export const analyzeTXT = (id: string, analysisVersion: number, encoding: TXTEncoding, preset: TXTPreset, signal: AbortSignal) => control<TXTWarnings>(`${idPath(id)}/analysis`, signal, 'POST', { analysisVersion, encoding, preset });
+export const analyzeTXT = (id: string, analysisVersion: number, options: TXTOptions, signal: AbortSignal) => control<TXTWarnings>(`${idPath(id)}/analysis`, signal, 'POST', { analysisVersion, ...options });
 export const acceptTXT = (id: string, analysisVersion: number, name: string, author: string, signal: AbortSignal) => control<{ libraryId: string }>(`${idPath(id)}/accept`, signal, 'POST', { analysisVersion, name, author });
 export const discardTXT = (id: string, signal: AbortSignal) => control<TXTWarnings & { status: string }>(idPath(id), signal, 'DELETE');
 export const scanTXTInbox = (after: string, signal: AbortSignal) => control<TXTPage<TXTInboxEntry> & { directory: string }>(`${base}/inbox?${new URLSearchParams({ after, limit: '25' })}`, signal);

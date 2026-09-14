@@ -11,15 +11,17 @@ export default defineComponent({
   components: { RouterLink, AppButton },
   data: () => ({
     task: createImportTask(), receipt: undefined as TXTReceipt | undefined, preview: undefined as TXTPreview | undefined,
-    name: '', author: '', encoding: '' as TXTEncoding, preset: '' as TXTPreset, start: 0, warnings: [] as string[],
+    name: '', author: '', encoding: '' as TXTEncoding, preset: '' as TXTPreset, pattern: '', start: 0, warnings: [] as string[],
     confirmDiscard: false, removed: false, cleanupPending: false, timer: undefined as ReturnType<typeof setInterval> | undefined,
     encodings: ['', 'utf-8', 'utf-16le', 'utf-16be', 'gb18030', 'big5'] as TXTEncoding[],
-    presets: ['', 'chinese-chapters', 'english-chapters', 'generated-sections'] as TXTPreset[],
+    presets: ['', 'chinese-chapters', 'english-chapters', 'generated-sections', 'custom'] as TXTPreset[],
   }),
   computed: {
     id(): string { return String(this.$route.params.id); },
     canAnalyze(): boolean { return !!this.receipt && ['received', 'ready', 'needs_review', 'analysis_failed'].includes(this.receipt.state); },
-    optionsChanged(): boolean { return !!this.receipt && (this.encoding !== this.receipt.encoding || this.preset !== this.receipt.preset); },
+    requestedPattern(): string { return this.preset === 'custom' ? this.pattern : ''; },
+    patternError(): boolean { return !!this.task.error && importErrorKey(this.task.error) === 'imports.errors.pattern'; },
+    optionsChanged(): boolean { return !!this.receipt && (this.encoding !== this.receipt.encoding || this.preset !== this.receipt.preset || this.requestedPattern !== (this.receipt.pattern || '')); },
     canAccept(): boolean { return !!this.receipt && ['ready', 'needs_review'].includes(this.receipt.state) && this.preview?.analysisVersion === this.receipt.analysisVersion && !this.optionsChanged && !!this.name.trim(); },
   },
   watch: { id: { immediate: true, handler() {
@@ -34,10 +36,11 @@ export default defineComponent({
   beforeUnmount() { clearInterval(this.timer); this.task.cancel(); },
   methods: {
     importErrorKey,
+    clearPatternError() { if (this.patternError) this.task.error = undefined; },
     async load(signal: AbortSignal) {
       const value = await getTXTReceipt(this.id, signal);
       signal.throwIfAborted();
-      if (!this.receipt) { this.name = importedTitle(value.originalName); this.encoding = value.encoding; this.preset = value.preset; }
+      if (!this.receipt) { this.name = importedTitle(value.originalName); this.encoding = value.encoding; this.preset = value.preset; this.pattern = value.pattern || ''; }
       const previousVersion = this.receipt?.analysisVersion; this.receipt = value;
       if (value.state === 'removing') { this.removed = true; this.cleanupPending = true; }
       if (['ready', 'needs_review', 'published'].includes(value.state)) {
@@ -51,7 +54,7 @@ export default defineComponent({
       signal.throwIfAborted(); this.start = offset; this.preview = value;
     }); },
     analyze() { void this.task.run(async signal => {
-      const result = await analyzeTXT(this.id, this.receipt!.analysisVersion, this.encoding, this.preset, signal);
+      const result = await analyzeTXT(this.id, this.receipt!.analysisVersion, { encoding: this.encoding, preset: this.preset, pattern: this.requestedPattern }, signal);
       signal.throwIfAborted(); this.preview = undefined; this.warnings = result.warnings || []; await this.load(signal);
     }); },
     accept() {
@@ -77,7 +80,7 @@ export default defineComponent({
   <div class="imports-page">
     <RouterLink :to="{ path: '/imports', query: $route.query }">{{ $t('imports.back') }}</RouterLink>
     <h1>{{ receipt?.originalName || $t('imports.review') }}</h1>
-    <p v-if="task.error" role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
+    <p v-if="task.error && !(patternError && canAnalyze && preset === 'custom')" role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
     <template v-if="removed">
       <p role="status">{{ $t(cleanupPending ? (receipt?.libraryId ? 'imports.libraryCleanupPending' : 'imports.cleanupPending') : 'imports.discarded') }}</p>
       <AppButton v-if="cleanupPending" :busy="task.busy" @click="discard">{{ $t('imports.retryCleanup') }}</AppButton>
@@ -93,14 +96,21 @@ export default defineComponent({
         <div class="import-actions">
           <label>{{ $t('imports.encoding') }}<select v-model="encoding" :disabled="task.busy"><option v-for="value in encodings" :key="value" :value="value">{{ value || $t('imports.automatic') }}</option></select></label>
           <label>{{ $t('imports.preset') }}<select v-model="preset" :disabled="task.busy"><option v-for="value in presets" :key="value" :value="value">{{ value ? $t(`imports.presets.${value}`) : $t('imports.automatic') }}</option></select></label>
-          <AppButton variant="secondary" :busy="task.busy" @click="analyze">{{ $t('imports.analyze') }}</AppButton>
         </div>
+        <div v-if="preset === 'custom'" class="import-pattern">
+          <label for="heading-pattern">{{ $t('imports.pattern') }}</label>
+          <textarea id="heading-pattern" v-model="pattern" required rows="2" maxlength="2048" spellcheck="false" autocapitalize="off" :disabled="task.busy" :aria-invalid="patternError || undefined" :aria-describedby="patternError ? 'pattern-help pattern-error' : 'pattern-help'" @input="clearPatternError" />
+          <p id="pattern-help">{{ $t('imports.patternHint') }}<br>{{ $t('imports.patternExample') }} <code>(?i)part [0-9]+.*</code></p>
+          <p v-if="patternError" id="pattern-error" role="alert" class="import-error">{{ $t('imports.errors.pattern') }}</p>
+        </div>
+        <div class="import-actions"><AppButton variant="secondary" :busy="task.busy" :disabled="preset === 'custom' && !pattern" @click="analyze">{{ $t('imports.analyze') }}</AppButton></div>
         <p v-if="optionsChanged">{{ $t('imports.unappliedOptions') }}</p>
       </section>
       <section v-if="preview" class="import-section" aria-labelledby="preview-title">
         <h2 id="preview-title">{{ $t('imports.preview') }}</h2>
         <p>{{ $t('imports.previewSummary', { count: preview.totalSections, encoding: preview.encoding }) }}</p>
         <p>{{ $t('imports.preset') }}: {{ $t(`imports.presets.${preview.preset}`) }}</p>
+        <p v-if="receipt?.pattern && preview.analysisVersion === receipt.analysisVersion">{{ $t('imports.savedPattern') }}: <code>{{ receipt.pattern }}</code></p>
         <p v-for="reason in preview.reviewReasons || []" :key="reason">{{ $t(`imports.reasons.${reason}`) }}</p>
         <div class="import-preview">
           <div>

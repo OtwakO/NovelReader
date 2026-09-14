@@ -39,7 +39,7 @@ bindings/catalog/cache, managed TXT files/interpretations/indexes and the other 
 connection. Epoch-11 or older homes and portable archives are incompatible; there is no automatic migration or
 reset. Preservation and rollback instructions live in the [development reset runbook](../runbooks/development-data-reset.md).
 
-The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT intake, review, reading and removal are connected. Custom-pattern and published-reparse controls remain unexposed. See the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
+The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT intake, review, reading and removal are connected. Custom patterns are available for pending imports; published-reparse controls remain unexposed. See the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
 
 `credentials.db` is separate. Reversible source credentials are encrypted using the installation-level credential key configured by NovelReader. Losing that key requires source reauthentication but must not make Reader Data unreadable.
 
@@ -96,8 +96,14 @@ Authenticated reader-owned routes live under `/api/imports/txt`:
 - `GET /receipts` uses bounded ID-cursor pages and optional state filtering. Preview at
   `/receipts/{id}/preview?analysisVersion=<version>` returns a saved heading page plus a bounded
   literal sample (`start` selects its first section). No managed paths or byte offsets are exposed.
-- `POST /receipts/{id}/analysis` queues version-guarded encoding/preset changes; workers do the
-  actual analysis. `POST /receipts/{id}/accept` explicitly approves the reviewed version and metadata.
+- `POST /receipts/{id}/analysis` queues version-guarded encoding/preset changes; `preset: "custom"`
+  requires a `pattern` string, rejected with other presets. Go/RE2 syntax, the 2 KiB UTF-8 bound and
+  non-empty-match rule are checked before replacing a candidate. Invalid patterns return HTTP 400
+  `txt_invalid_pattern` without revoking the saved result. Workers compile once per analysis and use
+  longest whole-line matching on bounded, trimmed complete lines; captures never replace titles.
+  Receipt `pattern` retains the exact requested expression, separately from the preview's resolved
+  method (which may be generated fallback). `POST /receipts/{id}/accept` explicitly approves the
+  reviewed version and metadata. Published files cannot be re-analyzed through this pending-only API.
 - `DELETE /receipts/{id}` joins any upload for that ID before pending-only discard. It cannot remove
   a currently published book; use the common book removal route. Cleanup-pending responses preserve
   the removal record and warning instead of claiming complete deletion.
@@ -147,7 +153,11 @@ bounded page/preview requests through `import-task.ts` and cancel them on unmoun
 cursors live in route queries so dedicated review can return to the same list. Explicit mutations
 exclude background refresh. Bulk acceptance retains selected analysis versions rather than silently
 approving a refreshed version. Inbox UI sends only retained opaque tokens and requires fresh explicit
-review after an invalid/changed approval; displayed flags are not authority.
+review after an invalid/changed approval; displayed flags are not authority. The custom-pattern
+field is shown only for that heading choice, retains drafts and displays server validation beside
+its input. Pattern edits invalidate acceptance until options and saved preview match. Switching to
+another preset submits no pattern; the browser never tries to validate Go syntax with JavaScript
+regular expressions.
 
 Cleanup remains provider-owned. Unpublished import discard uses its pending-only API. Retained
 publication-removal records are reachable from Imports, but retry through common library removal,

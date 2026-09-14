@@ -34,7 +34,7 @@ it('renders literal bounded preview and only admits the explicitly reviewed vers
   expect(analyze).not.toHaveBeenCalled();
   get.mockResolvedValue(receipt({ state: 'received', analysisVersion: 2, encoding: 'big5' }));
   await button(view, 'imports.analyze').trigger('click'); await flushPromises();
-  expect(analyze).toHaveBeenCalledWith('sample', 1, 'big5', '', expect.any(AbortSignal));
+  expect(analyze).toHaveBeenCalledWith('sample', 1, { encoding: 'big5', preset: '', pattern: '' }, expect.any(AbortSignal));
   expect(view.find('pre').exists()).toBe(false);
   get.mockResolvedValue(receipt({ state: 'ready', analysisVersion: 3, encoding: 'big5' })); sample.mockResolvedValue(preview(3));
   await button(view, 'imports.refresh').trigger('click'); await flushPromises();
@@ -94,4 +94,38 @@ it('routes a persisted publication cleanup retry through library removal, not pe
   await button(view, 'imports.retryCleanup').trigger('click'); await flushPromises();
   expect(remove).toHaveBeenCalledWith('sample', expect.any(AbortSignal)); expect(pending).not.toHaveBeenCalled();
   expect(view.text()).toContain('imports.discarded');
+});
+
+it('retains custom drafts, shows server validation, and requires their saved preview before acceptance', async () => {
+  const original = '(?i)part [0-9]+';
+  const corrected = '(?i)part [0-9]+.*';
+  const get = vi.spyOn(api, 'getTXTReceipt').mockResolvedValue(receipt({ preset: 'custom', pattern: original }));
+  const sample = vi.spyOn(api, 'previewTXT').mockResolvedValue(preview());
+  const analyze = vi.spyOn(api, 'analyzeTXT').mockRejectedValueOnce(new ApiError(400, { code: 'txt_invalid_pattern' })).mockResolvedValue({});
+  const accept = vi.spyOn(api, 'acceptTXT');
+  const view = mount(ImportReviewView, { global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  await flushPromises();
+  expect((view.get('textarea').element as HTMLTextAreaElement).value).toBe(original);
+  expect(view.text()).toContain('imports.savedPattern');
+  await view.get('textarea').setValue('(?=part)part');
+  expect(button(view, 'imports.confirmAdd').attributes('disabled')).toBeDefined();
+  await view.get('form').trigger('submit'); expect(accept).not.toHaveBeenCalled();
+  await button(view, 'imports.analyze').trigger('click'); await flushPromises();
+  expect(view.get('textarea').attributes('aria-invalid')).toBe('true');
+  expect(view.get('#pattern-error').text()).toBe('imports.errors.pattern');
+  expect(view.find('pre').exists()).toBe(true); // An invalid request did not revoke the saved result.
+  await view.get('textarea').setValue(corrected);
+  expect(view.find('#pattern-error').exists()).toBe(false);
+  get.mockResolvedValue(receipt({ state: 'received', analysisVersion: 2, preset: 'custom', pattern: corrected }));
+  await button(view, 'imports.analyze').trigger('click'); await flushPromises();
+  expect(analyze).toHaveBeenLastCalledWith('sample', 1, { encoding: '', preset: 'custom', pattern: corrected }, expect.any(AbortSignal));
+  expect(view.find('pre').exists()).toBe(false);
+  get.mockResolvedValue(receipt({ state: 'ready', analysisVersion: 2, preset: 'custom', pattern: corrected })); sample.mockResolvedValue({ ...preview(2), preset: 'custom', reviewReasons: [] });
+  await button(view, 'imports.refresh').trigger('click'); await flushPromises();
+  expect(button(view, 'imports.confirmAdd').attributes('disabled')).toBeUndefined();
+  await view.findAll('select')[1]!.setValue('generated-sections');
+  expect(view.find('textarea').exists()).toBe(false);
+  get.mockResolvedValue(receipt({ state: 'received', analysisVersion: 3, preset: 'generated-sections' }));
+  await button(view, 'imports.analyze').trigger('click'); await flushPromises();
+  expect(analyze).toHaveBeenLastCalledWith('sample', 2, { encoding: '', preset: 'generated-sections', pattern: '' }, expect.any(AbortSignal));
 });

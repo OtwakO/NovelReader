@@ -113,6 +113,7 @@ func (s *readerAPI) handleAnalyzeTXTReceipt(w http.ResponseWriter, r *http.Reque
 		AnalysisVersion *int64       `json:"analysisVersion"`
 		Encoding        txt.Encoding `json:"encoding"`
 		Preset          txt.Preset   `json:"preset"`
+		Pattern         string       `json:"pattern"`
 	}
 	if !decodeTXTRequest(w, r, &input) {
 		return
@@ -121,7 +122,7 @@ func (s *readerAPI) handleAnalyzeTXTReceipt(w http.ResponseWriter, r *http.Reque
 		writeErrorCode(w, http.StatusBadRequest, "txt_invalid_input", "Expected the receipt analysis version")
 		return
 	}
-	if err := s.txtStore.QueueAnalysis(r.Context(), r.PathValue("id"), *input.AnalysisVersion, txt.Options{Encoding: input.Encoding, Preset: input.Preset}); err != nil {
+	if err := s.txtStore.QueueAnalysis(r.Context(), r.PathValue("id"), *input.AnalysisVersion, txt.Options{Encoding: input.Encoding, Preset: input.Preset, Pattern: input.Pattern}); err != nil {
 		writeTXTError(w, err)
 		return
 	}

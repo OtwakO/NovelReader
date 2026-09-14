@@ -53,12 +53,12 @@ func validatePortableInterpretations(ctx context.Context, tx *sql.Tx, value Rece
 		complete := state == Ready || state == NeedsReview
 		if complete {
 			// Options.Validate is deliberately not called with a stored preset/pattern:
-			// future custom patterns are analysis input, not portable validation authority.
+			// custom patterns are analysis input, not portable validation authority.
 			if encoding == "" || (txt.Options{Encoding: txt.Encoding(encoding)}).Validate() != nil || parser <= 0 {
 				return fmt.Errorf("invalid saved decoding metadata")
 			}
 			switch txt.Preset(preset) {
-			case txt.ChineseChapters, txt.EnglishChapters, txt.GeneratedSections, "custom":
+			case txt.ChineseChapters, txt.EnglishChapters, txt.GeneratedSections, txt.CustomPattern:
 			default:
 				return fmt.Errorf("invalid saved heading method")
 			}

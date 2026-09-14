@@ -72,7 +72,7 @@ func (s *Store) claimAnalysis(ctx context.Context, id string) (Receipt, error) {
 		query += `?`
 		args = append(args, id)
 	}
-	err = tx.QueryRowContext(claimCtx, query+` RETURNING file_id,generation,requested_encoding,requested_preset`, args...).Scan(&claim.ID, &claim.AnalysisVersion, &claim.Options.Encoding, &claim.Options.Preset)
+	err = tx.QueryRowContext(claimCtx, query+` RETURNING file_id,generation,requested_encoding,requested_preset,requested_pattern`, args...).Scan(&claim.ID, &claim.AnalysisVersion, &claim.Options.Encoding, &claim.Options.Preset, &claim.Options.Pattern)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Receipt{}, ErrNotFound
 	}

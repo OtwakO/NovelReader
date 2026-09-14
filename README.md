@@ -133,7 +133,15 @@ receipt and inbox claim rather than blindly importing again. The authenticated
 [browser-upload](docs/architecture/authentication-and-reader-storage.md#txt-browser-upload-http) and
 [inbox APIs](docs/architecture/authentication-and-reader-storage.md#txt-inbox-http) remain available
 for direct clients. Epoch 12 separates TXT file lifecycle from active/candidate interpretations;
-custom-pattern and published-reparse controls are not yet exposed. There is no migration layer.
+custom patterns are available for pending imports, while published-book reparse is not yet exposed.
+There is no migration layer.
+
+For custom chapter detection, select **Custom pattern** in a pending file's review. Enter a Go/RE2
+expression, for example `(?i)part [0-9]+.*`, then analyze and review the saved headings before adding.
+Patterns are limited to 2 KiB of UTF-8 and match whole trimmed lines (up to 512 bytes); captures do
+not replace titles. Lookarounds, backreferences and empty-text matches are unsupported. Invalid
+patterns leave the previous interpretation intact. If no headings match, generated divisions still
+require review. The exact requested pattern is retained even with that fallback.
 
 ## Registration and recovery
 
