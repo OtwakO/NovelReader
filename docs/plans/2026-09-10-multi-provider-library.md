@@ -442,6 +442,258 @@ server token. Bulk acceptance is explicit and limited to selected ready results;
 require individual review. Cancellation never implies rollback of already-acquired content. Reuse
 the existing transport, theme, localization, and reader-state ownership; keep server truth authoritative.
 
+## Advanced TXT Patterns and Reparse — Design Proposal
+
+**Status:** design only; no implementation or schema change authorized by this section. The user
+confirmed **one custom pattern per interpretation**, not a reusable named-pattern library. Existing
+encoding, conservative relocation, immutable-original and core-before-advanced decisions still apply.
+This section is the current proposal for these two features, superseding tentative mechanisms above.
+
+### Goal and the necessary correction
+
+Support custom chapter detection in both initial import and published-book reparse. A published book
+must remain readable throughout candidate preparation; only explicit Apply changes its interpretation.
+Failure, cancellation and supersession must never overwrite the active index or newer reading state.
+
+The current implementation cannot simply permit `Analyze` on published receipts:
+`txtstore/analyze.go:saveInterpretation` replaces every `txt_sections` row for the receipt, and
+`txtstore/store.go` mixes acquisition, analysis and publication state in `txt_files`. These choices
+were sufficient for initial import, but provide no separate place for a readable and proposed index.
+
+**Recommend separating interpretation records from acquisition records inside `txtstore`.** This is
+one contained storage-model correction, not a new subsystem. Adding a second candidate-only table
+beside the existing active columns would change fewer initial queries, but duplicate metadata,
+validation and index persistence for the same interpretation. Use one representation for both roles.
+
+### Module ownership and dependency direction
+
+| Module | Owns | Must not own |
+|---|---|---|
+| `txt` | Validating/compiling heading choices, streaming decoding, bounded section construction and diagnostics | Jobs, publication, SQL, bookmarks or HTTP |
+| `txtstore` | Originals, interpretation generations, candidate lifecycle, preview, TXT-specific correspondence and the atomic Apply operation | Worker capacity, browser state or SQL against library-owned tables |
+| `library` | Metadata, content/state revisions, progress and bookmarks; transaction-aware mutations | Regexes, byte ranges or TXT candidate states |
+| `txtimport` | Existing bounded, reader-fair scheduling and reader-home lifetime | Another reparse pool or a generic job framework |
+| `reading` and reader UI | Active-revision catalogs/documents, validated locations and coherent session replacement | Candidate parsing or provider-specific relocation rules |
+| Imports frontend | Shared interpretation controls/preview, with distinct initial-add and published-reparse orchestration | Parsing file bodies or computing authoritative mappings |
+
+Keep the existing direction: HTTP/composition → TXT operations → `txt` and library-owned transaction
+functions. `library` does not import TXT. A pure TXT correspondence function can remain private to
+`txtstore`; it does not justify a generic relocation package or provider method. Reuse
+`library.ReplaceInterpretationTx`, `BookmarksTx` and `MapBookmarkTx`, not BookSource's title/index
+fallback in `book/source_switch.go`.
+
+### Custom-pattern contract
+
+- Extend the existing heading choice with `custom` and a pattern string; retain automatic, built-in
+  presets and generated sections. Pattern is required only for custom and rejected with other choices.
+- Use Go's existing `regexp` implementation. Compile before queuing work and once for each analysis,
+  never for each line. No JS execution, backtracking regex dependency, plugin or timeout sandbox.
+- Match one complete, nonblank, trimmed decoded line, within the existing 512-byte heading limit.
+  Fragments of oversized lines are not heading candidates.
+  Require a full-line match; the entire trimmed line is its title. Captures have no title-template
+  meaning. No multiline headings, replacements or content rewriting. Inline flags use Go syntax.
+- Propose a 2 KiB pattern limit. Reject invalid syntax and patterns matching an empty line before
+  invalidating an existing candidate. Existing input, section-size and 50,000-section limits remain.
+- Custom matching uses the same index builder and bounded decoding pass. No matches still produces
+  the disclosed generated-section fallback with review required; excessive sections or invalid
+  decoding remain failures, not automatic publication.
+- Persist the exact requested options separately from the resolved encoding/method and parser
+  version. A custom request that falls back to generated sections must not lose its custom pattern.
+  Active reading uses the saved ranges and encoding; it never recompiles the pattern or reparses.
+
+### One original, one active interpretation, one candidate
+
+Conceptual storage, with exact DDL reviewed before implementation:
+
+```text
+txt_files
+  existing acquisition identity/path/size, acquisition or removal state, library link
+  monotonically increasing analysis-generation counter
+
+txt_interpretations
+  (file_id, generation) primary key
+  role: candidate | active                  UNIQUE(file_id, role)
+  state: queued | analyzing | ready | needs_review | analysis_failed
+  requested options, resolved result metadata, diagnostics, queued time
+  base_content_revision for a published-book candidate
+
+txt_sections
+  (file_id, generation, section_index) primary key
+  title, original-byte range, generated marker
+  foreign key to the interpretation, with cascading removal
+```
+
+`txt_files` owns acquisition/removal state, not another copy of interpretation state. Existing receipt
+response states can be projected in SQL: a published item stays `published` even while its candidate
+is analyzing or failed. Expose replacement status separately. Keep filtered receipt pages database-
+queried and bounded; do not fetch all files and derive/paginate states in application memory.
+
+Initial acquisition creates its automatic candidate in the same finalization transaction that records
+successful receipt of the original; receiving-record recovery uses that same operation. Pending
+reinterpretation replaces its candidate. Initial acceptance promotes that candidate and creates the
+library item in one transaction. Published reparse creates/replaces only the candidate, leaving the
+active generation untouched. Generation numbers are never reused after discard or replacement.
+
+A completed generation's options and index are immutable. Editing options creates a new generation;
+a worker saves only while its exact generation remains the candidate in `analyzing` state. Acquisition
+and publication IDs remain stable, and both interpretations reference the same original bytes.
+There is no copied novel, active-index cache on disk, retained revision history, or automatic rollback
+catalog. Old active section rows are deleted transactionally when a candidate is applied.
+
+### Preparation, scheduling and cancellation
+
+Use the existing `AnalyzeNext` worker entry point, selecting queued candidate records for acquired,
+non-removing files. Imports and reparses share the same two process-wide workers and one active file
+per reader. Order a reader's work by queued time with a stable tie-breaker; replacement goes to the
+back, so repeated edits do not permanently jump ahead of older work. No intake ticket is needed to
+reparse bytes already owned by the reader.
+
+Creating/replacing a candidate compares the caller's last-seen generation and, for published books,
+the active content revision. It deliberately does not compare the reading-state version: scrolling
+must not invalidate analysis. Commit the request before notifying the pool. A lost response is
+resolved by fetching candidate status, not silently submitting another generation.
+
+Discarding a reparse candidate revokes only that generation, never the publication or original.
+Supersession/discard must also stop obsolete decoding cooperatively rather than needlessly reading a
+whole large novel. A small `txtstore`-owned reader wrapper can check the candidate generation at a
+coarse bounded interval during source reads, alongside context cancellation. This keeps cancellation
+inside the operation without a second scheduler, per-file goroutine or per-line database polling.
+The final transactional generation/state check remains authoritative. The worker retains its capacity
+and home lease until file I/O and cleanup have actually finished.
+
+Distinguish user discard/supersession from lifecycle interruption: only a still-current candidate is
+returned to the queue after shutdown/restore cancellation. Never recreate a deleted candidate during
+failure cleanup. Reader quiesce/drain and startup/restore recovery reuse the existing owners.
+
+### Conservative correspondence and impact review
+
+TXT can prove correspondence without guessing titles: for the same immutable original and resolved
+encoding, an old section with exactly the same byte interval in the candidate retains its normalized
+position. This relies on the unchanged TXT decoding/rendering contract, not on parser-version equality.
+Changed boundaries or encoding mean the saved scroll fraction has no proven new location. Never
+multiply it by byte length, match duplicate titles, or clamp the old ordinal into the new catalog.
+
+Build a simple interval correspondence map in linear time for the two bounded indexes. Apply it to
+current progress and current-revision, non-orphaned bookmarks. Already orphaned/older-revision marks
+stay unresolved; an index coincidentally matching later must not revive them.
+
+Impact review returns the candidate generation, base content revision, current `stateVersion`, section
+summary, proposed resume mapping and bookmark preservation/unresolved counts. Preview and impact
+responses expose bounded details, not entire indexes or native byte offsets. Analysis results and
+impact are separate: if reading state changes, refresh impact without parsing again. The mapping
+work concerns this publication only, O(old sections + new sections + its bookmarks), not the library.
+Reuse the existing bookmark collection interface initially; this is not a claim of constant memory
+for an unbounded bookmark collection or a reason to redesign all bookmark APIs in this feature.
+
+When progress has no reliable mapping, require an explicit candidate resume section and start it at
+position zero. The user may also choose a new start deliberately. Unmapped bookmarks retain their
+ID, note, original chapter/title/position/revision and become orphaned; existing bookmark presentation
+already keeps them visible and disables invalid navigation. A bookmark-remapping editor is not part
+of this delivery.
+
+### Apply is one explicit, atomic operation
+
+Keep initial `Accept` and published `ApplyReparse` separate public operations. The latter takes the
+candidate generation, expected content/state revisions from impact review and any explicit resume
+choice. Clients never submit an authoritative bookmark map or native ranges. No retained inbox-style
+approval token is needed: mappings are server-computed and the exact inputs are revision-checked.
+
+Within the reader-home mutation gate and one SQLite transaction:
+
+1. Take the write reservation before reading state, following existing library mutation conventions.
+2. Require a live publication. If this exact generation is already active, report already applied
+   without moving progress again. Otherwise require the active generation, completed candidate and
+   its base revision to match.
+3. Read current progress/bookmarks and compare the reviewed content and state versions. On conflict,
+   keep the candidate; return a refresh-impact result rather than overwriting newer state.
+4. Derive/validate correspondence and the chosen resume section using the saved indexes. Update
+   library revision/location through its public transaction functions and map/orphan bookmarks.
+5. Delete the former active interpretation and promote the candidate. Commit all changes together.
+
+Both `contentRevision` and `stateVersion` advance once on Apply. Title/author and publication identity
+are unchanged. No decoding, regex work, hashing, filesystem move or full-content copy occurs in this
+transaction. Database work includes deleting the old bounded index and updating bookmarks; promotion
+is not falsely described as O(1). A rollback leaves the previous interpretation and state intact.
+A retried already-applied generation is harmless; an older superseded generation returns a conflict,
+not another application. No separate applied-job journal is required.
+
+### Reading and frontend integration
+
+Reuse the existing Options API feature structure. Extract only the interpretation-options form and
+saved-preview presentation now genuinely shared by initial import and reparse. Keep two explicit
+workflow views/controllers: initial metadata/admission versus candidate impact/apply/discard. Do not
+turn `ImportReviewView` into a generic wizard full of publication-mode conditionals. Add a TXT-only
+Reinterpret action to Book Detail; do not put TXT controls in BookSource source recovery.
+
+A published review shows **Current version stays readable**, candidate status, saved preview,
+reading-state impact, and explicit Apply/Discard. Navigating away leaves durable preparation intact.
+The existing file-transfer queue is not involved. Poll only a visible pending view; reuse request
+cancellation and reader-state reset behavior. No parsing in the browser, new global store or event bus.
+
+`txtstore` catalog/content lookups select only the active generation in the same snapshot as the
+library content revision. Preserve the post-I/O revision check in `ReadSection`. Old content requests
+and queued progress/bookmark writes cannot attach to a replacement interpretation.
+
+There is also a concrete frontend seam to correct: `ReaderView.load` currently fetches book state
+and catalog independently and can combine revisions. Require a coherent revision pair before using
+saved ordinals/positions, with a bounded refresh or an explicit reload prompt on conflict. Reuse
+revision-bound chapter loaders and existing progress-write draining when reopening after Apply;
+do not reset unrelated uploads/readers.
+
+New in-app section/position links must carry their content revision. On a stale revision, reopen the
+current saved resume location rather than apply an old ordinal to a new catalog. Define legacy
+unqualified-link handling at the HTTP/UI contract checkpoint; do not silently change its meaning.
+A tab still showing old content may keep that old snapshot, but once it observes a revision conflict
+it must stop old-state writes/prefetch, discard that session's caches and offer current-version reload.
+No push-notification infrastructure is required.
+
+### Recovery, portability and compatibility
+
+- Backups include the active and candidate database records plus their single managed original.
+  Candidate indexes/options are portable data; a running analysis claim is not a portable worker.
+- With workers quiescent, recovery requeues interrupted current candidates. Ready/failed candidates
+  remain reviewable, and recovery never silently applies a replacement or reparses an active index.
+- Publication removal invalidates its candidate in the removal transaction, then follows existing
+  file cleanup. Late worker results cannot recreate it. Interpretation/section deletion cascades
+  with the file record; deleting a candidate alone cannot remove managed bytes.
+- Portable validation must verify publication/active linkage, at most one candidate, completed index
+  structure and ranges within the original, and candidate base-revision consistency. It must not
+  rebuild indexes or execute a stored regex to read an active book. Inbox authority remains stripped.
+- This storage correction requires a new reader schema epoch (12 if no intervening change), not an
+  epoch-11 marker tweak. Existing policy has no migration layer: old homes/archives need the matching
+  application unless compatibility work is separately approved. Before implementation, explicitly
+  confirm the cutover/data-preservation approach. No reset, migration or live-data edit is authorized
+  here. Rollback needs the previous application and preserved compatible data, not just a code revert.
+
+### Delivery and proportionate verification
+
+1. Accept this design and settle the schema/public-contract checkpoint. Implement the interpretation
+   separation while preserving the complete existing import/read/remove/restore behavior; no new UI
+   exposure until that step works. This is the necessary correction, not a standalone framework.
+2. Add custom matching end-to-end for pending imports, reusing the existing preview and acceptance.
+3. Add published candidate preparation, impact and atomic Apply; connect the focused UI and reader
+   revision handling. Keep it usable with built-in methods as well as custom patterns.
+
+Use a few focused groups, extending existing fixtures rather than duplicating the core suite:
+
+- Parser: a custom heading example and table-driven invalid/empty/over-limit/no-match behavior;
+  retain existing decoding and section-bound regressions instead of multiplying them per regex.
+- Storage transaction: old content remains readable during candidate failure/discard; Apply preserves
+  proven locations, retains unresolved bookmarks, retries safely and fully rolls back on failure.
+- Concurrency/lifecycle: stale worker generation and changed reading-state rejection, plus candidate
+  recovery/portable round-trip/removal through existing home fixtures. Run race checks here.
+- Frontend: shared custom options, impact conflict/explicit resume choice and revision-coherent reload;
+  one synthetic browser reparse journey. Reuse existing upload, BookSource and bookmark regressions.
+
+No exhaustive pattern corpus, regex fuzzing project, new benchmark infrastructure or repo-wide review.
+For scale, retain existing worker/resource bounds; a representative bounded-index Apply check is enough
+to identify an actual transaction bottleneck before considering further optimization.
+
+Design verification: checked against the current parser, TXT persistence/publication/recovery,
+worker ownership, library transaction functions and reader consumers. No application code changed;
+no tests or performance measurements ran for this proposal. Scoped AFT inspection aborted due to a
+transport timeout; it is not evidence of a clean diagnostic run.
+
 ## Delivery Steps
 
 1. **TXT interpretation boundary (complete; Standard change).** Implement a concrete analyzer in `backend/internal/txt`, using existing `x/text` support, and direct bounded section decoding. Done means synthetic originals in the confirmed encodings produce lossless original-byte ranges, automatic/preset heading recognition and bounded generated sections; ambiguity/errors are explicit and cancellation is respected. No storage writes, worker framework, schema, HTTP, or frontend changes. This validates the original-byte strategy before wiring persistence. Engineering defaults are local resource bounds, not a finalized upload policy or performance guarantee.
@@ -476,7 +728,7 @@ the existing transport, theme, localization, and reader-state ownership; keep se
 
 ## Next Action
 
-The core TXT path is complete at the verification scope below; no unfinished backend or core-UI foundation is required before using it. Next separately scope the deferred advanced controls and safe published reparse before implementation; EPUB remains later work. Preserve the core boundaries rather than introducing an import framework or redesigning application state in anticipation of those features. Any performance claim beyond the recorded bounded batch/ownership checks needs a representative measurement, not more near-duplicate unit tests.
+The core TXT path is complete at the verification scope below. Review the [custom-pattern and reparse design proposal](#advanced-txt-patterns-and-reparse--design-proposal) next; per-interpretation pattern scope is confirmed, but the storage model and schema/public-contract cutover remain proposed. No production implementation has started. After acceptance, update this plan with the exact cutover and begin the contained interpretation-storage correction. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
 
 Keep the confirmed intake constraints: finish copying before Imports/Scan; rename-first with streaming cross-device fallback; one immutable managed original; no silent consumption of unresolved inbox leftovers. HTTP review/confirmation must retain the server-issued proof scoped to the current reader/database lifetime, not reconstruct authorization from displayed fields. Reuse the existing journal and operations; no generic import or backup framework.
 
