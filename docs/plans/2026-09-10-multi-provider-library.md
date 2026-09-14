@@ -444,8 +444,9 @@ the existing transport, theme, localization, and reader-state ownership; keep se
 
 ## Advanced TXT Patterns and Reparse — Design Proposal
 
-**Status:** design only; no implementation or schema change authorized by this section. The user
-confirmed **one custom pattern per interpretation**, not a reusable named-pattern library. Existing
+**Status:** revised after a focused code-backed design review; awaiting the user's implementation
+signal and the cutover/contract decisions below. No implementation or schema change is authorized.
+The user confirmed **one custom pattern per interpretation**, not a reusable named-pattern library. Existing
 encoding, conservative relocation, immutable-original and core-before-advanced decisions still apply.
 This section is the current proposal for these two features, superseding tentative mechanisms above.
 
@@ -477,10 +478,17 @@ validation and index persistence for the same interpretation. Use one representa
 | Imports frontend | Shared interpretation controls/preview, with distinct initial-add and published-reparse orchestration | Parsing file bodies or computing authoritative mappings |
 
 Keep the existing direction: HTTP/composition → TXT operations → `txt` and library-owned transaction
-functions. `library` does not import TXT. A pure TXT correspondence function can remain private to
+functions. `library` does not import TXT. TXT correspondence stays a private operation in
 `txtstore`; it does not justify a generic relocation package or provider method. Reuse
 `library.ReplaceInterpretationTx`, `BookmarksTx` and `MapBookmarkTx`, not BookSource's title/index
-fallback in `book/source_switch.go`.
+fallback in `book/source_switch.go`. As the affected catalog queries change, replace their current
+cross-module joins with `library.GetTx` plus TXT-owned index queries in the same read transaction.
+Take write reservations on TXT-owned rows; do not expose library internals merely to acquire a lock.
+Bookmarks retain library-owned values, not foreign keys to section rows that reparse will retire.
+
+Keep cohesive files inside these existing modules: interpretation persistence, reparse orchestration
+and the private correspondence operation have different jobs. Do not grow one lifecycle file into
+an import/reparse/reading controller, or extract pass-through services around these operations.
 
 ### Custom-pattern contract
 
@@ -521,6 +529,7 @@ txt_sections
   (file_id, generation, section_index) primary key
   title, original-byte range, generated marker
   foreign key to the interpretation, with cascading removal
+  unique index (file_id, generation, start_byte) for exact-range lookup
 ```
 
 `txt_files` owns acquisition/removal state, not another copy of interpretation state. Existing receipt
@@ -540,6 +549,30 @@ and publication IDs remain stable, and both interpretations reference the same o
 There is no copied novel, active-index cache on disk, retained revision history, or automatic rollback
 catalog. Old active section rows are deleted transactionally when a candidate is applied.
 
+Legal committed states are explicit:
+
+| File lifecycle / publication | Interpretation records |
+|---|---|
+| Receiving or acquisition failed | None |
+| Acquired, not in library | Exactly one candidate |
+| Acquired, in library | Exactly one completed active interpretation; zero or one candidate |
+| Removing | No library link or interpretations; retain only acquisition/cleanup intent |
+
+An active record can only be `ready` or `needs_review`; the latter retains analysis diagnostics, not
+an outstanding publication approval. Queued/analyzing/failed candidates have no partial section index.
+Enforce row-local checks, composite foreign keys and role uniqueness in SQLite; cross-record rules
+belong in the owning transactions and portable validation, not a generic state-machine framework.
+Only a receiving-to-acquired transition creates the initial default candidate: recovery must not
+synthesize new analysis just because a published book has no candidate.
+
+Keep the three version domains distinct: a generation identifies a prepared index; `contentRevision`
+identifies the active readable interpretation; `stateVersion` guards progress/bookmark changes.
+Queue/discard does not advance library revisions. Apply advances each library revision once, regardless
+of how many candidate generations were tried. Candidate mutation requests name the expected candidate
+(or explicit absence) and published base revision, not a mutable "latest analysis" alias. Existing
+receipt fields must keep their initial-import meaning; expose active/candidate generations explicitly
+in reparse responses rather than making one version field change meaning while work is running.
+
 ### Preparation, scheduling and cancellation
 
 Use the existing `AnalyzeNext` worker entry point, selecting queued candidate records for acquired,
@@ -554,12 +587,19 @@ must not invalidate analysis. Commit the request before notifying the pool. A lo
 resolved by fetching candidate status, not silently submitting another generation.
 
 Discarding a reparse candidate revokes only that generation, never the publication or original.
-Supersession/discard must also stop obsolete decoding cooperatively rather than needlessly reading a
-whole large novel. A small `txtstore`-owned reader wrapper can check the candidate generation at a
-coarse bounded interval during source reads, alongside context cancellation. This keeps cancellation
-inside the operation without a second scheduler, per-file goroutine or per-line database polling.
-The final transactional generation/state check remains authoritative. The worker retains its capacity
-and home lease until file I/O and cleanup have actually finished.
+This is not the existing pending-receipt discard, which removes an unpublished acquisition. Keep
+these operations distinct; published reparse must not gain a path to pending-only file deletion.
+
+Supersession/discard must stop obsolete decoding cooperatively. Keep the proposed `txtstore`-owned
+reader check concrete and small: check the full file/generation/state key before decoding and after
+coarse source-byte intervals (initial proposal: 1 MiB), alongside existing context cancellation.
+No per-line SQL, timer goroutine or scheduler-level cancellation registry. Checks run without an open
+index transaction and use a bounded database context. This bounds additional input work, not wall-clock
+latency on stalled disk I/O. A failed check must not silently allow publication; distinguish obsolete
+work from a storage error so a newer candidate is never marked failed by the old attempt.
+The final transactional generation/state check remains authoritative even after a successful check.
+Do not quiesce the reader to discard one candidate: that would pause unrelated work for this reader.
+The worker retains its capacity and home lease until file I/O and cleanup have actually finished.
 
 Distinguish user discard/supersession from lifecycle interruption: only a still-current candidate is
 returned to the queue after shutdown/restore cancellation. Never recreate a deleted candidate during
@@ -569,21 +609,37 @@ failure cleanup. Reader quiesce/drain and startup/restore recovery reuse the exi
 
 TXT can prove correspondence without guessing titles: for the same immutable original and resolved
 encoding, an old section with exactly the same byte interval in the candidate retains its normalized
-position. This relies on the unchanged TXT decoding/rendering contract, not on parser-version equality.
+position under the existing approximate scroll-fraction semantics. This proves section correspondence,
+not an exact text anchor or pixel position across layout changes. It relies on the unchanged TXT
+decoding/rendering contract, not on parser-version equality.
 Changed boundaries or encoding mean the saved scroll fraction has no proven new location. Never
 multiply it by byte length, match duplicate titles, or clamp the old ordinal into the new catalog.
 
-Build a simple interval correspondence map in linear time for the two bounded indexes. Apply it to
-current progress and current-revision, non-orphaned bookmarks. Already orphaned/older-revision marks
-stay unresolved; an index coincidentally matching later must not revive them.
+Resolve only sections referenced by current progress and current-revision, non-orphaned bookmarks.
+For each distinct old section, use its primary key and an indexed candidate start-byte lookup; require
+both start and end to match, with the same encoding. Reuse that result for locations in that section.
+This is a private TXT query/operation, not a persisted map or a new cache. It avoids loading both full
+catalogs just to relocate a handful of saved locations. Already orphaned/older-revision marks stay
+unresolved; an index coincidentally matching later must not revive them.
 
-Impact review returns the candidate generation, base content revision, current `stateVersion`, section
-summary, proposed resume mapping and bookmark preservation/unresolved counts. Preview and impact
+Impact review reads the active/candidate generations, library revision/progress and bookmarks in one
+read-only database snapshot. Separate uncoordinated queries could otherwise approve a mapping for a
+state the user never reviewed. It returns the candidate generation, base content revision, current
+`stateVersion`, section summary, proposed resume mapping and bookmark preservation/unresolved counts. Preview and impact
 responses expose bounded details, not entire indexes or native byte offsets. Analysis results and
 impact are separate: if reading state changes, refresh impact without parsing again. The mapping
-work concerns this publication only, O(old sections + new sections + its bookmarks), not the library.
+work concerns this publication only: approximately O(U log S + B) for U distinct referenced sections,
+S indexed sections and B bookmarks, rather than loading O(S) catalog rows into memory per review.
+Counts come from saved result metadata or indexed queries; paginated preview loads only its page.
 Reuse the existing bookmark collection interface initially; this is not a claim of constant memory
 for an unbounded bookmark collection or a reason to redesign all bookmark APIs in this feature.
+Reuse `txtControlHandler`'s no-cache/deadline behavior for the new endpoints; it is not a concurrency
+limiter. Analysis retains its independent worker bound, while short metadata operations use the
+existing foreground runtime budget. Do not add another queue or claim stronger isolation than that.
+If the scoped Apply check exposes foreground contention, address that measured operation before
+considering a separate control budget.
+Preview sampling releases its read transaction before file I/O and rechecks the generation and
+intended role afterward, preserving `txtstore.Review`'s existing post-I/O invalidation pattern.
 
 When progress has no reliable mapping, require an explicit candidate resume section and start it at
 position zero. The user may also choose a new start deliberately. Unmapped bookmarks retain their
@@ -598,7 +654,12 @@ candidate generation, expected content/state revisions from impact review and an
 choice. Clients never submit an authoritative bookmark map or native ranges. No retained inbox-style
 approval token is needed: mappings are server-computed and the exact inputs are revision-checked.
 
-Within the reader-home mutation gate and one SQLite transaction:
+For a new application, reuse the original's existing regular-file/size validation under the
+reader-home mutation gate before the write transaction; do not hash or reparse the original. An
+already-applied status lookup need not reopen it. Managed originals remain immutable by contract;
+this is not an external-file modification detection system.
+
+Within that gate and one SQLite transaction:
 
 1. Take the write reservation before reading state, following existing library mutation conventions.
 2. Require a live publication. If this exact generation is already active, report already applied
@@ -640,9 +701,13 @@ saved ordinals/positions, with a bounded refresh or an explicit reload prompt on
 revision-bound chapter loaders and existing progress-write draining when reopening after Apply;
 do not reset unrelated uploads/readers.
 
-New in-app section/position links must carry their content revision. On a stale revision, reopen the
-current saved resume location rather than apply an old ordinal to a new catalog. Define legacy
-unqualified-link handling at the HTTP/UI contract checkpoint; do not silently change its meaning.
+New in-app section/position links and bookmark-open actions must carry their content revision, not
+only an ordinal/position. A detected stale revision offers reopening at the current saved resume
+location; do not silently apply its ordinal to a new catalog. Proposed legacy policy, to confirm at
+the contract checkpoint: an unqualified URL continues to select an ordinal in the **current** catalog,
+as it does today, and is qualified after a coherent load. It cannot promise historical-location
+recovery because the old revision is absent. Saved locations generated by the new UI must always be
+qualified; do not "fix" compatibility by silently making all existing deep links resume links.
 A tab still showing old content may keep that old snapshot, but once it observes a revision conflict
 it must stop old-state writes/prefetch, discard that session's caches and offer current-version reload.
 No push-notification infrastructure is required.
@@ -653,12 +718,18 @@ No push-notification infrastructure is required.
   Candidate indexes/options are portable data; a running analysis claim is not a portable worker.
 - With workers quiescent, recovery requeues interrupted current candidates. Ready/failed candidates
   remain reviewable, and recovery never silently applies a replacement or reparses an active index.
-- Publication removal invalidates its candidate in the removal transaction, then follows existing
-  file cleanup. Late worker results cannot recreate it. Interpretation/section deletion cascades
-  with the file record; deleting a candidate alone cannot remove managed bytes.
-- Portable validation must verify publication/active linkage, at most one candidate, completed index
-  structure and ranges within the original, and candidate base-revision consistency. It must not
-  rebuild indexes or execute a stored regex to read an active book. Inbox authority remains stripped.
+- Publication removal hides the library item and deletes **both** interpretation roles in the same
+  removal transaction, then follows existing file cleanup. Retain the file/cleanup record if bytes
+  cannot be removed. Late workers cannot recreate either interpretation. This avoids leaving an
+  "active" index without a publication during partial cleanup. Candidate discard alone never touches
+  the active interpretation, acquisition record or managed bytes.
+- Portable validation follows the legal-state table, not one blanket publication rule. Validate
+  active/library linkage, generation/counter consistency, completed index structure/ranges and
+  published-candidate base revision. Preserve current allowances for receiving, failed and removing
+  records with absent or damaged originals where their lifecycle permits it; a legitimate interrupted
+  cleanup must still export and restore. Acquired/active data requires its valid original. Do not
+  rebuild indexes or execute stored regexes; analyzing candidates resume only through quiescent
+  recovery. Inbox authority remains stripped.
 - This storage correction requires a new reader schema epoch (12 if no intervening change), not an
   epoch-11 marker tweak. Existing policy has no migration layer: old homes/archives need the matching
   application unless compatibility work is separately approved. Before implementation, explicitly
@@ -689,10 +760,29 @@ No exhaustive pattern corpus, regex fuzzing project, new benchmark infrastructur
 For scale, retain existing worker/resource bounds; a representative bounded-index Apply check is enough
 to identify an actual transaction bottleneck before considering further optimization.
 
-Design verification: checked against the current parser, TXT persistence/publication/recovery,
-worker ownership, library transaction functions and reader consumers. No application code changed;
-no tests or performance measurements ran for this proposal. Scoped AFT inspection aborted due to a
-transport timeout; it is not evidence of a clean diagnostic run.
+### Design review outcome and stopping point
+
+The focused review retains the core architecture: one interpretation representation, two roles,
+existing workers and library-owned transactional state. Corrections made in place above address
+legal/removal states and state-aware portability, coherent impact snapshots, cross-module query
+ownership, distinct version domains, generation-qualified cancellation and honest legacy-link behavior.
+The original whole-index correspondence map is replaced with indexed lookups for actually referenced
+sections; this reduces unnecessary foreground work without adding another processing owner.
+Exact-range correspondence remains intentionally conservative; adding title heuristics or a persistent
+mapping engine would weaken its safety or add scope without an established need.
+
+Evidence was checked in `txtstore/analyze.go`, `catalog.go`, `publication.go`, `review.go`, `recovery.go`
+and `portable.go`, `library/state.go` and `bookmark.go`, the existing pool/lifecycle implementation and
+reader consumers. `go test ./internal/txtstore ./internal/library -count=1` passes for the existing
+implementation. These tests confirm the reused primitives, not the unimplemented design. No new tests,
+benchmarks, application edits or schema changes were made; the earlier scoped AFT inspection failed
+at its transport and provides no diagnostic assurance.
+
+**Wait for the user's explicit implementation signal.** Before production edits, confirm the reader-
+schema preservation/cutover policy and the proposed legacy-link/public response contracts. Then record
+the exact DDL and compatibility decision here as implementation details of this design; do not repeat
+a broad architecture review or introduce a framework. A future provider is not a reason to move these
+TXT-specific internals into a common package until a second real implementation needs the same seam.
 
 ## Delivery Steps
 
@@ -728,7 +818,7 @@ transport timeout; it is not evidence of a clean diagnostic run.
 
 ## Next Action
 
-The core TXT path is complete at the verification scope below. Review the [custom-pattern and reparse design proposal](#advanced-txt-patterns-and-reparse--design-proposal) next; per-interpretation pattern scope is confirmed, but the storage model and schema/public-contract cutover remain proposed. No production implementation has started. After acceptance, update this plan with the exact cutover and begin the contained interpretation-storage correction. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
+The core TXT path is complete at the verification scope below. The [custom-pattern and reparse proposal](#advanced-txt-patterns-and-reparse--design-proposal) has completed its focused revision; existing TXT storage/library tests pass, but no proposed behavior is implemented or runtime-verified. Await the user's explicit implementation signal and confirmation of schema preservation/cutover and public-contract choices. Do not start production edits or repeat broad design review while waiting. After authorization and those decisions, record the exact cutover and begin the contained interpretation-storage correction. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
 
 Keep the confirmed intake constraints: finish copying before Imports/Scan; rename-first with streaming cross-device fallback; one immutable managed original; no silent consumption of unresolved inbox leftovers. HTTP review/confirmation must retain the server-issued proof scoped to the current reader/database lifetime, not reconstruct authorization from displayed fields. Reuse the existing journal and operations; no generic import or backup framework.
 
