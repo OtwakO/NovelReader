@@ -39,16 +39,26 @@ func (s *Store) Analyze(ctx context.Context, id string, options txt.Options) (In
 
 func (s *Store) analyzeClaim(ctx context.Context, value Receipt) (Interpretation, error) {
 	file, err := s.openOriginal(value)
+	failureCode := AnalysisStorageError
 	var result txt.Analysis
 	if err == nil {
 		input := &candidateReader{ctx: ctx, store: s, fileID: value.ID, generation: value.AnalysisVersion, input: file}
 		if err = input.check(); err == nil {
 			result, err = txt.Analyze(ctx, input, value.Options)
+			if err != nil {
+				failureCode = analysisFailureCode(err)
+			}
 		}
-		err = errors.Join(err, file.Close())
+		if closeErr := file.Close(); closeErr != nil {
+			if err == nil {
+				failureCode = AnalysisStorageError
+			}
+			err = errors.Join(err, closeErr)
+		}
 	}
 	if err == nil {
 		err = s.saveInterpretation(ctx, value.ID, value.AnalysisVersion, result)
+		failureCode = AnalysisStorageError
 	}
 	if err != nil {
 		failureCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataTimeout)
@@ -58,8 +68,9 @@ func (s *Store) analyzeClaim(ctx context.Context, value Receipt) (Interpretation
 			// Cancellation stops this attempt, not the durable request. A worker
 			// paused for shutdown/restore can resume it without losing options.
 			state = queued
+			failureCode = ""
 		}
-		_, updateErr := s.db.ExecContext(failureCtx, `UPDATE txt_interpretations SET state=?,error=?,updated_at=? WHERE file_id=? AND generation=? AND role='candidate' AND state=?`, state, err.Error(), time.Now().UnixMilli(), value.ID, value.AnalysisVersion, Analyzing)
+		_, updateErr := s.db.ExecContext(failureCtx, `UPDATE txt_interpretations SET state=?,error=?,updated_at=? WHERE file_id=? AND generation=? AND role='candidate' AND state=?`, state, failureCode, time.Now().UnixMilli(), value.ID, value.AnalysisVersion, Analyzing)
 		return Interpretation{}, errors.Join(err, updateErr)
 	}
 	return Interpretation{Version: value.AnalysisVersion, Options: value.Options, Analysis: result}, nil

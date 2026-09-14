@@ -38,12 +38,27 @@ type txtReceiptResponse struct {
 	Preset          txt.Preset     `json:"preset"`
 	Pattern         string         `json:"pattern,omitempty"`
 	HasError        bool           `json:"hasError"`
+	ErrorCode       string         `json:"errorCode,omitempty"`
 }
 
 func txtReceiptDTO(value txtstore.Receipt) txtReceiptResponse {
 	return txtReceiptResponse{ID: value.ID, OriginalName: value.OriginalName, State: value.State,
 		Size: value.Size, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, LibraryID: value.LibraryID,
-		AnalysisVersion: value.AnalysisVersion, Encoding: value.Options.Encoding, Preset: value.Options.Preset, Pattern: value.Options.Pattern, HasError: value.Error != ""}
+		AnalysisVersion: value.AnalysisVersion, Encoding: value.Options.Encoding, Preset: value.Options.Preset, Pattern: value.Options.Pattern, HasError: value.Error != "", ErrorCode: txtAnalysisErrorCode(value.Error)}
+}
+
+// Older rows contain arbitrary error text. Only known codes cross the API boundary.
+func txtAnalysisErrorCode(stored string) string {
+	switch stored {
+	case "":
+		return ""
+	case txtstore.AnalysisEncodingRequired, txtstore.AnalysisInvalidEncoding,
+		txtstore.AnalysisUnsupportedEncoding, txtstore.AnalysisNoReadableText,
+		txtstore.AnalysisNonText, txtstore.AnalysisSectionLimit, txtstore.AnalysisStorageError:
+		return stored
+	default:
+		return txtstore.AnalysisFailedCode
+	}
 }
 
 // Raw filesystem errors and managed paths are never part of import responses.

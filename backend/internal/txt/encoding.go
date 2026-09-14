@@ -13,7 +13,7 @@ import (
 	"golang.org/x/text/encoding/traditionalchinese"
 )
 
-var errInvalidUTF8 = errors.New("invalid UTF-8")
+var errInvalidUTF8 = fmt.Errorf("%w: invalid UTF-8", ErrInvalidEncoding)
 
 func legacyEncoding(enc Encoding) encoding.Encoding {
 	switch enc {
@@ -42,7 +42,7 @@ func resolveEncoding(reader *bufio.Reader, requested Encoding) (Encoding, int64,
 	var skip int
 	switch {
 	case bytes.HasPrefix(prefix, []byte{0xff, 0xfe, 0, 0}), bytes.HasPrefix(prefix, []byte{0, 0, 0xfe, 0xff}):
-		return "", 0, fmt.Errorf("txt: UTF-32 is not supported")
+		return "", 0, fmt.Errorf("%w: UTF-32", ErrUnsupportedEncoding)
 	case bytes.HasPrefix(prefix, []byte{0xef, 0xbb, 0xbf}):
 		bom, skip = UTF8, 3
 	case bytes.HasPrefix(prefix, []byte{0xff, 0xfe}):
@@ -52,7 +52,7 @@ func resolveEncoding(reader *bufio.Reader, requested Encoding) (Encoding, int64,
 	}
 	if bom != "" {
 		if requested != "" && requested != bom {
-			return "", 0, fmt.Errorf("txt: encoding %s conflicts with %s BOM", requested, bom)
+			return "", 0, fmt.Errorf("%w: encoding %s conflicts with %s BOM", ErrInvalidEncoding, requested, bom)
 		}
 		if _, err := reader.Discard(skip); err != nil {
 			return "", 0, fmt.Errorf("txt: skip BOM: %w", err)
@@ -60,7 +60,7 @@ func resolveEncoding(reader *bufio.Reader, requested Encoding) (Encoding, int64,
 		return bom, int64(skip), nil
 	}
 	if requested == UTF16LE || requested == UTF16BE {
-		return "", 0, fmt.Errorf("txt: UTF-16 requires a BOM")
+		return "", 0, fmt.Errorf("%w: UTF-16 requires a BOM", ErrInvalidEncoding)
 	}
 	if requested != "" {
 		return requested, 0, nil

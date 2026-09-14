@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 updated: 2026-09-15
 ---
 # Restore outcome recovery and TXT failure guidance
@@ -19,7 +19,7 @@ Restore status adds fields to the existing authenticated GET resource. Old clien
 Both fixes are implemented. Restore outcomes retain live lifecycle ownership and terminal evidence; the initiating tab resets and blocks reader work before commit, recovers across navigation/reload, and does not replay uncertain operations. A prepared status must be explicitly canceled before releasing the barrier because an earlier POST could still arrive. Old-home cleanup failure after publication is a typed committed warning, not a failed replacement. Analysis stores typed, safe failure codes and both review views share localized guidance. No reader schema, archive format, migration, dependency, deployment or existing-data changes.
 
 ## Next action
-Commit the verified restore correction, then the independently verified analysis-error correction with its architecture/usage note. No further implementation is pending.
+Manual testing can begin. Both corrections are complete at the verification scope below, with current architecture and usage documentation updated. This plan is historical evidence, not an active backlog.
 
 ## Verification
 - Red: `BackupRestoreBoundary.test.ts` failed all three pre-fix assertions; the real backup service could not retrieve status after a successful replacement.

@@ -6,7 +6,7 @@ export type TXTPreset = '' | 'chinese-chapters' | 'english-chapters' | 'generate
 export interface TXTOptions { encoding: TXTEncoding; preset: TXTPreset; pattern?: string }
 export interface TXTReceipt extends TXTOptions {
   id: string; originalName: string; state: TXTState; size: number; createdAt: number; updatedAt: number;
-  libraryId?: string; analysisVersion: number; hasError: boolean;
+  libraryId?: string; analysisVersion: number; hasError: boolean; errorCode?: string;
 }
 export interface TXTPage<T> { items: T[]; nextCursor?: string }
 export interface TXTWarnings { warnings?: string[] }
@@ -56,7 +56,7 @@ export function acquireTXT(id: string, input: File | string, signal: AbortSignal
 export interface TXTReparseStatus {
   name: string;
   activeGeneration: number; contentRevision: number; stateVersion: number; activeOptions: TXTOptions;
-  candidate?: { generation: number; state: 'queued' | 'analyzing' | 'ready' | 'needs_review' | 'analysis_failed'; options: TXTOptions; baseContentRevision: number; hasError: boolean };
+  candidate?: { generation: number; state: 'queued' | 'analyzing' | 'ready' | 'needs_review' | 'analysis_failed'; options: TXTOptions; baseContentRevision: number; hasError: boolean; errorCode?: string };
 }
 export interface TXTReparseImpact {
   generation: number; activeGeneration: number; contentRevision: number; stateVersion: number; totalSections: number;

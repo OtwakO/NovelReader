@@ -15,3 +15,16 @@ export function importErrorKey(cause: unknown): string {
 }
 
 export function importedTitle(filename: string): string { return filename.replace(/\.txt$/i, '').trim() || filename; }
+
+export function analysisErrorKey(code?: string): string {
+  switch (code) {
+    case 'txt_encoding_required': return 'imports.analysisErrors.encodingRequired';
+    case 'txt_invalid_encoding': return 'imports.analysisErrors.invalidEncoding';
+    case 'txt_unsupported_encoding': return 'imports.analysisErrors.unsupportedEncoding';
+    case 'txt_no_readable_text': return 'imports.analysisErrors.noReadableText';
+    case 'txt_non_text': return 'imports.analysisErrors.nonText';
+    case 'txt_section_limit': return 'imports.analysisErrors.sectionLimit';
+    case 'txt_storage_error': return 'imports.analysisErrors.storage';
+    default: return 'imports.analysisErrors.generic';
+  }
+}

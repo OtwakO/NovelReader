@@ -88,6 +88,14 @@ location**. Already displayed prose may remain visible with a warning; it is not
 Write invalidation is per book and retains its pending barrier so reopening drains old work before
 binding fresh state. No background polling, cross-tab event bus or generic invalidation framework.
 
+Analysis failures persist stable categories in the existing interpretation error column. The parser
+identifies encoding, empty/non-text input and section-limit failures with typed errors; txtstore adds
+storage failures and returns raw causes to the worker for server diagnostics. Initial-import and
+reparse responses expose only an allowlisted `errorCode`, retaining `hasError` for compatibility.
+Older raw error text receives generic guidance, never string-based classification or disclosure.
+Both review screens share translated correction guidance. Cancellation remains queued work, not a
+terminal analysis failure; no schema change or migration is needed.
+
 ### TXT background ownership
 
 `txtimport` runs two independent workers, at most one file per reader, with fair reader turns and durable candidate work. Idle hints retire; queued readers hold no home lease or per-file job object. `api.ReaderHomeCapacity` budgets API runtime, analysis-worker and transfer homes separately. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.

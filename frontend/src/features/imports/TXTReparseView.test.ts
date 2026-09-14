@@ -67,3 +67,11 @@ it('prepares with exact candidate guards and discards only preparation, never th
  expect(discard).toHaveBeenCalledWith('sample',1,3,expect.any(AbortSignal));expect(pendingDiscard).not.toHaveBeenCalled();
  expect(view.text()).toContain('imports.reparse.readCurrent');
 });
+
+it('uses shared failure guidance for a failed reparse without suggesting encoding for storage failures', async () => {
+  status.candidate = { ...status.candidate!, state: 'analysis_failed', hasError: true, errorCode: 'txt_storage_error' };
+  await open();
+  expect(view.text()).toContain('imports.analysisErrors.storage');
+  expect(view.text()).not.toContain('imports.analysisHint');
+  expect(view.find('pre').exists()).toBe(false);
+});

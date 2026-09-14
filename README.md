@@ -130,6 +130,8 @@ deletes its managed original. If file cleanup is incomplete, Book Detail keeps a
 record remains recoverable. Open **Imports** from navigation (or the empty shelf) to choose browser
 TXT files or scan your server inbox. Review headings and literal sample text, adjust encoding or
 chapter detection if needed, then explicitly add individual or selected ready files to your library.
+Failed analysis shows guidance specific to encoding, input format, section limits or storage problems;
+older unclassified failures keep a safe generic message. The same guidance appears during re-analysis.
 Transfers continue one file at a time while navigating within the app; closing/reloading the tab loses
 unsent selections, not acquired files. An outage pauses remaining work without silently replaying an
 uncertain acquisition. Imports also provides pending-discard and retained cleanup-retry controls.

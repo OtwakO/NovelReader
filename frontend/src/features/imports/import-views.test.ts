@@ -129,3 +129,22 @@ it('retains custom drafts, shows server validation, and requires their saved pre
   await button(view, 'imports.analyze').trigger('click'); await flushPromises();
   expect(analyze).toHaveBeenLastCalledWith('sample', 2, { encoding: '', preset: 'generated-sections', pattern: '' }, expect.any(AbortSignal));
 });
+
+it.each([
+  ['txt_encoding_required', 'encodingRequired'],
+  ['txt_invalid_encoding', 'invalidEncoding'],
+  ['txt_unsupported_encoding', 'unsupportedEncoding'],
+  ['txt_no_readable_text', 'noReadableText'],
+  ['txt_non_text', 'nonText'],
+  ['txt_section_limit', 'sectionLimit'],
+  ['txt_storage_error', 'storage'],
+  [undefined, 'generic'],
+  ['/private/error', 'generic'],
+])('shows safe analysis guidance for receipt code %s', async (errorCode, key) => {
+  vi.spyOn(api, 'getTXTReceipt').mockResolvedValue({ ...receipt({ state: 'analysis_failed', hasError: true }), errorCode });
+  const view = mount(ImportReviewView, { global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (value: string) => value } } }); wrappers.push(view);
+  await flushPromises();
+  expect(view.text()).toContain(`imports.analysisErrors.${key}`);
+  expect(view.text()).not.toContain('/private/error');
+  expect(view.text()).not.toContain('imports.analysisHint');
+});

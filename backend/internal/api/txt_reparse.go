@@ -25,6 +25,7 @@ type txtCandidateResponse struct {
 	Options             txtOptionsResponse `json:"options"`
 	BaseContentRevision int64              `json:"baseContentRevision"`
 	HasError            bool               `json:"hasError"`
+	ErrorCode           string             `json:"errorCode,omitempty"`
 }
 type txtReparseResponse struct {
 	Name             string                `json:"name"`
@@ -51,7 +52,7 @@ func (s *readerAPI) handleTXTReparseStatus(w http.ResponseWriter, r *http.Reques
 	}
 	response := txtReparseResponse{Name: value.Name, ActiveGeneration: value.ActiveGeneration, ContentRevision: value.ContentRevision, StateVersion: value.StateVersion, ActiveOptions: txtOptionsDTO(value.ActiveOptions)}
 	if candidate := value.Candidate; candidate != nil {
-		response.Candidate = &txtCandidateResponse{candidate.Generation, candidate.State, txtOptionsDTO(candidate.Options), candidate.BaseContentRevision, candidate.Error != ""}
+		response.Candidate = &txtCandidateResponse{candidate.Generation, candidate.State, txtOptionsDTO(candidate.Options), candidate.BaseContentRevision, candidate.Error != "", txtAnalysisErrorCode(candidate.Error)}
 	}
 	writeJSON(w, http.StatusOK, response)
 }

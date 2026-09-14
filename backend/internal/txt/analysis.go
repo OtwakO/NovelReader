@@ -38,7 +38,14 @@ const (
 	parserVersion       = 1
 )
 
-var ErrEncodingRequired = errors.New("txt: encoding is uncertain; select an encoding")
+var (
+	ErrEncodingRequired    = errors.New("txt: encoding is uncertain; select an encoding")
+	ErrInvalidEncoding     = errors.New("txt: invalid encoded text")
+	ErrUnsupportedEncoding = errors.New("txt: unsupported text encoding")
+	ErrNoReadableText      = errors.New("txt: no readable text")
+	ErrNonText             = errors.New("txt: non-text control character")
+	ErrSectionLimit        = errors.New("txt: section limit exceeded")
+)
 
 type ReviewReason string
 

@@ -47,7 +47,7 @@ func TestFailedPendingFileDoesNotBlockNextOriginal(t *testing.T) {
 		t.Fatalf("missing original result=%v %v", worked, err)
 	}
 	failed, err := store.Get(t.Context(), broken.ID)
-	if err != nil || failed.State != AnalysisFailed || failed.Error == "" {
+	if err != nil || failed.State != AnalysisFailed || failed.Error != "txt_storage_error" {
 		t.Fatalf("failure not recorded: %+v %v", failed, err)
 	}
 	next := mustReceive(t, store)

@@ -61,7 +61,7 @@ func Analyze(ctx context.Context, original io.Reader, options Options) (Analysis
 		}
 	}
 	if !readable {
-		return Analysis{}, fmt.Errorf("txt: no readable text")
+		return Analysis{}, ErrNoReadableText
 	}
 	best, matching := 0, 0
 	for i := range builders {
@@ -153,7 +153,7 @@ func (b *indexBuilder) emit(end int64, generated bool) error {
 		return nil
 	}
 	if len(b.sections) >= maxSections {
-		return fmt.Errorf("txt: index exceeds %d sections", maxSections)
+		return fmt.Errorf("%w: index exceeds %d sections", ErrSectionLimit, maxSections)
 	}
 	title := b.title
 	if generated || b.part > 1 {

@@ -2,6 +2,7 @@ package txtstore
 
 import (
 	"context"
+	"errors"
 	"io"
 )
 
@@ -24,7 +25,7 @@ func (r *candidateReader) check() error {
 	var current bool
 	err := r.store.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM txt_interpretations i JOIN txt_files f ON f.id=i.file_id WHERE i.file_id=? AND i.generation=? AND i.role='candidate' AND i.state='analyzing' AND f.state='acquired')`, r.fileID, r.generation).Scan(&current)
 	if err != nil {
-		return err
+		return errors.Join(errAnalysisStorage, err)
 	}
 	if !current {
 		return ErrStateChanged
@@ -44,5 +45,8 @@ func (r *candidateReader) Read(data []byte) (int, error) {
 	}
 	n, err := r.input.Read(data)
 	r.sinceCheck += n
+	if err != nil && err != io.EOF {
+		err = errors.Join(errAnalysisStorage, err)
+	}
 	return n, err
 }

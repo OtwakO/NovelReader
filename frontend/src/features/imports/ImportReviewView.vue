@@ -6,7 +6,7 @@ import TXTInterpretationOptions from './TXTInterpretationOptions.vue';
 import TXTPreview from './TXTPreview.vue';
 import { acceptTXT, analyzeTXT, discardTXT, getTXTReceipt, previewTXT, type TXTEncoding, type TXTPreset, type TXTPreview as Preview, type TXTReceipt } from '../../api/txt-imports';
 import { deleteBook } from '../../api/books';
-import { importedTitle, importErrorKey } from './import-feedback';
+import { importedTitle, importErrorKey, analysisErrorKey } from './import-feedback';
 import { createImportTask } from './import-task';
 import './imports.css';
 export default defineComponent({
@@ -35,7 +35,7 @@ export default defineComponent({
   },
   beforeUnmount() { clearInterval(this.timer); this.task.cancel(); },
   methods: {
-    importErrorKey,
+    importErrorKey, analysisErrorKey,
     clearPatternError() { if (this.patternError) this.task.error = undefined; },
     async load(signal: AbortSignal) {
       const value = await getTXTReceipt(this.id, signal);
@@ -90,7 +90,7 @@ export default defineComponent({
       <p v-if="warnings.length" role="status">{{ $t('imports.retainedWarning') }}</p>
       <RouterLink v-if="receipt?.libraryId" :to="`/books/${receipt.libraryId}`">{{ $t('imports.openBook') }}</RouterLink>
       <p v-if="receipt?.state === 'failed'">{{ $t('imports.failedHint') }}</p>
-      <p v-if="receipt?.state === 'analysis_failed'">{{ $t('imports.analysisHint') }}</p>
+      <p v-if="receipt?.state === 'analysis_failed'">{{ $t(analysisErrorKey(receipt.errorCode)) }}</p>
       <section v-if="canAnalyze" class="import-section" aria-labelledby="interpretation-title">
         <h2 id="interpretation-title">{{ $t('imports.interpretation') }}</h2>
         <TXTInterpretationOptions v-model:encoding="encoding" v-model:preset="preset" v-model:pattern="pattern" :busy="task.busy" :pattern-error="patternError" @update:pattern="clearPatternError" />

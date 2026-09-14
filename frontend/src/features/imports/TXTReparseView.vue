@@ -8,7 +8,7 @@ import { invalidateReadingState, waitForProgressWrites } from '../reader/progres
 import TXTInterpretationOptions from './TXTInterpretationOptions.vue';
 import TXTPreview from './TXTPreview.vue';
 import { createImportTask } from './import-task';
-import { importErrorKey } from './import-feedback';
+import { importErrorKey, analysisErrorKey } from './import-feedback';
 import './imports.css';
 
 export default defineComponent({
@@ -41,7 +41,7 @@ export default defineComponent({
   mounted() { this.timer = setInterval(() => { if (this.processing && !this.mustRefresh && document.visibilityState === 'visible') this.refresh(); }, 5000); },
   beforeUnmount() { clearInterval(this.timer); this.task.cancel(); },
   methods: {
-    importErrorKey,
+    importErrorKey, analysisErrorKey,
     useSavedOptions() {
       const options = this.status?.candidate?.options || this.status?.activeOptions;
       if (options) { this.encoding = options.encoding; this.preset = options.preset; this.pattern = options.pattern || ''; }
@@ -136,7 +136,7 @@ export default defineComponent({
         <TXTInterpretationOptions v-model:encoding="encoding" v-model:preset="preset" v-model:pattern="pattern" :busy="task.busy" :pattern-error="patternError" @update:encoding="edited" @update:preset="edited" @update:pattern="edited" />
         <div class="import-actions"><AppButton :busy="task.busy" :disabled="mustRefresh || (preset === 'custom' && !pattern)" @click="prepare">{{ $t(status.candidate ? 'imports.reparse.replace' : 'imports.reparse.prepare') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="useSavedOptions">{{ $t('imports.reparse.savedOptions') }}</AppButton></div>
         <p v-if="status.candidate" role="status">{{ $t(status.candidate.state === 'ready' ? 'imports.reparse.ready' : `imports.state.${status.candidate.state === 'queued' ? 'received' : status.candidate.state}`) }}</p>
-        <p v-if="status.candidate?.state === 'analysis_failed'">{{ $t('imports.analysisHint') }}</p>
+        <p v-if="status.candidate?.state === 'analysis_failed'">{{ $t(analysisErrorKey(status.candidate.errorCode)) }}</p>
         <p v-if="status.candidate && optionsChanged">{{ $t('imports.reparse.draft') }}</p>
       </section>
       <TXTPreview v-if="preview" :preview="preview" :pattern="status.candidate?.options.pattern" :start="start" :busy="task.busy || mustRefresh" @page="page">
