@@ -15,6 +15,7 @@ export default defineComponent({
   components: { AppButton, BookDetailSection, TocChapterList },
   props: {
     bookId: { type: String, required: true },
+    contentRevision: { type: Number, default: undefined },
     chapters: { type: Array as PropType<Chapter[]>, default: () => [] },
     currentIndex: { type: Number, required: true },
     error: { type: String, default: "" },
@@ -113,7 +114,7 @@ export default defineComponent({
 </AppButton>
         </div>
       </div>
-      <TocChapterList v-if="visibleChapters.length" :chapters="visibleChapters" :current-index="currentIndex" :book-id="bookId" :interactive="interactive" />
+      <TocChapterList v-if="visibleChapters.length" :chapters="visibleChapters" :current-index="currentIndex" :book-id="bookId" :content-revision="contentRevision" :interactive="interactive" />
       <section v-else class="no-matches">
         <p>{{ $t("reader.toc.noMatches") }}</p>
         <AppButton variant="secondary" @click="clearSearch">

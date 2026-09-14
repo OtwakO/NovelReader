@@ -1,5 +1,6 @@
 <script lang="ts">
 import { defineComponent, nextTick } from "vue";
+import { readerResumeLocation } from '../reader/reader-session';
 import { listBooks } from "../../api/books";
 import type { LibraryBook } from "../../api/models";
 import AppButton from "../../ui/components/AppButton.vue";
@@ -34,6 +35,7 @@ export default defineComponent({
   },
   beforeUnmount() { this.captureScroll(); window.removeEventListener('scroll', this.captureScroll); },
   methods: {
+    readerResumeLocation,
     saveView(scrollY = window.scrollY) { saveShelfViewState({ query: this.query, sort: this.sort, scrollY }); },
     captureScroll() { this.saveView(); },
     clearQuery() { this.query = ''; },
@@ -145,13 +147,7 @@ export default defineComponent({
             <div class="continue-actions">
               <RouterLink
                 class="continue-action"
-                :to="{
-                  name: 'reader',
-                  params: {
-                    bookId: continueBook.id,
-                    chapterIndex: Math.max(0, continueBook.durChapterIndex),
-                  },
-                }"
+                :to="readerResumeLocation(continueBook)"
               >
                 {{ $t("shelf.continue")
                 }}<span aria-hidden="true">→</span>
@@ -215,13 +211,7 @@ export default defineComponent({
               </div>
               <RouterLink
                 class="resume"
-                :to="{
-                  name: 'reader',
-                  params: {
-                    bookId: book.id,
-                    chapterIndex: Math.max(0, book.durChapterIndex),
-                  },
-                }"
+                :to="readerResumeLocation(book)"
               >
                 {{ $t("shelf.resume") }}
               </RouterLink>

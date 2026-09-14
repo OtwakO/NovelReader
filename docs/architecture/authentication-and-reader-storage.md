@@ -73,8 +73,20 @@ writer through a TXT-owned row before reading library state. It recomputes mappi
 versions, updates library-owned progress/bookmarks, and swaps interpretation roles in one transaction.
 Unmapped progress requires an explicit section choice at position zero; unresolved bookmarks retain
 original location data. Content/state revisions advance once; an already-active generation returns
-current state without another mutation. The next [accepted checkpoint](../plans/2026-09-10-multi-provider-library.md#advanced-txt-patterns-and-reparse--design-proposal)
-connects HTTP/UI controls together with revision-coherent reader loading and qualified navigation.
+current state without another mutation. Revision-coherent reader loading and qualified navigation are
+implemented; the next [accepted checkpoint](../plans/2026-09-10-multi-provider-library.md#advanced-txt-patterns-and-reparse--design-proposal)
+connects reparse HTTP/UI controls.
+
+The shared reader loads book state and catalog as a revision-matched pair, retrying that pair once
+before requiring an explicit reopen. Catalog failures retain BookSource recovery metadata without
+initializing reading state. Catalog links, saved resumes and bookmark actions carry their content
+revision. Books without a first catalog open the current resume without inventing a section location;
+unqualified legacy URLs similarly mean current-catalog navigation, not historical recovery.
+A stale qualification is rejected before fetching chapter content. Later content, prefetch or state-write
+conflicts stop navigation/writes, dispose the session's chapter cache and offer **Reopen current saved
+location**. Already displayed prose may remain visible with a warning; it is not silently remapped.
+Write invalidation is per book and retains its pending barrier so reopening drains old work before
+binding fresh state. No background polling, cross-tab event bus or generic invalidation framework.
 
 ### TXT background ownership
 

@@ -1,9 +1,11 @@
 import { getChapterContent, type ChapterContent } from '../../api/reader';
 
+import { isReaderRevisionConflict, ReaderRevisionConflict } from './reader-session';
+
 const maxRecentChapters = 5;
 
 /** One reader/book interpretation revision. Dispose and drain before replacing that binding. */
-export function createChapterLoader(bookId: string, contentRevision: number) {
+export function createChapterLoader(bookId: string, contentRevision: number, onRevisionConflict?: () => void) {
   const cache = new Map<number, ChapterContent>();
   const pending = new Map<number, Promise<ChapterContent>>();
   const controller = new AbortController();
@@ -27,12 +29,15 @@ export function createChapterLoader(bookId: string, contentRevision: number) {
       if (closed) throw new DOMException('Reader session closed', 'AbortError');
       const content = await getChapterContent(bookId, index, contentRevision, controller.signal);
       if (closed) throw new DOMException('Reader session closed', 'AbortError');
-      if (content.contentRevision !== contentRevision) throw new Error('Book interpretation changed; reload the chapter list');
+      if (content.contentRevision !== contentRevision) throw new ReaderRevisionConflict();
       if (!content.offlineCopy) {
         cache.set(index, content);
         if (cache.size > maxRecentChapters) cache.delete(cache.keys().next().value!);
       }
       return content;
+    }).catch(cause => {
+      if (!closed && isReaderRevisionConflict(cause)) onRevisionConflict?.();
+      throw cause;
     }).finally(() => { pending.delete(index); });
     pending.set(index, operation);
     tail = operation.then(() => undefined, () => undefined);

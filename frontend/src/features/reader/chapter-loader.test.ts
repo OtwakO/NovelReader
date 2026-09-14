@@ -57,7 +57,7 @@ describe('reading-session chapter loader', () => {
   it('rejects a different interpretation without admitting it to the cache', async () => {
     const loader = createChapterLoader('book', 7);
     vi.mocked(getChapterContent).mockResolvedValueOnce({ ...content, contentRevision: 8 });
-    await expect(loader.load(1)).rejects.toThrow('Book interpretation changed');
+    await expect(loader.load(1)).rejects.toThrow('Reading state changed');
     await expect(loader.load(1)).resolves.toEqual(content);
     expect(getChapterContent).toHaveBeenCalledTimes(2);
   });

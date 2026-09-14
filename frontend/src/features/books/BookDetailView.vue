@@ -18,6 +18,7 @@ import BookCover from "./BookCover.vue";
 import BookDetailSection from "./BookDetailSection.vue";
 import BookDetailToc from "./BookDetailToc.vue";
 import { clearCandidateCommittedBook } from "../candidates/candidate-operation";
+import { loadReaderSnapshot, readerResumeLocation } from '../reader/reader-session';
 import { readableChapterLabel } from "./book-display";
 
 export default defineComponent({
@@ -35,6 +36,7 @@ export default defineComponent({
       book: null as LibraryBook | null,
       nativeBook: null as Book | null,
       chapters: [] as Chapter[],
+      catalogRevision: 0,
       loading: true,
       bookError: "",
       tocError: "",
@@ -84,6 +86,7 @@ export default defineComponent({
     await this.load();
   },
   methods: {
+    readerResumeLocation,
     async load() {
       const request = ++this.loadGeneration;
       this.loading = true;
@@ -113,11 +116,18 @@ export default defineComponent({
       this.catalogRetrying = retry;
       this.tocError = "";
       try {
-        const catalog = await waitForCatalog(this.bookId, {
+        let catalog = await waitForCatalog(this.bookId, {
           retry,
           isCurrent: () => request === this.loadGeneration,
         });
-        if (request === this.loadGeneration) this.chapters = catalog.chapters;
+        if (request !== this.loadGeneration) return;
+        if (this.book?.contentRevision !== catalog.contentRevision) {
+          const snapshot = await loadReaderSnapshot(this.bookId, { isCurrent: () => request === this.loadGeneration });
+          if (request !== this.loadGeneration) return;
+          this.book = snapshot.book; catalog = snapshot.catalog;
+        }
+        this.catalogRevision = catalog.contentRevision;
+        this.chapters = catalog.chapters;
       } catch (cause) {
         if (request !== this.loadGeneration) return;
         this.tocError =
@@ -273,7 +283,7 @@ export default defineComponent({
           <div class="actions">
             <RouterLink
               class="primary-link"
-              :to="`/books/${encodeURIComponent(book.id)}/read/${book.durChapterIndex}`"
+              :to="readerResumeLocation(book)"
               >
 {{ $t("bookDetail.continue") }}
 </RouterLink><AppButton variant="danger" @click="confirmingRemove = true">
@@ -323,6 +333,7 @@ export default defineComponent({
       <BookDetailToc
         :book-id="book.id"
         :chapters="chapters"
+        :content-revision="catalogRevision"
         :current-index="book.durChapterIndex"
         :error="tocError"
       />

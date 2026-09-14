@@ -6,6 +6,9 @@ const pending = new Map<string, Promise<void>>();
 let generation = 0;
 
 export function setProgressVersion(bookId: string, stateVersion: number): void { versions.set(bookId, stateVersion); }
+// Keep the pending barrier so reopening can drain in-flight work before binding
+// a fresh version. Unstarted writes fail locally rather than replaying stale state.
+export function invalidateReadingState(bookId: string): void { versions.delete(bookId); }
 export function getProgressVersion(bookId: string): number | undefined { return versions.get(bookId); }
 
 export async function queueProgressWrite(bookId: string, write: ProgressWrite): Promise<void> {
@@ -21,7 +24,7 @@ export function queueReadingStateWrite<T extends { stateVersion: number }>(bookI
     const version = versions.get(bookId);
     if (version === undefined) throw new Error('Reading state is not initialized');
     const saved = await write(version);
-    if (requestGeneration !== generation) return;
+    if (requestGeneration !== generation || !versions.has(bookId)) return;
     versions.set(bookId, saved.stateVersion);
     return saved;
   });

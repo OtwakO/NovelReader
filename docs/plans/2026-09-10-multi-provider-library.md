@@ -744,8 +744,8 @@ No push-notification infrastructure is required.
 2. **Custom matching for pending imports is implemented and verified**, through the existing
    preview/acceptance path with exact persisted options and localized validation feedback.
 3. **Published-reparse storage is implemented and verified:** candidate preparation/discard,
-   bounded review, coherent impact and atomic Apply. Next connect HTTP and the focused UI together
-   with reader revision handling. Keep built-in methods and custom patterns on the same path.
+   bounded review, coherent impact and atomic Apply. The shared reader's revision handling is now
+   implemented and verified separately. Next connect HTTP and the focused reparse UI. Keep built-in methods and custom patterns on the same path.
 
 Use a few focused groups, extending existing fixtures rather than duplicating the core suite:
 
@@ -804,11 +804,19 @@ one snapshot; `reparse_apply.go` atomically promotes the candidate and relocates
 `ReviewReparse` shares bounded sampling while checking the intended role after I/O. Initial receipt
 semantics remain unchanged. Existing workers, file gates and library transaction functions are reused;
 there is no new schema, worker, mapping journal or approval-token owner.
-**Next:** connect HTTP controls and the focused reparse UI together with coherent Reader loading and
-revision-qualified section/bookmark links. Do not expose Apply before that reader integration. This
-checkpoint makes no HTTP/frontend change and does not modify existing data. No more architecture
-approval is needed unless new evidence changes the accepted contract. The [verification section](#verification)
-records the storage/race evidence and bounded-index measurement.
+**Reader revision checkpoint complete:** `frontend/src/features/reader/reader-session.ts` owns the
+coherent book/catalog load and qualified navigation helpers. Reader state is initialized only after
+matching revisions; a pair mismatch retries once. Catalog failure still exposes BookSource recovery.
+Stale URLs are rejected before content I/O; content/prefetch/write conflicts block the session, clear its
+chapter cache, and offer an explicit current-resume reopen. Bookmark events preserve their revision.
+`progress-writer.ts` invalidates only the affected book while keeping the drain barrier. Shelf/detail
+resume links and TOC links carry the revision they actually describe; an unindexed book opens the
+current resume rather than inventing a revision-zero section. Legacy unqualified links remain current-
+catalog navigation. No polling owner, event bus or new global invalidation framework.
+**Next:** connect HTTP controls and the focused reparse UI using the verified storage and reader
+boundaries. No reparse HTTP route is exposed yet. The reader checkpoint changes no backend, schema,
+deployment or existing data. No more architecture approval is needed unless new evidence changes the
+accepted contract. See [verification](#verification) for the current evidence and its limits.
 **Custom-pattern verification (previous checkpoint):** normal/race suites pass for `txt`, `txtstore`, `txtimport` and `api`.
 Frontend typecheck, scoped ESLint, production build and 13 tests across import views, transport and i18n
 pass. A desktop/mobile production-build browser check used synthetic API responses to verify draft
@@ -851,13 +859,24 @@ No deployment or existing-data modification.
 
 ## Next Action
 
-The core TXT path is complete at the verification scope below. The [custom-pattern and reparse design](#advanced-txt-patterns-and-reparse--design-proposal) is accepted, including epoch 12 without migrations and the reviewed public contracts. Storage separation is implemented and verified at the recorded scope. Custom matching for pending imports is also implemented and verified. Published-reparse storage transactions are also implemented and verified. Next connect HTTP/UI controls together with coherent reader loads and revision-qualified navigation; keep Apply unexposed until that integration is complete. Keep existing data untouched; the user handles development resets manually. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
+The core TXT path is complete at the verification scope below. The [custom-pattern and reparse design](#advanced-txt-patterns-and-reparse--design-proposal) is accepted, including epoch 12 without migrations and the reviewed public contracts. Storage separation is implemented and verified at the recorded scope. Custom matching for pending imports is also implemented and verified. Published-reparse storage transactions are also implemented and verified. Coherent reader loads, revision-qualified navigation and stale-session handling are also implemented and verified. Next connect reparse HTTP/UI controls using these boundaries; keep Apply unexposed until that integration is complete. Keep existing data untouched; the user handles development resets manually. Optional auto-add, richer bulk review and EPUB remain later work. Do not introduce a generic import framework or claim performance beyond the recorded measurements.
 
 Keep the confirmed intake constraints: finish copying before Imports/Scan; rename-first with streaming cross-device fallback; one immutable managed original; no silent consumption of unresolved inbox leftovers. HTTP review/confirmation must retain the server-issued proof scoped to the current reader/database lifetime, not reconstruct authorization from displayed fields. Reuse the existing journal and operations; no generic import or backup framework.
 
 Do not restart the shared-state cutover, repeat broad architecture review, or make advanced parsing/reparse controls prerequisites. Record consequential choices before production edits; the core scope and operational choices remain authorized.
 
 ## Verification
+
+- Reader revision prerequisite: frontend typecheck, scoped ESLint, production build and **61 tests
+  across 20 files** pass for the reader, Book Detail and reader-state boundaries. Added checks cover
+  bounded coherent-load retry, legacy/qualified navigation, stale URL rejection before content I/O,
+  prefetch-conflict shutdown, bookmark revision propagation and per-book queued-write invalidation.
+  Existing source recovery/switching regressions remain covered. Desktop/mobile production-build
+  browser checks with synthetic API responses confirm stale-link blocking and explicit reopening at
+  the current saved index/position with a qualified URL, without horizontal overflow. The final pass
+  includes disabled stale navigation and removal of misleading section counters. This is not a new
+  real-backend reparse journey. The scoped UI detector had no findings; AFT inspection timed out.
+  No backend tests were rerun for this frontend-only checkpoint, and reparse HTTP/UI remains pending.
 
 - Published-reparse storage: `go test ./internal/txtstore ./internal/library ./internal/txtimport
   ./internal/reading ./internal/api ./internal/readerstore ./internal/backup -count=1` and the same

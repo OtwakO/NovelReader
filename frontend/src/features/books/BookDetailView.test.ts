@@ -33,7 +33,9 @@ describe('BookDetailView catalog synchronization', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(book), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(JSON.stringify(book), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ state: 'syncing' }), { status: 202, headers: { 'Content-Type': 'application/json' } }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ contentRevision: 1, chapters: [{ id: 'book-1_0', bookId: 'book-1', index: 0, title: 'Chapter One', url: '/1', isVolume: false }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ contentRevision: 1, chapters: [{ id: 'book-1_0', bookId: 'book-1', index: 0, title: 'Chapter One', url: '/1', isVolume: false }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...book, contentRevision: 1 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ contentRevision: 1, chapters: [{ index: 0, title: 'Chapter One', isVolume: false }] }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const wrapper = mount(BookDetailView, {
@@ -45,7 +47,7 @@ describe('BookDetailView catalog synchronization', () => {
           FeatureScaffold: { template: '<main><slot /></main>' },
           BookCover: true,
           BookDetailSection: { template: '<section><slot name="body" /><slot /></section>' },
-          BookDetailToc: { props: ['chapters'], template: '<div>{{ chapters.map((chapter) => chapter.title).join(",") }}</div>' },
+          BookDetailToc: { props: ['chapters', 'contentRevision'], template: '<div>{{ chapters.map((chapter) => chapter.title).join(",") }}</div>' },
           SourceRecoveryPanel: true,
           WebViewFailureHint: true,
         },
@@ -61,6 +63,8 @@ describe('BookDetailView catalog synchronization', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Chapter One');
+    expect(wrapper.vm.catalogRevision).toBe(1);
+    expect(wrapper.vm.book?.contentRevision).toBe(1);
     expect(wrapper.text()).not.toContain('Synchronizing the chapter list…');
   });
 

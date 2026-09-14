@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReaderView from './ReaderView.vue';
 import { getBook, getBookSource, mergeBookSources } from '../../api/books';
 import { getChapterContent, saveProgress, switchBookSource, waitForCatalog, type ChapterContent } from '../../api/reader';
+import { ApiError } from '../../api/transport';
 import { resetProgressWriter, waitForProgressWrites } from './progress-writer';
 
 vi.mock('../../api/books', () => ({ getBook:vi.fn(), getBookSource:vi.fn(), mergeBookSources:vi.fn(), clearBookSources:vi.fn() }));
@@ -24,8 +25,8 @@ beforeEach(()=>{
   vi.mocked(saveProgress).mockImplementation(async(_book,_source,stateVersion)=>({status:'saved',stateVersion:stateVersion+1}));
 });
 afterEach(async()=>{wrapper?.unmount();await waitForProgressWrites('book');vi.unstubAllGlobals();});
-async function open() {
-  wrapper=shallowMount(ReaderView,{global:{mocks:{$t:(key:string)=>key,$route:{params:{bookId:'book',chapterIndex:'0'},query:{}},$router:{push:vi.fn(),replace:vi.fn()}},stubs:{RouterLink:true}}});
+async function open(query: Record<string,string> = {}) {
+  wrapper=shallowMount(ReaderView,{global:{mocks:{$t:(key:string)=>key,$route:{params:{bookId:'book',chapterIndex:'0'},query},$router:{push:vi.fn(),replace:vi.fn()}},stubs:{RouterLink:true}}});
   await flushPromises();return wrapper.vm;
 }
 
@@ -122,4 +123,36 @@ it('reads TXT through the existing reader without source context or recovery', a
   expect(vm.displayContent?.document.title).toBe('old 1');
   await expect(vm.captureBookmark()).resolves.toEqual({contentRevision:7,chapterIndex:1,position:0});
   expect(saveProgress).toHaveBeenLastCalledWith('book',7,expect.any(Number),1,0);
+});
+
+
+it('blocks stale links before fetching content and explicitly reopens without the old location', async () => {
+  const vm = await open({contentRevision:'6',position:'.8'});
+  expect(vm.revisionConflict).toBe(true);
+  expect(getChapterContent).not.toHaveBeenCalled();
+  expect(saveProgress).not.toHaveBeenCalled();
+  await vm.reopenCurrent();
+  expect(vm.$router.replace).toHaveBeenCalledWith({name:'reader',params:{bookId:'book'}});
+});
+
+it('qualifies legacy navigation and stops a session when speculative content detects replacement', async () => {
+  const vm = await open();
+  expect(vm.$router.replace).toHaveBeenCalledWith({name:'reader',params:{bookId:'book',chapterIndex:0},query:{contentRevision:'7',position:'0'}});
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new ApiError(409,{code:'state_changed'}));
+  vm.preferences.prefetchNextChapter=true;
+  await flushPromises();
+  expect(vm.revisionConflict).toBe(true);
+  expect(vm.chapterLoader).toBeNull();
+  expect(vm.displayContent?.document.title).toBe('old 0');
+  await vm.persistProgress(); await vm.navigate(1);
+  expect(saveProgress).not.toHaveBeenCalled();
+  expect(getChapterContent).toHaveBeenCalledTimes(2);
+});
+
+it('passes bookmark revision to navigation instead of attaching its ordinal to the visible catalog', async () => {
+  const vm=await open();
+  vm.activeSheet='bookmarks'; await flushPromises();
+  wrapper.findComponent({name:'ReaderBookmarksSheet'}).vm.$emit('open',1,.4,6);
+  expect(vm.revisionConflict).toBe(true);
+  expect(getChapterContent).toHaveBeenCalledTimes(1);
 });

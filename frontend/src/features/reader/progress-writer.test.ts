@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getProgressVersion, queueReadingStateWrite, queueProgressWrite, resetProgressWriter, setProgressVersion, waitForProgressWrites } from './progress-writer';
+import { invalidateReadingState, getProgressVersion, queueReadingStateWrite, queueProgressWrite, resetProgressWriter, setProgressVersion, waitForProgressWrites } from './progress-writer';
 
 const saveProgress = vi.fn();
 vi.mock('../../api/reader', () => ({ saveProgress: (...args: unknown[]) => saveProgress(...args) }));
@@ -28,6 +28,20 @@ describe('progress writer', () => {
     await Promise.all([first, second]);
     expect(saveProgress).toHaveBeenCalledOnce();
     expect(getProgressVersion('book')).toBe(10);
+  });
+  it('blocks stale queued writes without resetting another book or losing the drain barrier', async () => {
+    let release!: (value:{stateVersion:number})=>void;
+    saveProgress.mockReturnValueOnce(new Promise(done=>{release=done;}));
+    setProgressVersion('book',1); setProgressVersion('other',8);
+    const first=queueProgressWrite('book',{contentRevision:7,chapterIndex:0,position:.1});
+    const next=queueProgressWrite('book',{contentRevision:7,chapterIndex:1,position:.2});
+    const rejected=expect(next).rejects.toThrow('Reading state is not initialized');
+    await vi.waitFor(()=>expect(saveProgress).toHaveBeenCalledOnce());
+    invalidateReadingState('book');
+    release({stateVersion:2});
+    await first; await rejected; await waitForProgressWrites('book');
+    expect(saveProgress).toHaveBeenCalledOnce(); expect(getProgressVersion('book')).toBeUndefined();
+    expect(getProgressVersion('other')).toBe(8);
   });
   it('orders bookmark mutations between progress writes', async () => {
     setProgressVersion('book', 0);
