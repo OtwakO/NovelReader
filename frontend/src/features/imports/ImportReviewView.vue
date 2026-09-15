@@ -83,29 +83,29 @@ export default defineComponent({
 
 <template>
   <section class="import-editor" aria-labelledby="import-review-title">
-    <header class="import-editor-heading"><h2 id="import-review-title" tabindex="-1">{{ receipt?.originalName || $t('imports.review') }}</h2><div class="import-actions"><AppButton v-if="receipt && ['ready', 'needs_review'].includes(receipt.state)" type="submit" form="import-add-form" :busy="task.busy" :disabled="!canAccept">{{ $t('imports.confirmAdd') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="$emit('close')">{{ $t('imports.flow.closeReview') }}</AppButton></div></header>
+    <header class="import-editor-heading"><h2 id="import-review-title" tabindex="-1">{{ receipt?.originalName || $t('imports.review') }}</h2><div class="app-actions import-actions"><AppButton v-if="receipt && ['ready', 'needs_review'].includes(receipt.state)" type="submit" form="import-add-form" :busy="task.busy" :disabled="!canAccept">{{ $t('imports.confirmAdd') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="$emit('close')">{{ $t('imports.flow.closeReview') }}</AppButton></div></header>
     <p v-if="task.error && !(patternError && canAnalyze && preset === 'custom')" role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
     <template v-if="removed">
       <p role="status">{{ $t(cleanupPending ? (receipt?.libraryId ? 'imports.libraryCleanupPending' : 'imports.cleanupPending') : 'imports.discarded') }}</p>
       <AppButton v-if="cleanupPending" :busy="task.busy" @click="discard">{{ $t('imports.retryCleanup') }}</AppButton>
     </template>
     <template v-else>
-      <div class="import-actions"><span v-if="receipt" role="status">{{ $t(`imports.state.${receipt.state}`) }}</span><AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton></div>
+      <div class="app-actions import-actions"><span v-if="receipt" role="status">{{ $t(`imports.state.${receipt.state}`) }}</span><AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton></div>
       <p v-if="warnings.length" role="status">{{ $t('imports.retainedWarning') }}</p>
-      <RouterLink v-if="receipt?.libraryId" class="import-read" :to="{ name: 'reader', params: { bookId: receipt.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
+      <RouterLink v-if="receipt?.libraryId" class="app-button app-button--secondary import-read" :to="{ name: 'reader', params: { bookId: receipt.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
       <p v-if="receipt?.state === 'failed'">{{ $t('imports.failedHint') }}</p>
       <p v-if="receipt?.state === 'analysis_failed'">{{ $t(analysisErrorKey(receipt.errorCode)) }}</p>
       <p v-if="receipt?.state === 'needs_review'">{{ $t('imports.flow.reviewHint') }}</p>
       <AppDisclosure v-if="canAnalyze" class="import-options" :open="receipt?.state === 'analysis_failed'">
         <template #summary>{{ $t('imports.flow.adjustChapters') }}</template>
         <TXTInterpretationOptions v-model:encoding="encoding" v-model:preset="preset" v-model:pattern="pattern" :busy="task.busy" :pattern-error="patternError" @update:pattern="clearPatternError" />
-        <div class="import-actions"><AppButton variant="secondary" :busy="task.busy" :disabled="preset === 'custom' && !pattern" @click="analyze">{{ $t('imports.analyze') }}</AppButton></div>
+        <div class="app-actions import-actions"><AppButton variant="secondary" :busy="task.busy" :disabled="preset === 'custom' && !pattern" @click="analyze">{{ $t('imports.analyze') }}</AppButton></div>
         <p v-if="optionsChanged">{{ $t('imports.unappliedOptions') }}</p>
       </AppDisclosure>
       <TXTPreview v-if="preview" compact :preview="preview" :start="start" :pattern="receipt?.pattern" :busy="task.busy" @page="previewPage" />
       <form v-if="receipt && ['ready', 'needs_review'].includes(receipt.state)" id="import-add-form" class="import-section" @submit.prevent="accept">
         <AppDisclosure class="import-options">
-<template #summary>{{ $t('imports.flow.bookDetails') }}</template>
+          <template #summary>{{ $t('imports.flow.bookDetails') }}</template>
         <label>{{ $t('imports.bookTitle') }}<input v-model="name" required maxlength="256" :disabled="task.busy"></label>
         <label>{{ $t('imports.author') }}<input v-model="author" maxlength="128" :disabled="task.busy"></label>
         </AppDisclosure>
@@ -114,7 +114,10 @@ export default defineComponent({
         <AppButton variant="quiet" :disabled="task.busy" @click="confirmDiscard = true">{{ $t('imports.discard') }}</AppButton>
         <div v-if="confirmDiscard" class="import-confirmation">
           <p>{{ $t('imports.discardConfirm', { name: receipt.originalName }) }}</p>
-          <AppButton variant="danger" :busy="task.busy" @click="discard">{{ $t('imports.confirmDiscard') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="confirmDiscard = false">{{ $t('imports.cancel') }}</AppButton>
+          <div class="app-actions">
+            <AppButton variant="danger" :busy="task.busy" @click="discard">{{ $t('imports.confirmDiscard') }}</AppButton>
+            <AppButton variant="quiet" :disabled="task.busy" @click="confirmDiscard = false">{{ $t('imports.cancel') }}</AppButton>
+          </div>
         </div>
       </section>
     </template>

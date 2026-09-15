@@ -47,11 +47,11 @@ export default defineComponent({
     <ImportQueuePanel @review="review" />
     <ImportReviewView v-if="selected" :key="selected" :receipt-id="selected" @updated="updated" @removed="removed" @close="closeReview" />
     <div class="import-secondary">
-      <AppDisclosure @toggle="historyOpen = ($event.target as HTMLDetailsElement).open">
+      <AppDisclosure v-model:open="historyOpen">
         <template #summary>{{ $t('imports.flow.history') }}</template>
         <ImportReceiptsPanel v-if="historyOpen" ref="history" @review="review" />
       </AppDisclosure>
-      <AppDisclosure @toggle="inboxOpen = ($event.target as HTMLDetailsElement).open">
+      <AppDisclosure v-model:open="inboxOpen">
         <template #summary>{{ $t('imports.flow.serverFiles') }}</template>
         <ImportInboxPanel v-if="inboxOpen" />
       </AppDisclosure>

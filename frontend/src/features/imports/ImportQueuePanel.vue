@@ -35,14 +35,13 @@ export default defineComponent({
 <template>
   <section class="import-upload" :aria-label="$t('imports.flow.title')">
     <div class="import-upload-bar">
-      <svg class="import-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></svg>
       <div class="import-upload-copy"><h2>{{ $t('imports.flow.title') }}</h2><p>{{ $t('imports.flow.hint') }}</p></div>
-      <label class="import-picker">{{ $t('imports.flow.choose') }}<input type="file" accept=".txt,text/plain" multiple :aria-label="$t('imports.flow.choose')" @change="choose"></label>
+      <label class="app-button app-button--primary import-picker">{{ $t('imports.flow.choose') }}<input type="file" accept=".txt,text/plain" multiple :aria-label="$t('imports.flow.choose')" @change="choose"></label>
     </div>
     <template v-if="queue.entries.length">
       <div class="import-progress-summary">
         <p role="status" aria-live="polite">{{ progress }}</p>
-        <div class="import-actions">
+        <div class="app-actions import-actions">
           <AppButton v-if="queue.paused" variant="quiet" @click="queue.resume()">{{ $t('imports.resume') }}</AppButton>
           <AppButton v-else-if="canPause" variant="quiet" @click="queue.pause()">{{ $t('imports.flow.pauseUploads') }}</AppButton>
           <AppButton v-if="added > 0" variant="quiet" @click="queue.clearFinished(); offset = 0">{{ $t('imports.flow.clear') }}</AppButton>
@@ -56,17 +55,18 @@ export default defineComponent({
             <svg v-else-if="item.state === 'attention'" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 5v6m0 2v2" /></svg>
           </span>
           <div class="import-copy">
-<strong>{{ importedTitle(item.name) }}</strong><span>{{ $t(status(item)) }}</span>
+            <strong>{{ importedTitle(item.name) }}</strong>
+            <span>{{ $t(status(item)) }}</span>
             <p v-if="item.error" class="import-error">{{ $t(importErrorKey(item.error)) }}</p>
             <p v-else-if="item.receipt?.state === 'analysis_failed'" class="import-error">{{ $t(analysisErrorKey(item.receipt.errorCode)) }}</p>
             <p v-if="item.warnings?.length" class="import-note">{{ $t('imports.flow.cleanupNote') }}</p>
           </div>
-          <RouterLink v-if="item.libraryId" class="import-read" :to="{ name: 'reader', params: { bookId: item.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
+          <RouterLink v-if="item.libraryId" class="app-button app-button--secondary import-read" :to="{ name: 'reader', params: { bookId: item.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
           <AppButton v-else-if="item.state === 'attention' && item.receiptId" variant="secondary" @click="$emit('review', item.receiptId)">{{ $t('imports.flow.checkBook') }}</AppButton>
           <AppButton v-else-if="item.state === 'attention'" variant="quiet" @click="queue.remove(item.key)">{{ $t('imports.dismiss') }}</AppButton>
         </li>
       </ul>
-      <div v-if="queue.entries.length > 25" class="import-actions">
+      <div v-if="queue.entries.length > 25" class="app-actions import-actions">
         <AppButton variant="secondary" :disabled="offset === 0" @click="offset = Math.max(0, offset - 25)">{{ $t('imports.previous') }}</AppButton>
         <AppButton variant="secondary" :disabled="offset + 25 >= queue.entries.length" @click="offset += 25">{{ $t('imports.next') }}</AppButton>
       </div>

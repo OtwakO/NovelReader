@@ -50,7 +50,7 @@ export default defineComponent({
     <h2 id="inbox-title">{{ $t('imports.inbox') }}</h2>
     <p>{{ $t('imports.inboxHint') }}</p>
     <p v-if="directory"><code>DATA_DIR/{{ directory }}</code></p>
-    <div class="import-actions">
+    <div class="app-actions import-actions">
       <AppButton variant="secondary" :busy="task.busy" @click="scan">{{ $t('imports.scan') }}</AppButton>
       <AppButton :disabled="!selected.length || task.busy" @click="queue.enqueue(selected); selected = []">{{ $t('imports.acquireSelected', { count: selected.length }) }}</AppButton>
     </div>
@@ -64,7 +64,7 @@ export default defineComponent({
         </label>
       </li>
     </ul>
-    <div class="import-actions">
+    <div class="app-actions import-actions">
       <AppButton variant="quiet" :disabled="!after || task.busy" @click="after = ''; selected = []; scan()">{{ $t('imports.first') }}</AppButton>
       <AppButton variant="quiet" :disabled="!next || task.busy" @click="after = next; selected = []; scan()">{{ $t('imports.next') }}</AppButton>
     </div>
@@ -74,7 +74,7 @@ export default defineComponent({
     <ul class="import-list">
       <li v-for="claim in claims" :key="claim.receiptId"><strong class="import-copy">{{ claim.name }}</strong><AppButton variant="secondary" :disabled="task.busy" @click="review(claim.receiptId)">{{ $t('imports.reviewLeftover') }}</AppButton></li>
     </ul>
-    <div class="import-actions">
+    <div class="app-actions import-actions">
       <AppButton variant="quiet" :disabled="!claimAfter || task.busy" @click="claimAfter = ''; scan()">{{ $t('imports.first') }}</AppButton>
       <AppButton variant="quiet" :disabled="!claimNext || task.busy" @click="claimAfter = claimNext; scan()">{{ $t('imports.next') }}</AppButton>
     </div>
@@ -82,7 +82,7 @@ export default defineComponent({
       <h3>{{ proof.name }}</h3>
       <p>{{ $t(!proof.inputPresent ? 'imports.inputMissing' : proof.canRemove ? 'imports.duplicate' : 'imports.uniqueInput') }}</p>
       <p v-if="proof.warnings?.length">{{ $t('imports.retainedWarning') }}</p>
-      <div class="import-actions">
+      <div class="app-actions import-actions">
         <AppButton variant="danger" :disabled="!proof.canRemove || task.busy" @click="resolve('confirm')">{{ $t('imports.removeDuplicate') }}</AppButton>
         <AppButton variant="secondary" :disabled="task.busy" @click="resolve('release')">{{ $t('imports.releaseClaim') }}</AppButton>
         <AppButton variant="quiet" :disabled="task.busy" @click="task.run(abandon)">{{ $t('imports.cancel') }}</AppButton>

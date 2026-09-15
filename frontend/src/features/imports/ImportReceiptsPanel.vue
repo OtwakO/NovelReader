@@ -62,7 +62,7 @@ export default defineComponent({
   <section class="import-section" aria-labelledby="receipts-title">
     <h2 id="receipts-title">{{ $t('imports.results') }}</h2>
     <p>{{ $t('imports.resultsHint') }}</p>
-    <div class="import-actions">
+    <div class="app-actions import-toolbar">
       <label>{{ $t('imports.filter') }} <select :value="filter" :disabled="task.busy" @change="page('', ($event.target as HTMLSelectElement).value)"><option value="">{{ $t('imports.all') }}</option><option v-for="state in states" :key="state" :value="state">{{ $t(`imports.state.${state}`) }}</option></select></label>
       <AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton>
       <AppButton :disabled="!selected.length || task.busy" @click="acceptSelection">{{ $t('imports.addSelected', { count: selected.length }) }}</AppButton>
@@ -75,11 +75,11 @@ export default defineComponent({
       <li v-for="item in visibleRecords" :key="item.id">
         <label class="import-selection"><input type="checkbox" :aria-label="$t('imports.selectFile', { name: item.originalName })" :checked="selected.some(value => value.id === item.id)" :disabled="item.state !== 'ready' || task.busy" @change="toggle(item, ($event.target as HTMLInputElement).checked)"></label>
         <div class="import-copy"><strong>{{ item.originalName }}</strong><span>{{ $t(`imports.state.${item.state}`) }}</span></div>
-        <RouterLink v-if="item.libraryId && item.state !== 'removing'" class="import-read" :to="{ name: 'reader', params: { bookId: item.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
+        <RouterLink v-if="item.libraryId && item.state !== 'removing'" class="app-button app-button--secondary import-read" :to="{ name: 'reader', params: { bookId: item.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
         <AppButton v-else variant="secondary" @click="$emit('review', item.id)">{{ $t('imports.flow.checkBook') }}</AppButton>
       </li>
     </ul>
-    <div v-if="after || next" class="import-actions">
+    <div v-if="after || next" class="app-actions import-actions">
       <AppButton variant="secondary" :disabled="!after || task.busy" @click="page('')">{{ $t('imports.first') }}</AppButton>
       <AppButton variant="secondary" :disabled="!next || task.busy" @click="page(next)">{{ $t('imports.next') }}</AppButton>
     </div>

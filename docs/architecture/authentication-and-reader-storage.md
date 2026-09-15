@@ -199,11 +199,12 @@ shutdown clears them after controls finish. Client JSON/flags never authorize de
 recorded in the [accepted inbox checkpoint](../plans/2026-09-10-multi-provider-library.md#inbox-http-checkpoint).
 ### TXT frontend ownership
 
-`frontend/src/features/imports/ImportWorkspace.vue` is shared by Shelf and Imports: choose files,
-follow one progress list, handle exceptions inline and open the current saved reader location directly.
-History and server-inbox controls are secondary disclosures; the inbox is not scanned until opened.
-The existing Vue Options API, theme tokens and controls are reused. Review takes a receipt prop rather
-than owning navigation; legacy `/imports/:id` links redirect to `/imports?review=id`.
+`frontend/src/features/imports/ImportWorkspace.vue` belongs to the dedicated Local Import page:
+choose files, follow one progress list, handle exceptions inline and open the current saved reader
+location directly. Shelf provides only a navigation action; it does not mount the workspace.
+History and server-inbox controls use the shared Search-style disclosure and load only when opened.
+The Vue Options API and [shared UI owners](../../frontend/src/ui/README.md) are reused. Review takes a
+receipt prop rather than owning navigation; legacy `/imports/:id` links redirect to `/imports?review=id`.
 
 `import-queue.ts` is the only browser import owner. Its Pinia lifetime survives page navigation,
 holds lightweight File references or inbox names, and starts one admitted byte transfer at a time.

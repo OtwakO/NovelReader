@@ -1,6 +1,5 @@
 <script lang="ts">
 import { defineComponent, nextTick } from "vue";
-import ImportWorkspace from '../imports/ImportWorkspace.vue';
 import { useImportQueue } from '../imports/import-queue';
 import { readerResumeLocation } from '../reader/reader-session';
 import { listBooks } from "../../api/books";
@@ -14,7 +13,7 @@ import { loadShelfViewState, saveShelfViewState, visibleShelfBooks, type ShelfSo
 
 export default defineComponent({
   name: "ShelfView",
-  components: { AppButton, BookCover, FeatureScaffold, ImportWorkspace },
+  components: { AppButton, BookCover, FeatureScaffold },
   data() {
     const view = loadShelfViewState();
     return { imports: useImportQueue(), loadGeneration: 0, books: [] as LibraryBook[], loading: true, error: "", query: view.query, sort: view.sort as ShelfSort, restoreScrollY: view.scrollY };
@@ -81,7 +80,7 @@ export default defineComponent({
     :title="$t('shelf.title')"
     :description="$t('shelf.description')"
   >
-    <ImportWorkspace class="shelf-imports" />
+    <template #actions><RouterLink class="app-button app-button--secondary" to="/imports">{{ $t('imports.title') }}</RouterLink></template>
     <p v-if="error && books.length" role="alert">{{ error }} <AppButton variant="quiet" @click="load(true)">{{ $t('app.common.retry') }}</AppButton></p>
     <p v-if="loading" aria-busy="true">{{ $t("shelf.loading") }}</p>
     <section v-else-if="error && !books.length" class="state">

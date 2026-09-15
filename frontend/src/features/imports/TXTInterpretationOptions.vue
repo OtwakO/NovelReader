@@ -15,7 +15,7 @@ export default defineComponent({
 });
 </script>
 <template>
-  <div class="import-actions">
+  <div class="import-fields">
     <label>{{ $t('imports.encoding') }}<select :value="encoding" :disabled="busy" @change="$emit('update:encoding', ($event.target as HTMLSelectElement).value)"><option v-for="value in encodings" :key="value" :value="value">{{ value || $t('imports.automatic') }}</option></select></label>
     <label>{{ $t('imports.preset') }}<select :value="preset" :disabled="busy" @change="$emit('update:preset', ($event.target as HTMLSelectElement).value)"><option v-for="value in presets" :key="value" :value="value">{{ value ? $t(`imports.presets.${value}`) : $t('imports.automatic') }}</option></select></label>
   </div>

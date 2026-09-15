@@ -124,7 +124,7 @@ export default defineComponent({
     <p>{{ $t('imports.reparse.intro') }}</p>
     <p v-if="task.error && !patternError" role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
     <p v-if="mustRefresh && !task.busy" role="status">{{ $t('imports.reparse.refreshRequired') }}</p>
-    <div class="import-actions"><AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton><RouterLink v-if="status" :to="{ name: 'reader', params: { bookId: id } }">{{ $t('imports.reparse.readCurrent') }}</RouterLink></div>
+    <div class="app-actions import-actions"><AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton><RouterLink v-if="status" :to="{ name: 'reader', params: { bookId: id } }">{{ $t('imports.reparse.readCurrent') }}</RouterLink></div>
     <p v-if="applied" role="status">{{ $t('imports.reparse.applied') }}</p>
     <p v-if="warnings.length" role="status">{{ $t('imports.reparse.analysisPending') }}</p>
     <template v-if="status">
@@ -134,7 +134,7 @@ export default defineComponent({
       <section class="import-section" aria-labelledby="interpretation-title">
         <h2 id="interpretation-title">{{ $t('imports.interpretation') }}</h2>
         <TXTInterpretationOptions v-model:encoding="encoding" v-model:preset="preset" v-model:pattern="pattern" :busy="task.busy" :pattern-error="patternError" @update:encoding="edited" @update:preset="edited" @update:pattern="edited" />
-        <div class="import-actions"><AppButton :busy="task.busy" :disabled="mustRefresh || (preset === 'custom' && !pattern)" @click="prepare">{{ $t(status.candidate ? 'imports.reparse.replace' : 'imports.reparse.prepare') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="useSavedOptions">{{ $t('imports.reparse.savedOptions') }}</AppButton></div>
+        <div class="app-actions import-actions"><AppButton :busy="task.busy" :disabled="mustRefresh || (preset === 'custom' && !pattern)" @click="prepare">{{ $t(status.candidate ? 'imports.reparse.replace' : 'imports.reparse.prepare') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="useSavedOptions">{{ $t('imports.reparse.savedOptions') }}</AppButton></div>
         <p v-if="status.candidate" role="status">{{ $t(status.candidate.state === 'ready' ? 'imports.reparse.ready' : `imports.state.${status.candidate.state === 'queued' ? 'received' : status.candidate.state}`) }}</p>
         <p v-if="status.candidate?.state === 'analysis_failed'">{{ $t(analysisErrorKey(status.candidate.errorCode)) }}</p>
         <p v-if="status.candidate && optionsChanged">{{ $t('imports.reparse.draft') }}</p>
@@ -149,7 +149,7 @@ export default defineComponent({
         <p v-if="resume">{{ resume.index === 0 ? $t('imports.reparse.fromBeginning') : $t('imports.reparse.selected', { title: resume.title }) }}</p>
         <p v-else-if="impact.resume">{{ $t('imports.reparse.preserved', { title: impact.resume.chapterTitle }) }}</p>
         <p v-else>{{ $t('imports.reparse.chooseResume') }}</p>
-        <div class="import-actions"><AppButton variant="secondary" :disabled="task.busy || mustRefresh" @click="chooseResume({index:0,title:''})">{{ $t('imports.reparse.beginning') }}</AppButton><AppButton v-if="resume && impact.resume" variant="quiet" :disabled="task.busy" @click="resume=undefined; confirmApply=false">{{ $t('imports.reparse.usePreserved') }}</AppButton></div>
+        <div class="app-actions import-actions"><AppButton variant="secondary" :disabled="task.busy || mustRefresh" @click="chooseResume({index:0,title:''})">{{ $t('imports.reparse.beginning') }}</AppButton><AppButton v-if="resume && impact.resume" variant="quiet" :disabled="task.busy" @click="resume=undefined; confirmApply=false">{{ $t('imports.reparse.usePreserved') }}</AppButton></div>
         <AppButton :disabled="task.busy || !canApply" @click="confirmApply=true">{{ $t('imports.reparse.apply') }}</AppButton>
         <div v-if="confirmApply" class="import-confirmation"><p>{{ $t('imports.reparse.confirm') }}</p><AppButton :busy="task.busy" :disabled="!canApply" @click="apply">{{ $t('imports.reparse.confirmApply') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="confirmApply=false">{{ $t('imports.cancel') }}</AppButton></div>
       </section>

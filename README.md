@@ -127,11 +127,12 @@ Admitted TXT publications use the existing chapter reader, progress, bookmarks, 
 controls. TXT is displayed as literal prose, not interpreted as HTML. Removing a TXT book also
 deletes its managed original. If file cleanup is incomplete, Book Detail keeps a warning and a
 **Retry file cleanup** action visible; the book is already removed from the library and the cleanup
-record remains recoverable. On the shelf, use **Import books → Choose files**. Newly selected TXT
-files are uploaded, processed and added automatically when no review warnings remain. Choose **Read**
-to start reading directly. Files needing attention offer **Check book** in the same view; inspect the
-text, optionally open **Adjust chapters**, then choose **Add book**. The Imports page uses the same
-workspace. **Earlier imports** and **Import from server folder** keep recovery and server tools secondary.
+record remains recoverable. On the shelf, choose **Local import** (**本地匯入**) to open the dedicated
+page, then **Choose files**. Newly selected TXT files are uploaded, processed and added automatically
+when no review warnings remain. Choose **Read** to start reading directly. Files needing attention
+offer **Check book** on that page; inspect the text, optionally open **Adjust chapters**, then choose
+**Add book**. **Earlier imports** and **Import from server folder** keep recovery and server tools in
+collapsible sections. The shelf itself has no upload or review workspace.
 Failed analysis shows guidance specific to encoding, input format, section limits or storage problems;
 older unclassified failures keep a safe generic message. The same guidance appears during re-analysis.
 Transfers continue one file at a time while navigating within the app; closing/reloading the tab loses
@@ -140,7 +141,7 @@ imports** and explicitly add them there; automatic approval is not applied to ol
 pauses remaining uploads without silently repeating an uncertain upload or addition. Imports also
 provides pending-discard and retained cleanup-retry controls.
 
-Finish copying inbox files before opening Imports or scanning (automated producers should use a
+Finish copying inbox files before opening the server-folder section or scanning (automated producers should use a
 temporary name, then rename). Uncertain leftovers require explicit review: confirmation removes only
 a verified duplicate; release keeps the file for a later import. After interruption, inspect its
 receipt and inbox claim rather than blindly importing again. The authenticated
