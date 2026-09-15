@@ -25,6 +25,10 @@ export default defineComponent({
   }),
   computed: {
     id(): string { return String(this.$route.params.bookId); },
+    errorKey(): string {
+      const key = importErrorKey(this.task.error);
+      return key === 'imports.errors.request' ? 'imports.reparse.requestFailed' : key;
+    },
     options(): TXTOptions { return { encoding: this.encoding, preset: this.preset, pattern: this.preset === 'custom' ? this.pattern : '' }; },
     optionsChanged(): boolean {
       const saved = this.status?.candidate?.options;
@@ -43,7 +47,7 @@ export default defineComponent({
   mounted() { this.timer = setInterval(() => { if (this.processing && !this.mustRefresh && document.visibilityState === 'visible') this.refresh(); }, 5000); },
   beforeUnmount() { clearInterval(this.timer); this.task.cancel(); },
   methods: {
-    importErrorKey, analysisErrorKey,
+    analysisErrorKey,
     useSavedOptions() {
       const options = this.status?.candidate?.options || this.status?.activeOptions;
       if (options) { this.encoding = options.encoding; this.preset = options.preset; this.pattern = options.pattern || ''; }
@@ -120,18 +124,31 @@ export default defineComponent({
 </script>
 
 <template>
-  <FeatureScaffold class="imports-page" :title="$t('imports.reparse.title')" :description="$t('imports.reparse.intro')">
-    <template #actions><RouterLink v-if="status" class="app-button app-button--secondary" :to="{ name: 'reader', params: { bookId: id } }"><AppIcon name="book" />{{ $t('imports.reparse.readCurrent') }}</RouterLink></template>
-    <RouterLink :to="`/books/${encodeURIComponent(id)}`">{{ $t('reader.back') }}</RouterLink>
-    <p v-if="task.error && !patternError" role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
-    <p v-if="mustRefresh && !task.busy" role="status">{{ $t('imports.reparse.refreshRequired') }}</p>
-    <div class="app-actions import-actions"><AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton></div>
+  <FeatureScaffold class="imports-page reparse-page" :title="$t('imports.reparse.title')" :description="$t('imports.reparse.intro')">
+    <template #actions>
+      <RouterLink v-if="status" class="app-button app-button--secondary reparse-read" :to="{ name: 'reader', params: { bookId: id } }"><AppIcon name="book" />{{ $t('imports.reparse.readCurrent') }}</RouterLink>
+      <RouterLink class="app-button app-button--secondary" :to="{ name: 'book-detail', params: { bookId: id } }">{{ $t('imports.reparse.backToDetails') }}</RouterLink>
+    </template>
+    <p v-if="!status && task.busy && !task.error" role="status" aria-busy="true">{{ $t('app.common.loading') }}</p>
+    <div v-if="task.error && !patternError" class="reparse-recovery">
+      <div>
+        <p role="alert" class="import-error">{{ $t(errorKey) }}</p>
+        <p v-if="mustRefresh" class="import-note">{{ $t('imports.reparse.refreshRequired') }}</p>
+      </div>
+      <AppButton v-if="mustRefresh" variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.reparse.updateStatus') }}</AppButton>
+    </div>
     <p v-if="applied" role="status">{{ $t('imports.reparse.applied') }}</p>
     <p v-if="warnings.length" role="status">{{ $t('imports.reparse.analysisPending') }}</p>
     <template v-if="status">
       <p class="import-copy"><strong>{{ status.name }}</strong></p>
-      <p>{{ $t('imports.reparse.active') }}: {{ status.activeOptions.encoding || $t('imports.automatic') }} · {{ status.activeOptions.preset ? $t(`imports.presets.${status.activeOptions.preset}`) : $t('imports.automatic') }}</p>
-      <p v-if="status.activeOptions.pattern"><code>{{ status.activeOptions.pattern }}</code></p>
+      <section class="reparse-current" aria-labelledby="current-options-title">
+        <h2 id="current-options-title">{{ $t('imports.reparse.active') }}</h2>
+        <dl>
+          <div><dt>{{ $t('imports.encoding') }}</dt><dd>{{ status.activeOptions.encoding || $t('imports.automatic') }}</dd></div>
+          <div><dt>{{ $t('imports.preset') }}</dt><dd>{{ status.activeOptions.preset ? $t(`imports.presets.${status.activeOptions.preset}`) : $t('imports.automatic') }}</dd></div>
+          <div v-if="status.activeOptions.pattern" class="reparse-current-pattern"><dt>{{ $t('imports.savedPattern') }}</dt><dd><code>{{ status.activeOptions.pattern }}</code></dd></div>
+        </dl>
+      </section>
       <section class="import-section" aria-labelledby="interpretation-title">
         <h2 id="interpretation-title">{{ $t('imports.interpretation') }}</h2>
         <TXTInterpretationOptions v-model:encoding="encoding" v-model:preset="preset" v-model:pattern="pattern" :busy="task.busy" :pattern-error="patternError" @update:encoding="edited" @update:preset="edited" @update:pattern="edited" />
@@ -161,3 +178,20 @@ export default defineComponent({
     </template>
   </FeatureScaffold>
 </template>
+
+<style scoped>
+.reparse-recovery { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-block: var(--space-4); padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-paper-raised); }
+.reparse-recovery > div { flex: 1 1 20rem; min-width: 0; }
+.reparse-recovery p { margin: 0; }
+.reparse-recovery .import-note { margin-top: var(--space-2); }
+.reparse-recovery .app-button { margin-inline-start: auto; }
+.reparse-current h2 { margin: 0 0 var(--space-3); font-size: var(--text-subheading); }
+.reparse-current dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); max-width: 40rem; margin: 0; }
+.reparse-current dt { color: var(--color-ink-muted); font-size: var(--text-small); }
+.reparse-current dd { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+.reparse-current-pattern { grid-column: 1 / -1; }
+@media (max-width: 40rem) {
+  .reparse-page :deep(.feature-heading > .app-actions) { width: 100%; justify-content: flex-end; }
+  .reparse-read :deep(svg) { display: none; }
+}
+</style>

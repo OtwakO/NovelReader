@@ -11,8 +11,9 @@ export default {
     cleanupNote: '文件需要检查清理状态，无需重新上传。',
   },
   reparse: {
+    backToDetails: '返回详情', updateStatus: '更新状态', requestFailed: '无法确认最新的重新解析状态。',
     ready: '已准备好，请检查', fromBeginning: '从书籍开头继续阅读。',
-    active: '当前解析选项', analysisPending: '解析任务已保存，但暂时无法调度。请刷新查看状态；当前书籍未改变。',
+    active: '当前解析选项', analysisPending: '解析任务已保存，但暂时无法调度。状态会自动更新；当前书籍未改变。',
     title: '重新解析 TXT', intro: '使用同一原文件准备新的解析结果。在您明确应用已检查的结果前，当前书籍仍可正常阅读。',
     prepare: '准备解析结果', replace: '替换待应用的解析结果', savedOptions: '使用已保存的选项', draft: '这些选项与待应用的结果不同。请先重新解析并检查。',
     impact: '阅读状态影响', bookmarks: '保留 {kept} 个书签 · {unresolved} 个无法定位', orphans: '无法定位的书签保留备注和原始位置，但不能跳转到新的解析结果。',

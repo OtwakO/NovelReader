@@ -11,8 +11,9 @@ export default {
     cleanupNote: '檔案需要檢查清理狀態，無需重新上傳。',
   },
   reparse: {
+    backToDetails: '返回詳情', updateStatus: '更新狀態', requestFailed: '無法確認最新的重新解析狀態。',
     ready: '已準備好，請檢查', fromBeginning: '從書籍開頭繼續閱讀。',
-    active: '目前解析選項', analysisPending: '解析工作已儲存，但暫時無法排程。請重新整理查看狀態；目前書籍未改變。',
+    active: '目前解析選項', analysisPending: '解析工作已儲存，但暫時無法排程。狀態會自動更新；目前書籍未改變。',
     title: '重新解析 TXT', intro: '使用同一原始檔準備新的解析結果。在您明確套用已檢查的結果前，目前書籍仍可正常閱讀。',
     prepare: '準備解析結果', replace: '替換待套用的解析結果', savedOptions: '使用已儲存的選項', draft: '這些選項與待套用的結果不同。請先重新解析並檢查。',
     impact: '閱讀狀態影響', bookmarks: '保留 {kept} 個書籤 · {unresolved} 個無法定位', orphans: '無法定位的書籤保留備註及原始位置，但不能跳轉至新的解析結果。',

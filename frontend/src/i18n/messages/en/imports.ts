@@ -11,8 +11,9 @@ export default {
     cleanupNote: 'The file needs a cleanup check. You don’t need to upload it again.',
   },
   reparse: {
+    backToDetails: 'Back to details', updateStatus: 'Update status', requestFailed: 'Unable to confirm the latest reparse status.',
     ready: 'Prepared for review', fromBeginning: 'Resume at the beginning of the book.',
-    active: 'Current interpretation options', analysisPending: 'Preparation is saved, but analysis could not be scheduled immediately. Refresh to check its status; the current book is unchanged.',
+    active: 'Current interpretation options', analysisPending: 'Preparation is saved, but analysis could not be scheduled immediately. Status updates automatically; the current book is unchanged.',
     title: 'Re-analyze TXT', intro: 'Prepare a new interpretation of the same original. Your current book stays readable until you explicitly apply the reviewed result.',
     prepare: 'Prepare interpretation', replace: 'Replace prepared interpretation', savedOptions: 'Use saved options', draft: 'These options differ from the prepared result. Prepare and review them before applying.',
     impact: 'Reading-state impact', bookmarks: '{kept} bookmarks preserved · {unresolved} unresolved', orphans: 'Unresolved bookmarks keep their notes and original locations, but cannot navigate to the new interpretation.',

@@ -10,7 +10,7 @@ let status: api.TXTReparseStatus;
 let impact: api.TXTReparseImpact;
 const preview: api.TXTPreview = { analysisVersion: 2, encoding: 'utf-8', preset: 'generated-sections', parserVersion: 1, reviewReasons: ['no-headings'], totalSections: 1, headings: [{index:0,title:'Merged section',generated:true}], hasMore:false, sample:'<script>literal prose</script>', sampleTruncated:false };
 function button(key:string) { return view.findAll('button').find(item=>item.text()===`imports.reparse.${key}`)!; }
-async function refresh() { await view.findAll('button').find(item=>item.text()==='imports.refresh')!.trigger('click'); await flushPromises(); }
+async function refresh() { await view.get('.reparse-recovery button').trigger('click'); await flushPromises(); }
 beforeEach(() => {
  status={name:'Sample novel',activeGeneration:1,contentRevision:1,stateVersion:4,activeOptions:{encoding:'',preset:''},candidate:{generation:2,state:'needs_review',options:{encoding:'',preset:'generated-sections'},baseContentRevision:1,hasError:false}};
  impact={generation:2,activeGeneration:1,contentRevision:1,stateVersion:4,totalSections:1,resume:null,preservedBookmarks:1,unresolvedBookmarks:1};
@@ -53,6 +53,7 @@ it('recovers an uncertain Apply from active generation without resending it',asy
  await open();await button('beginning').trigger('click');await button('apply').trigger('click');await button('confirmApply').trigger('click');await flushPromises();
  expect(view.text()).toContain('imports.reparse.refreshRequired');expect(view.text()).not.toContain('imports.reparse.applied');
  await refresh();expect(view.text()).toContain('imports.reparse.applied');expect(apply).toHaveBeenCalledOnce();
+  expect(view.find('.reparse-recovery').exists()).toBe(false);
 });
 
 it('prepares with exact candidate guards and discards only preparation, never the original',async()=>{
@@ -78,7 +79,15 @@ it('uses shared failure guidance for a failed reparse without suggesting encodin
 
 it('presents reading as navigation and resume as a selected row action', async () => {
   await open();
-  const read = view.get('.feature-heading a');
+  expect(view.find('.reparse-recovery').exists()).toBe(false);
+  expect(view.text()).not.toContain('imports.refresh');
+  const links = view.findAll('.feature-heading a');
+  expect(links).toHaveLength(2);
+  expect(links[1]!.text()).toBe('imports.reparse.backToDetails');
+  expect(links[1]!.classes()).toContain('app-button--secondary');
+  expect(links[1]!.attributes('href')).toBe('/books/sample');
+  expect(view.findAll('.reparse-current dt').map(label => label.text())).toEqual(['imports.encoding', 'imports.preset']);
+  const read = links[0]!;
   expect(read.classes()).toContain('app-button--secondary');
   expect(read.attributes('href')).toBe('/books/sample/read');
   const resume = view.get('.import-heading-row button');
@@ -87,4 +96,15 @@ it('presents reading as navigation and resume as a selected row action', async (
   expect(resume.attributes('aria-pressed')).toBe('true');
   expect(resume.get('.icon-check').attributes('aria-hidden')).toBe('true');
   expect(button('apply').attributes('disabled')).toBeUndefined();
+});
+
+it('offers inline status recovery after initial loading fails', async () => {
+  vi.mocked(api.getTXTReparse).mockRejectedValueOnce(new Error('offline'));
+  await open();
+  expect(view.get('.reparse-recovery button').text()).toBe('imports.reparse.updateStatus');
+  expect(view.get('[role="alert"]').text()).toBe('imports.reparse.requestFailed');
+  expect(view.findAll('.feature-heading a')).toHaveLength(1);
+  await refresh();
+  expect(view.find('.reparse-recovery').exists()).toBe(false);
+  expect(view.find('.reparse-current').exists()).toBe(true);
 });
