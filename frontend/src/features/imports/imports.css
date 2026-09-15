@@ -14,6 +14,7 @@
 .import-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); max-width: 40rem; margin-block: var(--space-4); }
 .import-error { color: var(--color-danger); }
 .import-note { color: var(--color-ink-muted); font-size: var(--text-small); }
+.import-confirmation .app-actions { margin-top: var(--space-3); }
 .import-confirmation { margin-block: var(--space-4); padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-paper-raised); }
 
 /* One file-selection action followed by a stable, compact progress list. */
@@ -60,15 +61,17 @@
 .import-preview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
 .import-chapters, .import-text-preview { min-width: 0; padding: var(--space-4); }
 .import-chapters { background: var(--color-paper); border-inline-end: 1px solid var(--color-border); }
-.import-text-preview { background: var(--color-paper-raised); }
+.import-text-preview { display: flex; flex-direction: column; background: var(--color-paper-raised); }
 .import-text-preview > p { margin-bottom: 0; color: var(--color-ink-muted); font-size: var(--text-small); }
 .import-preview h3, .import-preview h4 { margin: 0 0 var(--space-3); }
 .import-preview h4 { font-size: var(--text-subheading); }
 .import-preview ol { max-height: 18rem; overflow-y: auto; margin: 0; padding-inline-start: 2.25rem; scrollbar-gutter: stable; }
 .import-preview li { padding: var(--space-3) var(--space-2); border-bottom: 1px solid var(--color-border); overflow-wrap: anywhere; }
 .import-preview li::marker { color: var(--color-ink-muted); font-variant-numeric: tabular-nums; }
-.import-preview li .app-button { margin-top: var(--space-2); }
-.import-sample { white-space: pre-wrap; overflow-wrap: anywhere; font: var(--text-body)/1.8 var(--font-literary); max-height: 18rem; overflow: auto; margin: 0; scrollbar-gutter: stable; }
+.import-heading-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.import-heading-row > span { flex: 1 1 7rem; min-width: 0; }
+.import-heading-row .app-button { flex: 0 0 auto; min-inline-size: 8rem; margin-inline-start: auto; padding-inline: .75rem; }
+.import-sample { white-space: pre-wrap; overflow-wrap: anywhere; font: var(--text-body)/1.8 var(--font-literary); flex: 1 1 0; min-height: 12rem; overflow: auto; margin: 0; scrollbar-gutter: stable; }
 .import-preview :is(ol, pre):focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .import-review-status { display: flex; align-items: center; gap: var(--space-3); margin-block: var(--space-4); }
 .import-review-guidance { color: var(--color-ink-muted); max-width: 65ch; margin-block: var(--space-4) var(--space-5); }
@@ -92,6 +95,7 @@
   .import-upload-bar { align-items: stretch; flex-direction: column; }
   .import-picker { width: 100%; }
   .import-preview, .import-fields, .import-inbox-layout { grid-template-columns: minmax(0, 1fr); }
+  .import-sample { flex: none; min-height: 0; max-height: 18rem; }
   .import-chapters { border-inline-end: 0; border-bottom: 1px solid var(--color-border); }
   .import-inbox-recovery { border-inline-start: 0; border-top: 1px solid var(--color-border); }
   .import-fields { gap: 0; }

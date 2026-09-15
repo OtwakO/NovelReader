@@ -8,6 +8,7 @@ const i18n = createI18n({
   globalInjection: true,
   locale: 'en',
   messages: { en: {
+    imports: { reparse: { title: 'Reparse TXT' } },
     app: { common: { unknownAuthor: 'Unknown' } },
     bookDetail: {
       title: 'Book details', description: 'Description', loading: 'Loading', loadFailed: 'Load failed', tocFailed: 'TOC failed', tocSyncing: 'Synchronizing the chapter list…', retryToc: 'Retry chapter list', notFound: 'Not found', back: 'Back', coverAlt: 'Cover of {name}', tocEntries: '{count} entries', progress: '{percent}% read', latest: 'Latest: {chapter}', currentSource: 'Current source: {source}', continue: 'Continue', remove: 'Remove', confirmRemoveTitle: 'Remove?', confirmRemoveDescription: 'Remove {name}?', cancel: 'Cancel', confirmRemove: 'Remove', confirmRemoveTXT: 'Delete managed original for {name}?', removed: 'Removed from your library', cleanupPending: 'File cleanup pending. You can retry.', retryCleanup: 'Retry file cleanup', synopsis: 'Synopsis', chapters: 'Chapters', noChapters: 'No chapters', showAll: 'Show all {count}',
@@ -160,5 +161,24 @@ it('keeps TXT removal warnings visible and retries cleanup without restoring a s
     await flushPromises();
     expect(removals).toBe(3);
     expect(replace).toHaveBeenCalledWith('/shelf');
+  } finally { wrapper.unmount(); }
+});
+
+it('places TXT reparse navigation in the chapter section action slot', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(
+    String(input).endsWith('/chapters')
+      ? { chapters: [], contentRevision: 1 }
+      : { ...book, id: 'local', provider: 'txt', name: 'Local book', contentRevision: 1 },
+  ))));
+  const wrapper = mount(BookDetailView, { global: {
+    plugins: [i18n], mocks: { $route: { params: { bookId: 'local' } } },
+    stubs: { RouterLink: { template: '<a><slot /></a>' }, BookCover: true },
+  } });
+  try {
+    await flushPromises();
+    const action = wrapper.get('.book-detail-toc .book-detail-section__actions a');
+    expect(action.classes()).toContain('app-button--secondary');
+    expect(action.text()).toBe('Reparse TXT');
+    expect(action.find('.icon-refresh').exists()).toBe(true);
   } finally { wrapper.unmount(); }
 });

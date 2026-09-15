@@ -4,6 +4,7 @@ import { useImportQueue } from '../imports/import-queue';
 import { readerResumeLocation } from '../reader/reader-session';
 import { listBooks } from "../../api/books";
 import type { LibraryBook } from "../../api/models";
+import AppIcon from '../../ui/components/AppIcon.vue';
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
 import BookCover from "../books/BookCover.vue";
@@ -13,7 +14,7 @@ import { loadShelfViewState, saveShelfViewState, visibleShelfBooks, type ShelfSo
 
 export default defineComponent({
   name: "ShelfView",
-  components: { AppButton, BookCover, FeatureScaffold },
+  components: { AppIcon, AppButton, BookCover, FeatureScaffold },
   data() {
     const view = loadShelfViewState();
     return { imports: useImportQueue(), loadGeneration: 0, books: [] as LibraryBook[], loading: true, error: "", query: view.query, sort: view.sort as ShelfSort, restoreScrollY: view.scrollY };
@@ -92,8 +93,8 @@ export default defineComponent({
     <section v-else-if="books.length === 0" class="state">
       <h2>{{ $t("shelf.emptyTitle") }}</h2>
       <p>{{ $t("shelf.emptyDescription") }}</p>
-      <div>
-        <RouterLink to="/explore">{{ $t("shelf.explore") }}</RouterLink><RouterLink to="/search">{{ $t("shelf.search") }}</RouterLink>
+      <div class="app-actions">
+        <RouterLink class="app-button app-button--secondary" to="/explore">{{ $t("shelf.explore") }}</RouterLink><RouterLink class="app-button app-button--secondary" to="/search">{{ $t("shelf.search") }}</RouterLink>
       </div>
     </section>
     <div v-else class="library">
@@ -154,13 +155,12 @@ export default defineComponent({
             </div>
             <div class="app-actions continue-actions">
               <RouterLink
-                class="continue-action"
+                class="app-button app-button--primary"
                 :to="readerResumeLocation(continueBook)"
               >
-                {{ $t("shelf.continue")
-                }}<span aria-hidden="true">→</span>
+                <AppIcon name="book" />{{ $t("shelf.continue") }}
 </RouterLink><RouterLink
-                class="detail-action"
+                class="app-button app-button--secondary"
                 :to="`/books/${encodeURIComponent(continueBook.id)}`"
               >
                 {{ $t("shelf.details") }}
@@ -218,10 +218,10 @@ export default defineComponent({
                 />
               </div>
               <RouterLink
-                class="resume"
+                class="resume app-button app-button--secondary"
                 :to="readerResumeLocation(book)"
               >
-                {{ $t("shelf.resume") }}
+                <AppIcon name="book" />{{ $t("shelf.resume") }}
               </RouterLink>
             </div>
           </article>
@@ -371,41 +371,6 @@ export default defineComponent({
 .continue-actions {
   margin-top: 1rem;
 }
-.continue-action,
-.detail-action,
-.resume {
-  min-height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-md);
-  font-weight: var(--weight-strong);
-  text-decoration: none;
-}
-.continue-action {
-  min-width: 11rem;
-  gap: 0.55rem;
-  padding: 0.7rem 1.2rem;
-  background: var(--color-accent);
-  color: white;
-}
-.continue-action:hover {
-  background: var(--color-accent-strong);
-}
-.detail-action {
-  padding: 0.7rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 56%, var(--color-border));
-  background: var(--color-paper-raised);
-  color: var(--color-accent-strong);
-  box-shadow: 0 0.2rem 0.5rem rgb(54 39 26 / 0.08);
-  transition: background 0.18s ease-out, border-color 0.18s ease-out, box-shadow 0.18s ease-out;
-}
-.detail-action:hover,
-.detail-action:focus-visible {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent-soft) 55%, var(--color-paper-raised));
-  box-shadow: 0 0.35rem 0.75rem rgb(54 39 26 / 0.12);
-}
 .shelf-tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(11rem, 18rem); gap: 1rem; align-items: end; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
 .shelf-tools label { min-width: 0; display: grid; gap: .3rem; }
 .shelf-tools label > span { color: var(--color-ink-muted); font-size: var(--text-caption); font-weight: var(--weight-strong); }
@@ -514,12 +479,9 @@ export default defineComponent({
   grid-column: 2;
   grid-row: 1/3;
   align-self: end;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border);
-  color: var(--color-accent);
+  padding-inline: .75rem;
 }
-.book-copy > a:hover,
-.resume:hover {
+.book-copy > a:hover {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
@@ -555,8 +517,7 @@ export default defineComponent({
     grid-column: 1/-1;
     flex-direction: column;
   }
-  .continue-action,
-  .detail-action {
+  .continue-actions .app-button {
     width: 100%;
   }
   .book-grid {

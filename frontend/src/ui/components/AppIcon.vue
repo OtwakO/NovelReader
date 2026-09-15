@@ -1,17 +1,19 @@
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
 
-export type ReaderControlIconName = 'previous' | 'next' | 'toc' | 'source' | 'bookmark' | 'refresh' | 'settings';
+export type AppIconName = 'previous' | 'next' | 'toc' | 'source' | 'bookmark' | 'refresh' | 'settings' | 'book' | 'check';
 
 export default defineComponent({
-  name: 'ReaderControlIcon',
-  props: { name: { type: String as PropType<ReaderControlIconName>, required: true } },
+  name: 'AppIcon',
+  props: { name: { type: String as PropType<AppIconName>, required: true } },
 });
 </script>
 
 <template>
   <span class="icon" :class="`icon-${name}`" aria-hidden="true">
     <svg v-if="name === 'previous' || name === 'next'" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /><path d="M9 12h10" /></svg>
+    <svg v-else-if="name === 'book'" viewBox="0 0 24 24"><path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Zm0 0v14" /></svg>
+    <svg v-else-if="name === 'check'" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg>
     <svg v-else-if="name === 'toc'" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="5" cy="6" r="1" /><circle cx="5" cy="12" r="1" /><circle cx="5" cy="18" r="1" /></svg>
     <svg v-else-if="name === 'source'" viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3" /><path d="m18 7-3 3M6 17l3-3" /></svg>
     <svg v-else-if="name === 'bookmark'" viewBox="0 0 24 24"><path d="M7 4h10v16l-5-3-5 3V4Z" /></svg>

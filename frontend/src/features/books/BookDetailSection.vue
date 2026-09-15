@@ -16,7 +16,10 @@ export default defineComponent({
         <h2>{{ title }}</h2>
         <slot name="summary" />
       </div>
-      <slot name="status" />
+      <div v-if="$slots.status || $slots.actions" class="app-actions book-detail-section__actions">
+        <slot name="status" />
+        <slot name="actions" />
+      </div>
     </header>
     <div v-if="$slots.body" class="book-detail-section__body">
       <slot name="body" />
@@ -39,6 +42,7 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
   padding: 0.9rem 1rem;
   border-bottom: 1px solid var(--color-border);
 }
@@ -51,9 +55,8 @@ export default defineComponent({
   color: var(--color-ink-muted);
   font-size: var(--text-caption);
 }
-.book-detail-section__header > :deep(*) {
-  flex: 0 0 auto;
-}
+.book-detail-section__header > div:first-child { min-width: 0; }
+.book-detail-section__actions { margin-inline-start: auto; justify-content: flex-end; }
 .book-detail-section__body {
   padding: 1rem;
 }
@@ -62,10 +65,5 @@ export default defineComponent({
 }
 .book-detail-section__body :deep(> :last-child) {
   margin-bottom: 0;
-}
-@media (max-width: 42rem) {
-  .book-detail-section__header {
-    align-items: baseline;
-  }
 }
 </style>

@@ -75,3 +75,16 @@ it('uses shared failure guidance for a failed reparse without suggesting encodin
   expect(view.text()).not.toContain('imports.analysisHint');
   expect(view.find('pre').exists()).toBe(false);
 });
+
+it('presents reading as navigation and resume as a selected row action', async () => {
+  await open();
+  const read = view.get('.feature-heading a');
+  expect(read.classes()).toContain('app-button--secondary');
+  expect(read.attributes('href')).toBe('/books/sample/read');
+  const resume = view.get('.import-heading-row button');
+  expect(resume.attributes('aria-pressed')).toBe('false');
+  await resume.trigger('click');
+  expect(resume.attributes('aria-pressed')).toBe('true');
+  expect(resume.get('.icon-check').attributes('aria-hidden')).toBe('true');
+  expect(button('apply').attributes('disabled')).toBeUndefined();
+});

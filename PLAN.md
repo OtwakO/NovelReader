@@ -116,6 +116,8 @@ unifies typography, disclosures and actions across the app while preserving othe
 Shared UI ownership is documented in [frontend/src/ui/README.md](frontend/src/ui/README.md).
 The completed [import layout and selector refinement](docs/plans/2026-09-15-import-layout-and-selectors.md)
 adds distinct review/inbox task panes and fixes shared selector widths, truncation and viewport placement.
+The completed [action-affordance pass](docs/plans/2026-09-16-action-affordances.md) unifies button presentation,
+aligns book-detail/reparse controls, fills the desktop prose preview, and updates locale/brand presentation.
 Manual usability feedback is next.
 
 ## Active Work

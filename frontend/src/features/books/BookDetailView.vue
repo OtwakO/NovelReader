@@ -11,6 +11,7 @@ import {
 } from "../../api/books";
 import type { AltSource, Chapter } from "../../api/models";
 import { switchBookSource, waitForCatalog } from "../../api/reader";
+import AppIcon from '../../ui/components/AppIcon.vue';
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
 import SourceRecoveryPanel from "../source-recovery/SourceRecoveryPanel.vue";
@@ -25,6 +26,7 @@ export default defineComponent({
   name: "BookDetailView",
   components: {
     AppButton,
+    AppIcon,
     BookCover,
     BookDetailSection,
     BookDetailToc,
@@ -280,13 +282,13 @@ export default defineComponent({
               })
             }}
           </p>
-          <div class="actions">
+          <div class="app-actions actions">
             <RouterLink
-              class="primary-link"
+              class="app-button app-button--primary"
               :to="readerResumeLocation(book)"
               >
-{{ $t("bookDetail.continue") }}
-</RouterLink><RouterLink v-if="book.provider === 'txt'" :to="{name:'txt-reparse',params:{bookId:book.id}}">{{ $t('imports.reparse.title') }}</RouterLink><AppButton variant="danger" @click="confirmingRemove = true">
+<AppIcon name="book" />{{ $t("bookDetail.continue") }}
+</RouterLink><AppButton variant="danger" @click="confirmingRemove = true">
 {{
               $t("bookDetail.remove")
             }}
@@ -336,7 +338,11 @@ export default defineComponent({
         :content-revision="catalogRevision"
         :current-index="book.durChapterIndex"
         :error="tocError"
-      />
+      >
+        <template v-if="book.provider === 'txt'" #actions>
+          <RouterLink class="app-button app-button--secondary" :to="{ name: 'txt-reparse', params: { bookId: book.id } }"><AppIcon name="refresh" />{{ $t('imports.reparse.title') }}</RouterLink>
+        </template>
+      </BookDetailToc>
       <SourceRecoveryPanel
         v-if="nativeBook"
         :book="nativeBook"
@@ -419,17 +425,6 @@ export default defineComponent({
   border-radius: 999px;
   background: var(--color-paper-muted);
   font-size: var(--text-caption);
-}
-.primary-link {
-  min-height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--radius-md);
-  padding: 0.65rem 1rem;
-  background: var(--color-accent);
-  color: white;
-  text-decoration: none;
-  font-weight: var(--weight-strong);
 }
 .intro {
   width: 100%;

@@ -80,6 +80,7 @@ export default defineComponent({
         }}
       </p>
 </template>
+    <template v-if="$slots.actions" #actions><slot name="actions" /></template>
     <template v-if="query" #status>
 <span class="toc-status">{{
         $t("reader.toc.matches", { count: filteredChapters.length })

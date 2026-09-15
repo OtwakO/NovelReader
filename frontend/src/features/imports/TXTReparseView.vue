@@ -1,6 +1,8 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import { RouterLink } from 'vue-router';
+import AppIcon from '../../ui/components/AppIcon.vue';
+import FeatureScaffold from '../../ui/components/FeatureScaffold.vue';
 import AppButton from '../../ui/components/AppButton.vue';
 import { ApiError } from '../../api/transport';
 import { applyTXTReparse, discardTXTReparse, getTXTReparse, impactTXTReparse, prepareTXTReparse, previewTXTReparse, type TXTEncoding, type TXTPreset, type TXTOptions, type TXTPreview as Preview, type TXTReparseStatus, type TXTReparseImpact } from '../../api/txt-imports';
@@ -12,7 +14,7 @@ import { importErrorKey, analysisErrorKey } from './import-feedback';
 import './imports.css';
 
 export default defineComponent({
-  components: { RouterLink, AppButton, TXTInterpretationOptions, TXTPreview },
+  components: { AppIcon, FeatureScaffold, RouterLink, AppButton, TXTInterpretationOptions, TXTPreview },
   data: () => ({
     task: createImportTask(), status: undefined as TXTReparseStatus | undefined,
     preview: undefined as Preview | undefined, impact: undefined as TXTReparseImpact | undefined,
@@ -118,13 +120,12 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="imports-page">
+  <FeatureScaffold class="imports-page" :title="$t('imports.reparse.title')" :description="$t('imports.reparse.intro')">
+    <template #actions><RouterLink v-if="status" class="app-button app-button--secondary" :to="{ name: 'reader', params: { bookId: id } }"><AppIcon name="book" />{{ $t('imports.reparse.readCurrent') }}</RouterLink></template>
     <RouterLink :to="`/books/${encodeURIComponent(id)}`">{{ $t('reader.back') }}</RouterLink>
-    <h1>{{ $t('imports.reparse.title') }}</h1>
-    <p>{{ $t('imports.reparse.intro') }}</p>
     <p v-if="task.error && !patternError" role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
     <p v-if="mustRefresh && !task.busy" role="status">{{ $t('imports.reparse.refreshRequired') }}</p>
-    <div class="app-actions import-actions"><AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton><RouterLink v-if="status" :to="{ name: 'reader', params: { bookId: id } }">{{ $t('imports.reparse.readCurrent') }}</RouterLink></div>
+    <div class="app-actions import-actions"><AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton></div>
     <p v-if="applied" role="status">{{ $t('imports.reparse.applied') }}</p>
     <p v-if="warnings.length" role="status">{{ $t('imports.reparse.analysisPending') }}</p>
     <template v-if="status">
@@ -134,29 +135,29 @@ export default defineComponent({
       <section class="import-section" aria-labelledby="interpretation-title">
         <h2 id="interpretation-title">{{ $t('imports.interpretation') }}</h2>
         <TXTInterpretationOptions v-model:encoding="encoding" v-model:preset="preset" v-model:pattern="pattern" :busy="task.busy" :pattern-error="patternError" @update:encoding="edited" @update:preset="edited" @update:pattern="edited" />
-        <div class="app-actions import-actions"><AppButton :busy="task.busy" :disabled="mustRefresh || (preset === 'custom' && !pattern)" @click="prepare">{{ $t(status.candidate ? 'imports.reparse.replace' : 'imports.reparse.prepare') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="useSavedOptions">{{ $t('imports.reparse.savedOptions') }}</AppButton></div>
+        <div class="app-actions import-actions"><AppButton :busy="task.busy" :disabled="mustRefresh || (preset === 'custom' && !pattern)" @click="prepare">{{ $t(status.candidate ? 'imports.reparse.replace' : 'imports.reparse.prepare') }}</AppButton><AppButton variant="secondary" :disabled="task.busy" @click="useSavedOptions">{{ $t('imports.reparse.savedOptions') }}</AppButton></div>
         <p v-if="status.candidate" role="status">{{ $t(status.candidate.state === 'ready' ? 'imports.reparse.ready' : `imports.state.${status.candidate.state === 'queued' ? 'received' : status.candidate.state}`) }}</p>
         <p v-if="status.candidate?.state === 'analysis_failed'">{{ $t(analysisErrorKey(status.candidate.errorCode)) }}</p>
         <p v-if="status.candidate && optionsChanged">{{ $t('imports.reparse.draft') }}</p>
       </section>
       <TXTPreview v-if="preview" :preview="preview" :pattern="status.candidate?.options.pattern" :start="start" :busy="task.busy || mustRefresh" @page="page">
-        <template #heading-action="{ heading }"><AppButton v-if="impact" variant="quiet" :disabled="task.busy || mustRefresh" :aria-pressed="resume?.index === heading.index" @click="chooseResume(heading)">{{ $t('imports.reparse.resumeHere') }}</AppButton></template>
+        <template #heading-action="{ heading }"><AppButton v-if="impact" variant="secondary" :disabled="task.busy || mustRefresh" :aria-pressed="resume?.index === heading.index" @click="chooseResume(heading)"><AppIcon v-if="resume?.index === heading.index" name="check" />{{ $t('imports.reparse.resumeHere') }}</AppButton></template>
       </TXTPreview>
       <section v-if="impact" class="import-section" aria-labelledby="impact-title">
         <h2 id="impact-title">{{ $t('imports.reparse.impact') }}</h2>
-        <p>{{ $t('imports.reparse.bookmarks', { kept: impact.preservedBookmarks, unresolved: impact.unresolvedBookmarks }) }}</p>
+        <p class="app-actions"><AppIcon name="bookmark" />{{ $t('imports.reparse.bookmarks', { kept: impact.preservedBookmarks, unresolved: impact.unresolvedBookmarks }) }}</p>
         <p>{{ $t('imports.reparse.orphans') }}</p>
         <p v-if="resume">{{ resume.index === 0 ? $t('imports.reparse.fromBeginning') : $t('imports.reparse.selected', { title: resume.title }) }}</p>
         <p v-else-if="impact.resume">{{ $t('imports.reparse.preserved', { title: impact.resume.chapterTitle }) }}</p>
         <p v-else>{{ $t('imports.reparse.chooseResume') }}</p>
         <div class="app-actions import-actions"><AppButton variant="secondary" :disabled="task.busy || mustRefresh" @click="chooseResume({index:0,title:''})">{{ $t('imports.reparse.beginning') }}</AppButton><AppButton v-if="resume && impact.resume" variant="quiet" :disabled="task.busy" @click="resume=undefined; confirmApply=false">{{ $t('imports.reparse.usePreserved') }}</AppButton></div>
         <AppButton :disabled="task.busy || !canApply" @click="confirmApply=true">{{ $t('imports.reparse.apply') }}</AppButton>
-        <div v-if="confirmApply" class="import-confirmation"><p>{{ $t('imports.reparse.confirm') }}</p><AppButton :busy="task.busy" :disabled="!canApply" @click="apply">{{ $t('imports.reparse.confirmApply') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="confirmApply=false">{{ $t('imports.cancel') }}</AppButton></div>
+        <div v-if="confirmApply" class="import-confirmation"><p>{{ $t('imports.reparse.confirm') }}</p><div class="app-actions"><AppButton :busy="task.busy" :disabled="!canApply" @click="apply">{{ $t('imports.reparse.confirmApply') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="confirmApply=false">{{ $t('imports.cancel') }}</AppButton></div></div>
       </section>
       <section v-if="status.candidate" class="import-section">
         <AppButton variant="quiet" :disabled="task.busy || mustRefresh" @click="confirmDiscard=true">{{ $t('imports.reparse.discard') }}</AppButton>
-        <div v-if="confirmDiscard" class="import-confirmation"><p>{{ $t('imports.reparse.discardHint') }}</p><AppButton :busy="task.busy" @click="discard">{{ $t('imports.reparse.confirmDiscard') }}</AppButton><AppButton variant="quiet" @click="confirmDiscard=false">{{ $t('imports.cancel') }}</AppButton></div>
+        <div v-if="confirmDiscard" class="import-confirmation"><p>{{ $t('imports.reparse.discardHint') }}</p><div class="app-actions"><AppButton variant="danger" :busy="task.busy" @click="discard">{{ $t('imports.reparse.confirmDiscard') }}</AppButton><AppButton variant="quiet" @click="confirmDiscard=false">{{ $t('imports.cancel') }}</AppButton></div></div>
       </section>
     </template>
-  </div>
+  </FeatureScaffold>
 </template>

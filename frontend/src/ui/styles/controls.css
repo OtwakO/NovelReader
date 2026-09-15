@@ -5,8 +5,9 @@
 .app-button--primary { background: var(--color-accent); color: white; }
 .app-button--primary:hover:not(:disabled) { background: var(--color-accent-strong); }
 .app-button--secondary { border-color: var(--color-border); background: var(--color-paper-raised); color: var(--color-ink); }
-.app-button--secondary:hover:not(:disabled), .app-button--quiet:hover:not(:disabled) { background: var(--color-paper-muted); }
-.app-button--quiet { background: transparent; color: var(--color-accent); }
+.app-button--secondary:hover:not(:disabled), .app-button--quiet:hover:not(:disabled) { border-color: var(--color-accent); background: var(--color-paper-muted); }
+.app-button--quiet { border-color: var(--color-border); background: transparent; color: var(--color-accent-strong); }
+.app-button[aria-pressed="true"] { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-accent-strong); }
 .app-button--danger { background: var(--color-danger); color: white; }
 .app-button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 .app-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }

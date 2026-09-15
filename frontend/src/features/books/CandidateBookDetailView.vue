@@ -172,7 +172,7 @@ export default defineComponent({
       <WebViewFailureHint />
       <div class="state-actions">
         <AppButton variant="secondary" @click="start">{{ $t('candidateBookDetail.retry') }}</AppButton>
-        <RouterLink class="secondary-link" :to="backRoute">{{ backLabel }}</RouterLink>
+        <RouterLink class="app-button app-button--secondary" :to="backRoute">{{ backLabel }}</RouterLink>
       </div>
     </section>
 
@@ -189,7 +189,7 @@ export default defineComponent({
           <p v-if="preview.selection.usedFallback" class="fallback" role="status">{{ $t('candidateBookDetail.fallback', { source: sourceName }) }}</p>
           <div class="hero-actions">
             <AppButton :busy="shelving || automaticCommitPending" @click="addToShelf">{{ shelving || automaticCommitPending ? $t('candidateBookDetail.shelving') : $t('candidateBookDetail.shelve') }}</AppButton>
-            <RouterLink class="secondary-link" :to="backRoute">{{ backLabel }}</RouterLink>
+            <RouterLink class="app-button app-button--secondary" :to="backRoute">{{ backLabel }}</RouterLink>
           </div>
         </div>
       </section>
@@ -203,7 +203,7 @@ export default defineComponent({
       <p v-if="shelfError" class="error" role="alert">{{ shelfError }}</p>
       <div class="bottom-actions">
         <AppButton :busy="shelving || automaticCommitPending" @click="addToShelf">{{ shelving || automaticCommitPending ? $t('candidateBookDetail.shelving') : $t('candidateBookDetail.shelve') }}</AppButton>
-        <RouterLink class="secondary-link" :to="backRoute">{{ backLabel }}</RouterLink>
+        <RouterLink class="app-button app-button--secondary" :to="backRoute">{{ backLabel }}</RouterLink>
       </div>
     </template>
   </FeatureScaffold>
@@ -218,10 +218,8 @@ export default defineComponent({
 .copy { min-width: 0; }.author,.meta { color: var(--color-ink-muted); }.author { margin-top: 0; }.meta { display: flex; flex-wrap: wrap; gap: .35rem .75rem; }
 .source { color: var(--color-accent-strong); overflow-wrap: anywhere; }.fallback { max-width: 44rem; border: 1px solid color-mix(in srgb,var(--color-accent) 32%,var(--color-border)); border-radius: var(--radius-md); padding: .55rem .7rem; background: var(--color-accent-soft); color: var(--color-accent-strong); font-size: var(--text-small); line-height: 1.45; overflow-wrap: anywhere; }
 .intro { max-width: 72ch; line-height: 1.75; white-space: pre-line; overflow-wrap: anywhere; }
-.secondary-link { min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .65rem 1rem; background: var(--color-paper-raised); color: var(--color-ink); text-decoration: none; font-weight: var(--weight-strong); }
-.secondary-link:hover { border-color: color-mix(in srgb,var(--color-accent) 55%,var(--color-border)); background: var(--color-paper); }.secondary-link:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .error { margin: 0; color: var(--color-danger); overflow-wrap: anywhere; }
 @media (max-width: 38rem) {
-  .hero { grid-template-columns: 6rem minmax(0,1fr); gap: 1rem; }.cover { width: 6rem; }.hero-actions { grid-column: 1/-1; }.hero-actions :deep(.app-button),.hero-actions .secondary-link,.bottom-actions :deep(.app-button),.bottom-actions .secondary-link { width: 100%; }
+  .hero { grid-template-columns: 6rem minmax(0,1fr); gap: 1rem; }.cover { width: 6rem; }.hero-actions { grid-column: 1/-1; }.hero-actions :deep(.app-button),.bottom-actions :deep(.app-button) { width: 100%; }
 }
 </style>
