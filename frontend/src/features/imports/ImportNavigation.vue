@@ -18,7 +18,7 @@ export default defineComponent({
 
 <style scoped>
 a { flex-wrap: wrap; }
-.import-nav-icon { display: grid; place-items: center; width: 1.65rem; height: 1.65rem; flex: 0 0 auto; border-radius: .4rem; background: var(--color-paper-muted); font-size: .72rem; }
-.compact { font-size: .8rem; padding: .5rem; }
-small { display: block; width: 100%; font-size: .75rem; font-weight: 400; }
+.import-nav-icon { display: grid; place-items: center; width: 1.65rem; height: 1.65rem; flex: 0 0 auto; border-radius: .4rem; background: var(--color-paper-muted); font-size: var(--text-caption); }
+.compact { font-size: var(--text-caption); padding: .5rem; }
+small { display: block; width: 100%; font-size: var(--text-caption); font-weight: var(--weight-regular); }
 </style>

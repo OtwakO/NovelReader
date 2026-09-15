@@ -115,6 +115,8 @@ presentation follows the existing theme. Manual usability feedback is next; othe
 
 ## Active Work
 
+[Frontend presentation consistency](docs/plans/2026-09-15-frontend-presentation-consistency.md) — accepted: dedicated Local Import instead of an embedded shelf workspace, plus app-wide typography/disclosure/control consistency without changing other workflows.
+
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities

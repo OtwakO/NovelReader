@@ -35,7 +35,7 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.book-cover { position: relative; isolation: isolate; width: 100%; aspect-ratio: 3 / 4; display: grid; place-items: center; overflow: hidden; background: linear-gradient(145deg,var(--color-accent),var(--color-accent-strong)); color: white; font: 700 2.5rem var(--font-literary); }
+.book-cover { position: relative; isolation: isolate; width: 100%; aspect-ratio: 3 / 4; display: grid; place-items: center; overflow: hidden; background: linear-gradient(145deg,var(--color-accent),var(--color-accent-strong)); color: white; font: var(--weight-strong) 2.5rem var(--font-literary); }
 .book-cover img { position: absolute; width: 100%; height: 100%; }
 .cover-fallback { z-index: 0; }
 .cover-backdrop { z-index: 1; inset: -12%; width: 124% !important; height: 124% !important; object-fit: cover; filter: blur(14px) saturate(.55) brightness(.68); opacity: .72; }

@@ -96,7 +96,7 @@ export default defineComponent({
 }
 .toc-chapter-list small {
   color: var(--color-ink-muted);
-  font-size: 0.72rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
   text-align: right;
@@ -129,11 +129,11 @@ export default defineComponent({
 .current button {
   background: color-mix(in srgb, var(--color-accent-soft) 72%, var(--color-paper-raised));
   color: var(--color-accent-strong);
-  font-weight: 700;
+  font-weight: var(--weight-strong);
 }
 .current small {
   color: var(--color-warm);
-  font-weight: 800;
+  font-weight: var(--weight-strong);
 }
 .current .row-arrow {
   color: inherit;
@@ -149,8 +149,8 @@ export default defineComponent({
   padding: 0.65rem 1rem;
   background: color-mix(in srgb, var(--color-paper-muted) 58%, var(--color-paper-raised));
   color: var(--color-ink-muted);
-  font-size: 0.76rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
   letter-spacing: 0.035em;
 }
 @media (max-width: 32rem) {

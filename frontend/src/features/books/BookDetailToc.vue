@@ -136,7 +136,7 @@ export default defineComponent({
 <style scoped>
 .toc-status {
   color: var(--color-ink-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 .toc-tools {
   display: grid;
@@ -153,8 +153,8 @@ export default defineComponent({
 }
 .toc-tools label > span:first-child {
   color: var(--color-ink-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
 }
 .search-input {
   position: relative;
@@ -178,7 +178,7 @@ export default defineComponent({
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-ink-muted);
-  font-size: 1.25rem;
+  font-size: var(--text-section);
 }
 .toc-tools > div {
   display: flex;

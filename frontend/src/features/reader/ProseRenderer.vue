@@ -84,7 +84,7 @@ export default defineComponent({
   max-width: 36rem;
   margin-top: .6rem;
   color: color-mix(in srgb, currentColor 72%, transparent);
-  font: 500 .78rem/1.45 var(--font-ui);
+  font: var(--weight-regular) .78rem/1.45 var(--font-ui);
   overflow-wrap: anywhere;
 }
 
@@ -95,6 +95,6 @@ export default defineComponent({
   border-radius: var(--radius-md);
   background: color-mix(in srgb, currentColor 5%, transparent);
   color: color-mix(in srgb, currentColor 72%, transparent);
-  font: 600 .8rem/1.4 var(--font-ui);
+  font: var(--weight-strong) .8rem/1.4 var(--font-ui);
 }
 </style>

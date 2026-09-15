@@ -28,6 +28,6 @@ export default defineComponent({
 .status { padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
 .progress { height: .45rem; overflow: hidden; border-radius: 999px; background: var(--color-paper-muted); }
 .progress span { display: block; width: 100%; height: 100%; transform-origin: left; background: var(--color-accent); transition: transform 160ms ease-out; }
-.status-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .4rem 1rem; margin-top: .75rem; color: var(--color-ink-muted); font-size: .82rem; }
-.status-row strong { color: var(--color-ink); }.hint, .error { margin: .65rem 0 0; font-size: .84rem; }.hint { color: var(--color-warm); }.error { color: var(--color-danger); }.actions { margin-top: .8rem; }
+.status-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .4rem 1rem; margin-top: .75rem; color: var(--color-ink-muted); font-size: var(--text-small); }
+.status-row strong { color: var(--color-ink); }.hint, .error { margin: .65rem 0 0; font-size: var(--text-small); }.hint { color: var(--color-warm); }.error { color: var(--color-danger); }.actions { margin-top: .8rem; }
 </style>

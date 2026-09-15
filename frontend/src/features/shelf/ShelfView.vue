@@ -153,7 +153,7 @@ export default defineComponent({
                 }"
               />
             </div>
-            <div class="continue-actions">
+            <div class="app-actions continue-actions">
               <RouterLink
                 class="continue-action"
                 :to="readerResumeLocation(continueBook)"
@@ -260,18 +260,18 @@ export default defineComponent({
 .continue-section > header h2,
 .shelf-section h2 {
   margin: 0;
-  font: 700 clamp(1.35rem, 3vw, 1.8rem) var(--font-literary);
+  font: var(--weight-strong) var(--text-section) var(--font-literary);
 }
 .continue-section > header > span,
 .shelf-section > header > span {
   color: var(--color-ink-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-small);
   font-variant-numeric: tabular-nums;
 }
 .shelf-section > header p {
   margin: 0.2rem 0 0;
   color: var(--color-ink-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-small);
 }
 .continue-panel {
   display: grid;
@@ -323,7 +323,7 @@ export default defineComponent({
 }
 .continue-heading h3 {
   margin: 0;
-  font: 700 clamp(1.55rem, 3.4vw, 2.25rem)/1.18 var(--font-literary);
+  font: var(--weight-strong) var(--text-subheading)/1.18 var(--font-literary);
   overflow-wrap: anywhere;
 }
 .continue-heading p {
@@ -336,7 +336,7 @@ export default defineComponent({
   border-radius: 999px;
   background: var(--color-paper-raised);
   color: var(--color-ink-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 .current-chapter {
@@ -347,13 +347,13 @@ export default defineComponent({
 .current-chapter span,
 .book-copy small {
   color: var(--color-warm);
-  font-size: 0.7rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .current-chapter strong {
-  font: 700 clamp(1rem, 2vw, 1.18rem)/1.4 var(--font-literary);
+  font: var(--weight-strong) var(--text-body)/1.4 var(--font-literary);
   overflow-wrap: anywhere;
 }
 .progress-track {
@@ -370,8 +370,6 @@ export default defineComponent({
   background: var(--color-warm);
 }
 .continue-actions {
-  display: flex;
-  gap: 0.55rem;
   margin-top: 1rem;
 }
 .continue-action,
@@ -382,7 +380,7 @@ export default defineComponent({
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  font-weight: 800;
+  font-weight: var(--weight-strong);
   text-decoration: none;
 }
 .continue-action {
@@ -411,8 +409,8 @@ export default defineComponent({
 }
 .shelf-tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(11rem, 18rem); gap: 1rem; align-items: end; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
 .shelf-tools label { min-width: 0; display: grid; gap: .3rem; }
-.shelf-tools label > span { color: var(--color-ink-muted); font-size: .78rem; font-weight: 700; }
-.shelf-tools input, .shelf-tools select { width: 100%; min-width: 0; max-width: 100%; min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .55rem .7rem; background: white; color: var(--color-ink); font: 400 1rem/1.25 var(--font-ui); }
+.shelf-tools label > span { color: var(--color-ink-muted); font-size: var(--text-caption); font-weight: var(--weight-strong); }
+.shelf-tools input, .shelf-tools select { width: 100%; min-width: 0; max-width: 100%; min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .55rem .7rem; background: white; color: var(--color-ink); font: var(--weight-regular) var(--text-body)/1.25 var(--font-ui); }
 .shelf-tools select { --select-radius: var(--radius-md); align-items: center; }
 .no-matches { display: grid; justify-items: center; gap: .75rem; padding: 2rem 1rem; border: 1px dashed var(--color-border); color: var(--color-ink-muted); text-align: center; }
 .no-matches p { margin: 0; }
@@ -464,14 +462,14 @@ export default defineComponent({
 .book-copy strong {
   display: -webkit-box;
   overflow: hidden;
-  font: 700 1.08rem/1.35 var(--font-literary);
+  font: var(--weight-strong) var(--text-subheading)/1.35 var(--font-literary);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 .book-copy > span {
   margin-top: 0.2rem;
   color: var(--color-ink-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-small);
 }
 .book-copy p {
   display: grid;
@@ -484,10 +482,10 @@ export default defineComponent({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.82rem;
+  font-size: var(--text-small);
 }
 .book-copy p b {
-  font-weight: 700;
+  font-weight: var(--weight-strong);
 }
 .book-copy .latest {
   margin-top: 0.5rem;
@@ -504,7 +502,7 @@ export default defineComponent({
   justify-content: space-between;
   gap: 0.75rem;
   color: var(--color-ink-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 .book-footer > div:first-child strong {

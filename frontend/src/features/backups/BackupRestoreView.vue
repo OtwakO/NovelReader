@@ -1,4 +1,5 @@
 <script lang="ts">
+import AppDisclosure from '../../ui/components/AppDisclosure.vue';
 import { defineComponent } from 'vue';
 import { resetReaderState } from '../../app/reader-state';
 import { useSessionStore } from '../../stores/session';
@@ -92,7 +93,7 @@ Authorization: Bearer <DESTINATION_RESTORE_TOKEN>`,
 };
 
 export default defineComponent({
-  name: 'BackupRestoreView', components: { AppButton, FeatureScaffold },
+  name: 'BackupRestoreView', components: { AppDisclosure, AppButton, FeatureScaffold },
   data() { return { pendingOperation: '', outcome: '', checking: false, exporting: false, exportError: '', restoreFile: null as File | null, preparing: false, restoreError: '', restoreWarning: '', prepared: null as PreparedRestore | null, confirmation: '', committing: false, tokenLoading: true, tokenError: '', tokens: [] as BackupToken[], tokenName: '', tokenCanExport: true, tokenCanRestore: false, currentPassword: '', tokenExpiry: '', creatingToken: false, revealedToken: null as BackupTokenCredential | null, copied: false, activeApiExample: 'curl' as ApiExample, apiExampleTabs: ['curl', 'python', 'javascript', 'rest'] as ApiExample[] }; },
   computed: {
     canCommit(): boolean { return !!this.prepared && !this.pendingOperation && this.confirmation === this.$t('backups.restore.confirmWord') && !this.committing; },
@@ -209,7 +210,7 @@ export default defineComponent({
         <p v-if="restoreWarning" class="warning" role="status">{{ restoreWarning }}</p>
         <div v-if="pendingOperation" class="restore-ready">
           <p role="status">{{ $t(`backups.restore.outcome.${outcome || 'committing'}`) }}</p>
-          <div class="actions">
+          <div class="app-actions actions">
             <AppButton :busy="checking" :disabled="committing" @click="checkOutcome">{{ $t('backups.restore.checkOutcome') }}</AppButton>
             <AppButton v-if="outcome === 'prepared'" :disabled="checking || committing" @click="cancelUnstartedRestore">{{ $t('backups.restore.cancelUnstarted') }}</AppButton>
             <AppButton v-if="outcome === 'unknown'" :disabled="committing" @click="acknowledgeUnknown">{{ $t('backups.restore.acknowledgeUnknown') }}</AppButton>
@@ -223,7 +224,7 @@ export default defineComponent({
           <div class="ready-heading"><div><h3>{{ $t('backups.restore.ready') }}</h3><p>{{ $t('backups.restore.source', { username: prepared.exportedFromUsername }) }}</p><p>{{ $t('backups.restore.created', { date: formatDate(prepared.createdAt) }) }}</p><p>{{ $t('backups.restore.schema', { version: prepared.readerSchemaVersion }) }} · {{ $t('backups.restore.expires', { date: formatDate(prepared.expiresAt) }) }}</p></div></div>
           <p class="warning">{{ $t('backups.restore.warning') }}</p>
           <label class="confirmation">{{ $t('backups.restore.confirmLabel') }}<input v-model="confirmation" placeholder="RESTORE" autocomplete="off" :disabled="committing"></label>
-          <div class="actions"><AppButton variant="danger" :disabled="!canCommit" :busy="committing" @click="commit">{{ committing ? $t('backups.restore.committing') : $t('backups.restore.commit') }}</AppButton><AppButton variant="quiet" :disabled="committing" @click="cancelPrepared">{{ $t('backups.restore.cancel') }}</AppButton></div>
+          <div class="app-actions actions"><AppButton variant="danger" :disabled="!canCommit" :busy="committing" @click="commit">{{ committing ? $t('backups.restore.committing') : $t('backups.restore.commit') }}</AppButton><AppButton variant="quiet" :disabled="committing" @click="cancelPrepared">{{ $t('backups.restore.cancel') }}</AppButton></div>
         </div>
         <p v-if="restoreError" class="error" role="alert">{{ restoreError }}</p>
       </section>
@@ -246,8 +247,8 @@ export default defineComponent({
 
       <section class="panel api-panel">
         <header><div><h2>{{ $t('backups.api.title') }}</h2><p>{{ $t('backups.api.description') }}</p></div></header>
-        <details>
-          <summary>{{ $t('backups.api.show') }}</summary>
+        <AppDisclosure>
+          <template #summary>{{ $t('backups.api.show') }}</template>
           <div class="api-docs">
             <p class="api-note">{{ $t('backups.api.auth') }}</p>
             <div class="endpoint-list" role="list">
@@ -265,7 +266,7 @@ export default defineComponent({
             <pre id="api-example-panel" role="tabpanel" :aria-labelledby="`api-example-${activeApiExample}`"><code>{{ apiExampleCode }}</code></pre>
             <p class="api-note">{{ $t('backups.api.note') }}</p>
           </div>
-        </details>
+        </AppDisclosure>
       </section>
     </div>
   </FeatureScaffold>
@@ -275,32 +276,31 @@ export default defineComponent({
 .backup-page { display: grid; gap: 1rem; }
 .panel { padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
 .panel > header { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
-.panel h2 { margin: .15rem 0; font: 700 1.25rem var(--font-literary); }
+.panel h2 { margin: .15rem 0; font: var(--weight-strong) var(--text-section) var(--font-literary); }
 .panel header p, .muted { margin: .25rem 0 0; color: var(--color-ink-muted); line-height: 1.55; }
-.included-data { display: flex; align-items: center; gap: .75rem; margin-top: .9rem; color: var(--color-ink-muted); font-size: .82rem; }
+.included-data { display: flex; align-items: center; gap: .75rem; margin-top: .9rem; color: var(--color-ink-muted); font-size: var(--text-small); }
 .data-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
-.data-tags span, .scopes em { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: .15rem .45rem; background: var(--color-paper-muted); color: var(--color-accent); font-size: .72rem; font-style: normal; font-weight: 750; }
+.data-tags span, .scopes em { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: .15rem .45rem; background: var(--color-paper-muted); color: var(--color-accent); font-size: var(--text-caption); font-style: normal; font-weight: var(--weight-strong); }
 .restore-upload { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: end; margin-top: 1rem; }
 .file-control { position: relative; min-height: 7.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4rem; border: 1px dashed var(--color-border); border-radius: var(--radius-md); padding: 1rem; background: var(--color-paper-muted); text-align: center; cursor: pointer; }
 .file-control:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
 .file-control:focus-within { outline: 3px solid color-mix(in srgb, var(--color-accent) 30%, transparent); outline-offset: 2px; }
 .file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
-.file-name { max-width: 100%; color: var(--color-ink-muted); font-size: .82rem; overflow-wrap: anywhere; }
+.file-name { max-width: 100%; color: var(--color-ink-muted); font-size: var(--text-small); overflow-wrap: anywhere; }
 .restore-ready { display: grid; gap: .85rem; max-width: 44rem; margin-top: 1rem; padding: 1rem; border: 1px solid color-mix(in srgb, var(--color-danger) 25%, var(--color-border)); border-radius: var(--radius-md); background: var(--color-paper-muted); }
-.ready-heading h3, .token-secret h3 { margin: 0; font: 700 1.1rem var(--font-literary); }
-.ready-heading p { margin: .25rem 0 0; color: var(--color-ink-muted); font-size: .85rem; }
+.ready-heading h3, .token-secret h3 { margin: 0; font: var(--weight-strong) var(--text-subheading) var(--font-literary); }
+.ready-heading p { margin: .25rem 0 0; color: var(--color-ink-muted); font-size: var(--text-small); }
 .warning, .error { margin: 0; padding: .7rem; border-radius: var(--radius-md); }
-.warning { background: #fae9e6; color: var(--color-danger); font-weight: 700; line-height: 1.5; }
+.warning { background: #fae9e6; color: var(--color-danger); font-weight: var(--weight-strong); line-height: 1.5; }
 .error { margin-top: .75rem; background: #f8e4df; color: var(--color-danger); }
-.confirmation, .token-form > label { display: grid; gap: .35rem; font-size: .8rem; font-weight: 700; }
+.confirmation, .token-form > label { display: grid; gap: .35rem; font-size: var(--text-caption); font-weight: var(--weight-strong); }
 .confirmation input, .token-form > label input { min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .6rem .7rem; background: white; color: var(--color-ink); }
 .confirmation input { max-width: 18rem; }
-.actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .token-form { max-width: 40rem; display: grid; gap: .85rem; margin-top: 1rem; }
 .token-form fieldset { display: flex; flex-wrap: wrap; gap: .55rem; margin: 0; padding: 0; border: 0; }
-.scope { min-height: 2.75rem; display: flex; align-items: center; gap: .5rem; padding: .5rem .7rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-paper-muted); font-weight: 650; }
+.scope { min-height: 2.75rem; display: flex; align-items: center; gap: .5rem; padding: .5rem .7rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-paper-muted); font-weight: var(--weight-strong); }
 .scope input { width: 1.1rem; height: 1.1rem; }
-.token-form small { color: var(--color-ink-muted); font-weight: 400; }
+.token-form small { color: var(--color-ink-muted); font-weight: var(--weight-regular); }
 .token-form :deep(.app-button) { justify-self: start; }
 .token-secret { display: grid; gap: .7rem; max-width: 40rem; margin-top: 1rem; padding: .85rem; border: 1px solid color-mix(in srgb, var(--color-accent) 45%, var(--color-border)); border-radius: var(--radius-md); background: var(--color-accent-soft); }
 .token-secret p { margin: .25rem 0 0; color: var(--color-ink-muted); }
@@ -313,24 +313,22 @@ export default defineComponent({
 .token-list small { display: block; margin-top: .3rem; color: var(--color-ink-muted); }
 .empty-state { margin-top: 1rem; padding: 1rem; text-align: center; }
 .api-panel details { margin-top: .9rem; }
-.api-panel summary { width: fit-content; color: var(--color-accent); font-weight: 750; cursor: pointer; }
-.api-panel summary:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 30%, transparent); outline-offset: 3px; border-radius: var(--radius-sm); }
 .api-docs { display: grid; gap: .85rem; margin-top: 1rem; }
-.api-docs h3 { margin: .35rem 0 -.45rem; font: 700 1rem var(--font-literary); }
+.api-docs h3 { margin: .35rem 0 -.45rem; font: var(--weight-strong) var(--text-subheading) var(--font-literary); }
 .api-docs p { margin: 0; color: var(--color-ink-muted); line-height: 1.55; }
 .api-note { max-width: 72ch; }
 .endpoint-list { display: grid; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
 .endpoint-list > div { display: grid; grid-template-columns: minmax(18rem, .9fr) minmax(0, 1fr); gap: 1rem; padding: .7rem; background: var(--color-paper-muted); }
 .endpoint-list > div + div { border-top: 1px solid var(--color-border); }
-.endpoint-list code { color: var(--color-ink); font-size: .8rem; overflow-wrap: anywhere; }
-.endpoint-list span { color: var(--color-ink-muted); font-size: .82rem; }
+.endpoint-list code { color: var(--color-ink); font-size: var(--text-caption); overflow-wrap: anywhere; }
+.endpoint-list span { color: var(--color-ink-muted); font-size: var(--text-small); }
 .endpoint-list strong { color: var(--color-accent); }
 .example-tabs { display: flex; gap: .25rem; margin-bottom: -.85rem; padding: .25rem .25rem 0; border: 1px solid var(--color-border); border-bottom: 0; border-radius: var(--radius-md) var(--radius-md) 0 0; background: var(--color-paper-muted); overflow-x: auto; }
-.example-tabs button { min-height: 2.4rem; border: 0; border-radius: var(--radius-sm) var(--radius-sm) 0 0; padding: .45rem .75rem; background: transparent; color: var(--color-ink-muted); font: inherit; font-size: .8rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.example-tabs button { min-height: 2.4rem; border: 0; border-radius: var(--radius-sm) var(--radius-sm) 0 0; padding: .45rem .75rem; background: transparent; color: var(--color-ink-muted); font: inherit; font-size: var(--text-caption); font-weight: var(--weight-strong); white-space: nowrap; cursor: pointer; }
 .example-tabs button:hover { color: var(--color-ink); background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
 .example-tabs button[aria-selected="true"] { background: #26343a; color: #f8f3e7; }
 .example-tabs button:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-accent) 35%, transparent); outline-offset: -1px; }
-.api-docs pre { max-width: 100%; margin: 0; padding: .85rem; border: 1px solid var(--color-border); border-radius: 0 0 var(--radius-md) var(--radius-md); background: #26343a; color: #f8f3e7; overflow-x: auto; font-size: .78rem; line-height: 1.55; tab-size: 2; }
+.api-docs pre { max-width: 100%; margin: 0; padding: .85rem; border: 1px solid var(--color-border); border-radius: 0 0 var(--radius-md) var(--radius-md); background: #26343a; color: #f8f3e7; overflow-x: auto; font-size: var(--text-caption); line-height: 1.55; tab-size: 2; }
 .api-docs pre code { user-select: all; white-space: pre; }
 @media (max-width: 42rem) {
   .panel > header { align-items: stretch; flex-direction: column; gap: .75rem; }
@@ -344,6 +342,6 @@ export default defineComponent({
   .token-list li { align-items: flex-start; }
   .token-list :deep(.app-button) { flex: none; }
   .endpoint-list > div { grid-template-columns: 1fr; gap: .35rem; }
-  .api-docs pre { font-size: .72rem; }
+  .api-docs pre { font-size: var(--text-caption); }
 }
 </style>

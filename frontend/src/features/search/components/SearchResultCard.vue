@@ -47,7 +47,7 @@ export default defineComponent({
 .main { grid-column: 1; grid-row: 1 / span 2; min-width: 0; align-self: stretch; display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); gap: .8rem; align-items: center; border: 0; border-radius: var(--radius-md); padding: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .preview-action { grid-column: 2; grid-row: 1; width: 100%; align-self: end; }
 .cover { width: 3.5rem; border-radius: var(--radius-sm); }
-.info { min-width: 0; display: grid; gap: .2rem; overflow-wrap: anywhere; color: var(--color-ink-muted); font-size: .82rem; }.info strong { overflow: hidden; color: var(--color-ink); font: 700 1rem var(--font-literary); text-overflow: ellipsis; white-space: nowrap; }.chapter { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.source { min-width: 0; color: var(--color-accent); font-size: .75rem; }
+.info { min-width: 0; display: grid; gap: .2rem; overflow-wrap: anywhere; color: var(--color-ink-muted); font-size: var(--text-small); }.info strong { overflow: hidden; color: var(--color-ink); font: var(--weight-strong) var(--text-body) var(--font-literary); text-overflow: ellipsis; white-space: nowrap; }.chapter { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.source { min-width: 0; color: var(--color-accent); font-size: var(--text-caption); }
 .main:hover .info strong { color: var(--color-accent-strong); }
 .main:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; }
 @media (max-width: 35rem) { .result-card { grid-template-columns: 1fr; }.main { grid-column: 1; grid-row: 1; grid-template-columns: 3.25rem minmax(0, 1fr); }.preview-action { grid-column: 1; grid-row: 2; align-self: auto; } }

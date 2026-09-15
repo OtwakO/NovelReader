@@ -82,11 +82,11 @@ export default defineComponent({
 <style scoped>
 .app-shell { min-height: 100dvh; display: grid; grid-template-columns: 13.5rem minmax(0, 1fr); }
 .desktop-rail { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; gap: 1rem; padding: 1rem; border-right: 1px solid var(--color-border); background: var(--color-paper-raised); }
-.brand { width: 3rem; height: 3rem; display: grid; place-items: center; margin-inline: auto; border-radius: 50%; background: var(--color-accent); color: white; font: 700 1.25rem var(--font-literary); text-decoration: none; }
+.brand { width: 3rem; height: 3rem; display: grid; place-items: center; margin-inline: auto; border-radius: 50%; background: var(--color-accent); color: white; font: var(--weight-strong) var(--text-section) var(--font-literary); text-decoration: none; }
 .nav-group { display: grid; gap: .3rem; }
 .nav-group--secondary { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--color-border); }
-.nav-group a { min-height: 2.75rem; display: flex; align-items: center; gap: .75rem; padding: .55rem .75rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-weight: 650; }
-.nav-group a span { width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border-radius: .45rem; background: var(--color-paper-muted); font-size: .78rem; }
+.nav-group a { min-height: 2.75rem; display: flex; align-items: center; gap: .75rem; padding: .55rem .75rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-weight: var(--weight-strong); }
+.nav-group a span { width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border-radius: .45rem; background: var(--color-paper-muted); font-size: var(--text-caption); }
 .nav-group a.router-link-active { background: var(--color-accent-soft); color: var(--color-accent-strong); }
 .desktop-locale { display: flex; justify-content: center; }
 .account-button { min-height: 2.75rem; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-ink-muted); cursor: pointer; }
@@ -96,14 +96,14 @@ export default defineComponent({
   .app-shell { display: block; padding: 3.75rem 0 4.5rem; }
   .desktop-rail { display: none; }
   .mobile-header { position: fixed; z-index: 30; inset: 0 0 auto; height: 3.75rem; display: flex; align-items: center; justify-content: space-between; padding: .5rem 1rem; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-paper-raised) 94%, transparent); backdrop-filter: blur(12px); }
-  .mobile-brand { color: var(--color-ink); font: 700 1.15rem var(--font-literary); text-decoration: none; }
+  .mobile-brand { color: var(--color-ink); font: var(--weight-strong) var(--text-subheading) var(--font-literary); text-decoration: none; }
   .menu-button { min-height: 2.75rem; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .5rem .75rem; background: var(--color-paper-raised); color: var(--color-ink); }
   .mobile-management { position: absolute; top: 3.5rem; right: 1rem; width: max-content; max-width: calc(100vw - 2rem); display: grid; padding: .5rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); box-shadow: var(--shadow-card); }
   .mobile-management a, .mobile-management button { min-height: 2.75rem; display: flex; align-items: center; border: 0; border-radius: var(--radius-sm); padding: .6rem .75rem; background: transparent; color: var(--color-ink); text-decoration: none; }
   .app-content { padding: 1rem; }
   .mobile-tabs { position: fixed; z-index: 25; inset: auto 0 0; min-height: 4.25rem; display: grid; grid-template-columns: repeat(3, 1fr); padding: .35rem max(.5rem, env(safe-area-inset-right)) max(.35rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); border-top: 1px solid var(--color-border); background: var(--color-paper-raised); }
-  .mobile-tabs a { min-height: 3.5rem; display: grid; place-content: center; justify-items: center; gap: .15rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-size: .75rem; }
-  .mobile-tabs a span { font-size: .8rem; font-weight: 800; }
+  .mobile-tabs a { min-height: 3.5rem; display: grid; place-content: center; justify-items: center; gap: .15rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-size: var(--text-caption); }
+  .mobile-tabs a span { font-size: var(--text-caption); font-weight: var(--weight-strong); }
   .mobile-tabs a.router-link-active { background: var(--color-accent-soft); color: var(--color-accent-strong); }
 }
 </style>

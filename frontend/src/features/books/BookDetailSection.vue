@@ -44,12 +44,12 @@ export default defineComponent({
 }
 .book-detail-section__header h2 {
   margin: 0;
-  font: 700 1.15rem var(--font-literary);
+  font: var(--weight-strong) var(--text-section) var(--font-literary);
 }
 .book-detail-section__header :deep(p) {
   margin: 0;
   color: var(--color-ink-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 .book-detail-section__header > :deep(*) {
   flex: 0 0 auto;

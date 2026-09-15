@@ -65,5 +65,5 @@ export default defineComponent({
 
 <style scoped>
 .session-message { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .7rem; border-radius: var(--radius-sm); background: #fff2d8; color: #704b13; }
-.links { display: flex; justify-content: center; flex-wrap: wrap; gap: .6rem 1rem; margin-top: 1rem; font-size: .9rem; }
+.links { display: flex; justify-content: center; flex-wrap: wrap; gap: .6rem 1rem; margin-top: 1rem; font-size: var(--text-small); }
 </style>

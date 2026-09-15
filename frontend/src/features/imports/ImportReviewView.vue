@@ -1,4 +1,5 @@
 <script lang="ts">
+import AppDisclosure from '../../ui/components/AppDisclosure.vue';
 import { defineComponent } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppButton from '../../ui/components/AppButton.vue';
@@ -10,7 +11,7 @@ import { importedTitle, importErrorKey, analysisErrorKey } from './import-feedba
 import { createImportTask } from './import-task';
 import './imports.css';
 export default defineComponent({
-  components: { RouterLink, AppButton, TXTInterpretationOptions, TXTPreview },
+  components: { AppDisclosure, RouterLink, AppButton, TXTInterpretationOptions, TXTPreview },
   props: { receiptId: { type: String, required: true } },
   emits: ['updated', 'removed', 'close'],
   data: () => ({
@@ -95,19 +96,19 @@ export default defineComponent({
       <p v-if="receipt?.state === 'failed'">{{ $t('imports.failedHint') }}</p>
       <p v-if="receipt?.state === 'analysis_failed'">{{ $t(analysisErrorKey(receipt.errorCode)) }}</p>
       <p v-if="receipt?.state === 'needs_review'">{{ $t('imports.flow.reviewHint') }}</p>
-      <details v-if="canAnalyze" class="import-options" :open="receipt?.state === 'analysis_failed'">
-        <summary>{{ $t('imports.flow.adjustChapters') }}</summary>
+      <AppDisclosure v-if="canAnalyze" class="import-options" :open="receipt?.state === 'analysis_failed'">
+        <template #summary>{{ $t('imports.flow.adjustChapters') }}</template>
         <TXTInterpretationOptions v-model:encoding="encoding" v-model:preset="preset" v-model:pattern="pattern" :busy="task.busy" :pattern-error="patternError" @update:pattern="clearPatternError" />
         <div class="import-actions"><AppButton variant="secondary" :busy="task.busy" :disabled="preset === 'custom' && !pattern" @click="analyze">{{ $t('imports.analyze') }}</AppButton></div>
         <p v-if="optionsChanged">{{ $t('imports.unappliedOptions') }}</p>
-      </details>
+      </AppDisclosure>
       <TXTPreview v-if="preview" compact :preview="preview" :start="start" :pattern="receipt?.pattern" :busy="task.busy" @page="previewPage" />
       <form v-if="receipt && ['ready', 'needs_review'].includes(receipt.state)" id="import-add-form" class="import-section" @submit.prevent="accept">
-        <details class="import-options">
-<summary>{{ $t('imports.flow.bookDetails') }}</summary>
+        <AppDisclosure class="import-options">
+<template #summary>{{ $t('imports.flow.bookDetails') }}</template>
         <label>{{ $t('imports.bookTitle') }}<input v-model="name" required maxlength="256" :disabled="task.busy"></label>
         <label>{{ $t('imports.author') }}<input v-model="author" maxlength="128" :disabled="task.busy"></label>
-        </details>
+        </AppDisclosure>
       </form>
       <section v-if="receipt && !receipt.libraryId" class="import-section">
         <AppButton variant="quiet" :disabled="task.busy" @click="confirmDiscard = true">{{ $t('imports.discard') }}</AppButton>

@@ -13,6 +13,6 @@ export default defineComponent({ name: 'LoadingView' });
 
 <style scoped>
 .loading { min-height: 100dvh; display: grid; place-content: center; justify-items: center; gap: 1rem; background: var(--color-paper); color: var(--color-ink-muted); }
-.mark { width: 3.5rem; height: 3.5rem; display: grid; place-items: center; border-radius: 50%; background: var(--color-accent); color: white; font: 700 1.5rem var(--font-literary); }
+.mark { width: 3.5rem; height: 3.5rem; display: grid; place-items: center; border-radius: 50%; background: var(--color-accent); color: white; font: var(--weight-strong) var(--text-section) var(--font-literary); }
 p { margin: 0; }
 </style>

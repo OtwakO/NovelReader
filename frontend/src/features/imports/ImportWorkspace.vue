@@ -1,4 +1,5 @@
 <script lang="ts">
+import AppDisclosure from '../../ui/components/AppDisclosure.vue';
 import { defineComponent, nextTick } from 'vue';
 import ImportQueuePanel from './ImportQueuePanel.vue';
 import ImportReceiptsPanel from './ImportReceiptsPanel.vue';
@@ -8,7 +9,7 @@ import type { TXTReceipt } from '../../api/txt-imports';
 import { useImportQueue } from './import-queue';
 import './imports.css';
 export default defineComponent({
-  components: { ImportQueuePanel, ImportReceiptsPanel, ImportInboxPanel, ImportReviewView },
+  components: { AppDisclosure, ImportQueuePanel, ImportReceiptsPanel, ImportInboxPanel, ImportReviewView },
   props: { initialReview: { type: String, default: '' } },
   emits: ['review-closed'],
   data: () => ({ queue: useImportQueue(), selected: '', historyOpen: false, inboxOpen: false, returnFocus: undefined as HTMLElement | undefined }),
@@ -46,14 +47,14 @@ export default defineComponent({
     <ImportQueuePanel @review="review" />
     <ImportReviewView v-if="selected" :key="selected" :receipt-id="selected" @updated="updated" @removed="removed" @close="closeReview" />
     <div class="import-secondary">
-      <details @toggle="historyOpen = ($event.target as HTMLDetailsElement).open">
-        <summary>{{ $t('imports.flow.history') }}</summary>
+      <AppDisclosure @toggle="historyOpen = ($event.target as HTMLDetailsElement).open">
+        <template #summary>{{ $t('imports.flow.history') }}</template>
         <ImportReceiptsPanel v-if="historyOpen" ref="history" @review="review" />
-      </details>
-      <details @toggle="inboxOpen = ($event.target as HTMLDetailsElement).open">
-        <summary>{{ $t('imports.flow.serverFiles') }}</summary>
+      </AppDisclosure>
+      <AppDisclosure @toggle="inboxOpen = ($event.target as HTMLDetailsElement).open">
+        <template #summary>{{ $t('imports.flow.serverFiles') }}</template>
         <ImportInboxPanel v-if="inboxOpen" />
-      </details>
+      </AppDisclosure>
     </div>
   </div>
 </template>

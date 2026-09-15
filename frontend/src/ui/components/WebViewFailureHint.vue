@@ -12,5 +12,5 @@ export default defineComponent({ name: 'WebViewFailureHint' });
 </template>
 
 <style scoped>
-.webview-hint{margin:.65rem 0 0;color:var(--color-ink-muted);font-size:.84rem;line-height:1.5}.webview-hint a{color:var(--color-accent);font-weight:700}
+.webview-hint{margin:.65rem 0 0;color:var(--color-ink-muted);font-size:var(--text-small);line-height:1.5}.webview-hint a{color:var(--color-accent);font-weight:var(--weight-strong)}
 </style>

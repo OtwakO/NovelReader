@@ -1,9 +1,18 @@
 @import './tokens.css';
+@import './controls.css';
 
 * { box-sizing: border-box; }
 html { min-width: 20rem; background: var(--color-paper); }
-body { margin: 0; min-width: 20rem; min-height: 100dvh; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-ui); }
+body { margin: 0; min-width: 20rem; min-height: 100dvh; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-ui); font-size: var(--text-body); font-weight: var(--weight-regular); line-height: var(--line-body); }
 button, input, select, textarea { font: inherit; }
+input, select, textarea { font-size: var(--text-body); font-weight: var(--weight-regular); }
+h1, h2, h3, h4 { font-family: inherit; font-weight: var(--weight-strong); line-height: var(--line-heading); overflow-wrap: anywhere; }
+h1 { font-size: var(--text-page); }
+h2 { font-size: var(--text-section); }
+h3, h4 { font-size: var(--text-subheading); }
+small { font-size: var(--text-caption); }
+strong, b { font-weight: var(--weight-strong); }
+button, input, select, textarea { line-height: var(--line-ui); }
 button, a, input, select { -webkit-tap-highlight-color: transparent; }
 
 @supports (appearance: base-select) {

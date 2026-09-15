@@ -245,7 +245,7 @@ export default defineComponent({
       <h2 ref="removalStatus" tabindex="-1">{{ $t('bookDetail.removed') }}</h2>
       <p v-if="cleanupPending" role="alert">{{ $t('bookDetail.cleanupPending') }}</p>
       <p v-if="bookError" class="banner-error" role="alert">{{ bookError }}</p>
-      <div class="cleanup-actions">
+      <div class="app-actions cleanup-actions">
         <AppButton v-if="cleanupPending" variant="secondary" :busy="removing" @click="removeBook">{{ $t('bookDetail.retryCleanup') }}</AppButton>
         <RouterLink to="/shelf">{{ $t('bookDetail.back') }}</RouterLink>
       </div>
@@ -352,7 +352,6 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.cleanup-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
 .state,
 .confirmation,
 .catalog-status,
@@ -392,14 +391,14 @@ export default defineComponent({
 .eyebrow {
   margin: 0;
   color: var(--color-warm);
-  font-size: 0.72rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 .identity h2 {
   margin: 0.25rem 0;
-  font: 700 clamp(1.7rem, 4vw, 2.7rem)/1.12 var(--font-literary);
+  font: var(--weight-strong) var(--text-section)/1.12 var(--font-literary);
 }
 .author,
 .latest,
@@ -419,7 +418,7 @@ export default defineComponent({
   padding: 0.3rem 0.55rem;
   border-radius: 999px;
   background: var(--color-paper-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-caption);
 }
 .primary-link {
   min-height: 2.75rem;
@@ -430,7 +429,7 @@ export default defineComponent({
   background: var(--color-accent);
   color: white;
   text-decoration: none;
-  font-weight: 700;
+  font-weight: var(--weight-strong);
 }
 .intro {
   width: 100%;
