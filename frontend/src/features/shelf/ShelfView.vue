@@ -180,7 +180,7 @@ export default defineComponent({
         </header>
         <div class="shelf-tools">
           <label><span>{{ $t('shelf.filterLabel') }}</span><input v-model="query" type="search" :placeholder="$t('shelf.filterPlaceholder')"></label>
-          <label><span>{{ $t('shelf.sortLabel') }}</span><select v-model="sort"><option value="recent">{{ $t('shelf.sortRecent') }}</option><option value="title">{{ $t('shelf.sortTitle') }}</option><option value="author">{{ $t('shelf.sortAuthor') }}</option><option value="progress">{{ $t('shelf.sortProgress') }}</option></select></label>
+          <label><span>{{ $t('shelf.sortLabel') }}</span><select v-model="sort"><component :is="'button'" type="button"><selectedcontent /></component><option value="recent">{{ $t('shelf.sortRecent') }}</option><option value="title">{{ $t('shelf.sortTitle') }}</option><option value="author">{{ $t('shelf.sortAuthor') }}</option><option value="progress">{{ $t('shelf.sortProgress') }}</option></select></label>
         </div>
         <section v-if="!visibleBooks.length" class="no-matches"><p>{{ $t('shelf.noMatches') }}</p><AppButton variant="secondary" @click="clearQuery">{{ $t('shelf.clearFilter') }}</AppButton></section>
         <div v-else class="book-grid">

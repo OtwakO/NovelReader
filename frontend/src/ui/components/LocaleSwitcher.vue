@@ -18,7 +18,7 @@ export default defineComponent({
 <template>
   <label class="locale-switcher">
     <span class="sr-only">{{ $t('app.common.language') }}</span>
-    <select v-model="selectedLocale" :aria-label="$t('app.common.language')">
+    <select v-model="selectedLocale" :aria-label="$t('app.common.language')"><component :is="'button'" type="button"><selectedcontent /></component>
       <option v-for="locale in locales" :key="locale.code" :value="locale.code">{{ locale.label }}</option>
     </select>
   </label>

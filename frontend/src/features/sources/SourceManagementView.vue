@@ -489,12 +489,12 @@ export default defineComponent({
             v-model="query"
             type="search"
             :placeholder="$t('sources.searchPlaceholder')"
-></label><label class="select-filter"><span>{{ $t("sources.group") }}</span><select v-model="group">
+></label><label class="select-filter"><span>{{ $t("sources.group") }}</span><select v-model="group"><component :is="'button'" type="button"><selectedcontent /></component>
             <option value="">{{ $t("sources.allGroups") }}</option>
             <option v-for="value in groups" :key="value" :value="value">
               {{ value }}
             </option>
-          </select></label><label class="select-filter"><span>{{ $t("sources.enabledFilter.label") }}</span><select v-model="enabledFilter">
+          </select></label><label class="select-filter"><span>{{ $t("sources.enabledFilter.label") }}</span><select v-model="enabledFilter"><component :is="'button'" type="button"><selectedcontent /></component>
             <option value="all">{{ $t("sources.enabledFilter.all") }}</option>
             <option value="enabled">{{ $t("sources.enabledFilter.enabled") }}</option>
             <option value="disabled">{{ $t("sources.enabledFilter.disabled") }}</option>

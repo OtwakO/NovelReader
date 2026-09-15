@@ -30,9 +30,10 @@ summary { min-height: var(--control-height); display: flex; align-items: center;
 summary::-webkit-details-marker { display: none; }
 .app-disclosure__label { min-width: 0; overflow-wrap: anywhere; }
 summary svg { width: 1.125rem; height: 1.125rem; flex: none; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; transition: transform .18s ease-out; }
+.app-disclosure[open] > summary { background: var(--color-paper); color: var(--color-ink); border-bottom: 1px solid var(--color-border); border-radius: var(--radius-md) var(--radius-md) 0 0; }
 .app-disclosure[open] > summary svg { transform: rotate(180deg); }
 summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; border-radius: var(--radius-md); }
-.app-disclosure__body { padding: 0 var(--space-4) var(--space-4); }
+.app-disclosure__body { padding: var(--space-4); }
 .app-disclosure__body > :deep(:first-child) { margin-top: 0; }
 .app-disclosure__body > :deep(:last-child) { margin-bottom: 0; }
 @media (prefers-reduced-motion: reduce) { summary svg { transition: none; } }

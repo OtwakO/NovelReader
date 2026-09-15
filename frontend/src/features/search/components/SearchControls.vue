@@ -24,7 +24,7 @@ export default defineComponent({
     <template #summary>{{ $t('search.controls.title') }}</template>
     <div class="controls-grid">
       <label><span>{{ $t('search.controls.batchSize') }}</span><input type="number" min="1" max="500" :value="batchSize" @change="$emit('update:batchSize', numberValue($event)); $emit('change')"></label>
-      <label><span>{{ $t('search.controls.intensity') }}</span><select :value="intensity" @change="$emit('update:intensity', stringValue($event)); $emit('change')"><option value="gentle">{{ $t('search.controls.gentle') }}</option><option value="balanced">{{ $t('search.controls.balanced') }}</option><option value="fast">{{ $t('search.controls.fast') }}</option><option value="advanced">{{ $t('search.controls.advanced') }}</option></select></label>
+      <label><span>{{ $t('search.controls.intensity') }}</span><select :value="intensity" @change="$emit('update:intensity', stringValue($event)); $emit('change')"><component :is="'button'" type="button"><selectedcontent /></component><option value="gentle">{{ $t('search.controls.gentle') }}</option><option value="balanced">{{ $t('search.controls.balanced') }}</option><option value="fast">{{ $t('search.controls.fast') }}</option><option value="advanced">{{ $t('search.controls.advanced') }}</option></select></label>
       <label v-if="intensity === 'advanced'"><span>{{ $t('search.controls.concurrency') }}</span><input type="number" min="1" :value="advancedConcurrency" @change="$emit('update:advancedConcurrency', numberValue($event)); $emit('change')"></label>
     </div>
   </AppDisclosure>

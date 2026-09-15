@@ -155,7 +155,7 @@ export default defineComponent({
                 <span>{{ control.label }}</span><input v-model="values[control.label]" :type="control.type === 'password' ? 'password' : 'text'" :autocomplete="control.type === 'password' ? 'current-password' : 'off'">
               </label>
               <label v-else-if="control.type === 'select'" class="field">
-                <span>{{ control.label }}</span><select v-model="values[control.label]" @change="changeControl(control.actionId)"><option v-for="option in control.options" :key="option" :value="option">{{ option }}</option></select>
+                <span>{{ control.label }}</span><select v-model="values[control.label]" @change="changeControl(control.actionId)"><component :is="'button'" type="button"><selectedcontent /></component><option v-for="option in control.options" :key="option" :value="option">{{ option }}</option></select>
               </label>
               <label v-else-if="control.type === 'toggle'" class="toggle">
                 <input type="checkbox" :checked="toggleChecked(control.label, control.options)" @change="toggleValue(control.label, control.options, control.actionId)"><span>{{ control.label }}</span>

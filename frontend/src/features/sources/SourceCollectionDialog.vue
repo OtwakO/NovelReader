@@ -68,7 +68,7 @@ export default defineComponent({
       </template>
       <template v-if="(!collection && mode === 'url') || collection?.originKind === 'url'">
         <label v-if="!collection"><span>{{ $t('sources.collections.remoteUrl') }}</span><input v-model="url" type="url" :disabled="busy" placeholder="https://example.com/sources.json"></label>
-        <label><span>{{ $t('sources.collections.schedule') }}</span><select v-model="interval" :disabled="busy"><option value="manual">{{ $t('sources.collections.manual') }}</option><option value="daily">{{ $t('sources.collections.daily') }}</option><option value="weekly">{{ $t('sources.collections.weekly') }}</option></select></label>
+        <label><span>{{ $t('sources.collections.schedule') }}</span><select v-model="interval" :disabled="busy"><component :is="'button'" type="button"><selectedcontent /></component><option value="manual">{{ $t('sources.collections.manual') }}</option><option value="daily">{{ $t('sources.collections.daily') }}</option><option value="weekly">{{ $t('sources.collections.weekly') }}</option></select></label>
       </template>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <footer><AppButton variant="secondary" :disabled="busy" @click="$emit('close')">{{ $t('sources.cancel') }}</AppButton><AppButton :busy="busy" :disabled="!canSubmit" @click="submit">{{ $t('sources.collections.save') }}</AppButton></footer>

@@ -118,6 +118,8 @@ Manual usability feedback is next.
 
 ## Active Work
 
+[Import layout and selector refinement](docs/plans/2026-09-15-import-layout-and-selectors.md) — accepted: clearer task grouping within the existing theme, and shared dropdown sizing/viewport fixes.
+
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities
