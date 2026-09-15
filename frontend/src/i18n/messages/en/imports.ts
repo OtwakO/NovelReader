@@ -35,6 +35,7 @@ export default {
   confirmAdd: 'Add book', noResults: 'No files on this page. Choose files above, use the server inbox, or change the status filter.',
   selectFile: 'Select {name}', openBook: 'Open book', review: 'Review file', back: 'Back to Local import',
   inbox: 'Server inbox', inboxHint: 'Finish copying before opening Imports or scanning. For automated copies, use a temporary name and rename to .txt only when complete. Acquiring a file moves it into managed storage.',
+  inboxDirectory: 'Place files in this folder', inboxFiles: 'Files to import',
   scan: 'Scan inbox', acquireSelected: 'Acquire selected ({count})', inboxEmpty: 'No completed TXT files on this page.',
   unavailableFile: 'Not available for acquisition', claimRequired: 'Resolve the existing inbox claim before importing again.',
   leftovers: 'Unresolved inbox claims', leftoversHint: 'Interrupted acquisitions can leave a claim even if the input is gone. Review before deleting a duplicate or releasing the claim. Discarding an import does not delete external inbox leftovers.',

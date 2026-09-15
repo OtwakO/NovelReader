@@ -35,6 +35,7 @@ export default {
   confirmAdd: '加入書架', noResults: '本頁沒有檔案。請選擇本機檔案、使用伺服器收件匣，或變更狀態篩選。',
   selectFile: '選擇 {name}', openBook: '開啟書籍', review: '檢查檔案', back: '返回本地匯入',
   inbox: '伺服器收件匣', inboxHint: '開啟匯入頁面或掃描前，請先完成檔案複製。自動複製程式應先使用暫存名稱，完成後再改為 .txt。接收檔案會將其移入託管儲存空間。',
+  inboxDirectory: '將檔案放入此資料夾', inboxFiles: '可匯入檔案',
   scan: '掃描收件匣', acquireSelected: '接收所選（{count}）', inboxEmpty: '本頁沒有已完成的 TXT 檔案。',
   unavailableFile: '無法接收此檔案', claimRequired: '請先處理既有收件匣紀錄，再次匯入。',
   leftovers: '未解決的收件匣紀錄', leftoversHint: '接收中斷可能留下紀錄，即使原檔案已不存在。請先檢查，再刪除重複副本或解除紀錄。捨棄匯入不會刪除外部收件匣殘留檔案。',

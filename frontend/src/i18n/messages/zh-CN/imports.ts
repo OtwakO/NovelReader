@@ -35,6 +35,7 @@ export default {
   confirmAdd: '加入书架', noResults: '本页没有文件。请选择本机文件、使用服务器收件箱，或更改状态筛选。',
   selectFile: '选择 {name}', openBook: '打开书籍', review: '检查文件', back: '返回本地导入',
   inbox: '服务器收件箱', inboxHint: '打开导入页面或扫描前，请先完成文件复制。自动复制程序应先使用临时文件名，完成后再改为 .txt。接收文件会将其移入托管存储。',
+  inboxDirectory: '将文件放入此文件夹', inboxFiles: '可导入文件',
   scan: '扫描收件箱', acquireSelected: '接收所选（{count}）', inboxEmpty: '本页没有已完成的 TXT 文件。',
   unavailableFile: '无法接收此文件', claimRequired: '请先处理已有收件箱记录，再次导入。',
   leftovers: '未解决的收件箱记录', leftoversHint: '接收中断可能留下记录，即使原文件已不存在。请先检查，再删除重复副本或解除记录。丢弃导入不会删除外部收件箱残留文件。',

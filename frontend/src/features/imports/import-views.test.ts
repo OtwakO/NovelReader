@@ -29,6 +29,8 @@ it('renders literal bounded preview and only admits the explicitly reviewed vers
   expect(view.find('script').exists()).toBe(false);
   expect(view.text()).toContain('imports.flow.reviewHint');
   expect(view.text()).toContain('imports.flow.chapterCount');
+  expect(button(view, 'imports.refresh')).toBeUndefined();
+  expect(view.find('.import-review-status').exists()).toBe(false);
   await view.findAll('select')[0]!.setValue('big5');
   expect(button(view, 'imports.confirmAdd').attributes('disabled')).toBeDefined();
   expect(analyze).not.toHaveBeenCalled();
@@ -38,6 +40,7 @@ it('renders literal bounded preview and only admits the explicitly reviewed vers
   expect(view.find('pre').exists()).toBe(false);
   get.mockResolvedValue(receipt({ state: 'ready', analysisVersion: 3, encoding: 'big5' })); sample.mockResolvedValue(preview(3));
   await button(view, 'imports.refresh').trigger('click'); await flushPromises();
+  expect(button(view, 'imports.refresh')).toBeUndefined();
   get.mockResolvedValue(receipt({ state: 'published', analysisVersion: 3, encoding: 'big5', libraryId: 'sample' }));
   await view.get('form').trigger('submit'); await flushPromises();
   expect(accept).toHaveBeenCalledWith('sample', 3, 'sample', '', expect.any(AbortSignal));
@@ -146,4 +149,17 @@ it.each([
   expect(view.text()).toContain(`imports.analysisErrors.${key}`);
   expect(view.text()).not.toContain('/private/error');
   expect(view.text()).not.toContain('imports.analysisHint');
+});
+
+it('keeps refresh for failed review loading, then removes the routine ready status row', async () => {
+  vi.spyOn(api, 'getTXTReceipt').mockRejectedValueOnce(new Error('offline')).mockResolvedValue(receipt({ state: 'ready' }));
+  vi.spyOn(api, 'previewTXT').mockResolvedValue(preview());
+  const view = mount(ImportReviewView, { props: { receiptId: 'sample' }, global: { plugins: [createPinia(), await routerFor('/imports/sample')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  await flushPromises();
+  expect(view.find('[role="alert"]').exists()).toBe(true);
+  await button(view, 'imports.refresh').trigger('click'); await flushPromises();
+  expect(view.find('[role="alert"]').exists()).toBe(false);
+  expect(button(view, 'imports.refresh')).toBeUndefined();
+  expect(view.find('.import-review-status').exists()).toBe(false);
+  expect(button(view, 'imports.confirmAdd').attributes('disabled')).toBeUndefined();
 });

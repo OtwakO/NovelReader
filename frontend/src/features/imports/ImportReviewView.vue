@@ -90,12 +90,15 @@ export default defineComponent({
       <AppButton v-if="cleanupPending" :busy="task.busy" @click="discard">{{ $t('imports.retryCleanup') }}</AppButton>
     </template>
     <template v-else>
-      <div class="app-actions import-actions"><span v-if="receipt" role="status">{{ $t(`imports.state.${receipt.state}`) }}</span><AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton></div>
+      <div v-if="task.error || !receipt || ['receiving', 'received', 'analyzing'].includes(receipt.state)" class="import-review-status">
+        <span v-if="receipt && ['receiving', 'received', 'analyzing'].includes(receipt.state)" role="status">{{ $t(`imports.state.${receipt.state}`) }}</span>
+        <AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton>
+      </div>
       <p v-if="warnings.length" role="status">{{ $t('imports.retainedWarning') }}</p>
       <RouterLink v-if="receipt?.libraryId" class="app-button app-button--secondary import-read" :to="{ name: 'reader', params: { bookId: receipt.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
       <p v-if="receipt?.state === 'failed'">{{ $t('imports.failedHint') }}</p>
       <p v-if="receipt?.state === 'analysis_failed'">{{ $t(analysisErrorKey(receipt.errorCode)) }}</p>
-      <p v-if="receipt?.state === 'needs_review'">{{ $t('imports.flow.reviewHint') }}</p>
+      <p v-if="receipt?.state === 'needs_review'" class="import-review-guidance">{{ $t('imports.flow.reviewHint') }}</p>
       <AppDisclosure v-if="canAnalyze" class="import-options" :open="receipt?.state === 'analysis_failed'">
         <template #summary>{{ $t('imports.flow.adjustChapters') }}</template>
         <TXTInterpretationOptions v-model:encoding="encoding" v-model:preset="preset" v-model:pattern="pattern" :busy="task.busy" :pattern-error="patternError" @update:pattern="clearPatternError" />

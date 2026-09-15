@@ -19,12 +19,12 @@ export default defineComponent({
     <p v-for="reason in preview.reviewReasons || []" :key="reason">{{ $t(`imports.reasons.${reason}`) }}</p>
     </template>
     <div class="import-preview">
-      <div>
+      <div class="import-chapters">
         <component :is="compact ? 'h4' : 'h3'">{{ $t(compact ? 'imports.flow.chapters' : 'imports.headings') }}</component>
-        <ol :start="start + 1"><li v-for="heading in preview.headings" :key="heading.index">{{ heading.title }} <small v-if="heading.generated && !compact">({{ $t('imports.generated') }})</small> <slot name="heading-action" :heading="heading" /></li></ol>
+        <ol :start="start + 1" tabindex="0" :aria-label="$t(compact ? 'imports.flow.chapters' : 'imports.headings')"><li v-for="heading in preview.headings" :key="heading.index">{{ heading.title }} <small v-if="heading.generated && !compact">({{ $t('imports.generated') }})</small> <slot name="heading-action" :heading="heading" /></li></ol>
         <div v-if="start > 0 || preview.hasMore" class="app-actions import-actions"><AppButton variant="secondary" :disabled="start === 0 || busy" @click="$emit('page', Math.max(0, start - 25))">{{ $t('imports.previous') }}</AppButton><AppButton variant="secondary" :disabled="!preview.hasMore || busy" @click="$emit('page', start + 25)">{{ $t('imports.next') }}</AppButton></div>
       </div>
-      <div><component :is="compact ? 'h4' : 'h3'">{{ $t(compact ? 'imports.flow.textPreview' : 'imports.sample') }}</component><pre class="import-sample">{{ preview.sample }}</pre><p v-if="preview.sampleTruncated">{{ $t(compact ? 'imports.flow.sampleNote' : 'imports.truncated') }}</p></div>
+      <div class="import-text-preview"><component :is="compact ? 'h4' : 'h3'">{{ $t(compact ? 'imports.flow.textPreview' : 'imports.sample') }}</component><pre class="import-sample" tabindex="0" :aria-label="$t(compact ? 'imports.flow.textPreview' : 'imports.sample')">{{ preview.sample }}</pre><p v-if="preview.sampleTruncated">{{ $t(compact ? 'imports.flow.sampleNote' : 'imports.truncated') }}</p></div>
     </div>
   </section>
 </template>

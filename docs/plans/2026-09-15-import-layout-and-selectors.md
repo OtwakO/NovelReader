@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 ---
 
 # Import layout and selector refinement
@@ -14,11 +14,15 @@ Make import tasks understandable at a glance, and correct shared dropdown sizing
 - Fix browser-owned select presentation in shared CSS: readable widths, single-line truncated outliers, viewport-aware flipping and bounded scrolling. Keep native fallbacks; no JS positioning loop.
 - Two reviewable commits: shared selector/disclosure correction, then import layout. The shared commit changes native select display markup, Vue compiler recognition, picker CSS and open disclosure headers across existing screens; no workflows change. The import commit owns panel grouping, status-row removal and field/row layout. Each can be reverted independently. No palette or whole-app redesign.
 
+## Commit boundaries
+- `4a35fa8` — shared selectors/disclosure presentation and native markup only.
+- `feat: distinguish import review and inbox workspaces` — import-specific layout and review-status behavior.
+
 ## Current State
 Implementation and confirmation complete. Chapter/prose and file-selection/recovery panes are distinct; the review refresh action remains for pending work and failed requests only. Low-specificity form-label defaults no longer override checkbox-row layout. Shared single-value selects use native `button/selectedcontent` markup, readable widths, ellipsis and available-space positioning. The Vue nesting-validator workaround and native fallback contract live in `frontend/src/ui/README.md`. No runtime component, positioning listener, animation loop, dependency or backend change was added.
 
 ## Next Action
-Record the verified shared controls and import layout as separate commits. No implementation remains pending.
+Manual usability feedback. No implementation remains pending in this accepted scope.
 
 ## Verification
 - Full frontend run: 68 files / 259 tests passed. After the native-markup compatibility correction, 12 affected files / 50 tests passed. Final production build/typecheck, scoped ESLint and whitespace checks pass without warnings.
