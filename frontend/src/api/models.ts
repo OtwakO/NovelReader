@@ -53,6 +53,8 @@ export interface LibraryBook {
   currentChapterTitle?: string;
   createdAt?: number;
   updatedAt?: number;
+  /** Server UTC Unix milliseconds of reading activity; zero means never read. */
+  lastReadAt?: number;
 }
 
 // BookSource acquisition/recovery context; common shelf and reading fields are shared.

@@ -86,8 +86,9 @@ type Book struct {
 	ActiveSource     *AltSource  `json:"activeSource,omitempty" db:"-"`
 	AlternateSources []AltSource `json:"alternateSources,omitempty" db:"alternate_sources"`
 
-	CreatedAt int64 `json:"createdAt" db:"created_at"`
-	UpdatedAt int64 `json:"updatedAt" db:"updated_at"`
+	CreatedAt  int64 `json:"createdAt" db:"created_at"`
+	UpdatedAt  int64 `json:"updatedAt" db:"updated_at"`
+	LastReadAt int64 `json:"lastReadAt" db:"-"`
 }
 
 // Chapter represents a single chapter.

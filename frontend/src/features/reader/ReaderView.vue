@@ -133,7 +133,8 @@ export default defineComponent({
       this.loading=false;this.error='';
       await this.restore(position,request);
       if(request!==this.generation)return;
-      if(this.book&&index!==this.book.durChapterIndex)void this.queueProgress(index,position);
+      // Displaying a chapter counts as reading, even at its unchanged starting position.
+      if(this.book)void this.queueProgress(index,position);
       if(this.book){this.book.durChapterIndex=index;this.book.durChapterPos=position;}
       this.prefetchNext();
       document.title=`${this.displayContent?.document.title || content.document.title} · ${this.book?.name || 'NovelReader'}`;

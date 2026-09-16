@@ -21,7 +21,7 @@ export default defineComponent({
   },
   computed: {
     continueBook(): LibraryBook | null {
-      return visibleShelfBooks(this.books, '', 'recent')[0] ?? null;
+      return visibleShelfBooks(this.books.filter(book => (book.lastReadAt ?? 0) > 0), '', 'recent')[0] ?? null;
     },
     visibleBooks(): LibraryBook[] { return visibleShelfBooks(this.books, this.query, this.sort); },
   },

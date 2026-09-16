@@ -33,6 +33,7 @@ async function open(query: Record<string,string> = {}) {
 describe('reader navigation lifecycle',()=>{
   it('renders and reuses chapters without waiting for ordered progress acknowledgements',async()=>{
     const vm=await open();
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith('book',7,0,0,0);
     let release!:(value:{status:string;stateVersion:number})=>void;
     vi.mocked(saveProgress).mockReturnValueOnce(new Promise(resolve=>{release=resolve;}));
     await vm.navigate(1);
@@ -40,9 +41,9 @@ describe('reader navigation lifecycle',()=>{
     await vm.navigate(0);
     expect(vm.displayContent?.document.title).toBe('old 0');
     expect(getChapterContent).toHaveBeenCalledTimes(2);
-    release({status:'saved',stateVersion:1});
+    release({status:'saved',stateVersion:2});
     await waitForProgressWrites('book');
-    expect(vi.mocked(saveProgress).mock.calls.map(call=>call[3])).toEqual([0,1,1,0]);
+    expect(vi.mocked(saveProgress).mock.calls.map(call=>call[3])).toEqual([0,0,1,1,0]);
   });
 
   it('drains prefetch before source switching and never displays its late document',async()=>{
@@ -83,12 +84,13 @@ describe('reader navigation lifecycle',()=>{
 
   it('captures one revision-qualified bookmark location before awaiting progress',async()=>{
     const vm=await open();
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith('book',7,0,0,0);
     let release!:(value:{status:string;stateVersion:number})=>void;
     vi.mocked(saveProgress).mockReturnValueOnce(new Promise(resolve=>{release=resolve;}));
     const capture=vm.captureBookmark();
     await flushPromises();
     vm.currentIndex=1;vm.catalogRevision=8;vm.lastPosition=.9;
-    release({status:'saved',stateVersion:1});
+    release({status:'saved',stateVersion:2});
     await expect(capture).resolves.toEqual({contentRevision:7,chapterIndex:0,position:0});
   });
 
@@ -145,7 +147,7 @@ it('qualifies legacy navigation and stops a session when speculative content det
   expect(vm.chapterLoader).toBeNull();
   expect(vm.displayContent?.document.title).toBe('old 0');
   await vm.persistProgress(); await vm.navigate(1);
-  expect(saveProgress).not.toHaveBeenCalled();
+  expect(saveProgress).toHaveBeenCalledExactlyOnceWith('book',7,0,0,0);
   expect(getChapterContent).toHaveBeenCalledTimes(2);
 });
 
@@ -155,4 +157,19 @@ it('passes bookmark revision to navigation instead of attaching its ordinal to t
   wrapper.findComponent({name:'ReaderBookmarksSheet'}).vm.$emit('open',1,.4,6);
   expect(vm.revisionConflict).toBe(true);
   expect(getChapterContent).toHaveBeenCalledTimes(1);
+});
+
+it('does not mark a failed chapter load as reading', async () => {
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new Error('Unavailable'));
+  const vm = await open();
+  expect(vm.content).toBeNull();
+  expect(saveProgress).not.toHaveBeenCalled();
+});
+
+it('prefetches without recording the speculative chapter as reading', async () => {
+  const vm = await open();
+  vm.preferences.prefetchNextChapter = true;
+  await flushPromises();
+  expect(getChapterContent).toHaveBeenCalledTimes(2);
+  expect(saveProgress).toHaveBeenCalledExactlyOnceWith('book',7,0,0,0);
 });

@@ -57,6 +57,8 @@ Accepted future-facing architecture:
 
 ## Current State
 
+Completed correction: [independent last-read tracking](docs/plans/2026-09-17-last-read-tracking.md) separates actual reading from additions/metadata updates. Epoch 13 exposes portable `lastReadAt` for future features; no migration or live data reset.
+
 ### Complete product foundations
 
 - Local Reader Accounts, setup, registration policy, recovery, password management, administration, and durable deletion.
@@ -96,7 +98,7 @@ The completed [WebView Runtime Efficiency](docs/plans/2026-09-04-webview-runtime
 
 The completed [Source Authentication and Session Foundation](docs/plans/2026-09-03-source-auth-session-foundation.md) work established reader-owned login/session state, scoped runtime-cookie management, secret-safe diagnostics, and bounded authenticated controlled-browser networking. The completed [Source Collection availability](docs/plans/2026-09-02-source-collection-availability.md) work added a collection-level Search/Explore gate while preserving every member source's individual settings and existing shelf reading. The completed [reading document foundation](docs/plans/2026-09-02-reading-document-foundation.md) established the versioned prose-document, opaque-resource, and focused prose-renderer seams around the current BookSource text/image path.
 
-The completed [architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) workstream corrected lifecycle/isolation defects, upload/font/identity contracts and reader-handler ownership, and implemented measured narrow chapter/progress lookups. That checkpoint introduced reader schema epoch 9; subsequent shared-library and TXT interpretation work advance the current epoch to 12. Its plan records scoped verification and the approved local-only integration; hosted CI and deployment verification remain unperformed. Frontend decomposition stays evidence-gated.
+The completed [architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) workstream corrected lifecycle/isolation defects, upload/font/identity contracts and reader-handler ownership, and implemented measured narrow chapter/progress lookups. That checkpoint introduced reader schema epoch 9; subsequent shared-library, TXT interpretation and last-read tracking work advance the current epoch to 13. Its plan records scoped verification and the approved local-only integration; hosted CI and deployment verification remain unperformed. Frontend decomposition stays evidence-gated.
 
 The completed [multi-provider library and imported books](docs/plans/2026-09-10-multi-provider-library.md)
 workstream delivers TXT browser/inbox intake, bounded review and explicit admission, shared reading,

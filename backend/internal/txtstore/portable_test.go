@@ -23,6 +23,16 @@ func TestPublishedPortableReferencesAndMissingOriginal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	libraryStore := library.NewStore(store.db)
+	if _, err := libraryStore.UpdateProgress(t.Context(), item.ID, item.Revision(), library.Location{}); err != nil {
+		t.Fatal(err)
+	}
+	readItem, err := libraryStore.Get(t.Context(), item.ID)
+	if err != nil || readItem == nil || readItem.LastReadAt <= 0 {
+		t.Fatalf("reading state: %+v %v", readItem, err)
+	}
+	item = *readItem
+	lastReadAt := item.LastReadAt
 	// Saved content remains portable/readable without recompiling request syntax.
 	if _, err := store.db.Exec(`UPDATE txt_interpretations SET requested_pattern='(' WHERE file_id=?`, receipt.ID); err != nil {
 		t.Fatal(err)
@@ -86,6 +96,9 @@ func TestPublishedPortableReferencesAndMissingOriginal(t *testing.T) {
 		t.Fatal(err)
 	}
 	item = applied.Item
+	if item.LastReadAt != lastReadAt {
+		t.Fatalf("restore/reparse changed reading time: got %d want %d", item.LastReadAt, lastReadAt)
+	}
 	restored.Close()
 	if err := manager.SnapshotHome(t.Context(), bob, filepath.Join(t.TempDir(), "applied-snapshot")); err != nil {
 		t.Fatalf("applied index is not portable: %v", err)

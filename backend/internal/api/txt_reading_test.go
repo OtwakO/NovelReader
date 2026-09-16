@@ -100,6 +100,11 @@ func TestTXTReadingThroughCommonHTTPRoutes(t *testing.T) {
 	if !literalFound {
 		t.Fatal("literal markup was removed")
 	}
+	response = f.request(http.MethodGet, base, "")
+	var unread library.Item
+	if err := json.Unmarshal(response.Body.Bytes(), &unread); err != nil || unread.LastReadAt != 0 {
+		t.Fatalf("admission/content read marked reading: %s %v", response.Body.String(), err)
+	}
 	guards := fmt.Sprintf(`"contentRevision":%d,"stateVersion":%d`, f.item.ContentRevision, f.item.StateVersion)
 	response = f.request(http.MethodPut, base+"/progress", `{`+guards+`,"chapterIndex":1,"position":0.4}`)
 	if response.Code != 200 {
@@ -115,7 +120,7 @@ func TestTXTReadingThroughCommonHTTPRoutes(t *testing.T) {
 	}
 	response = f.request(http.MethodGet, base, "")
 	var item library.Item
-	if err := json.Unmarshal(response.Body.Bytes(), &item); err != nil || item.CurrentChapterTitle != mark.ChapterTitle || item.DurChapterPos != 0.4 || item.StateVersion != f.item.StateVersion+2 {
+	if err := json.Unmarshal(response.Body.Bytes(), &item); err != nil || item.CurrentChapterTitle != mark.ChapterTitle || item.DurChapterPos != 0.4 || item.StateVersion != f.item.StateVersion+2 || item.LastReadAt <= 0 {
 		t.Fatalf("shared state: %s %v", response.Body.String(), err)
 	}
 	for _, tc := range []struct {

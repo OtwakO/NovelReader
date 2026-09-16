@@ -34,9 +34,9 @@ data/users/<immutable-reader-id>/
 `reader.db` and ordinary files are portable plaintext Reader Data: BookSources, shelf books, chapters, progress, bookmarks, caches, preferences, source profiles, and file metadata. They remain inspectable without an application secret. Browser-only Reader preferences are outside
 this storage/backup boundary; see [Reader state](discovery-and-reading.md#reader-state).
 
-Reader schema epoch 12 composes library-owned shared metadata/state/bookmarks, BookSource-owned
+Reader schema epoch 13 composes library-owned shared metadata/state/bookmarks and independent last-read timestamps, BookSource-owned
 bindings/catalog/cache, managed TXT files/interpretations/indexes and the other reader modules. Foreign keys are enabled on every pooled reader
-connection. Epoch-11 or older homes and portable archives are incompatible; there is no automatic migration or
+connection. Epoch-12 or older homes and portable archives are incompatible; there is no automatic migration or
 reset. Preservation and rollback instructions live in the [development reset runbook](../runbooks/development-data-reset.md).
 
 The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT intake, review, reading and removal are connected. Custom patterns and explicit published-reparse controls are available through the shared interpretation workflow. See the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).

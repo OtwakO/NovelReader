@@ -37,7 +37,7 @@ func TestProgressAPIValidatesBookChapterAndPosition(t *testing.T) {
 		t.Fatalf("valid status=%d body=%s", response.Code, response.Body.String())
 	}
 	stored, err := store.GetBook("book-1")
-	if err != nil || stored.DurChapterIndex != 2 || stored.DurChapterPos != 0.6 {
+	if err != nil || stored.DurChapterIndex != 2 || stored.DurChapterPos != 0.6 || stored.LastReadAt <= 0 {
 		t.Fatalf("stored=%+v err=%v", stored, err)
 	}
 

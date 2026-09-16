@@ -23,9 +23,10 @@ func (s *Store) UpdateProgress(ctx context.Context, id string, expected Revision
 	if !validLocation(location) {
 		return 0, ErrInvalidProgress
 	}
+	now := time.Now().UnixMilli()
 	result, err := s.db.ExecContext(ctx, `UPDATE library_items SET dur_chapter_index=?, dur_chapter_pos=?, current_chapter_title=?,
-		state_version=state_version+1, updated_at=? WHERE id=? AND content_revision=? AND state_version=?`,
-		location.ChapterIndex, location.Position, location.ChapterTitle, time.Now().UnixMilli(), id, expected.Content, expected.State)
+		state_version=state_version+1, updated_at=?, last_read_at=? WHERE id=? AND content_revision=? AND state_version=?`,
+		location.ChapterIndex, location.Position, location.ChapterTitle, now, now, id, expected.Content, expected.State)
 	if err != nil {
 		return 0, err
 	}

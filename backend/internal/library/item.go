@@ -35,6 +35,8 @@ type Item struct {
 	StateVersion        int64   `json:"stateVersion"`
 	CreatedAt           int64   `json:"createdAt"`
 	UpdatedAt           int64   `json:"updatedAt"`
+	// LastReadAt is server UTC Unix milliseconds from accepted reading progress; zero means unread.
+	LastReadAt int64 `json:"lastReadAt"`
 }
 
 type Revision struct {

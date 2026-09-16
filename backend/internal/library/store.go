@@ -10,7 +10,7 @@ type Store struct{ db *sql.DB }
 func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 
 const itemColumns = `id, provider, name, author, cover_url, intro, kind, last_chapter, update_time, word_count,
-	dur_chapter_index, dur_chapter_pos, total_chapter_num, current_chapter_title, content_revision, state_version, created_at, updated_at`
+	dur_chapter_index, dur_chapter_pos, total_chapter_num, current_chapter_title, content_revision, state_version, created_at, updated_at, last_read_at`
 
 type scanner interface{ Scan(...any) error }
 
@@ -18,7 +18,7 @@ func scanItem(row scanner) (*Item, error) {
 	var item Item
 	err := row.Scan(&item.ID, &item.Provider, &item.Name, &item.Author, &item.CoverURL, &item.Intro, &item.Kind,
 		&item.LastChapter, &item.UpdateTime, &item.WordCount, &item.DurChapterIndex, &item.DurChapterPos,
-		&item.TotalChapterNum, &item.CurrentChapterTitle, &item.ContentRevision, &item.StateVersion, &item.CreatedAt, &item.UpdatedAt)
+		&item.TotalChapterNum, &item.CurrentChapterTitle, &item.ContentRevision, &item.StateVersion, &item.CreatedAt, &item.UpdatedAt, &item.LastReadAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -68,9 +68,9 @@ func listItems(ctx context.Context, query itemQuery) ([]Item, error) {
 
 // InsertTx never merges identity or commits; the admission use case owns both.
 func InsertTx(ctx context.Context, tx *sql.Tx, item Item) error {
-	_, err := tx.ExecContext(ctx, `INSERT INTO library_items (`+itemColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := tx.ExecContext(ctx, `INSERT INTO library_items (`+itemColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		item.ID, item.Provider, item.Name, item.Author, item.CoverURL, item.Intro, item.Kind, item.LastChapter, item.UpdateTime, item.WordCount,
-		item.DurChapterIndex, item.DurChapterPos, item.TotalChapterNum, item.CurrentChapterTitle, item.ContentRevision, item.StateVersion, item.CreatedAt, item.UpdatedAt)
+		item.DurChapterIndex, item.DurChapterPos, item.TotalChapterNum, item.CurrentChapterTitle, item.ContentRevision, item.StateVersion, item.CreatedAt, item.UpdatedAt, item.LastReadAt)
 	return err
 }
 
@@ -87,8 +87,9 @@ func DeleteTx(ctx context.Context, tx *sql.Tx, id string) error {
 
 // PutTx preserves the explicit replace-by-ID behavior of internal admission
 // callers. It does not merge display identity; ordinary admission uses InsertTx.
+// Replacing an existing item preserves its reading-activity timestamp.
 func PutTx(ctx context.Context, tx *sql.Tx, item Item) error {
-	_, err := tx.ExecContext(ctx, `INSERT INTO library_items (`+itemColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	_, err := tx.ExecContext(ctx, `INSERT INTO library_items (`+itemColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET provider=excluded.provider, name=excluded.name, author=excluded.author,
 		cover_url=excluded.cover_url, intro=excluded.intro, kind=excluded.kind, last_chapter=excluded.last_chapter,
 		update_time=excluded.update_time, word_count=excluded.word_count, dur_chapter_index=excluded.dur_chapter_index,
@@ -96,6 +97,6 @@ func PutTx(ctx context.Context, tx *sql.Tx, item Item) error {
 		current_chapter_title=excluded.current_chapter_title, content_revision=excluded.content_revision,
 		state_version=excluded.state_version, updated_at=excluded.updated_at`,
 		item.ID, item.Provider, item.Name, item.Author, item.CoverURL, item.Intro, item.Kind, item.LastChapter, item.UpdateTime, item.WordCount,
-		item.DurChapterIndex, item.DurChapterPos, item.TotalChapterNum, item.CurrentChapterTitle, item.ContentRevision, item.StateVersion, item.CreatedAt, item.UpdatedAt)
+		item.DurChapterIndex, item.DurChapterPos, item.TotalChapterNum, item.CurrentChapterTitle, item.ContentRevision, item.StateVersion, item.CreatedAt, item.UpdatedAt, item.LastReadAt)
 	return err
 }

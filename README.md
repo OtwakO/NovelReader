@@ -81,7 +81,7 @@ NovelReader stores its data in the `data` folder beside `docker-compose.yml`. Th
 
 ## Update
 
-This revision requires reader schema epoch 12. Existing epoch-11 (or older) homes and portable
+This revision requires reader schema epoch 13. Existing epoch-12 (or older) homes and portable
 archives cannot be migrated automatically. Before upgrading an existing deployment,
 stop it and preserve a complete `DATA_DIR` copy; follow the
 [compatibility and reset runbook](docs/runbooks/development-data-reset.md) rather than

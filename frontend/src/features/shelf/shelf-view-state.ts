@@ -36,6 +36,8 @@ export function visibleShelfBooks(books: LibraryBook[], query: string, sort: She
       const rightProgress = right.totalChapterNum > 0 ? right.durChapterIndex / right.totalChapterNum : 0;
       return rightProgress - leftProgress || left.name.localeCompare(right.name);
     }
-    return (right.updatedAt ?? 0) - (left.updatedAt ?? 0) || left.name.localeCompare(right.name);
+    return (right.lastReadAt ?? 0) - (left.lastReadAt ?? 0)
+      || (right.createdAt ?? 0) - (left.createdAt ?? 0)
+      || left.name.localeCompare(right.name);
   });
 }

@@ -16,7 +16,7 @@ func (b *Book) libraryItem() library.Item {
 		UpdateTime: b.UpdateTime, WordCount: b.WordCount, DurChapterIndex: b.DurChapterIndex,
 		DurChapterPos: b.DurChapterPos, TotalChapterNum: b.TotalChapterNum,
 		CurrentChapterTitle: b.CurrentChapterTitle, ContentRevision: b.ContentRevision,
-		StateVersion: b.StateVersion, CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt,
+		StateVersion: b.StateVersion, CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt, LastReadAt: b.LastReadAt,
 	}
 }
 
@@ -27,7 +27,7 @@ func (b *Book) applyLibraryItem(item library.Item) {
 	b.DurChapterIndex, b.DurChapterPos = item.DurChapterIndex, item.DurChapterPos
 	b.TotalChapterNum, b.CurrentChapterTitle = item.TotalChapterNum, item.CurrentChapterTitle
 	b.ContentRevision, b.StateVersion = item.ContentRevision, item.StateVersion
-	b.CreatedAt, b.UpdatedAt = item.CreatedAt, item.UpdatedAt
+	b.CreatedAt, b.UpdatedAt, b.LastReadAt = item.CreatedAt, item.UpdatedAt, item.LastReadAt
 }
 
 func readBookTx(ctx context.Context, tx *sql.Tx, id string) (*Book, error) {

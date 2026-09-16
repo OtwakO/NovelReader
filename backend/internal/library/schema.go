@@ -28,7 +28,8 @@ func ReaderSchema() readerstore.ReaderSchema {
 				content_revision INTEGER NOT NULL DEFAULT 0,
 				state_version INTEGER NOT NULL DEFAULT 0,
 				created_at INTEGER NOT NULL,
-				updated_at INTEGER NOT NULL
+				updated_at INTEGER NOT NULL,
+				last_read_at INTEGER NOT NULL DEFAULT 0 CHECK(last_read_at >= 0)
 			)`,
 			`CREATE INDEX IF NOT EXISTS idx_library_updated ON library_items(updated_at DESC, id)`,
 			`CREATE TABLE IF NOT EXISTS bookmarks (

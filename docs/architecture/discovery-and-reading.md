@@ -116,6 +116,16 @@ enrichment. `/api/books/{id}/booksource` exposes the combined BookSource-context
 Shelf metadata and native display inputs are read in one SQLite snapshot with a fixed number of
 queries; source cover revisions remain batched. Native bindings are not required on a generic item.
 
+`library_items.last_read_at` / JSON `lastReadAt` is the server UTC Unix-millisecond time of the
+last accepted reading-progress write; zero means never read. It is library-owned, shared by TXT and
+BookSource projections, and preserved in portable data. The Reader queues progress after displaying
+a chapter even at the initial/unchanged position, then through its existing progress lifecycle.
+Admission, metadata/catalog updates, bookmarks, source switching, reparse and content fetch/prefetch
+do not independently change this timestamp. `updatedAt` remains generic modification metadata.
+Continue Reading uses only positive `lastReadAt`; recently-read sorting orders by it, then creation
+time (unread books follow read books). No clock is inferred from position or state version. Future
+relative-time displays can format this same public field without another stored value or event log.
+
 Content revision identifies a catalog/interpretation; state version orders progress and bookmark
 mutations. Catalog publication advances the former, progress and successful bookmark add/delete
 advance the latter, and source switching validates both before atomically replacing the interpretation
