@@ -1,11 +1,12 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import { RouterLink } from 'vue-router';
+import ImportPreferenceControl from './ImportPreferenceControl.vue';
 import AppButton from '../../ui/components/AppButton.vue';
 import { useImportQueue, type ImportTransfer } from './import-queue';
 import { analysisErrorKey, importedTitle, importErrorKey } from './import-feedback';
 export default defineComponent({
-  components: { RouterLink, AppButton },
+  components: { RouterLink, AppButton, ImportPreferenceControl },
   emits: ['review'],
   data: () => ({ queue: useImportQueue(), offset: 0 }),
   computed: {
@@ -38,6 +39,7 @@ export default defineComponent({
       <div class="import-upload-copy"><h2>{{ $t('imports.flow.title') }}</h2><p>{{ $t('imports.flow.hint') }}</p></div>
       <label class="app-button app-button--primary import-picker">{{ $t('imports.flow.choose') }}<input type="file" accept=".txt,text/plain" multiple :aria-label="$t('imports.flow.choose')" @change="choose"></label>
     </div>
+    <ImportPreferenceControl />
     <template v-if="queue.entries.length">
       <div class="import-progress-summary">
         <p role="status" aria-live="polite">{{ progress }}</p>
@@ -62,7 +64,7 @@ export default defineComponent({
             <p v-if="item.warnings?.length" class="import-note">{{ $t('imports.flow.cleanupNote') }}</p>
           </div>
           <RouterLink v-if="item.libraryId" class="app-button app-button--secondary import-read" :to="{ name: 'reader', params: { bookId: item.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
-          <AppButton v-else-if="item.state === 'attention' && item.receiptId" variant="secondary" @click="$emit('review', item.receiptId)">{{ $t('imports.flow.checkBook') }}</AppButton>
+          <AppButton v-else-if="['review', 'attention'].includes(item.state) && item.receiptId" variant="secondary" @click="$emit('review', item.receiptId)">{{ $t('imports.flow.checkBook') }}</AppButton>
           <AppButton v-else-if="item.state === 'attention'" variant="quiet" @click="queue.remove(item.key)">{{ $t('imports.dismiss') }}</AppButton>
         </li>
       </ul>

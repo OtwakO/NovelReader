@@ -13,11 +13,12 @@ let queue: ReturnType<typeof useImportQueue>;
 let view: ReturnType<typeof mount> | undefined;
 const receipt = (state: api.TXTState): api.TXTReceipt => ({ id: 'file', state, originalName: 'A story.txt', size: 10, createdAt: 0, updatedAt: 0, analysisVersion: 1, encoding: '', preset: '', hasError: false });
 beforeEach(() => {
+  localStorage.clear();
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   vi.spyOn(api, 'requestTXTAdmission').mockResolvedValue({ id: 'ticket', expiresAt: '', maxInputBytes: 1000, state: 'granted' });
   vi.spyOn(api, 'acquireTXT').mockResolvedValue({ receipt: receipt('received') });
 });
-afterEach(async () => { view?.unmount(); queue.resetReaderState(); await flushPromises(); vi.restoreAllMocks(); });
+afterEach(async () => { view?.unmount(); queue.resetReaderState(); await flushPromises(); vi.restoreAllMocks(); localStorage.clear(); });
 
 async function setup(component: typeof ShelfView | typeof ImportWorkspace | typeof ImportsView) {
   const pinia = createPinia(); queue = useImportQueue(pinia);
@@ -53,12 +54,15 @@ it('keeps only a Local import link on the shelf while background additions still
   expect(inbox).not.toHaveBeenCalled();
 });
 
-it('automatically adds from the dedicated page and offers Read without opening review or scanning inbox', async () => {
+it('opts into automatic addition from the dedicated page and offers Read without opening review or scanning inbox', async () => {
   vi.spyOn(api, 'getTXTReceipt').mockResolvedValue(receipt('ready'));
   const accept = vi.spyOn(api, 'acceptTXT').mockResolvedValue({ libraryId: 'book' });
   const inbox = vi.spyOn(api, 'scanTXTInbox');
   const preview = vi.spyOn(api, 'previewTXT');
-  const router = await setup(ImportsView); await choose();
+  const router = await setup(ImportsView);
+  expect(view!.get<HTMLInputElement>('.import-preference input').element.checked).toBe(true);
+  await view!.get('.import-preference input').setValue(false);
+  await choose();
   expect(accept).toHaveBeenCalledOnce();
   expect(inbox).not.toHaveBeenCalled(); expect(preview).not.toHaveBeenCalled();
   expect(router.currentRoute.value.path).toBe('/imports');

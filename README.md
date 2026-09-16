@@ -128,10 +128,11 @@ controls. TXT is displayed as literal prose, not interpreted as HTML. Removing a
 deletes its managed original. If file cleanup is incomplete, Book Detail keeps a warning and a
 **Retry file cleanup** action visible; the book is already removed from the library and the cleanup
 record remains recoverable. On the shelf, choose **Local import** (**本地匯入**) to open the dedicated
-page, then **Choose files**. Newly selected TXT files are uploaded, processed and added automatically
-when no review warnings remain. Choose **Read** to start reading directly. Files needing attention
-offer **Check book** on that page; inspect the text, optionally open **Adjust chapters**, then choose
-**Add book**. **Earlier imports** and **Import from server folder** keep recovery and server tools in
+page, then **Choose files**. **Review before adding to shelf** is enabled by default; uploaded books
+wait for **Check book → Add book**. This device-local setting is shared with Settings. Turn it off to
+automatically add newly selected, warning-free books; changing it does not approve files already queued.
+Warnings and failures always require attention. Inspect the text and optionally open **Adjust chapters**
+before adding; choose **Read** once the book is on the shelf. **Earlier imports** and **Import from server folder** keep recovery and server tools in
 collapsible sections. The shelf itself has no upload or review workspace.
 Failed analysis shows guidance specific to encoding, input format, section limits or storage problems;
 older unclassified failures keep a safe generic message. The same guidance appears during re-analysis.
@@ -140,6 +141,12 @@ unsent selections, not acquired files. After reloading, recover unfinished books
 imports** and explicitly add them there; automatic approval is not applied to old receipts. An outage
 pauses remaining uploads without silently repeating an uncertain upload or addition. Imports also
 provides pending-discard and retained cleanup-retry controls.
+
+Earlier imports shows persisted records, including transfers still visible in this tab. It is paginated
+by ID, not newest-first. It is not a second copy of book content: published originals/indexes remain
+needed for reading. Pending/failed imports retain their files until discarded; there is no automatic
+expiry. Removing a book or discarding a pending import deletes its record after file cleanup succeeds.
+**Clear finished** only clears this tab's progress list, not books or persisted imports.
 
 Finish copying inbox files before opening the server-folder section or scanning (automated producers should use a
 temporary name, then rename). Uncertain leftovers require explicit review: confirmation removes only

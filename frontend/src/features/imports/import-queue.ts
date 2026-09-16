@@ -3,12 +3,13 @@ import { defineStore } from 'pinia';
 import { acceptTXT, acquireTXT, getTXTAdmission, getTXTReceipt, requestTXTAdmission, type TXTAdmission, type TXTReceipt } from '../../api/txt-imports';
 import { ApiError, readerRequestSignal } from '../../api/transport';
 import { importedTitle } from './import-feedback';
+import { useImportPreferences } from './import-preferences';
 
 export interface ImportTransfer {
   key: number; name: string; size?: number; input?: File | string;
-  state: 'queued' | 'waiting' | 'transferring' | 'acquired' | 'adding' | 'added' | 'attention';
+  state: 'queued' | 'waiting' | 'transferring' | 'acquired' | 'adding' | 'added' | 'review' | 'attention';
   receiptId?: string; receipt?: TXTReceipt; initialGeneration?: number; libraryId?: string;
-  error?: unknown; warnings?: string[];
+  error?: unknown; warnings?: string[]; reviewBeforeAdding?: boolean;
 }
 
 const activeStates = ['queued', 'waiting', 'transferring', 'acquired', 'adding'];
@@ -23,6 +24,7 @@ function wait(signal: AbortSignal, delay = 5000): Promise<void> {
 }
 
 export const useImportQueue = defineStore('txt-import-queue', () => {
+  const preferences = useImportPreferences();
   const entries = ref<ImportTransfer[]>([]);
   const running = ref(false);
   const paused = ref(false);
@@ -32,7 +34,7 @@ export const useImportQueue = defineStore('txt-import-queue', () => {
   let controller: AbortController | undefined;
   let publicationController: AbortController | undefined;
   const outstanding = computed(() => entries.value.filter(item => activeStates.includes(item.state)).length);
-  const attention = computed(() => entries.value.filter(item => item.state === 'attention' || item.error || item.warnings?.length).length);
+  const attention = computed(() => entries.value.filter(item => ['review', 'attention'].includes(item.state) || item.error || item.warnings?.length).length);
 
   const warnBeforeLeaving = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
   watch(outstanding, count => {
@@ -49,7 +51,7 @@ export const useImportQueue = defineStore('txt-import-queue', () => {
       // Coalesce repeated clicks/selections only while that same local input is queued.
       if (retained.has(input)) continue;
       retained.add(input);
-      pending.push({ key: ++sequence, name, size: typeof input === 'string' ? undefined : input.size,
+      pending.push({ key: ++sequence, name, reviewBeforeAdding: preferences.reviewBeforeAdding, size: typeof input === 'string' ? undefined : input.size,
         input: typeof input === 'string' ? input : markRaw(input), state: /\.txt$/i.test(name) ? 'queued' : 'attention',
         error: /\.txt$/i.test(name) ? undefined : new ApiError(400, { code: 'txt_invalid_input' }),
       });
@@ -125,8 +127,8 @@ export const useImportQueue = defineStore('txt-import-queue', () => {
     }
   }
 
-  // Only this queue's newly acquired, exact initial interpretations carry automatic
-  // approval. History and explicit review updates never enter this loop.
+  // Only new exact initial interpretations explicitly queued with review off carry
+  // automatic approval. History and explicit review updates never enter this loop.
   async function publishReadyImports() {
     if (publicationController) return;
     const owner = new AbortController();
@@ -153,6 +155,7 @@ export const useImportQueue = defineStore('txt-import-queue', () => {
               entry.state = 'attention'; continue;
             }
             if (receipt.state !== 'ready') continue;
+            if (entry.reviewBeforeAdding !== false) { entry.state = 'review'; revision.value++; continue; }
             entry.state = 'adding';
             const result = await acceptTXT(receipt.id, receipt.analysisVersion, importedTitle(receipt.originalName), '', signal);
             signal.throwIfAborted();

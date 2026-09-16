@@ -1,7 +1,9 @@
 export default {
+  preferences: { review: 'Review before adding to shelf', hint: 'Applies to files selected next on this device. Turn off to auto-add warning-free books; warnings always require review.' },
   flow: {
-    title: 'From this device', hint: 'Choose one or more TXT books to upload.', choose: 'Choose files',
-    pageHint: 'Books are added automatically when ready. Review only the files that need attention.', backToShelf: 'Back to shelf',
+    review: 'Ready for your review',
+    title: 'From this device', hint: 'Choose TXT files to upload and prepare for reading.', choose: 'Choose files',
+    pageHint: 'Upload TXT books, check their chapters and text, and choose when to add them to your shelf.', backToShelf: 'Back to shelf',
     readyCount: 'Ready: {count}', pendingCount: 'Preparing: {count}', checkCount: 'To check: {count}',
     preview: 'Chapters and text', chapters: 'Chapters', textPreview: 'Text preview', sampleNote: 'This is a short sample of the book.',
     queued: 'Waiting to upload', waiting: 'Waiting to upload', transferring: 'Uploading…', preparing: 'Finding chapters…', added: 'Added to your shelf', check: 'Needs a quick check',
@@ -30,7 +32,7 @@ export default {
   browserHint: 'Choose completed TXT files. Transfers continue while you use the app; analysis runs on the server. Closing or reloading this tab loses unsent selections, not acquired files.',
   transferDetails: 'Transfer details and receipts', chooseFiles: 'Choose TXT files', pause: 'Pause after current file', resume: 'Resume transfers', pauseHint: 'No further files will start. A transfer already in progress finishes first.',
   clearFinished: 'Clear local history', dismiss: 'Remove from local list', previous: 'Previous', next: 'Next page', first: 'First page',
-  checkReceipt: 'Check receipt', sections: 'Import sections', results: 'Acquired files', resultsHint: 'Resume earlier work here. Check files needing attention, or select ready files to add to your shelf.',
+  checkReceipt: 'Check receipt', sections: 'Import sections', results: 'Acquired files', resultsHint: 'All saved imports, including this session. This list is paginated, not newest-first. Pending imports keep their files until you discard them.',
   filter: 'Status', all: 'All', refresh: 'Refresh', addSelected: 'Add selected ({count})',
   batchResult: '{added} added · {failed} unsuccessful', bulkConfirm: 'Add these {count} selected ready interpretations? Titles use filenames without .txt. Open individual review to change a title or author.',
   confirmAdd: 'Add book', noResults: 'No files on this page. Choose files above, use the server inbox, or change the status filter.',

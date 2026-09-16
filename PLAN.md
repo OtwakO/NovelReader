@@ -119,6 +119,7 @@ adds distinct review/inbox task panes and fixes shared selector widths, truncati
 The completed [action-affordance pass](docs/plans/2026-09-16-action-affordances.md) unifies button presentation,
 aligns book-detail/reparse controls, fills the desktop prose preview, and updates locale/brand presentation.
 The [reader-first presentation pass](docs/plans/2026-09-16-reader-first-presentation.md) is complete: clearer typography/navigation, reader-first Settings and task guidance, retaining current fonts and parchment colors.
+[Import history and review](docs/plans/2026-09-16-import-history-and-review.md) fixes hidden/stale persisted imports and adds default-on review before shelf admission, shared with device-local Settings. Retention remains explicit discard/removal; chapter-click previews are deferred.
 Manual usability feedback is next.
 
 ## Active Work

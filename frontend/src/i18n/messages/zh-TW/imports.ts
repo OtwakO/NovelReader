@@ -1,7 +1,9 @@
 export default {
+  preferences: { review: '加入書架前先確認', hint: '僅影響此裝置之後選取的檔案。關閉後，沒有警告的書籍會自動加入；有警告時仍須檢查。' },
   flow: {
-    title: '從這台裝置', hint: '選擇一本或多本 TXT 小說上傳。', choose: '選擇檔案',
-    pageHint: '處理完成後自動加入書架，只需檢查需要確認的檔案。', backToShelf: '返回書架',
+    review: '已準備好，等待確認',
+    title: '從這台裝置', hint: '選擇 TXT 檔案，上傳並準備閱讀。', choose: '選擇檔案',
+    pageHint: '上傳 TXT 書籍、檢查章節與正文，並決定何時加入書架。', backToShelf: '返回書架',
     readyCount: '已就緒：{count}', pendingCount: '準備中：{count}', checkCount: '待檢查：{count}',
     preview: '章節與正文', chapters: '章節', textPreview: '正文預覽', sampleNote: '此處僅顯示一小段正文。',
     queued: '等待上傳', waiting: '等待上傳', transferring: '正在上傳…', preparing: '正在辨識章節…', added: '已加入書架', check: '需要檢查一下',
@@ -30,7 +32,7 @@ export default {
   browserHint: '請選擇已複製完成的 TXT 檔案。切換應用程式頁面不會停止傳輸，解析由伺服器完成。關閉或重新整理此分頁會遺失尚未傳輸的選擇，已接收檔案不會遺失。',
   transferDetails: '傳輸詳情與接收紀錄', chooseFiles: '選擇 TXT 檔案', pause: '目前檔案完成後暫停', resume: '繼續傳輸', pauseHint: '不會開始下一個檔案；正在傳輸的檔案會先完成。',
   clearFinished: '清除本機紀錄', dismiss: '從本機清單移除', previous: '上一頁', next: '下一頁', first: '第一頁',
-  checkReceipt: '查看接收紀錄', sections: '匯入分區', results: '已接收檔案', resultsHint: '在這裡接續先前的處理。可檢查需要確認的檔案，或選擇已就緒的檔案加入書架。',
+  checkReceipt: '查看接收紀錄', sections: '匯入分區', results: '已接收檔案', resultsHint: '所有已儲存的匯入，包含本次匯入。清單分頁顯示，並非依最新時間排序。待處理的匯入會保留檔案，直到您捨棄。',
   filter: '狀態', all: '全部', refresh: '重新整理', addSelected: '新增所選（{count}）',
   batchResult: '已新增 {added} 項 · 未成功 {failed} 項', bulkConfirm: '確認新增這 {count} 項所選的就緒解析結果？書名預設使用去掉 .txt 的檔案名稱。如需修改書名或作者，請個別查看。',
   confirmAdd: '加入書架', noResults: '本頁沒有檔案。請選擇本機檔案、使用伺服器收件匣，或變更狀態篩選。',

@@ -11,6 +11,7 @@ import { localeFromValue, setLocale } from "../../i18n";
 import { supportedLocales } from "../../i18n/locales";
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
+import ImportPreferenceControl from "../imports/ImportPreferenceControl.vue";
 import AppDisclosure from "../../ui/components/AppDisclosure.vue";
 import WebViewStatusCard from "./WebViewStatusCard.vue";
 import {
@@ -29,7 +30,7 @@ import {
 
 export default defineComponent({
   name: "SettingsView",
-  components: { AppButton, FeatureScaffold, WebViewStatusCard, AppDisclosure },
+  components: { AppButton, FeatureScaffold, WebViewStatusCard, AppDisclosure, ImportPreferenceControl },
   data() {
     return {
       diagnosticsOpen: false,
@@ -328,6 +329,10 @@ export default defineComponent({
             <p>{{ $t("settings.reader.previewText") }}</p>
           </article>
         </div>
+      </section>
+      <section class="panel imports">
+        <h2>{{ $t('imports.title') }}</h2>
+        <ImportPreferenceControl />
       </section>
       <section class="panel fonts">
         <header>

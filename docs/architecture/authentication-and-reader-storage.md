@@ -210,7 +210,10 @@ receipt prop rather than owning navigation; legacy `/imports/:id` links redirect
 holds lightweight File references or inbox names, and starts one admitted byte transfer at a time.
 One independent round-robin loop checks at most 16 owned receipts per round, with a 1.5-second pause;
 there is no timer per file. It automatically accepts only warning-free, ready initial generations from
-this tab's newly selected files. Different generations, review warnings and failures stop automatic
+this tab's newly selected files queued with review-before-adding disabled. The default is review on;
+`import-preferences.ts` owns the browser-local preference shared by Settings and Local Import. Each
+queue entry snapshots it at selection; later toggles never approve existing work. Ready entries awaiting
+confirmation leave the background loop. Different generations, review warnings and failures stop automatic
 approval. Uncertain acquisitions/additions are not replayed; inline review reads authoritative status.
 The server API still requires explicit acceptance—there is no server-side auto-publication policy.
 
@@ -223,7 +226,9 @@ The application reader-state reset cancels both queue activities alongside exist
 A library revision counter refreshes a visible shelf quietly after additions; stale list responses
 cannot overwrite a newer refresh. Views own bounded page/preview requests through `import-task.ts`
 and cancel them on unmount. History filters/cursors remain local, and review expands in the same
-workspace. Explicit mutations exclude background refresh. One-click bulk acceptance of historical
+workspace. History displays all returned receipts, including this tab's transfers; a revision change
+during a list request triggers a fresh read rather than dropping completion notifications.
+Explicit mutations exclude background refresh. One-click bulk acceptance of historical
 ready receipts retains selected analysis versions rather than silently approving a refreshed version. Inbox UI sends only retained opaque tokens and requires fresh explicit
 review after an invalid/changed approval; displayed flags are not authority. The custom-pattern
 field is shown only for that heading choice, retains drafts and displays server validation beside

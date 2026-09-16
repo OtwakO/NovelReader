@@ -3,15 +3,16 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as api from '../../api/txt-imports';
 import { useImportQueue } from './import-queue';
+import { useImportPreferences } from './import-preferences';
 import ImportQueuePanel from './ImportQueuePanel.vue';
 
 const receipt = (id: string, changes: Partial<api.TXTReceipt> = {}): api.TXTReceipt => ({ id, originalName: `${id}.txt`, state: 'received', size: 1, createdAt: 0, updatedAt: 0, analysisVersion: 1, encoding: '', preset: '', hasError: false, ...changes });
 beforeEach(() => {
-  vi.useFakeTimers(); setActivePinia(createPinia()); let sequence = 0;
+  vi.useFakeTimers(); localStorage.clear(); setActivePinia(createPinia()); useImportPreferences().reviewBeforeAdding = false; let sequence = 0;
   vi.spyOn(api, 'requestTXTAdmission').mockImplementation(async () => ({ id: String(++sequence), state: 'granted', expiresAt: '', maxInputBytes: 1000 }));
   vi.spyOn(api, 'acquireTXT').mockImplementation(async id => ({ receipt: receipt(id) }));
 });
-afterEach(async () => { useImportQueue().resetReaderState(); await flushPromises(); vi.useRealTimers(); vi.restoreAllMocks(); });
+afterEach(async () => { useImportQueue().resetReaderState(); await flushPromises(); vi.useRealTimers(); vi.restoreAllMocks(); localStorage.clear(); });
 
 it('adds a newly selected warning-free book after navigation without a review-page action', async () => {
   let ready!: (value: api.TXTReceipt) => void;
@@ -57,4 +58,19 @@ it('reader reset cancels automatic admission before a late status response', asy
   expect(status.mock.calls[0]![1].aborted).toBe(true);
   resolve(receipt('1', { state: 'ready' })); await flushPromises();
   expect(accept).not.toHaveBeenCalled(); expect(queue.entries).toEqual([]);
+});
+
+it('snapshots review preference for each queued file without auto-approving earlier selections', async () => {
+  vi.spyOn(api, 'getTXTReceipt').mockImplementation(async id => receipt(id, { state: 'ready' }));
+  const accept = vi.spyOn(api, 'acceptTXT').mockResolvedValue({ libraryId: 'automatic' });
+  const preferences = useImportPreferences(); preferences.reviewBeforeAdding = true;
+  const queue = useImportQueue(); queue.pause();
+  queue.enqueue(['review.txt']);
+  preferences.reviewBeforeAdding = false;
+  queue.enqueue(['automatic.txt']); queue.resume();
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(queue.entries[0]?.state).toBe('review');
+  expect(queue.entries[1]?.state).toBe('added');
+  expect(accept).toHaveBeenCalledExactlyOnceWith('2', 1, '2', '', expect.any(AbortSignal));
+  expect(queue.outstanding).toBe(0);
 });

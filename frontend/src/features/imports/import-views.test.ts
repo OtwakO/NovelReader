@@ -8,6 +8,7 @@ import { ApiError } from '../../api/transport';
 import ImportReviewView from './ImportReviewView.vue';
 import ImportInboxPanel from './ImportInboxPanel.vue';
 import ImportReceiptsPanel from './ImportReceiptsPanel.vue';
+import { useImportQueue } from './import-queue';
 const wrappers: VueWrapper[] = [];
 afterEach(() => { wrappers.splice(0).forEach(view => view.unmount()); vi.restoreAllMocks(); });
 const receipt = (changes: Partial<api.TXTReceipt> = {}): api.TXTReceipt => ({ id: 'sample', originalName: 'sample.txt', state: 'needs_review', size: 100, createdAt: 0, updatedAt: 0, analysisVersion: 1, encoding: '', preset: '', hasError: false, ...changes });
@@ -162,4 +163,27 @@ it('keeps refresh for failed review loading, then removes the routine ready stat
   expect(button(view, 'imports.refresh')).toBeUndefined();
   expect(view.find('.import-review-status').exists()).toBe(false);
   expect(button(view, 'imports.confirmAdd').attributes('disabled')).toBeUndefined();
+});
+
+it('shows persisted imports even while their completed transfer remains in this tab', async () => {
+  const item = receipt({ state: 'published', libraryId: 'sample' });
+  vi.spyOn(api, 'listTXTReceipts').mockResolvedValue({ items: [item] });
+  const pinia = createPinia();
+  useImportQueue(pinia).entries.push({ key: 1, name: item.originalName, receiptId: item.id, receipt: item, libraryId: item.libraryId, state: 'added' });
+  const view = mount(ImportReceiptsPanel, { global: { plugins: [pinia, await routerFor('/imports')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  await flushPromises();
+  expect(view.get('.import-list').text()).toContain(item.originalName);
+  expect(view.get('.import-list a').attributes('href')).toBe('/books/sample/read');
+});
+
+it('reloads history when an import finishes during an in-flight history request', async () => {
+  let resolve!: (page: Awaited<ReturnType<typeof api.listTXTReceipts>>) => void;
+  const list = vi.spyOn(api, 'listTXTReceipts').mockReturnValueOnce(new Promise(done => { resolve = done; })).mockResolvedValue({ items: [receipt({ state: 'published', libraryId: 'sample' })] });
+  const pinia = createPinia();
+  const view = mount(ImportReceiptsPanel, { global: { plugins: [pinia, await routerFor('/imports')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  useImportQueue(pinia).updateReceipt(receipt({ state: 'published', libraryId: 'sample' }));
+  await flushPromises();
+  resolve({ items: [receipt({ state: 'ready' })] }); await flushPromises();
+  expect(list).toHaveBeenCalledTimes(2);
+  expect(view.get('.import-list a').attributes('href')).toBe('/books/sample/read');
 });

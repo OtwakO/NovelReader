@@ -15,9 +15,6 @@ export default defineComponent({
     failures: [] as { id: string; name: string; cause: unknown }[], timer: undefined as ReturnType<typeof setInterval> | undefined,
     states: ['needs_review', 'analysis_failed', 'ready', 'published'],
   }),
-  computed: {
-    visibleRecords(): TXTReceipt[] { return this.records.filter(item => !this.queue.entries.some(entry => entry.receiptId === item.id)); },
-  },
   watch: { after() { this.changePage(); }, filter() { this.changePage(); }, 'queue.revision'() { this.refresh(); } },
   mounted() {
     this.refresh();
@@ -29,8 +26,13 @@ export default defineComponent({
   methods: {
     importErrorKey,
     async load(signal: AbortSignal) {
-      const page = await listTXTReceipts(this.after, this.filter, signal);
-      signal.throwIfAborted(); this.records = page.items; this.next = page.nextCursor || '';
+      // Completion can arrive while the task is busy; don't lose that refresh.
+      let revision: number;
+      do {
+        revision = this.queue.revision;
+        const page = await listTXTReceipts(this.after, this.filter, signal);
+        signal.throwIfAborted(); this.records = page.items; this.next = page.nextCursor || '';
+      } while (revision !== this.queue.revision);
     },
     refresh() { void this.task.run(this.load); },
     changePage() { this.task.cancel(); this.selected = []; this.refresh(); },
@@ -70,9 +72,9 @@ export default defineComponent({
     <p v-if="task.error" role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
     <p v-if="added !== undefined" role="status">{{ $t('imports.batchResult', { added, failed: failures.length }) }}</p>
     <p v-for="failure in failures" :key="failure.id" class="import-error">{{ failure.name }}: {{ $t(importErrorKey(failure.cause)) }}</p>
-    <p v-if="!visibleRecords.length && !task.busy">{{ $t('imports.noResults') }}</p>
+    <p v-if="!records.length && !task.busy">{{ $t('imports.noResults') }}</p>
     <ul class="import-list">
-      <li v-for="item in visibleRecords" :key="item.id">
+      <li v-for="item in records" :key="item.id">
         <label class="import-selection"><input type="checkbox" :aria-label="$t('imports.selectFile', { name: item.originalName })" :checked="selected.some(value => value.id === item.id)" :disabled="item.state !== 'ready' || task.busy" @change="toggle(item, ($event.target as HTMLInputElement).checked)"></label>
         <div class="import-copy"><strong>{{ item.originalName }}</strong><span>{{ $t(`imports.state.${item.state}`) }}</span></div>
         <RouterLink v-if="item.libraryId && item.state !== 'removing'" class="app-button app-button--secondary import-read" :to="{ name: 'reader', params: { bookId: item.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
