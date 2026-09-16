@@ -1,4 +1,5 @@
 export default {
+  guidance: { title: '尋找下一本想讀的書', description: '輸入書名或作者，搜尋已啟用的書源。本地匯入的 TXT 書籍請到書架查看。', sources: '管理書源', noSources: '尚無可搜尋的書源', enableSources: '請新增書源，或啟用現有書源的文字搜尋，再試一次。' },
   title: '搜尋', description: '依書名或作者搜尋已啟用書源。結果會逐步出現，同一本書會合併顯示，但不會隱藏可用書源。',
   form: { label: '書名或作者', placeholder: '搜尋書名或作者…' },
   actions: { search: '搜尋', stop: '停止', retry: '重試目前批次', restart: '重新搜尋', more: '繼續掃描 {count} 個書源' },

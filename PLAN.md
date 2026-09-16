@@ -118,11 +118,11 @@ The completed [import layout and selector refinement](docs/plans/2026-09-15-impo
 adds distinct review/inbox task panes and fixes shared selector widths, truncation and viewport placement.
 The completed [action-affordance pass](docs/plans/2026-09-16-action-affordances.md) unifies button presentation,
 aligns book-detail/reparse controls, fills the desktop prose preview, and updates locale/brand presentation.
+The [reader-first presentation pass](docs/plans/2026-09-16-reader-first-presentation.md) is complete: clearer typography/navigation, reader-first Settings and task guidance, retaining current fonts and parchment colors.
 Manual usability feedback is next.
 
 ## Active Work
 
-- [Reader-first presentation](docs/plans/2026-09-16-reader-first-presentation.md) — accepted typography, navigation, Settings and task-clarity refinement; current fonts and parchment theme retained.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 

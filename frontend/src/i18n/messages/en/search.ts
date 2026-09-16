@@ -1,4 +1,5 @@
 export default {
+  guidance: { title: 'Find your next book', description: 'Enter a book title or author to search your enabled book sources. Local TXT books are available on your shelf.', sources: 'Manage book sources', noSources: 'No searchable sources enabled', enableSources: 'Add a book source or enable text search for an existing source, then search again.' },
   title: 'Search', description: 'Search enabled sources by title or author. Results appear progressively and equivalent books are consolidated without hiding their available sources.',
   form: { label: 'Book title or author', placeholder: 'Search by title or author…' },
   actions: { search: 'Search', stop: 'Stop', retry: 'Retry this batch', restart: 'Restart search', more: 'Scan {count} more sources' },

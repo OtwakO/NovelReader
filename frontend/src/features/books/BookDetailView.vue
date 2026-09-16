@@ -288,7 +288,7 @@ export default defineComponent({
               :to="readerResumeLocation(book)"
               >
 <AppIcon name="book" />{{ $t("bookDetail.continue") }}
-</RouterLink><AppButton variant="danger" @click="confirmingRemove = true">
+</RouterLink><AppButton variant="quiet" @click="confirmingRemove = true">
 {{
               $t("bookDetail.remove")
             }}

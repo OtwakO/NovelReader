@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 updated: 2026-09-16
 ---
 
@@ -16,10 +16,10 @@ Unify the existing parchment interface with clearer typography, navigation and t
 - No new dependencies, services, fetching architecture, or reader data changes.
 
 ## Current State
-Implementation complete and verified in the working tree. Shared typography/control and navigation changes form the first checkpoint; reader-first Settings, clearer task wording/search guidance and quieter pre-confirmation removal form the second. No new packages or backend changes. Settings template formatting makes the reordered groups explicit.
+Implemented and verified. Shared typography/control and navigation checkpoint: `6af32e9`. Reader-first Settings, clearer task wording/search guidance and quieter pre-confirmation removal are recorded in `feat: make settings and search reader focused`. No new packages or backend changes. Settings template formatting makes the reordered groups explicit.
 
 ## Next Action
-Commit the two verified checkpoints and mark this plan complete.
+No implementation pending in this scope. Manual usability feedback is next; retain current fonts and user-controlled reader prose.
 
 ## Verification
 - Affected boundaries: 12 test files / 40 tests passed. Full frontend: 70 files / 264 tests passed after shared CSS changes.

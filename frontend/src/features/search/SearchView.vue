@@ -1,5 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
+import { RouterLink } from 'vue-router';
 import type { SearchResult } from '../../api/search';
 import FeatureScaffold from '../../ui/components/FeatureScaffold.vue';
 import AppButton from '../../ui/components/AppButton.vue';
@@ -11,7 +12,7 @@ import { useSearchStore } from './search-store';
 
 export default defineComponent({
   name: 'SearchView',
-  components: { FeatureScaffold, AppButton, SearchControls, SearchResultCard, SearchStatus },
+  components: { RouterLink, FeatureScaffold, AppButton, SearchControls, SearchResultCard, SearchStatus },
   data() { return { search: useSearchStore() }; },
   mounted() {
     this.search.initialize();
@@ -47,6 +48,16 @@ export default defineComponent({
       <SearchControls v-model:batch-size="search.batchSize" v-model:intensity="search.intensity" v-model:advanced-concurrency="search.advancedConcurrency" @change="search.persistPreferences()" />
       <SearchStatus v-if="search.searchedQuery" :checked="search.checked" :eligible="search.eligible" :result-count="search.resultCount" :searching="search.searching" :concurrency="search.effectiveConcurrency || search.activeConcurrency" :source-failures="search.sourceFailures" :error-code="search.errorCode" :error-detail="search.errorDetail" :storage-warning="search.storageWarning" :restart-required="search.restartRequired" :retry-required="search.retryRequired" :has-more="search.hasMore" :more-count="search.moreCount" @restart="search.restart()" @retry="search.retry()" @more="search.more()" />
 
+      <section v-if="!search.searchedQuery" class="search-guidance">
+        <h2>{{ $t('search.guidance.title') }}</h2>
+        <p>{{ $t('search.guidance.description') }}</p>
+        <RouterLink to="/sources">{{ $t('search.guidance.sources') }}</RouterLink>
+      </section>
+      <section v-else-if="!search.searching && !search.retryRequired && !search.restartRequired && search.eligible === 0 && !search.results.length" class="search-guidance">
+        <h2>{{ $t('search.guidance.noSources') }}</h2>
+        <p>{{ $t('search.guidance.enableSources') }}</p>
+        <RouterLink class="app-button app-button--secondary" to="/sources">{{ $t('search.guidance.sources') }}</RouterLink>
+      </section>
       <section v-if="search.results.length" class="results" :aria-label="$t('search.results.label')">
         <header><strong>{{ $t('search.results.summary', { count: search.resultCount }) }}</strong><span v-if="search.multipleSourceCount">{{ $t('search.results.multiple', { count: search.multipleSourceCount }) }}</span></header>
         <div class="result-list">
@@ -67,12 +78,15 @@ export default defineComponent({
           </div>
         </div>
       </section>
-      <section v-else-if="search.searchedQuery && !search.searching && !search.retryRequired && !search.hasMore" class="empty"><h2>{{ $t('search.empty.title') }}</h2><p>{{ $t('search.empty.description') }}</p></section>
+      <section v-else-if="search.searchedQuery && search.eligible > 0 && !search.searching && !search.retryRequired && !search.restartRequired && !search.hasMore" class="empty"><h2>{{ $t('search.empty.title') }}</h2><p>{{ $t('search.empty.description') }}</p></section>
     </div>
   </FeatureScaffold>
 </template>
 
 <style scoped>
+.search-guidance { max-width: 42rem; padding-block: var(--space-5); }
+.search-guidance h2 { margin: 0 0 var(--space-2); }
+.search-guidance p { margin: 0 0 var(--space-3); color: var(--color-ink-muted); }
 .search-layout { display: grid; gap: 1rem; }.search-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .65rem; }.search-form input { min-width: 0; min-height: 3rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .7rem .9rem; background: var(--color-paper-raised); color: var(--color-ink); font-size: var(--text-body); }
 .results header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; color: var(--color-ink-muted); }.result-list { display: grid; gap: .7rem; }.notice { margin: .35rem .75rem 0; font-size: var(--text-small); }.success { color: var(--color-success); }.error { color: var(--color-danger); }.empty { padding: 2rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); text-align: center; }.empty h2 { font-family: var(--font-literary); }.empty p { color: var(--color-ink-muted); }
 @media (max-width: 30rem) { .search-form { grid-template-columns: 1fr; }.search-form :deep(.app-button) { width: 100%; } }

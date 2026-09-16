@@ -15,3 +15,5 @@
 - Reparse keeps reading/return actions together in the page header; current encoding and chapter rules use labeled values. Status recovery belongs inside its contextual notice, not a permanent refresh toolbar. Recover by reading status, never replaying an uncertain mutation.
 
 Feature components own their data, mutations, polling and error recovery. Shared components own presentation and basic interaction only. Prefer a shared CSS rule for simple layout, a component for repeated markup/interaction, and no wrapper whose only job is passing calls through.
+
+Settings keeps language and reading defaults ahead of custom fonts and advanced diagnostics. Diagnostics mount only when their disclosure opens. Native ranges retain browser keyboard behavior and use the shared accent. Search guidance uses the existing search session: never infer missing sources from a failed/interrupted request or add a separate discovery request just for an empty state. Destructive confirmation actions retain danger styling; the initial book-removal trigger is quiet.
