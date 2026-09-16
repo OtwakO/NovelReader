@@ -14,7 +14,7 @@ afterEach(() => { wrappers.splice(0).forEach(view => view.unmount()); vi.restore
 const receipt = (changes: Partial<api.TXTReceipt> = {}): api.TXTReceipt => ({ id: 'sample', originalName: 'sample.txt', state: 'needs_review', size: 100, createdAt: 0, updatedAt: 0, analysisVersion: 1, encoding: '', preset: '', hasError: false, ...changes });
 const preview = (version = 1): api.TXTPreview => ({ analysisVersion: version, encoding: 'utf-8', preset: 'generated-sections', parserVersion: 1, reviewReasons: ['no-headings'], totalSections: 1, headings: [{ index: 0, title: 'Section 1', generated: true }], hasMore: false, sample: '<script>literal prose</script>', sampleTruncated: true });
 async function routerFor(path: string) {
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/imports/:id?', component: { template: '<div />' } }, { path: '/books/:bookId/read', name: 'reader', component: { template: '<div />' } }] });
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/imports/:id?', component: { template: '<div />' } }, { path: '/books/:bookId/read', name: 'reader', component: { template: '<div />' } }, { path: '/books/:bookId', name: 'book-detail', component: { template: '<div />' } }] });
   await router.push(path); await router.isReady(); return router;
 }
 function button(view: VueWrapper, key: string) { return view.findAll('button').find(item => item.text() === key)!; }
@@ -177,7 +177,8 @@ it('shows persisted imports even while their completed transfer remains in this 
   const view = mount(ImportReceiptsPanel, { global: { plugins: [pinia, await routerFor('/imports')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
   await flushPromises();
   expect(view.get('.import-list').text()).toContain(item.originalName);
-  expect(view.get('.import-list a').attributes('href')).toBe('/books/sample/read');
+  expect(view.get('.import-list a').attributes('href')).toBe('/books/sample');
+  expect(view.get('.import-list a').text()).toBe('bookDetail.title');
 });
 
 it('reloads history when an import finishes during an in-flight history request', async () => {
@@ -189,5 +190,6 @@ it('reloads history when an import finishes during an in-flight history request'
   await flushPromises();
   resolve({ items: [receipt({ state: 'ready' })] }); await flushPromises();
   expect(list).toHaveBeenCalledTimes(2);
-  expect(view.get('.import-list a').attributes('href')).toBe('/books/sample/read');
+  expect(view.get('.import-list a').attributes('href')).toBe('/books/sample');
+  expect(view.get('.import-list a').text()).toBe('bookDetail.title');
 });

@@ -77,7 +77,7 @@ export default defineComponent({
       <li v-for="item in records" :key="item.id">
         <label class="import-selection"><input type="checkbox" :aria-label="$t('imports.selectFile', { name: item.originalName })" :checked="selected.some(value => value.id === item.id)" :disabled="item.state !== 'ready' || task.busy" @change="toggle(item, ($event.target as HTMLInputElement).checked)"></label>
         <div class="import-copy"><strong>{{ item.originalName }}</strong><span>{{ $t(`imports.state.${item.state}`) }}</span></div>
-        <RouterLink v-if="item.libraryId && item.state !== 'removing'" class="app-button app-button--secondary import-read" :to="{ name: 'reader', params: { bookId: item.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
+        <RouterLink v-if="item.libraryId && item.state !== 'removing'" class="app-button app-button--secondary import-read" :to="{ name: 'book-detail', params: { bookId: item.libraryId } }">{{ $t('bookDetail.title') }}</RouterLink>
         <AppButton v-else variant="secondary" @click="$emit('review', item.id)">{{ $t('imports.flow.checkBook') }}</AppButton>
       </li>
     </ul>
