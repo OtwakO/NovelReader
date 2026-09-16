@@ -1,8 +1,15 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import BookCover from './BookCover.vue';
+import defaultCoverURL from '../../assets/covers/default-book-cover.webp';
 
 describe('BookCover', () => {
+  it('uses the artwork without title text for missing covers, preserving lazy loading and alt text', () => {
+    const wrapper = mount(BookCover, { props: { name: 'Book', lazy: true, alt: 'Book cover' } });
+    const image = wrapper.get('.cover-image');
+    expect(image.attributes()).toMatchObject({ src: defaultCoverURL, loading: 'lazy', alt: 'Book cover' });
+    expect(wrapper.text()).toBe('');
+  });
   it('adds a subdued backdrop only when the source ratio does not fit the standard cover frame', async () => {
     const wrapper = mount(BookCover, { props: { name: 'Book', url: '/cover.jpg', alt: 'cover' } });
     const image = wrapper.get<HTMLImageElement>('.cover-image');
@@ -23,12 +30,15 @@ describe('BookCover', () => {
     expect(standardWrapper.find('.cover-backdrop').exists()).toBe(false);
   });
 
-  it('falls back to the book initial when the remote image fails', async () => {
+  it('uses the artwork for a failed cover and retries when the cover URL changes', async () => {
     const wrapper = mount(BookCover, { props: { name: '凡人修仙传', url: 'https://example.invalid/cover.jpg', alt: 'cover' } });
     expect(wrapper.find('img').exists()).toBe(true);
     await wrapper.get('.cover-image').trigger('error');
-    expect(wrapper.find('img').exists()).toBe(false);
-    expect(wrapper.text()).toContain('凡');
+    expect(wrapper.get('.cover-image').attributes('src')).toBe(defaultCoverURL);
+    expect(wrapper.text()).toBe('');
+    expect(wrapper.find('.cover-backdrop').exists()).toBe(false);
+    await wrapper.setProps({ url: '/api/covers/new-cover' });
+    expect(wrapper.get('.cover-image').attributes('src')).toBe('/api/covers/new-cover');
   });
 });
 
