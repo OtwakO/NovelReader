@@ -333,7 +333,7 @@ export default defineComponent({
   flex: none;
   padding: 0.3rem 0.55rem;
   border-radius: 999px;
-  background: var(--color-paper-raised);
+  background: var(--color-paper-muted);
   color: var(--color-ink-muted);
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
