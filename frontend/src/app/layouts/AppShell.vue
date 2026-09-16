@@ -87,7 +87,7 @@ export default defineComponent({
 .brand img { display: block; width: 3rem; height: 3rem; }
 .nav-group { display: grid; gap: .3rem; }
 .nav-group--secondary { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--color-border); }
-.nav-group a { min-height: 2.75rem; display: flex; align-items: center; gap: .75rem; padding: .55rem .75rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-size: var(--text-small); font-weight: var(--weight-regular); }
+.nav-group a { min-height: 2.75rem; display: flex; align-items: center; gap: .75rem; padding: .55rem .75rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-size: var(--text-body); font-weight: var(--weight-regular); }
 .nav-group a.router-link-active { font-weight: var(--weight-strong); background: var(--color-accent-soft); color: var(--color-accent-strong); }
 .desktop-locale { display: flex; justify-content: center; }
 .app-content { min-width: 0; padding: clamp(1rem, 3vw, 2.5rem); }
