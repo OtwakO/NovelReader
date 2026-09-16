@@ -48,6 +48,17 @@ These exclusions narrow fidelity, not data ownership: preserve the original unch
 
 **Main cost:** semantic documents and navigation, plus lifecycle integration. ZIP/XML decoding alone is not the milestone. The first checkpoint must exercise these costs before committing to detailed persistence.
 
+### Reader references and performance
+
+The user clarified that original publisher layout is unnecessary and efficiency/performance matter. [Legado/web-legado/Readest findings](../notes/2026-09-17-epub-reader-reference-lessons.md) support app-owned responsive typography while preserving semantics. Readest's polished reading layout does not require adopting its Foliate browser-rendering stack; Readium Go is a separate package-parsing candidate.
+
+- Prepare and persist semantic sections once, processing one section at a time. Ordinary reading must not download, inflate, parse or mount the whole book.
+- Keep images separate and lazy; preserve validated dimensions where available to reduce layout shift. Reader style changes reflow local content, not trigger reimport.
+- Reuse the shared chapter loader's request deduplication and bounded recent cache/prefetch. Check whether rich-section byte limits or byte-weighted retention are needed; do not create an EPUB-only cache owner.
+- Include a large single-spine document in the first proof. A section can contain much more than a conventional chapter; do not assume five cached sections means small memory, or add speculative splitting/virtualization before measuring.
+- Preserve the current reading mode. Use fluid single-column phone text and comfortable desktop measure; no new full-book pagination, dual original/parsed modes or unrelated reader redesign in this milestone. Borrow Readest's quiet controls and contextual navigation, not its entire feature set.
+- Record import time/peak memory, prepared size, cold/warm section payload/load and image layout movement on a small normal fixture and a large-section/image-heavy fixture. These focused observations inform limits and parser choice; no benchmark framework or unmeasured speed claims.
+
 ## Evidence from the current code
 
 - `backend/internal/reading/service.go`: a private provider interface already separates catalog/open/location lookup; `resolve` chooses BookSource or TXT. Add one concrete EPUB adapter here, not registration machinery.
@@ -127,7 +138,7 @@ EPUB is an untrusted archive, so these are necessary boundary checks, not a gene
 
 ## Delivery checkpoints
 
-1. **Contract proof, before broad plumbing.** Evaluate Readium's EPUB parser through its existing resource seam (or narrower exported package/navigation functions): enforce local-only bounded/cancellable reads, preserve fatal errors that optional parsing may suppress, and check the actual build/dependency graph. Prefer standard-library EPUB glue if reliable integration requires a substantial fork or duplicates the reused logic. No dependency adoption merely on README claims. Build minimal synthetic EPUB 2/3 fixtures containing a main sequence, multiple TOC anchors in one file, cross-document notes and illustrations. Validate parser/semantic document/renderer/navigation together. Freeze the version-2 schema, section/TOC/auxiliary rules, semantic support matrix, limits and exact failure categories. Check EPUB 2 primary references. If this requires a fundamentally different location or renderer model, stop and revisit scope rather than stacking exceptions.
+1. **Contract proof, before broad plumbing.** Evaluate Readium's EPUB parser through its existing resource seam (or narrower exported package/navigation functions): enforce local-only bounded/cancellable reads, preserve fatal errors that optional parsing may suppress, and check the actual build/dependency graph. Prefer standard-library EPUB glue if reliable integration requires a substantial fork or duplicates the reused logic. No dependency adoption merely on README claims; measure resource use and include a large single-spine document before accepting the parser/section design. Build minimal synthetic EPUB 2/3 fixtures containing a main sequence, multiple TOC anchors in one file, cross-document notes and illustrations. Validate parser/semantic document/renderer/navigation together. Freeze the version-2 schema, section/TOC/auxiliary rules, semantic support matrix, limits and exact failure categories. Check EPUB 2 primary references. If this requires a fundamentally different location or renderer model, stop and revisit scope rather than stacking exceptions.
 2. **Durable provider and lifecycle.** Write exact DDL/legal-state table after cutover approval. Implement original acquisition, preparation, generation guards, publication, reading/resources, portable validation and removal/recovery. Extract the shared import scheduler/transfer seam with TXT behavior preserved. Verify at storage/reading boundaries before exposing unfinished imports.
 3. **Product integration.** Browser and inbox EPUB routes, one Local Import queue/history/review flow, cover/detail/shelf capability wiring, semantic reader/TOC/note integration and existing preference behavior. Preserve TXT-specific controls only for TXT. Do not expose EPUB reparse controls.
 4. **Composed verification and documentation.** Fresh isolated real-server upload and inbox journeys, read/link/note/resume/bookmark, backup/restore/removal, plus focused TXT/BookSource regressions. Update current usage/architecture docs when functionality actually lands. Complete the plan only at the recorded verification scope.
@@ -146,7 +157,7 @@ Use a few generated synthetic archives rather than a large copyrighted corpus. F
 
 ## Current State
 
-Planning only. User accepted the product direction and requested deeper consideration. Current provider, prose, import-worker, portable-state and frontend seams were inspected; EPUB 3.3 spine/navigation/font-obfuscation requirements were checked. Four Go EPUB readers were compared against commit-pinned source; Readium is the proposed reuse candidate, not yet an adopted dependency. See the linked research note for tradeoffs and fallback criteria. No EPUB code, dependencies, schema or tests have been added. Existing untracked frontend prototypes are unrelated and remain untouched.
+Planning only. User accepted the product direction and requested deeper consideration. Current provider, prose, import-worker, portable-state and frontend seams were inspected; EPUB 3.3 spine/navigation/font-obfuscation requirements were checked. Four Go EPUB readers were compared against commit-pinned source; Readium is the proposed reuse candidate, not yet an adopted dependency. Legado-E and Readest source plus a Readest desktop screenshot were inspected; web-legado evidence comes from retained local runtime/binary research notes, not fresh implementation verification. The user clarified app-owned layout and performance priorities; the reference note and performance requirements above capture their implications. See the linked research note for tradeoffs and fallback criteria. No EPUB code, dependencies, schema or tests have been added. Existing untracked frontend prototypes are unrelated and remain untouched.
 
 ## Next Action
 
@@ -154,6 +165,6 @@ Review/accept the bounded proposal and confirm the fresh-data schema cutover pol
 
 ## Verification
 
-Performed: read-only code/document inspection, targeted EPUB 3.3 primary-reference checks and commit-pinned Go library research. Readium's parser error handling and archive fetcher's context handling were independently rechecked against source. Documentation whitespace/path checks are the only intended checks in this planning change.
+Performed: read-only code/document inspection, targeted EPUB 3.3 primary-reference checks and commit-pinned Go library research. Readium's parser error handling and archive fetcher's context handling were independently rechecked against source. Reader-reference investigation covered Legado-E/Readest source, Readest's checked-in desktop screenshot and qualified web-legado local notes; no reference app performance was measured. Documentation whitespace/path checks are the only intended checks in this planning change.
 
 Not performed: EPUB parsing experiments, code tests, browser validation, performance measurements, EPUB 2 primary-reference verification or real-book compatibility checks. Architectural feasibility is reasoned from current seams, not yet demonstrated by a working EPUB implementation.
