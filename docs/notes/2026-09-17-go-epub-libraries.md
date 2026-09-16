@@ -1,6 +1,6 @@
 # Go EPUB reader libraries: bounded server import
 
-Status: research, not a dependency decision. Supports the proposed [EPUB milestone](../plans/2026-09-17-epub-support.md).
+Status: historical preimplementation research. The subsequent build proof and user decision to use focused Go parsing are recorded in the [active EPUB plan](../plans/2026-09-17-epub-support.md#current-state). The proposed Readium evaluation below was performed and is no longer an open dependency choice.
 
 ## Recommendation
 
