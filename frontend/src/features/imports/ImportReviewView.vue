@@ -83,7 +83,7 @@ export default defineComponent({
 
 <template>
   <section class="import-editor" aria-labelledby="import-review-title">
-    <header class="import-editor-heading"><h2 id="import-review-title" tabindex="-1">{{ receipt?.originalName || $t('imports.review') }}</h2><div class="app-actions import-actions"><AppButton v-if="receipt && ['ready', 'needs_review'].includes(receipt.state)" type="submit" form="import-add-form" :busy="task.busy" :disabled="!canAccept">{{ $t('imports.confirmAdd') }}</AppButton><AppButton variant="quiet" :disabled="task.busy" @click="$emit('close')">{{ $t('imports.flow.closeReview') }}</AppButton></div></header>
+    <header class="import-editor-heading"><h2 id="import-review-title" tabindex="-1">{{ receipt?.originalName || $t('imports.review') }}</h2><div class="app-actions import-actions"><AppButton variant="quiet" :disabled="task.busy" @click="$emit('close')">{{ $t('imports.flow.closeReview') }}</AppButton></div></header>
     <p v-if="task.error && !(patternError && canAnalyze && preset === 'custom')" role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
     <template v-if="removed">
       <p role="status">{{ $t(cleanupPending ? (receipt?.libraryId ? 'imports.libraryCleanupPending' : 'imports.cleanupPending') : 'imports.discarded') }}</p>
@@ -114,7 +114,10 @@ export default defineComponent({
         </AppDisclosure>
       </form>
       <section v-if="receipt && !receipt.libraryId" class="import-section">
-        <AppButton variant="quiet" :disabled="task.busy" @click="confirmDiscard = true">{{ $t('imports.discard') }}</AppButton>
+        <div class="app-actions">
+          <AppButton v-if="['ready', 'needs_review'].includes(receipt.state)" type="submit" form="import-add-form" :busy="task.busy" :disabled="!canAccept">{{ $t('imports.confirmAdd') }}</AppButton>
+          <AppButton variant="quiet" :disabled="task.busy" @click="confirmDiscard = true">{{ $t('imports.discard') }}</AppButton>
+        </div>
         <div v-if="confirmDiscard" class="import-confirmation">
           <p>{{ $t('imports.discardConfirm', { name: receipt.originalName }) }}</p>
           <div class="app-actions">

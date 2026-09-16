@@ -32,6 +32,10 @@ it('renders literal bounded preview and only admits the explicitly reviewed vers
   expect(view.text()).toContain('imports.flow.chapterCount');
   expect(button(view, 'imports.refresh')).toBeUndefined();
   expect(view.find('.import-review-status').exists()).toBe(false);
+  const add = button(view, 'imports.confirmAdd');
+  expect(add.element.parentElement).toBe(button(view, 'imports.discard').element.parentElement);
+  expect(add.attributes('form')).toBe(view.get('form').attributes('id'));
+  expect(view.get('.import-editor-heading').text()).not.toContain('imports.confirmAdd');
   await view.findAll('select')[0]!.setValue('big5');
   expect(button(view, 'imports.confirmAdd').attributes('disabled')).toBeDefined();
   expect(analyze).not.toHaveBeenCalled();
