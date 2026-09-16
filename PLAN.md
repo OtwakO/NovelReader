@@ -126,12 +126,13 @@ Manual usability feedback is next.
 
 ## Active Work
 
+[EPUB support](docs/plans/2026-09-17-epub-support.md) — planning the next milestone: structured DRM-free reflowable EPUB 2/3 through browser and server-inbox import, using the shared library and prose reader. Product direction selected; detailed architecture proposal and schema cutover await approval. No EPUB implementation yet.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities
 
-1. The accepted [TXT/shared-library workstream](docs/plans/2026-09-10-multi-provider-library.md) is complete at its recorded verification scope, including custom patterns and published reparse. Manual testing is next, including the completed post-review corrections. Choose any next feature separately with the user; optional batch enhancements and EPUB are not implicit implementation tasks. Existing data remains untouched; the user handles development resets.
+1. Review the [EPUB milestone proposal](docs/plans/2026-09-17-epub-support.md), confirm its architecture and schema cutover, then begin the small content/navigation contract checkpoint when implementation is authorized. TXT/shared-library work is complete at its recorded verification scope; do not reopen its historical plan. Existing data remains untouched; the user handles development resets.
 2. Keep future work proportional to its risk: reuse the established storage, reading and lifecycle owners, use focused verification, and avoid speculative frameworks. The completed TXT plan is historical evidence, not an active backlog.
 3. The accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), bounded browser-UA provider and [browser lifecycle hardening](docs/plans/browser-worker-lifecycle.md) are implemented. Confirm any next compatibility slice with the user before implementation; retain the recorded verification limits. Do not claim universal compatibility.
 4. Select further compatibility slices from current evidence rather than historical unchecked boxes; introduce image-sequence documents and structured locations only when that modality becomes active work.
