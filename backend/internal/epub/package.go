@@ -14,18 +14,19 @@ const (
 )
 
 // Package is an inspected inventory, NOT a prepared or publishable book.
-// Content semantics, navigation target anchors, encryption and media validation must still pass
+// Content semantics, navigation target anchors and media bytes must still pass
 // preparation. These archive references must never be serialized to clients.
 type Package struct {
-	Version    string
-	Path       string
-	Title      string
-	Authors    []string
-	Language   string
-	Items      []Item
-	Spine      []SpineItem
-	NCXID      string
-	Navigation Navigation
+	Version     string
+	Path        string
+	Title       string
+	Authors     []string
+	Language    string
+	Items       []Item
+	Spine       []SpineItem
+	NCXID       string
+	Navigation  Navigation
+	Diagnostics []string
 }
 
 type Item struct {
@@ -37,12 +38,15 @@ type Item struct {
 }
 
 type SpineItem struct {
+	// ContentID selects the supported manifest item after declared fallbacks.
+	// ID retains the original spine identity; order and Linear never change.
+	ContentID  string
 	ID         string
 	Linear     bool
 	Properties []string
 }
 
-// Inspect reads container/package and optional navigation metadata. It leaves original ownership
+// Inspect checks package support declarations and optional navigation. It leaves original ownership
 // with the caller, does not retain chapter bytes, and has no network access.
 func Inspect(ctx context.Context, original io.ReaderAt, size int64) (Package, error) {
 	a, err := openArchive(ctx, original, size)
@@ -88,6 +92,9 @@ func Inspect(ctx context.Context, original io.ReaderAt, size int64) (Package, er
 	if err != nil {
 		return Package{}, err
 	}
+	if err := classifySupport(ctx, a, &p, doc); err != nil {
+		return Package{}, err
+	}
 	p.Navigation, err = inspectNavigation(ctx, a, p)
 	if err != nil {
 		return Package{}, err
@@ -112,6 +119,7 @@ func inspectPackage(ctx context.Context, name string, doc packageXML) (Package, 
 		}
 	}
 	ids := make(map[string]bool, len(doc.Items))
+	paths := make(map[string]string, len(doc.Items))
 	for _, item := range doc.Items {
 		if err := ctx.Err(); err != nil {
 			return Package{}, err
@@ -123,10 +131,13 @@ func inspectPackage(ctx context.Context, name string, doc packageXML) (Package, 
 		if err != nil {
 			return Package{}, fmt.Errorf("%w: %w", ErrPackage, err)
 		}
-		if ref.Fragment != "" {
+		// Multiple IDs may alias one resource. Conflicting media declarations
+		// cannot safely share resource-level encryption/content classification.
+		if ref.Fragment != "" || (paths[ref.Path] != "" && paths[ref.Path] != item.MediaType) {
 			return Package{}, ErrPackage
 		}
 		ids[item.ID] = true
+		paths[ref.Path] = item.MediaType
 		p.Items = append(p.Items, Item{ID: item.ID, Reference: ref, MediaType: item.MediaType, Properties: strings.Fields(item.Properties), Fallback: item.Fallback})
 	}
 	linear := 0
@@ -157,10 +168,18 @@ func inspectPackage(ctx context.Context, name string, doc packageXML) (Package, 
 type packageXML struct {
 	XMLName  xml.Name `xml:"http://www.idpf.org/2007/opf package"`
 	Version  string   `xml:"version,attr"`
+	Prefix   string   `xml:"prefix,attr"`
 	Metadata struct {
 		Title    string   `xml:"http://purl.org/dc/elements/1.1/ title"`
 		Authors  []string `xml:"http://purl.org/dc/elements/1.1/ creator"`
 		Language string   `xml:"http://purl.org/dc/elements/1.1/ language"`
+		Meta     []struct {
+			Property string `xml:"property,attr"`
+			Refines  string `xml:"refines,attr"`
+			Name     string `xml:"name,attr"`
+			Content  string `xml:"content,attr"`
+			Value    string `xml:",chardata"`
+		} `xml:"http://www.idpf.org/2007/opf meta"`
 	} `xml:"http://www.idpf.org/2007/opf metadata"`
 	Items []struct {
 		ID         string `xml:"id,attr"`
