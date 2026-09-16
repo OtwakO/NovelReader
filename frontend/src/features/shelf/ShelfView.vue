@@ -387,44 +387,25 @@ export default defineComponent({
 .no-matches p { margin: 0; }
 .book-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: clamp(1.25rem, 2.5vw, 2rem);
 }
 .book-card {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 0.55rem 0.55rem 0.7rem;
-  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
-  background: color-mix(in srgb, var(--color-paper-raised) 68%, transparent);
-  box-shadow: 0 0.45rem 1rem rgb(54 39 26 / 0.07);
-  transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out, transform 0.2s ease-out;
-}
-.book-card:hover,
-.book-card:focus-within {
-  border-color: color-mix(in srgb, var(--color-warm) 38%, var(--color-border));
-  box-shadow: 0 0.75rem 1.5rem rgb(54 39 26 / 0.12);
-  transform: translateY(-0.15rem);
 }
 .shelf-cover {
   width: 100%;
   aspect-ratio: 3/4;
   border-radius: 0;
-  box-shadow: inset 0.22rem 0 rgb(255 255 255 / 0.12), inset -0.08rem 0 rgb(0 0 0 / 0.12), 0 0.5rem 1rem rgb(54 39 26/0.14);
-  transition:
-    transform 0.2s ease-out,
-    box-shadow 0.2s ease-out;
-}
-.book-card:hover .shelf-cover,
-.book-card:focus-within .shelf-cover {
-  transform: translateY(-0.12rem);
-  box-shadow: inset 0.22rem 0 rgb(255 255 255 / 0.14), inset -0.08rem 0 rgb(0 0 0 / 0.14), 0 0.75rem 1.35rem rgb(54 39 26/0.18);
+  box-shadow: 0 0.4rem 0.9rem rgb(54 39 26 / 0.11);
 }
 .book-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 0.85rem 0.1rem 0.7rem;
+  padding: 0.75rem 0;
 }
 .book-copy > a {
   color: var(--color-ink);
@@ -436,8 +417,12 @@ export default defineComponent({
   font: var(--weight-strong) var(--text-subheading)/1.35 var(--font-literary);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 .book-copy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   margin-top: 0.2rem;
   color: var(--color-ink-muted);
   font-size: var(--text-small);
@@ -450,13 +435,16 @@ export default defineComponent({
 }
 .book-copy p b,
 .book-copy p > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-size: var(--text-small);
+  line-height: var(--line-ui);
 }
 .book-copy p b {
-  font-weight: var(--weight-strong);
+  font-weight: var(--weight-regular);
 }
 .book-copy .latest {
   margin-top: 0.5rem;
@@ -464,14 +452,15 @@ export default defineComponent({
 }
 .book-footer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.55rem 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.55rem;
   margin-top: auto;
 }
 .book-footer > div:first-child {
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
   color: var(--color-ink-muted);
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
@@ -479,13 +468,9 @@ export default defineComponent({
 .book-footer > div:first-child strong {
   color: var(--color-ink);
 }
-.book-footer > .progress-track {
-  grid-column: 1;
-}
 .resume {
-  grid-column: 2;
-  grid-row: 1/3;
-  align-self: end;
+  width: 100%;
+  margin-top: 0.2rem;
   padding-inline: .75rem;
 }
 .book-copy > a:hover {
@@ -499,9 +484,20 @@ export default defineComponent({
   .continue-cover {
     width: 8rem;
   }
+}
+@media (max-width: 56.25rem) {
   .book-grid {
-    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
-    gap: 1.25rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+}
+@media (max-width: 37.5rem) {
+  .book-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .book-copy .latest {
+    display: none;
   }
 }
 @media (max-width: 34rem) {
@@ -531,21 +527,6 @@ export default defineComponent({
   .continue-actions .app-button--primary {
     flex: 1 1 10rem;
   }
-  .book-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-  }
-  .book-footer {
-    grid-template-columns: 1fr;
-  }
-  .resume {
-    grid-column: 1;
-    grid-row: auto;
-    width: 100%;
-  }
-  .book-footer > .progress-track {
-    grid-column: 1;
-  }
   .shelf-section > header {
     align-items: start;
   }
@@ -554,8 +535,8 @@ export default defineComponent({
   }
 }
 @media (max-width: 22rem) {
-  .book-grid {
-    grid-template-columns: 1fr;
+  .book-copy strong {
+    font-size: var(--text-body);
   }
 }
 </style>
