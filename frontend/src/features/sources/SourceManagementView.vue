@@ -436,7 +436,7 @@ export default defineComponent({
         </div>
         <div class="app-actions toolbar-actions">
           <AppButton @click="openCollectionDialog()">{{ $t("sources.collections.add") }}</AppButton>
-          <label class="import-button"><span>{{ $t("sources.import.openStandalone") }}</span><input
+          <label class="import-button app-button app-button--primary"><span>{{ $t("sources.import.openStandalone") }}</span><input
               type="file"
               accept=".json,application/json"
               @change="chooseFile"
@@ -698,17 +698,7 @@ export default defineComponent({
   background: var(--color-paper-muted);
   font-size: var(--text-caption);
 }
-.import-button {
-  min-height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--radius-md);
-  padding: 0.65rem 1rem;
-  background: var(--color-accent);
-  color: white;
-  font-weight: var(--weight-strong);
-  cursor: pointer;
-}
+.import-button:focus-within { outline: 3px solid var(--color-accent); outline-offset: 2px; }
 .import-button input,
 .hidden-input {
   position: absolute;

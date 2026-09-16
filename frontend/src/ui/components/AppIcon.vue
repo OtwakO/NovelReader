@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
 
-export type AppIconName = 'previous' | 'next' | 'toc' | 'source' | 'bookmark' | 'refresh' | 'settings' | 'book' | 'check' | 'shelf' | 'explore' | 'search' | 'upload' | 'account' | 'backup' | 'readers';
+export type AppIconName = 'previous' | 'next' | 'toc' | 'source' | 'bookmark' | 'refresh' | 'settings' | 'book' | 'check' | 'shelf' | 'explore' | 'search' | 'upload' | 'account' | 'backup' | 'readers' | 'sign-out';
 
 export default defineComponent({
   name: 'AppIcon',
@@ -20,6 +20,7 @@ export default defineComponent({
     <svg v-else-if="name === 'account'" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg>
     <svg v-else-if="name === 'backup'" viewBox="0 0 24 24"><path d="M4 4h16v4H4zM5 8v12h14V8M9 12h6" /></svg>
     <svg v-else-if="name === 'readers'" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3" /><path d="M2 21v-3a7 7 0 0 1 14 0v3M16 5a3 3 0 0 1 0 6m3 3a6 6 0 0 1 3 5v2" /></svg>
+    <svg v-else-if="name === 'sign-out'" viewBox="0 0 24 24"><path d="M9 4H4v16h5M9 12h12m-4-4 4 4-4 4" /></svg>
     <svg v-else-if="name === 'check'" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg>
     <svg v-else-if="name === 'toc'" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="5" cy="6" r="1" /><circle cx="5" cy="12" r="1" /><circle cx="5" cy="18" r="1" /></svg>
     <svg v-else-if="name === 'source'" viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3" /><path d="m18 7-3 3M6 17l3-3" /></svg>

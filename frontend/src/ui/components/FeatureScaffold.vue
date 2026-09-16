@@ -27,6 +27,6 @@ export default defineComponent({
 header { margin-bottom: var(--space-6); }
 .feature-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
 h1 { margin: 0; font: var(--weight-strong) var(--text-page)/var(--line-heading) var(--font-ui); }
-.feature-description { max-width: 65ch; margin: var(--space-2) 0 0; color: var(--color-ink-muted); font-size: var(--text-small); }
+.feature-description { margin: var(--space-2) 0 0; color: var(--color-ink-muted); font-size: var(--text-small); }
 .feature-context { margin: var(--space-2) 0 0; color: var(--color-ink-muted); font-size: var(--text-caption); }
 </style>

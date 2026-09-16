@@ -67,8 +67,8 @@ export default defineComponent({
       <nav v-if="mobileMenuOpen" id="mobile-management" class="mobile-management" :aria-label="$t('app.navigation.accountManagement')">
         <LocaleSwitcher />
         <ImportNavigation />
-        <RouterLink v-for="item in visibleManagementNavigation" :key="item.to" :to="item.to">{{ $t(item.labelKey) }}</RouterLink>
-        <button type="button" @click="signOut">{{ $t('app.navigation.signOut') }}</button>
+        <RouterLink v-for="item in visibleManagementNavigation" :key="item.to" :to="item.to"><AppIcon :name="item.icon" />{{ $t(item.labelKey) }}</RouterLink>
+        <button type="button" @click="signOut"><AppIcon name="sign-out" />{{ $t('app.navigation.signOut') }}</button>
       </nav>
     </header>
 
@@ -98,8 +98,8 @@ export default defineComponent({
   .mobile-header { position: fixed; z-index: 30; inset: 0 0 auto; height: 3.75rem; display: flex; align-items: center; justify-content: space-between; padding: .5rem 1rem; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-paper-raised) 94%, transparent); backdrop-filter: blur(12px); }
   .mobile-brand { color: var(--color-ink); font: var(--weight-strong) var(--text-subheading) var(--font-literary); text-decoration: none; }
   .menu-button { min-height: 2.75rem; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .5rem .75rem; background: var(--color-paper-raised); color: var(--color-ink); }
-  .mobile-management { position: absolute; top: 3.5rem; right: 1rem; width: max-content; max-width: calc(100vw - 2rem); display: grid; padding: .5rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); box-shadow: var(--shadow-card); }
-  .mobile-management a, .mobile-management button { min-height: 2.75rem; display: flex; align-items: center; border: 0; border-radius: var(--radius-sm); padding: .6rem .75rem; background: transparent; color: var(--color-ink); text-decoration: none; }
+  .mobile-management { position: absolute; top: 3.5rem; right: 1rem; width: max-content; max-width: calc(100vw - 2rem); max-height: calc(100dvh - 4.5rem); overflow-y: auto; overscroll-behavior: contain; display: grid; padding: .5rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); box-shadow: var(--shadow-card); }
+  .mobile-management > a, .mobile-management > button { gap: var(--space-3); text-align: start; overflow-wrap: anywhere; min-height: 2.75rem; display: flex; align-items: center; border: 0; border-radius: var(--radius-sm); padding: .6rem .75rem; background: transparent; color: var(--color-ink); text-decoration: none; }
   .app-content { padding: 1rem; }
   .mobile-tabs { position: fixed; z-index: 25; inset: auto 0 0; min-height: 4.25rem; display: grid; grid-template-columns: repeat(3, 1fr); padding: .35rem max(.5rem, env(safe-area-inset-right)) max(.35rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); border-top: 1px solid var(--color-border); background: var(--color-paper-raised); }
   .mobile-tabs a { min-height: 3.5rem; display: grid; place-content: center; justify-items: center; gap: .15rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-size: var(--text-caption); }
