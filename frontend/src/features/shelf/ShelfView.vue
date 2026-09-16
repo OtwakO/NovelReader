@@ -136,6 +136,8 @@ export default defineComponent({
                 })
               }}</span>
             </div>
+          </div>
+          <div class="continue-reading">
             <p class="current-chapter">
               <span>{{ $t("shelf.current") }}</span><strong>{{ currentChapter(continueBook) }}</strong>
             </p>
@@ -275,7 +277,8 @@ export default defineComponent({
 .continue-panel {
   display: grid;
   grid-template-columns: 11rem minmax(0, 1fr);
-  gap: clamp(1.25rem, 3vw, 2rem);
+  grid-template-areas: "cover identity" "cover reading";
+  column-gap: clamp(1.25rem, 3vw, 2rem);
   align-items: stretch;
   padding: clamp(1.1rem, 2.5vw, 1.6rem);
   border: 1px solid
@@ -296,6 +299,7 @@ export default defineComponent({
   text-decoration: none;
 }
 .continue-cover {
+  grid-area: cover;
   width: 11rem;
   height: auto;
   aspect-ratio: 3/4;
@@ -309,10 +313,13 @@ export default defineComponent({
   height: 100%;
 }
 .continue-copy {
+  grid-area: identity;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  align-self: end;
+}
+.continue-reading {
+  grid-area: reading;
+  min-width: 0;
 }
 .continue-heading {
   display: flex;
@@ -500,11 +507,19 @@ export default defineComponent({
 @media (max-width: 34rem) {
   .shelf-tools { grid-template-columns: 1fr; }
   .continue-panel {
-    grid-template-columns: 6.25rem minmax(0, 1fr);
+    grid-template-columns: clamp(4.5rem, 20vw, 6rem) minmax(0, 1fr);
+    grid-template-areas: "cover identity" "reading reading";
     gap: 1rem;
   }
   .continue-cover {
-    width: 6.25rem;
+    width: 100%;
+    align-self: start;
+  }
+  .continue-copy {
+    align-self: start;
+  }
+  .current-chapter {
+    margin-top: 0;
   }
   .continue-heading {
     display: block;
@@ -513,12 +528,8 @@ export default defineComponent({
     display: inline-flex;
     margin-top: 0.65rem;
   }
-  .continue-actions {
-    grid-column: 1/-1;
-    flex-direction: column;
-  }
-  .continue-actions .app-button {
-    width: 100%;
+  .continue-actions .app-button--primary {
+    flex: 1 1 10rem;
   }
   .book-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
