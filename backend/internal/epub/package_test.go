@@ -130,7 +130,15 @@ func TestLocalPackageInspection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("inventory only: compressed bytes=%d manifest items=%d spine items=%d", info.Size(), len(p.Items), len(p.Spine))
+	var countEntries func([]NavigationEntry) int
+	countEntries = func(entries []NavigationEntry) int {
+		count := len(entries)
+		for _, entry := range entries {
+			count += countEntries(entry.Children)
+		}
+		return count
+	}
+	t.Logf("inventory/navigation only: compressed bytes=%d manifest items=%d spine items=%d navigation entries=%d diagnostics=%v", info.Size(), len(p.Items), len(p.Spine), countEntries(p.Navigation.Entries), p.Navigation.Diagnostics)
 }
 
 func BenchmarkInspect(b *testing.B) {

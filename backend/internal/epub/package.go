@@ -14,17 +14,18 @@ const (
 )
 
 // Package is an inspected inventory, NOT a prepared or publishable book.
-// Navigation, content semantics, encryption and media validation must still pass
+// Content semantics, navigation target anchors, encryption and media validation must still pass
 // preparation. These archive references must never be serialized to clients.
 type Package struct {
-	Version  string
-	Path     string
-	Title    string
-	Authors  []string
-	Language string
-	Items    []Item
-	Spine    []SpineItem
-	NCXID    string
+	Version    string
+	Path       string
+	Title      string
+	Authors    []string
+	Language   string
+	Items      []Item
+	Spine      []SpineItem
+	NCXID      string
+	Navigation Navigation
 }
 
 type Item struct {
@@ -41,7 +42,7 @@ type SpineItem struct {
 	Properties []string
 }
 
-// Inspect reads only container/package metadata. It leaves original ownership
+// Inspect reads container/package and optional navigation metadata. It leaves original ownership
 // with the caller, does not retain chapter bytes, and has no network access.
 func Inspect(ctx context.Context, original io.ReaderAt, size int64) (Package, error) {
 	a, err := openArchive(ctx, original, size)
@@ -83,7 +84,15 @@ func Inspect(ctx context.Context, original io.ReaderAt, size int64) (Package, er
 	if err := decodeXML(ctx, data, &doc); err != nil {
 		return Package{}, err
 	}
-	return inspectPackage(ctx, root, doc)
+	p, err := inspectPackage(ctx, root, doc)
+	if err != nil {
+		return Package{}, err
+	}
+	p.Navigation, err = inspectNavigation(ctx, a, p)
+	if err != nil {
+		return Package{}, err
+	}
+	return p, nil
 }
 
 func inspectPackage(ctx context.Context, name string, doc packageXML) (Package, error) {
