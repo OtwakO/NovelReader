@@ -1,4 +1,5 @@
 /test-booksources/
+/test-epubs/
 .pi/
 data/
 *.db

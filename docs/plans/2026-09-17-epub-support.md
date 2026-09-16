@@ -153,7 +153,7 @@ Use a few generated synthetic archives rather than a large copyrighted corpus. F
 - Storage/lifecycle: exact reviewed publication, canceled/interrupted work, cleanup retry, cross-reader denial, portable round trip and quiescent restore. Reuse shared intake tests; add only EPUB-specific and mixed-format scheduling cases, not a copy of every TXT test.
 - Reading/frontend: rich rendering and conversion preserve targets; main sequence vs TOC; note return and no auxiliary progress overwrite; image toggle performs no image requests; stale revisions reject reads/writes/resources; TXT/BookSource version-1 content remains readable.
 - Race tests for changed scheduling/store/restore boundaries; focused normal tests first. Frontend typecheck/build and relevant component tests. One composed real-server journey for each intake channel, desktop/mobile reader inspection, no deployment/load claim.
-- No universal EPUB conformance suite, benchmark project or large random corpus unless specific failures justify them. Optional legally supplied local EPUBs are compatibility evidence, never clean-checkout dependencies.
+- No universal EPUB conformance suite, benchmark project or large random corpus unless specific failures justify them. Optional legally supplied local EPUBs belong in repository-root `test-epubs/`, excluded from Git and Docker build contexts; they are compatibility evidence, never clean-checkout or CI dependencies. The user-supplied development example is `test-epubs/全职高手 (蝴蝶蓝).epub` (not yet parsed or validated). Real-book checks must be explicit local runs; default tests use synthetic archives. Do not commit extracted book content, images or generated reports containing substantial book text.
 
 ## Current State
 
