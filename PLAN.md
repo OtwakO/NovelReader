@@ -122,6 +122,8 @@ Manual usability feedback is next.
 
 ## Active Work
 
+- [Reader-first presentation](docs/plans/2026-09-16-reader-first-presentation.md) — accepted typography, navigation, Settings and task-clarity refinement; current fonts and parchment theme retained.
+
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities

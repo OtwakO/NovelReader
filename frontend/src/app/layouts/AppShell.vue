@@ -2,27 +2,28 @@
 import { defineComponent } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { useSessionStore } from '../../stores/session';
+import AppIcon, { type AppIconName } from '../../ui/components/AppIcon.vue';
 import ImportNavigation from '../../features/imports/ImportNavigation.vue';
 import LocaleSwitcher from '../../ui/components/LocaleSwitcher.vue';
 
-interface NavigationItem { to: string; labelKey: string; short: string; adminOnly?: boolean }
+interface NavigationItem { to: string; labelKey: string; icon: AppIconName; adminOnly?: boolean }
 
 export default defineComponent({
   name: 'AppShell',
-  components: { RouterLink, RouterView, LocaleSwitcher, ImportNavigation },
+  components: { RouterLink, RouterView, LocaleSwitcher, ImportNavigation, AppIcon },
   data() {
     return {
       primaryNavigation: [
-        { to: '/shelf', labelKey: 'app.navigation.shelf', short: 'S' },
-        { to: '/explore', labelKey: 'app.navigation.explore', short: 'E' },
-        { to: '/search', labelKey: 'app.navigation.search', short: 'Q' },
+        { to: '/shelf', labelKey: 'app.navigation.shelf', icon: 'shelf' },
+        { to: '/explore', labelKey: 'app.navigation.explore', icon: 'explore' },
+        { to: '/search', labelKey: 'app.navigation.search', icon: 'search' },
       ] as NavigationItem[],
       managementNavigation: [
-        { to: '/sources', labelKey: 'app.navigation.sources', short: 'B' },
-        { to: '/settings', labelKey: 'app.navigation.settings', short: 'P' },
-        { to: '/account', labelKey: 'app.navigation.account', short: 'A' },
-        { to: '/backups', labelKey: 'app.navigation.backups', short: 'D' },
-        { to: '/account/readers', labelKey: 'app.navigation.readers', short: 'R', adminOnly: true },
+        { to: '/sources', labelKey: 'app.navigation.sources', icon: 'book' },
+        { to: '/settings', labelKey: 'app.navigation.settings', icon: 'settings' },
+        { to: '/account', labelKey: 'app.navigation.account', icon: 'account' },
+        { to: '/backups', labelKey: 'app.navigation.backups', icon: 'backup' },
+        { to: '/account/readers', labelKey: 'app.navigation.readers', icon: 'readers', adminOnly: true },
       ] as NavigationItem[],
       mobileMenuOpen: false,
     };
@@ -49,11 +50,11 @@ export default defineComponent({
     <aside class="desktop-rail" :aria-label="$t('app.navigation.app')">
       <RouterLink class="brand" to="/shelf" :aria-label="`NovelReader ${$t('app.navigation.shelf')}`"><img src="/icons/icon-192.png" width="48" height="48" alt=""></RouterLink>
       <nav class="nav-group" :aria-label="$t('app.navigation.reading')">
-        <RouterLink v-for="item in primaryNavigation" :key="item.to" :to="item.to"><span aria-hidden="true">{{ item.short }}</span>{{ $t(item.labelKey) }}</RouterLink>
+        <RouterLink v-for="item in primaryNavigation" :key="item.to" :to="item.to"><AppIcon :name="item.icon" />{{ $t(item.labelKey) }}</RouterLink>
       </nav>
       <nav class="nav-group nav-group--secondary" :aria-label="$t('app.navigation.management')">
         <ImportNavigation />
-        <RouterLink v-for="item in visibleManagementNavigation" :key="item.to" :to="item.to"><span aria-hidden="true">{{ item.short }}</span>{{ $t(item.labelKey) }}</RouterLink>
+        <RouterLink v-for="item in visibleManagementNavigation" :key="item.to" :to="item.to"><AppIcon :name="item.icon" />{{ $t(item.labelKey) }}</RouterLink>
       </nav>
       <LocaleSwitcher class="desktop-locale" />
       <button class="account-button app-button app-button--quiet" type="button" :title="$t('app.navigation.signOutUser', { username })" @click="signOut">{{ $t('app.navigation.signOut') }}</button>
@@ -74,7 +75,7 @@ export default defineComponent({
     <main class="app-content"><RouterView /></main>
 
     <nav class="mobile-tabs" :aria-label="$t('app.navigation.primary')">
-      <RouterLink v-for="item in primaryNavigation" :key="item.to" :to="item.to"><span aria-hidden="true">{{ item.short }}</span>{{ $t(item.labelKey) }}</RouterLink>
+      <RouterLink v-for="item in primaryNavigation" :key="item.to" :to="item.to"><AppIcon :name="item.icon" />{{ $t(item.labelKey) }}</RouterLink>
     </nav>
   </div>
 </template>
@@ -86,9 +87,8 @@ export default defineComponent({
 .brand img { display: block; width: 3rem; height: 3rem; }
 .nav-group { display: grid; gap: .3rem; }
 .nav-group--secondary { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--color-border); }
-.nav-group a { min-height: 2.75rem; display: flex; align-items: center; gap: .75rem; padding: .55rem .75rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-weight: var(--weight-strong); }
-.nav-group a span { width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border-radius: .45rem; background: var(--color-paper-muted); font-size: var(--text-caption); }
-.nav-group a.router-link-active { background: var(--color-accent-soft); color: var(--color-accent-strong); }
+.nav-group a { min-height: 2.75rem; display: flex; align-items: center; gap: .75rem; padding: .55rem .75rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-size: var(--text-small); font-weight: var(--weight-regular); }
+.nav-group a.router-link-active { font-weight: var(--weight-strong); background: var(--color-accent-soft); color: var(--color-accent-strong); }
 .desktop-locale { display: flex; justify-content: center; }
 .app-content { min-width: 0; padding: clamp(1rem, 3vw, 2.5rem); }
 .mobile-header, .mobile-tabs { display: none; }
@@ -103,7 +103,6 @@ export default defineComponent({
   .app-content { padding: 1rem; }
   .mobile-tabs { position: fixed; z-index: 25; inset: auto 0 0; min-height: 4.25rem; display: grid; grid-template-columns: repeat(3, 1fr); padding: .35rem max(.5rem, env(safe-area-inset-right)) max(.35rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); border-top: 1px solid var(--color-border); background: var(--color-paper-raised); }
   .mobile-tabs a { min-height: 3.5rem; display: grid; place-content: center; justify-items: center; gap: .15rem; border-radius: var(--radius-md); color: var(--color-ink-muted); text-decoration: none; font-size: var(--text-caption); }
-  .mobile-tabs a span { font-size: var(--text-caption); font-weight: var(--weight-strong); }
   .mobile-tabs a.router-link-active { background: var(--color-accent-soft); color: var(--color-accent-strong); }
 }
 </style>

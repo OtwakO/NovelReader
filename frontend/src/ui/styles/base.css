@@ -13,6 +13,9 @@ h3, h4 { font-size: var(--text-subheading); }
 small { font-size: var(--text-caption); }
 strong, b { font-weight: var(--weight-strong); }
 button, input, select, textarea { line-height: var(--line-ui); }
+input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent); }
+input[type="range"] { min-height: var(--control-height); cursor: pointer; }
+input[type="range"]:disabled { cursor: default; }
 button, a, input, select { -webkit-tap-highlight-color: transparent; }
 
 select { min-inline-size: min(100%, 12rem); max-inline-size: 100%; white-space: nowrap; text-overflow: ellipsis; }
