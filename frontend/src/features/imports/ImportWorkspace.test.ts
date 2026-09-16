@@ -60,7 +60,7 @@ it('opts into automatic addition from the dedicated page and offers Read without
   const inbox = vi.spyOn(api, 'scanTXTInbox');
   const preview = vi.spyOn(api, 'previewTXT');
   const router = await setup(ImportsView);
-  expect(view!.get<HTMLInputElement>('.import-preference input').element.checked).toBe(true);
+  expect(view!.get<HTMLInputElement>('.import-upload-bar .import-preference input').element.checked).toBe(true);
   await view!.get('.import-preference input').setValue(false);
   await choose();
   expect(accept).toHaveBeenCalledOnce();

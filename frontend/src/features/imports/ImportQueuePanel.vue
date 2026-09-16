@@ -38,8 +38,8 @@ export default defineComponent({
     <div class="import-upload-bar">
       <div class="import-upload-copy"><h2>{{ $t('imports.flow.title') }}</h2><p>{{ $t('imports.flow.hint') }}</p></div>
       <label class="app-button app-button--primary import-picker">{{ $t('imports.flow.choose') }}<input type="file" accept=".txt,text/plain" multiple :aria-label="$t('imports.flow.choose')" @change="choose"></label>
+      <ImportPreferenceControl />
     </div>
-    <ImportPreferenceControl />
     <template v-if="queue.entries.length">
       <div class="import-progress-summary">
         <p role="status" aria-live="polite">{{ progress }}</p>
