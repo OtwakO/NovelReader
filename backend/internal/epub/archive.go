@@ -91,14 +91,22 @@ func validEntryName(name string) bool {
 }
 
 func (a *archive) readMetadata(ctx context.Context, name string) ([]byte, error) {
+	return a.readBounded(ctx, name, maxMetadataBytes, maxMetadataReadBytes)
+}
+
+func (a *archive) readSection(ctx context.Context, name string) ([]byte, error) {
+	return a.readBounded(ctx, name, maxSectionBytes, int64(maxExpandedBytes))
+}
+
+func (a *archive) readBounded(ctx context.Context, name string, entryLimit, totalLimit int64) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	f, ok := a.files[name]
 	if !ok {
-		return nil, fmt.Errorf("%w: missing metadata resource", ErrPackage)
+		return nil, fmt.Errorf("%w: missing resource", ErrPackage)
 	}
-	if f.UncompressedSize64 > uint64(maxMetadataBytes) {
+	if f.UncompressedSize64 > uint64(entryLimit) {
 		return nil, ErrLimit
 	}
 	r, err := f.Open()
@@ -106,7 +114,10 @@ func (a *archive) readMetadata(ctx context.Context, name string) ([]byte, error)
 		return nil, fmt.Errorf("%w: %w", ErrArchive, err)
 	}
 	defer r.Close()
-	remaining := min(maxMetadataBytes, maxMetadataReadBytes-a.readBytes)
+	remaining := min(entryLimit, totalLimit-a.readBytes)
+	if remaining < 0 {
+		return nil, ErrLimit
+	}
 	data, err := io.ReadAll(io.LimitReader(contextReader{ctx, r}, remaining+1))
 	a.readBytes += int64(len(data))
 	if int64(len(data)) > remaining {

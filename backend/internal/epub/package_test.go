@@ -112,7 +112,8 @@ func TestInspectEPUB2XMLDeclarations(t *testing.T) {
 
 // Explicit local compatibility check only. Installed but unreadable/malformed
 // fixtures fail; absent opt-in skips. Never log original metadata or book text.
-func TestLocalPackageInspection(t *testing.T) {
+func openLocalEPUB(t *testing.T) (*os.File, int64) {
+	t.Helper()
 	name := os.Getenv("NOVELREADER_EPUB_FIXTURE")
 	if name == "" {
 		t.Skip("optional local EPUB: set NOVELREADER_EPUB_FIXTURE")
@@ -121,12 +122,17 @@ func TestLocalPackageInspection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	t.Cleanup(func() { _ = f.Close() })
 	info, err := f.Stat()
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := Inspect(context.Background(), f, info.Size())
+	return f, info.Size()
+}
+
+func TestLocalPackageInspection(t *testing.T) {
+	f, size := openLocalEPUB(t)
+	p, err := Inspect(context.Background(), f, size)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +144,7 @@ func TestLocalPackageInspection(t *testing.T) {
 		}
 		return count
 	}
-	t.Logf("inventory/navigation only: compressed bytes=%d manifest items=%d spine items=%d navigation entries=%d navigation diagnostics=%v support diagnostics=%v", info.Size(), len(p.Items), len(p.Spine), countEntries(p.Navigation.Entries), p.Navigation.Diagnostics, p.Diagnostics)
+	t.Logf("inventory/navigation only: compressed bytes=%d manifest items=%d spine items=%d navigation entries=%d navigation diagnostics=%v support diagnostics=%v", size, len(p.Items), len(p.Spine), countEntries(p.Navigation.Entries), p.Navigation.Diagnostics, p.Diagnostics)
 }
 
 func BenchmarkInspect(b *testing.B) {
