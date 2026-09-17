@@ -110,9 +110,7 @@ func (s *Service) AddBookmark(ctx context.Context, mark *library.Bookmark, expec
 	if err != nil {
 		return 0, err
 	}
-	if chapter.Title == "" {
-		return 0, ErrInvalidLocation
-	}
+	// Location lookup establishes identity; optional title metadata may be empty.
 	mark.ChapterTitle = chapter.Title
 	// The library owns both CAS and exact repeated-ID idempotency; do not reject
 	// the repeated request's old state version before it can recognize that ID.

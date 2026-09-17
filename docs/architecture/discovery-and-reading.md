@@ -108,7 +108,8 @@ The frontend Reading Session owns chapter loading, navigation, common chrome, re
 revision-qualified chapter/index and normalized in-chapter progress, and bookmarks. BookSource owns
 active/alternate bindings, native chapters and the bounded processed chapter cache. TXT owns its
 published byte-range index and managed original. The reading module validates each provider's
-readable chapter/title before library CAS commits progress or bookmarks. Catalog sections may carry
+readable chapter identity before library CAS commits progress or bookmarks. Empty title metadata is
+valid: bookmarks retain it, and the UI uses the one-based section number when no title is available. Catalog sections may carry
 `auxiliary: true`: these remain addressable/bookmarkable but cannot commit main progress. Omission
 means main membership; section indices are not renumbered when selecting main reading order.
 The frontend also excludes auxiliary sections from ordinary navigation, prefetch, saved-resume

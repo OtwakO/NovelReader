@@ -62,3 +62,43 @@ func TestBookmarkAPIAddsListsAndDeletesValidatedNotes(t *testing.T) {
 		t.Fatalf("missing delete status=%d body=%s", response.Code, response.Body.String())
 	}
 }
+
+func TestBookmarkAPIUntitledSectionUsesLocationIdentity(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "untitled.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	initializeBookAPITestSchema(t, db)
+	store := book.NewStore(db)
+	if err := store.AddBook(&book.Book{ID: "book", Name: "Book", SourceID: "source", SourceURL: "source", BookURL: "url"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveChapters("book", []book.Chapter{{Index: 0, URL: "section"}, {Index: 1, Title: "Group", IsVolume: true}}); err != nil {
+		t.Fatal(err)
+	}
+	server := NewServer(nil, store, nil, nil, nil, nil, nil, processor.Config{}, t.TempDir(), db)
+	body := []byte(`{"id":"untitled","contentRevision":1,"stateVersion":0,"chapterIndex":0,"position":0.4}`)
+	for range 2 {
+		response := performAPIRequest(server, http.MethodPost, "/api/books/book/bookmarks", body)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("untitled/retry: %d %s", response.Code, response.Body.String())
+		}
+	}
+	response := performAPIRequest(server, http.MethodGet, "/api/books/book/bookmarks", nil)
+	var marks []library.Bookmark
+	if err := json.Unmarshal(response.Body.Bytes(), &marks); err != nil || len(marks) != 1 || marks[0].ChapterTitle != "" || marks[0].ChapterIndex != 0 || marks[0].Position != .4 {
+		t.Fatalf("untitled location lost: %+v, %v", marks, err)
+	}
+	for _, index := range []int{1, 99} {
+		body, _ := json.Marshal(map[string]any{"id": "invalid", "contentRevision": 1, "stateVersion": 1, "chapterIndex": index, "position": 0})
+		response := performAPIRequest(server, http.MethodPost, "/api/books/book/bookmarks", body)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("non-readable index %d: %d %s", index, response.Code, response.Body.String())
+		}
+	}
+	item, err := store.GetBook("book")
+	if err != nil || item.StateVersion != 1 || item.LastReadAt != 0 || item.DurChapterIndex != 0 || item.DurChapterPos != 0 {
+		t.Fatalf("bookmark changed reading activity or repeated state: %+v, %v", item, err)
+	}
+}
