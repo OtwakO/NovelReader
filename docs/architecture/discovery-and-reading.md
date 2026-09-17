@@ -108,8 +108,13 @@ The frontend Reading Session owns chapter loading, navigation, common chrome, re
 revision-qualified chapter/index and normalized in-chapter progress, and bookmarks. BookSource owns
 active/alternate bindings, native chapters and the bounded processed chapter cache. TXT owns its
 published byte-range index and managed original. The reading module validates each provider's
-readable chapter/title before library CAS commits progress or bookmarks. There is no shared section
-table or duplicate shared metadata in BookSource storage.
+readable chapter/title before library CAS commits progress or bookmarks. Catalog sections may carry
+`auxiliary: true`: these remain addressable/bookmarkable but cannot commit main progress. Omission
+means main membership; section indices are not renumbered when selecting main reading order.
+The frontend also excludes auxiliary sections from ordinary navigation, prefetch, saved-resume
+fallback and local progress updates. Current TXT/BookSource providers do not emit auxiliary sections;
+the unexposed EPUB projection and note-return work are tracked in the [EPUB plan](../plans/2026-09-17-epub-support.md).
+There is no shared section table or duplicate shared metadata in BookSource storage.
 
 `GET /api/books` and `/api/books/{id}` return shared library fields plus optional cover/display-label
 enrichment. `/api/books/{id}/booksource` exposes the combined BookSource-context projection separately.
@@ -119,7 +124,7 @@ queries; source cover revisions remain batched. Native bindings are not required
 `library_items.last_read_at` / JSON `lastReadAt` is the server UTC Unix-millisecond time of the
 last accepted reading-progress write; zero means never read. It is library-owned, shared by TXT and
 BookSource projections, and preserved in portable data. The Reader queues progress after displaying
-a chapter even at the initial/unchanged position, then through its existing progress lifecycle.
+a main chapter even at the initial/unchanged position, then through its existing progress lifecycle.
 Admission, metadata/catalog updates, bookmarks, source switching, reparse and content fetch/prefetch
 do not independently change this timestamp. `updatedAt` remains generic modification metadata.
 Continue Reading uses only positive `lastReadAt`; recently-read sorting orders by it, then creation
@@ -142,7 +147,7 @@ Generation guards prevent stale catalog/content responses from replacing newer n
 state. Converted text and its chapter identity commit together, so progress describes visible content.
 
 The Reading Session retains up to five recent online chapter documents and deduplicates pending
-loads. Default-on prefetch requests only the next readable chapter after display; it does not recurse,
+loads. Default-on prefetch requests only the next main readable chapter after display; it does not recurse,
 load images, or save progress. Speculative and foreground fetches are serialized because source
 scripts share mutable session state. Offline fallback documents are not retained in this session cache.
 

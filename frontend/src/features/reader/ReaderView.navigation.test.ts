@@ -173,3 +173,27 @@ it('prefetches without recording the speculative chapter as reading', async () =
   expect(getChapterContent).toHaveBeenCalledTimes(2);
   expect(saveProgress).toHaveBeenCalledExactlyOnceWith('book',7,0,0,0);
 });
+
+it('skips auxiliary prefetch and preserves main resume while viewing and bookmarking auxiliary content', async () => {
+  vi.mocked(waitForCatalog).mockResolvedValue({ contentRevision: 7, chapters: [
+    { index: 0, title: 'Main', isVolume: false },
+    { index: 1, title: 'Notes', isVolume: false, auxiliary: true },
+    { index: 2, title: 'Next', isVolume: false },
+  ] });
+  const vm = await open();
+  vm.preferences.prefetchNextChapter = true;
+  await flushPromises();
+  expect(vi.mocked(getChapterContent).mock.calls.map(call => call[1])).toEqual([0, 2]);
+  await vm.navigate(1, .4);
+  await waitForProgressWrites('book');
+  vi.mocked(saveProgress).mockClear();
+  expect(vm.currentIndex).toBe(1);
+  expect(vm.book?.durChapterIndex).toBe(0);
+  expect(vm.previousIndex).toBeNull();
+  expect(vm.nextIndex).toBeNull();
+  await vm.persistProgress();
+  await expect(vm.captureBookmark()).resolves.toMatchObject({ contentRevision: 7, chapterIndex: 1 });
+  wrapper.unmount();
+  await waitForProgressWrites('book');
+  expect(saveProgress).not.toHaveBeenCalled();
+});

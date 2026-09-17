@@ -75,9 +75,9 @@ func (s *Service) Open(ctx context.Context, id string, revision int64, index int
 	return p.open(ctx, id, revision, index)
 }
 
-func location(ctx context.Context, p provider, id string, revision int64, index int) (Chapter, error) {
+func location(ctx context.Context, p provider, id string, revision int64, index int, forProgress bool) (Chapter, error) {
 	chapter, err := p.chapter(ctx, id, revision, index)
-	if errors.Is(err, ErrChapterNotFound) || err == nil && chapter.IsVolume {
+	if errors.Is(err, ErrChapterNotFound) || err == nil && (chapter.IsVolume || forProgress && chapter.Auxiliary) {
 		return Chapter{}, ErrInvalidLocation
 	}
 	return chapter, err
@@ -91,7 +91,7 @@ func (s *Service) UpdateProgress(ctx context.Context, id string, expected librar
 	if item.ContentRevision != expected.Content || item.StateVersion != expected.State {
 		return 0, library.ErrStateChanged
 	}
-	chapter, err := location(ctx, p, id, expected.Content, index)
+	chapter, err := location(ctx, p, id, expected.Content, index, true)
 	if err != nil {
 		return 0, err
 	}
@@ -106,7 +106,7 @@ func (s *Service) AddBookmark(ctx context.Context, mark *library.Bookmark, expec
 	if item.ContentRevision != expected.Content {
 		return 0, library.ErrStateChanged
 	}
-	chapter, err := location(ctx, p, mark.BookID, expected.Content, mark.ChapterIndex)
+	chapter, err := location(ctx, p, mark.BookID, expected.Content, mark.ChapterIndex, false)
 	if err != nil {
 		return 0, err
 	}

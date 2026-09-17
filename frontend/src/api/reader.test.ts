@@ -83,3 +83,14 @@ it('sends revision-qualified reading mutations and returns their state versions'
   expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/books/book/bookmarks/mark', expect.objectContaining({ method: 'DELETE', body: JSON.stringify({ contentRevision: 3, stateVersion: 5 }) }));
   expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/books/book/progress', expect.objectContaining({ body: JSON.stringify({ contentRevision: 3, stateVersion: 5, chapterIndex: 2, position: .5 }) }));
 });
+
+it('retains validated auxiliary membership across catalog polling and rejects ambiguous locations', async () => {
+  const chapters = [{ index: 0, title: 'Main', isVolume: false }, { index: 1, title: 'Notes', isVolume: false, auxiliary: true }];
+  const respond = (value: unknown) => vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ contentRevision: 7, chapters: value }), { status: 200 })));
+  respond(chapters);
+  await expect(waitForCatalog('book')).resolves.toEqual({ contentRevision: 7, chapters });
+  for (const invalid of [[{ ...chapters[1], auxiliary: 'false' }], [chapters[0], chapters[0]]]) {
+    respond(invalid);
+    await expect(getCatalog('book')).rejects.toThrow('Invalid catalog');
+  }
+});

@@ -8,7 +8,7 @@ import AppButton from '../../ui/components/AppButton.vue';
 import { createReaderDisplayConverter } from './chinese-conversion';
 import { createChapterLoader } from './chapter-loader';
 import { checkReaderLink, isReaderRevisionConflict, loadReaderSnapshot, readerLocation, ReaderCatalogError, ReaderRevisionConflict } from './reader-session';
-import { adjacentChapterIndex, clampProgress, normalizedScroll, resolveChapterIndex, scrollTopForProgress } from './reading-progress';
+import { adjacentChapterIndex, clampProgress, isMainChapter, normalizedScroll, resolveChapterIndex, scrollTopForProgress } from './reading-progress';
 import { readerKeyboardAction } from './reader-keyboard';
 import { isAtScrollBoundary, readerTapAction } from './reader-tap-navigation';
 import { invalidateReadingState, queueProgressWrite, setProgressVersion, waitForProgressWrites } from './progress-writer';
@@ -133,9 +133,9 @@ export default defineComponent({
       this.loading=false;this.error='';
       await this.restore(position,request);
       if(request!==this.generation)return;
-      // Displaying a chapter counts as reading, even at its unchanged starting position.
+      // Displaying main content counts as reading, even at its unchanged starting position.
       if(this.book)void this.queueProgress(index,position);
-      if(this.book){this.book.durChapterIndex=index;this.book.durChapterPos=position;}
+      if(this.book&&isMainChapter(this.chapters.find(chapter=>chapter.index===index))){this.book.durChapterIndex=index;this.book.durChapterPos=position;}
       this.prefetchNext();
       document.title=`${this.displayContent?.document.title || content.document.title} · ${this.book?.name || 'NovelReader'}`;
     },
@@ -161,6 +161,7 @@ export default defineComponent({
     },
     persistProgress(){if(this.revisionConflict||!this.content||!this.book||this.contentRevision!==this.catalogRevision)return Promise.resolve();return this.queueProgress(this.currentIndex,this.lastPosition)},
     async queueProgress(index:number,position:number){
+      if(!isMainChapter(this.chapters.find(chapter=>chapter.index===index)))return;
       const bookId=this.book?.id||this.bookId;const contentRevision=this.contentRevision;
       try{await queueProgressWrite(bookId,{contentRevision,chapterIndex:index,position});if(bookId===this.bookId&&contentRevision===this.catalogRevision)this.progressError=''}
       catch(cause){if(bookId!==this.bookId||contentRevision!==this.catalogRevision)return;if(isReaderRevisionConflict(cause))this.stopStaleSession();else this.progressError=this.$t('reader.errors.progress')}

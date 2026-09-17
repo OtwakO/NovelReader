@@ -74,4 +74,6 @@ export interface Chapter {
   index: number;
   title: string;
   isVolume: boolean;
+  /** Readable/bookmarkable, but excluded from main progression and prefetch. */
+  auxiliary?: boolean;
 }

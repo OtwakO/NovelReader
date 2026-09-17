@@ -17,16 +17,21 @@ export function readableChapters(chapters: Chapter[]): Chapter[] {
   return chapters.filter((chapter) => !chapter.isVolume);
 }
 
+export function isMainChapter(chapter: Chapter | undefined): boolean {
+  return Boolean(chapter && !chapter.isVolume && !chapter.auxiliary);
+}
+
 export function resolveChapterIndex(chapters: Chapter[], requestedIndex: number | undefined, savedIndex: number): number | null {
   const readable = readableChapters(chapters);
   if (!readable.length) return null;
   if (Number.isInteger(requestedIndex) && readable.some((chapter) => chapter.index === requestedIndex)) return requestedIndex ?? null;
-  if (Number.isInteger(savedIndex) && readable.some((chapter) => chapter.index === savedIndex)) return savedIndex;
-  return readable[0]?.index ?? null;
+  const main = readable.filter(isMainChapter);
+  if (Number.isInteger(savedIndex) && main.some((chapter) => chapter.index === savedIndex)) return savedIndex;
+  return main[0]?.index ?? null;
 }
 
 export function adjacentChapterIndex(chapters: Chapter[], currentIndex: number, direction: -1 | 1): number | null {
-  const readable = readableChapters(chapters);
+  const readable = chapters.filter(isMainChapter);
   const position = readable.findIndex((chapter) => chapter.index === currentIndex);
   const target = position + direction;
   return position >= 0 && target >= 0 && target < readable.length ? readable[target]?.index ?? null : null;

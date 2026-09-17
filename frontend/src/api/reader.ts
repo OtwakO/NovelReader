@@ -1,6 +1,7 @@
-import type { Book, Chapter } from './models';
+import type { Book } from './models';
 import { API_BASE, request, requestForm } from './transport';
 import { parseContentResource, type ContentResourceReference } from './content-resource';
+import { parseChapterCatalog, type ChapterCatalog } from './chapter-catalog';
 export type { Chapter } from './models';
 export type { ContentResourceReference } from './content-resource';
 export type ProseBlock =
@@ -10,7 +11,7 @@ export interface ProseDocument { kind: 'prose'; title: string; blocks: ProseBloc
 export interface ChapterContent { version: 1; contentRevision: number; document: ProseDocument; offlineCopy: boolean }
 export interface Bookmark { id: string; bookId: string; contentRevision: number; chapterIndex: number; chapterTitle: string; position: number; note: string; orphaned: boolean; createdAt: number }
 export interface Font { id: string; name: string; fileName: string; fileSize: number }
-export interface ChapterCatalog { chapters: Chapter[]; contentRevision: number }
+export type { ChapterCatalog } from './chapter-catalog';
 export type CatalogResult = ({ state: 'ready' } & ChapterCatalog) | { state: 'syncing' };
 export interface CatalogPollingOptions { retry?: boolean; isCurrent?: () => boolean }
 
@@ -18,7 +19,7 @@ const catalogPollDelays = [500, 1000, 1500, 2000];
 
 export function getCatalog(bookId: string, retry = false): Promise<CatalogResult> {
   return request<{ chapters?: unknown; contentRevision?: unknown; state?: unknown }>(`/books/${encodeURIComponent(bookId)}/chapters${retry ? '/sync' : ''}`, retry ? { method: 'POST' } : undefined).then((value) => {
-    if (Array.isArray(value?.chapters) && typeof value.contentRevision === 'number' && Number.isSafeInteger(value.contentRevision) && value.contentRevision >= 0) return { state: 'ready', chapters: value.chapters, contentRevision: value.contentRevision };
+    if (Array.isArray(value?.chapters) && typeof value.contentRevision === 'number' && Number.isSafeInteger(value.contentRevision) && value.contentRevision >= 0) return { state: 'ready', ...parseChapterCatalog(value.chapters, value.contentRevision) };
     if (value?.state === 'syncing') return { state: 'syncing' };
     throw new Error('Invalid catalog response');
   });

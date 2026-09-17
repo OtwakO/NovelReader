@@ -5,6 +5,8 @@ type Chapter struct {
 	Index    int    `json:"index"`
 	Title    string `json:"title"`
 	IsVolume bool   `json:"isVolume"`
+	// Auxiliary sections are readable/bookmarkable, but never main progress.
+	Auxiliary bool `json:"auxiliary,omitempty"`
 }
 
 type Catalog struct {
