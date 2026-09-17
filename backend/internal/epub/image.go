@@ -26,6 +26,8 @@ const (
 	maxImagePixels          = 32 << 20
 )
 
+// ImageInfo dimensions describe display axes, including EXIF orientation.
+// Encoded matrix dimensions are checked independently against the pixel budget.
 type ImageInfo struct {
 	MediaType string
 	Width     int
@@ -82,6 +84,9 @@ func ValidateImage(ctx context.Context, data []byte, declaredType string) (Image
 	}
 	if err := ctx.Err(); err != nil {
 		return ImageInfo{}, err
+	}
+	if imageSwapsAxes(data, declaredType) {
+		info.Width, info.Height = info.Height, info.Width
 	}
 	return ImageInfo{MediaType: declaredType, Width: info.Width, Height: info.Height}, nil
 }
