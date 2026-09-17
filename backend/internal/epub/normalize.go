@@ -107,7 +107,13 @@ func (n *sectionNormalizer) node(source *xmlElement, pre bool) (*Node, error) {
 			n.warn("active_content_removed")
 		}
 		return nil, nil
-	case "body", "div", "section", "article", "main", "header", "footer", "nav", "aside", "figure", "figcaption", "span", "a", "noscript":
+	case "body", "div", "section", "article", "main", "header", "footer", "nav", "aside":
+	case "span", "a", "noscript":
+		out.Kind = "inlineGroup"
+	case "figure":
+		out.Kind = "figure"
+	case "figcaption":
+		out.Kind = "figureCaption"
 	case "p":
 		out.Kind = "paragraph"
 	case "h1", "h2", "h3", "h4", "h5", "h6":

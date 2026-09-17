@@ -13,16 +13,14 @@ type Catalog struct {
 	Syncing         bool      `json:"-"`
 }
 
-const DocumentVersion = 1
+const (
+	DocumentVersion           = 1
+	StructuredDocumentVersion = 2
+)
 
 type ResourceReference struct {
-	Href string `json:"href"`
-}
-type Block struct {
-	Kind     string             `json:"kind"`
-	Text     string             `json:"text,omitempty"`
-	Resource *ResourceReference `json:"resource,omitempty"`
-	Alt      string             `json:"alt,omitempty"`
+	Href      string `json:"href"`
+	MediaType string `json:"mediaType,omitempty"`
 }
 type Document struct {
 	Kind   string  `json:"kind"`
