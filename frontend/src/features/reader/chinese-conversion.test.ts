@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { parseStructuredChapterContent, structuredTextValues } from '../../api/structured-prose';
+import { structuredProseFixture } from '../../api/structured-prose.fixture';
 import type { ChapterContent } from '../../api/reader';
 import type { Chapter } from '../../api/models';
 import { convertChineseTexts } from '../../api/system';
@@ -71,4 +73,16 @@ it('reuses catalog conversion and recent documents, with mode and catalog identi
   expect(convertChineseTexts).toHaveBeenCalledTimes(5);
   await convert([...chapters], first, 'traditional');
   expect(convertChineseTexts).toHaveBeenCalledTimes(6);
+});
+
+it('converts structured text through the same service without changing canonical targets or resources', async () => {
+  const content = parseStructuredChapterContent(structuredProseFixture());
+  const canonical = JSON.stringify(content);
+  vi.mocked(convertChineseTexts).mockImplementation(async (_mode, texts) => texts.map(text => `converted:${text}`));
+  const result = await convertReaderDisplay([], content, 'traditional');
+  expect(convertChineseTexts).toHaveBeenCalledWith('traditional', structuredTextValues(content.document));
+  expect(JSON.stringify(content)).toBe(canonical);
+  expect(JSON.stringify(result.content)).toContain('https://example.invalid/软件');
+  expect(JSON.stringify(result.content)).toContain('"contentRevision":9');
+  expect(result.content?.document.title).toBe('converted:软件正文');
 });

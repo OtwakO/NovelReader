@@ -1,24 +1,25 @@
 import { convertChineseTexts } from '../../api/system';
 import type { ChapterContent } from '../../api/reader';
+import { mapStructuredText, structuredTextValues, type StructuredChapterContent } from '../../api/structured-prose';
 import type { Chapter } from '../../api/models';
 import type { ChineseConversionMode } from './reader-preferences';
 
-export interface ConvertedReaderDisplay {
+export interface ConvertedReaderDisplay<T = ChapterContent> {
   chapters: Chapter[];
-  content: ChapterContent | null;
+  content: T | null;
 }
 
-export async function convertReaderDisplay(
+export async function convertReaderDisplay<T extends ChapterContent | StructuredChapterContent = ChapterContent>(
   chapters: Chapter[],
-  content: ChapterContent | null,
+  content: T | null,
   mode: ChineseConversionMode,
-): Promise<ConvertedReaderDisplay> {
+): Promise<ConvertedReaderDisplay<T>> {
   if (mode === 'original') return { chapters, content };
 
   const chapterTitleCount = chapters.length;
-  const contentTexts = content
-    ? [content.document.title, ...content.document.blocks.flatMap(block => block.kind === 'paragraph' ? [block.text] : block.alt ? [block.alt] : [])]
-    : [];
+  const contentTexts = !content ? [] : content.version === 2
+    ? structuredTextValues(content.document)
+    : [content.document.title, ...content.document.blocks.flatMap(block => block.kind === 'paragraph' ? [block.text] : block.alt ? [block.alt] : [])];
   const expectedCount = chapterTitleCount + contentTexts.length;
   const converted = await convertChineseTexts(mode, [...chapters.map(chapter => chapter.title), ...contentTexts]);
   if (converted.length !== expectedCount) {
@@ -28,6 +29,9 @@ export async function convertReaderDisplay(
   const convertedChapters = chapters.map(chapter => ({ ...chapter, title: converted[cursor++] ?? chapter.title }));
   if (!content) return { chapters: convertedChapters, content: null };
 
+  if (content.version === 2) {
+    return { chapters: convertedChapters, content: { ...content, document: mapStructuredText(content.document, text => converted[cursor++] ?? text) } };
+  }
   const title = converted[cursor++] ?? content.document.title;
   const blocks = content.document.blocks.map(block => {
     if (block.kind === 'paragraph') return { ...block, text: converted[cursor++] ?? block.text };
@@ -56,7 +60,7 @@ export function createReaderDisplayConverter() {
   return async (chapters: Chapter[], content: ChapterContent | null, mode: ChineseConversionMode): Promise<ConvertedReaderDisplay> => {
     if (mode === 'original') return { chapters, content };
     const [catalog, document] = await Promise.all([
-      cached(catalogs, chapters, mode, () => convertReaderDisplay(chapters, null, mode)),
+      cached(catalogs, chapters, mode, () => convertReaderDisplay<ChapterContent>(chapters, null, mode)),
       content ? cached(documents, content, mode, () => convertReaderDisplay([], content, mode)) : null,
     ]);
     return { chapters: catalog.chapters, content: document?.content ?? null };

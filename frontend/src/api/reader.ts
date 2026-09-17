@@ -1,7 +1,8 @@
 import type { Book, Chapter } from './models';
 import { API_BASE, request, requestForm } from './transport';
+import { parseContentResource, type ContentResourceReference } from './content-resource';
 export type { Chapter } from './models';
-export interface ContentResourceReference { href: string; mediaType?: string }
+export type { ContentResourceReference } from './content-resource';
 export type ProseBlock =
   | { kind: 'paragraph'; text: string }
   | { kind: 'image'; resource: ContentResourceReference; alt?: string };
@@ -61,11 +62,10 @@ function parseProseBlock(block: unknown): ProseBlock {
   const value = block as Record<string, unknown>;
   if (value.kind === 'paragraph' && typeof value.text === 'string') return { kind: 'paragraph', text: value.text };
   if (value.kind === 'image' && value.resource && typeof value.resource === 'object') {
-    const resource = value.resource as Record<string, unknown>;
-    if (typeof resource.href !== 'string' || !resource.href.startsWith(`${API_BASE}/`)) throw new Error('Invalid content resource');
+    const resource = parseContentResource(value.resource);
     return {
       kind: 'image',
-      resource: { href: resource.href, ...(typeof resource.mediaType === 'string' ? { mediaType: resource.mediaType } : {}) },
+      resource,
       ...(typeof value.alt === 'string' && value.alt.trim() ? { alt: value.alt.trim() } : {}),
     };
   }
