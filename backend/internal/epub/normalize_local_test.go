@@ -27,7 +27,8 @@ func TestLocalSectionNormalization(t *testing.T) {
 		items[item.ID] = item
 	}
 	imageResolver := newImageResolver(a, p.Items)
-	var inputBytes, outputBytes, images, links, anchors, unreadable int
+	targets := newTargetIndex()
+	var inputBytes, outputBytes, images, links, anchors int
 	diagnostics := map[string]int{}
 	for _, spine := range p.Spine {
 		item := items[spine.ContentID]
@@ -44,7 +45,10 @@ func TestLocalSectionNormalization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !readable {
-			unreadable++
+			t.Fatal("target-binding proof requires readable sections; cover admission is not implemented")
+		}
+		if _, err := targets.add(ctx, item.Reference.Path, section.Anchors); err != nil {
+			t.Fatal(err)
 		}
 		// Serialize only the semantic tree, not private reference/anchor maps.
 		encoded, err := json.Marshal(section.Root)
@@ -60,7 +64,26 @@ func TestLocalSectionNormalization(t *testing.T) {
 			diagnostics[code]++
 		}
 	}
-	t.Logf("normalization and image validation: sections=%d input bytes=%d tree JSON bytes=%d valid image bindings=%d unique image checks=%d unreadable sections=%d link bindings=%d anchors=%d diagnostics=%v", len(p.Spine), inputBytes, outputBytes, images, len(imageResolver.cache), unreadable, links, anchors, diagnostics)
+	navigation, err := targets.resolveNavigation(ctx, p.Navigation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bound, unavailable int
+	var count func([]ResolvedNavigationEntry)
+	count = func(entries []ResolvedNavigationEntry) {
+		for _, entry := range entries {
+			if entry.Target != nil {
+				bound++
+			}
+			if entry.Unavailable {
+				unavailable++
+			}
+			count(entry.Children)
+		}
+	}
+	count(navigation.Entries)
+	t.Logf("navigation binding: bound=%d unavailable=%d diagnostics=%v", bound, unavailable, navigation.Diagnostics)
+	t.Logf("normalization and image validation: sections=%d input bytes=%d tree JSON bytes=%d valid image bindings=%d unique image checks=%d link bindings=%d anchors=%d diagnostics=%v", len(p.Spine), inputBytes, outputBytes, images, len(imageResolver.cache), links, anchors, diagnostics)
 }
 
 func BenchmarkNormalizeSection(b *testing.B) {
