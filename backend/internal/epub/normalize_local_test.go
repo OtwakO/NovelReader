@@ -26,7 +26,8 @@ func TestLocalSectionNormalization(t *testing.T) {
 	for _, item := range p.Items {
 		items[item.ID] = item
 	}
-	var inputBytes, outputBytes, images, links, anchors int
+	imageResolver := newImageResolver(a, p.Items)
+	var inputBytes, outputBytes, images, links, anchors, unreadable int
 	diagnostics := map[string]int{}
 	for _, spine := range p.Spine {
 		item := items[spine.ContentID]
@@ -37,6 +38,13 @@ func TestLocalSectionNormalization(t *testing.T) {
 		section, err := NormalizeSection(ctx, data, item.Reference.Path)
 		if err != nil {
 			t.Fatal(err)
+		}
+		readable, err := imageResolver.resolveSection(ctx, &section)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !readable {
+			unreadable++
 		}
 		// Serialize only the semantic tree, not private reference/anchor maps.
 		encoded, err := json.Marshal(section.Root)
@@ -52,7 +60,7 @@ func TestLocalSectionNormalization(t *testing.T) {
 			diagnostics[code]++
 		}
 	}
-	t.Logf("normalization only: sections=%d input bytes=%d tree JSON bytes=%d image bindings=%d link bindings=%d anchors=%d diagnostics=%v", len(p.Spine), inputBytes, outputBytes, images, links, anchors, diagnostics)
+	t.Logf("normalization and image validation: sections=%d input bytes=%d tree JSON bytes=%d valid image bindings=%d unique image checks=%d unreadable sections=%d link bindings=%d anchors=%d diagnostics=%v", len(p.Spine), inputBytes, outputBytes, images, len(imageResolver.cache), unreadable, links, anchors, diagnostics)
 }
 
 func BenchmarkNormalizeSection(b *testing.B) {

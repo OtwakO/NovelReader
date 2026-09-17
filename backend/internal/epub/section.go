@@ -30,6 +30,8 @@ type Node struct {
 	RowSpan   int    `json:"rowSpan,omitempty"`
 	Link      string `json:"link,omitempty"`  // private binding key for a local target
 	URL       string `json:"url,omitempty"`   // explicit HTTP(S) user action only; never a resource
-	Image     string `json:"image,omitempty"` // private binding key; not yet a validated/servable image
+	Image     string `json:"image,omitempty"` // private binding key; only validation adds dimensions
+	Width     int    `json:"width,omitempty"`
+	Height    int    `json:"height,omitempty"`
 	Alt       string `json:"alt,omitempty"`
 }
