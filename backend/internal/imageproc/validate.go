@@ -1,5 +1,5 @@
-// Package imageproc validates bounded static raster images. Callers own input
-// acquisition, policy, storage, and lifecycle.
+// Package imageproc validates and optimizes bounded static raster images.
+// Callers own input acquisition, policy, storage, and lifecycle.
 package imageproc
 
 import (
@@ -36,14 +36,25 @@ type Info struct {
 	Height    int
 }
 
-// Validate checks the declaration, bounds, and complete static image. It returns
-// only metadata, never retains pixels, and does not authorize resource delivery.
 func Validate(ctx context.Context, data []byte, declaredType string, limits Limits) (Info, error) {
-	if err := ctx.Err(); err != nil {
+	img, err := decodeValidated(ctx, data, declaredType, limits)
+	if err != nil {
 		return Info{}, err
 	}
+	width, height := img.Bounds().Dx(), img.Bounds().Dy()
+	if imageSwapsAxes(data, declaredType) {
+		width, height = height, width
+	}
+	return Info{MediaType: declaredType, Width: width, Height: height}, nil
+}
+
+// Both public operations use this boundary; optimization must not decode twice.
+func decodeValidated(ctx context.Context, data []byte, declaredType string, limits Limits) (image.Image, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if int64(len(data)) > limits.MaxBytes {
-		return Info{}, ErrLimit
+		return nil, ErrLimit
 	}
 	var config func(io.Reader) (image.Config, error)
 	var decode func(io.Reader) (image.Image, error)
@@ -53,42 +64,35 @@ func Validate(ctx context.Context, data []byte, declaredType string, limits Limi
 	case "image/png":
 		config, decode = png.DecodeConfig, png.Decode
 	default:
-		return Info{}, ErrUnsupported
+		return nil, ErrUnsupported
 	}
 	reader := func() io.Reader { return contextReader{ctx: ctx, source: bytes.NewReader(data)} }
 	info, err := config(reader())
 	if ctx.Err() != nil {
-		return Info{}, ctx.Err()
+		return nil, ctx.Err()
 	}
 	if err != nil {
-		return Info{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	if info.Width <= 0 || info.Height <= 0 {
-		return Info{}, ErrInvalid
+		return nil, ErrInvalid
 	}
 	if info.Width > limits.MaxDimension || info.Height > limits.MaxDimension || int64(info.Width)*int64(info.Height) > limits.MaxPixels {
-		return Info{}, ErrLimit
+		return nil, ErrLimit
 	}
 	if declaredType == "image/png" {
 		if err := checkStaticPNG(data); err != nil {
-			return Info{}, err
+			return nil, err
 		}
 	}
-	// Header checks alone accept truncated/corrupt pixel data. Animation is not
-	// supported: never decode additional frames or retain a whole-image cache.
-	if _, err = decode(reader()); err != nil {
-		if ctx.Err() != nil {
-			return Info{}, ctx.Err()
-		}
-		return Info{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+	img, err := decode(reader())
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
-	if err := ctx.Err(); err != nil {
-		return Info{}, err
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
-	if imageSwapsAxes(data, declaredType) {
-		info.Width, info.Height = info.Height, info.Width
-	}
-	return Info{MediaType: declaredType, Width: info.Width, Height: info.Height}, nil
+	return img, nil
 }
 
 // PNG's standard decoder validates only the default frame. Reject APNG rather

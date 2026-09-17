@@ -232,6 +232,12 @@ Local builds reuse dependency layers; to explicitly refresh Patchright and Chrom
 
 Requirements: Go, Node.js, and npm.
 
+The internal image optimizer can use portable Go encoding without native codecs.
+Native encoding is substantially faster and needs loadable `libwebp` and `libwebpdemux`
+(`libwebp.so` / `libwebpdemux.so` on Linux). The application container provisions these
+and checks actual native encoding during its build. EPUB optimization is not yet exposed
+in Local Import; see the [active EPUB plan](docs/plans/2026-09-17-epub-support.md).
+
 ```bash
 cd frontend
 npm ci
@@ -259,6 +265,11 @@ npm run build
 ```
 
 Required tests use deterministic synthetic fixtures and must work without private BookSources or live websites. Complete real BookSources stay in the ignored local `test-booksources/` directory and are used only for optional local compatibility checks and audits. See [`testdata/booksource/README.md`](testdata/booksource/README.md) for the fixture policy.
+
+Image-processing checks: `cd backend && go test ./internal/imageproc`; add
+`CGO_ENABLED=0 go test -tags nodynamic ./internal/imageproc` to verify the portable path.
+The Docker build runs these module tests in the final runtime with
+`NOVELREADER_TEST_REQUIRE_NATIVE_WEBP=1`, failing if native encoding is unavailable.
 
 For container verification:
 

@@ -6,6 +6,11 @@ import "encoding/binary"
 // report the same display axes instead of reserving the encoded matrix's shape.
 // Pixel decoding/limits belong to Validate, not this metadata reader.
 func imageSwapsAxes(data []byte, mediaType string) bool {
+	orientation := imageOrientation(data, mediaType)
+	return orientation >= 5 && orientation <= 8
+}
+
+func imageOrientation(data []byte, mediaType string) uint16 {
 	var exif []byte
 	if mediaType == "image/jpeg" {
 		for offset := 2; offset < len(data); {
@@ -51,7 +56,10 @@ func imageSwapsAxes(data []byte, mediaType string) bool {
 		}
 	}
 	orientation := exifOrientation(exif)
-	return orientation >= 5 && orientation <= 8
+	if orientation < 1 || orientation > 8 {
+		return 1
+	}
+	return orientation
 }
 
 // Only IFD0's inline SHORT orientation is relevant; do not traverse thumbnail
