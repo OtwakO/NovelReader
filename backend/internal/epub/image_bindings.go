@@ -87,13 +87,7 @@ func (r *imageResolver) resolveSection(ctx context.Context, section *Section) (b
 				if !optionalImageError(err) {
 					return err
 				}
-				code := "image_unavailable"
-				if errors.Is(err, ErrImageUnsupported) {
-					code = "image_unsupported"
-				}
-				if errors.Is(err, ErrImageInvalid) {
-					code = "image_invalid"
-				}
+				code := imageDiagnostic(err)
 				if !slices.Contains(section.Diagnostics, code) {
 					section.Diagnostics = append(section.Diagnostics, code)
 				}
@@ -122,4 +116,14 @@ func (r *imageResolver) resolveSection(ctx context.Context, section *Section) (b
 		section.Diagnostics = append(section.Diagnostics, "no_readable_content")
 	}
 	return readable, ctx.Err()
+}
+
+func imageDiagnostic(err error) string {
+	if errors.Is(err, ErrImageUnsupported) {
+		return "image_unsupported"
+	}
+	if errors.Is(err, ErrImageInvalid) {
+		return "image_invalid"
+	}
+	return "image_unavailable"
 }

@@ -12,16 +12,17 @@ type sectionWork struct {
 }
 
 type preparationWork struct {
-	archive     *archive
-	packageInfo Package
-	stage       *preparationStage
-	images      *imageResolver
-	targets     *targetIndex
-	items       map[string]Item
-	seen        map[string]bool
-	covers      map[string]bool
-	queue       []sectionWork
-	result      Preparation
+	archive        *archive
+	packageInfo    Package
+	stage          *preparationStage
+	images         *imageResolver
+	targets        *targetIndex
+	items          map[string]Item
+	seen           map[string]bool
+	covers         map[string]bool
+	coverPageImage coverPageImage
+	queue          []sectionWork
+	result         Preparation
 }
 
 func newPreparationWork(a *archive, p Package, stage *preparationStage) *preparationWork {
@@ -106,11 +107,17 @@ func (w *preparationWork) normalize(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			if job.required || errors.Is(err, ErrLimit) || (!errors.Is(err, ErrPackage) && !errors.Is(err, ErrUnsupported)) {
+			if job.required || !optionalSectionError(err) {
 				return err
+			}
+			if w.covers[job.path] {
+				w.coverPageImage.unavailable = true
 			}
 			w.result.warn("auxiliary_content_unavailable")
 			continue
+		}
+		if section.Cover || w.covers[job.path] {
+			w.coverPageImage.observe(section, w.items)
 		}
 		readable, err := w.images.resolveSection(ctx, &section)
 		if err != nil {
@@ -151,4 +158,11 @@ func (w *preparationWork) normalize(ctx context.Context) error {
 		return fmt.Errorf("%w: no readable main content", ErrUnsupported)
 	}
 	return ctx.Err()
+}
+
+// Only semantic failures of optional documents may become unavailable content.
+// Limits and cancellation must survive even when wrapped as package errors.
+func optionalSectionError(err error) bool {
+	return !errors.Is(err, ErrLimit) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) &&
+		(errors.Is(err, ErrPackage) || errors.Is(err, ErrUnsupported))
 }

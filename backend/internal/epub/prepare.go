@@ -14,6 +14,7 @@ type Preparation struct {
 	Title       string
 	Authors     []string
 	Language    string
+	Cover       *PreparedImage // private resource evidence, not a public URL
 	Sections    []PreparedSectionInfo
 	Navigation  ResolvedNavigation
 	Diagnostics []string
@@ -65,7 +66,12 @@ func Prepare(ctx context.Context, original io.ReaderAt, size int64, scratch io.R
 	if err := work.normalize(ctx); err != nil {
 		return Preparation{}, err
 	}
+	cover, err := work.selectCover(ctx)
+	if err != nil {
+		return Preparation{}, err
+	}
 	out := work.result
+	out.Cover = cover
 	out.Navigation, err = work.targets.resolveNavigation(ctx, p.Navigation)
 	if err != nil {
 		return Preparation{}, err

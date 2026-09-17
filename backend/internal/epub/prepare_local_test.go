@@ -35,5 +35,5 @@ func TestLocalPreparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("staged preparation: sections=%d main=%d auxiliary=%d image bindings=%d tree JSON bytes=%d scratch bytes=%d diagnostics=%v", emitted, main, emitted-main, images, payloadBytes, info.Size(), result.Diagnostics)
+	t.Logf("staged preparation: sections=%d main=%d auxiliary=%d image bindings=%d tree JSON bytes=%d scratch bytes=%d selected cover=%t diagnostics=%v", emitted, main, emitted-main, images, payloadBytes, info.Size(), result.Cover != nil, result.Diagnostics)
 }

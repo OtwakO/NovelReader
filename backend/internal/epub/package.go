@@ -17,17 +17,19 @@ const (
 // Content semantics, navigation target anchors and media bytes must still pass
 // preparation. These archive references must never be serialized to clients.
 type Package struct {
-	Version     string
-	Path        string
-	Title       string
-	Authors     []string
-	Language    string
-	Items       []Item
-	Spine       []SpineItem
-	NCXID       string
-	CoverPages  []Reference
-	Navigation  Navigation
-	Diagnostics []string
+	Version             string
+	Path                string
+	Title               string
+	Authors             []string
+	Language            string
+	Items               []Item
+	Spine               []SpineItem
+	NCXID               string
+	CoverImage          *Reference // declared candidate; image bytes are not yet validated
+	CoverImageAmbiguous bool
+	CoverPages          []Reference
+	Navigation          Navigation
+	Diagnostics         []string
 }
 
 type Item struct {
@@ -145,6 +147,7 @@ func inspectPackage(ctx context.Context, name string, doc packageXML) (Package, 
 		paths[ref.Path] = item.MediaType
 		p.Items = append(p.Items, Item{ID: item.ID, Reference: ref, MediaType: item.MediaType, Properties: strings.Fields(item.Properties), Fallback: item.Fallback})
 	}
+	inspectCoverImage(&p, doc)
 	linear := 0
 	seen := make(map[string]bool, len(doc.Spine.Items))
 	for _, item := range doc.Spine.Items {
