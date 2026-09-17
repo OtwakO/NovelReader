@@ -1,5 +1,8 @@
 <script lang="ts">
 import { defineComponent, nextTick, type PropType } from 'vue';
+import type { CatalogNavigation } from '../../api/catalog-navigation';
+import TocNavigationList from './TocNavigationList.vue';
+import { searchNavigation, currentNavigationTarget } from './toc-navigation';
 import type { Chapter } from '../../api/models';
 import AppButton from '../../ui/components/AppButton.vue';
 import TocChapterList from './TocChapterList.vue';
@@ -7,18 +10,23 @@ import { readableChapterCount, visibleTocChapters, type TocOrder } from './reade
 
 export default defineComponent({
   name: 'ReaderTocSheet',
-  components: { AppButton, TocChapterList },
+  components: { AppButton, TocChapterList, TocNavigationList },
   props: {
     chapters: { type: Array as PropType<Chapter[]>, default: () => [] },
     currentIndex: { type: Number, required: true },
+    navigation: { type: Object as PropType<CatalogNavigation>, default: undefined },
+    currentAnchor: { type: String, default: undefined },
   },
-  emits: ['open', 'close'],
+  emits: ['open', 'openTarget', 'close'],
   data() { return { query: '', order: 'ascending' as TocOrder }; },
   computed: {
+    navigationSearch() { return searchNavigation(this.navigation?.entries ?? [], this.query); },
+    currentTarget() { return currentNavigationTarget(this.navigation?.entries ?? [], this.currentIndex, this.currentAnchor); },
+    titleKey(): string { return this.navigation?.source === 'sections' ? 'reader.toc.sections' : 'reader.toc.title'; },
     readableCount(): number { return readableChapterCount(this.chapters); },
     visibleChapters(): Chapter[] { return visibleTocChapters(this.chapters, this.query, this.order); },
-    currentVisible(): boolean { return this.visibleChapters.some(chapter => chapter.index === this.currentIndex); },
-    summaryKey(): string { return this.readableCount === this.chapters.length ? 'reader.toc.readableSummary' : 'reader.toc.summary'; },
+    currentVisible(): boolean { return this.navigation ? Boolean(currentNavigationTarget(this.navigationSearch.entries, this.currentIndex, this.currentAnchor)) : this.visibleChapters.some(chapter => chapter.index === this.currentIndex); },
+    summaryKey(): string { if (this.navigation) return 'reader.toc.sectionSummary'; return this.readableCount === this.chapters.length ? 'reader.toc.readableSummary' : 'reader.toc.summary'; },
   },
   mounted() { void this.scrollToCurrent(false); },
   methods: {
@@ -31,12 +39,12 @@ export default defineComponent({
       void this.scrollToCurrent(false);
     },
     async scrollToCurrent(smooth = true) {
-      if (!this.currentVisible) this.query = '';
+      if (this.navigation || !this.currentVisible) this.query = '';
       await nextTick();
       const list = this.$refs.list as HTMLElement | undefined;
       const row = list?.querySelector<HTMLElement>('[data-current="true"]');
       if (!list || !row) return;
-      const top = Math.max(0, row.offsetTop - (list.clientHeight - row.offsetHeight) / 2);
+      const top = Math.max(0, row.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - (list.clientHeight - row.offsetHeight) / 2);
       if (smooth && typeof list.scrollTo === 'function') list.scrollTo({ top, behavior: 'smooth' });
       else list.scrollTop = top;
       row.querySelector<HTMLElement>('button, a')?.focus({ preventScroll: true });
@@ -47,12 +55,12 @@ export default defineComponent({
 
 <template>
   <div class="overlay" @click.self="$emit('close')" @keydown.esc="$emit('close')">
-    <section class="sheet" role="dialog" aria-modal="true" :aria-label="$t('reader.toc.title')">
+    <section class="sheet" role="dialog" aria-modal="true" :aria-label="$t(titleKey)">
       <div class="sheet-toolbar">
 <header>
         <div>
-          <h2>{{ $t('reader.toc.title') }}</h2>
-          <p>{{ $t(summaryKey, { readable: readableCount, total: chapters.length }) }}</p>
+          <h2>{{ $t(titleKey) }}</h2>
+          <p>{{ $t(summaryKey, { readable: readableCount, total: chapters.length, count: readableCount }) }}</p>
         </div>
         <AppButton variant="quiet" @click="$emit('close')">{{ $t('reader.close') }}</AppButton>
       </header>
@@ -60,21 +68,22 @@ export default defineComponent({
         <label class="search-field">
           <span>{{ $t('reader.toc.search') }}</span>
           <span class="search-input">
-            <input v-model="query" type="search" :placeholder="$t('reader.toc.searchPlaceholder')">
+            <input v-model="query" type="search" :placeholder="$t(navigation ? 'reader.toc.outlineSearch' : 'reader.toc.searchPlaceholder')">
             <button v-if="query" type="button" :aria-label="$t('reader.toc.clearSearch')" @click="clearSearch">×</button>
           </span>
         </label>
         <div class="app-actions tool-actions">
-          <AppButton variant="secondary" @click="toggleOrder">{{ order === 'ascending' ? $t('reader.toc.descending') : $t('reader.toc.ascending') }}</AppButton>
+          <AppButton v-if="!navigation" variant="secondary" @click="toggleOrder">{{ order === 'ascending' ? $t('reader.toc.descending') : $t('reader.toc.ascending') }}</AppButton>
           <AppButton variant="secondary" @click="scrollToCurrent(true)">{{ $t('reader.toc.jumpCurrent') }}</AppButton>
         </div>
       </div>
-      <p v-if="query" class="result-count" role="status">{{ $t('reader.toc.matches', { count: visibleChapters.length }) }}</p>
+      <p v-if="query" class="result-count" role="status">{{ $t('reader.toc.matches', { count: navigation ? navigationSearch.matches : visibleChapters.length }) }}</p>
 </div>
       <div ref="list" class="toc-list">
-        <TocChapterList v-if="visibleChapters.length" :chapters="visibleChapters" :current-index="currentIndex" @open="$emit('open', $event)" />
+        <TocNavigationList v-if="navigation && navigationSearch.entries.length" :entries="navigationSearch.entries" :current-target="currentTarget" @open="$emit('openTarget', $event)" />
+        <TocChapterList v-else-if="!navigation && visibleChapters.length" :chapters="visibleChapters" :current-index="currentIndex" @open="$emit('open', $event)" />
       <section v-else class="no-matches">
-        <p>{{ $t('reader.toc.noMatches') }}</p>
+        <p>{{ $t(navigation ? 'reader.toc.outlineNoMatches' : 'reader.toc.noMatches') }}</p>
         <AppButton variant="secondary" @click="clearSearch">{{ $t('reader.toc.clearSearch') }}</AppButton>
       </section>
 </div>

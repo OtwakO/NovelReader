@@ -284,3 +284,33 @@ it('keeps a directly opened note write-free and carries note intent in qualified
   expect(vm.readingNote).toBe(false);
   expect(vm.$router.push).toHaveBeenCalledWith({ name: 'reader', params: { bookId: 'book', chapterIndex: 0 }, query: { contentRevision: '7', position: '0.2' } });
 });
+
+it('routes TOC anchors through the existing note lifecycle without changing main progress', async () => {
+  const target = { chapterIndex: 1, contentRevision: 7, anchor: 'note' };
+  vi.mocked(waitForCatalog).mockResolvedValue({ contentRevision: 7, chapters: [
+    { index: 0, title: 'Main', isVolume: false },
+    { index: 1, title: 'Notes', isVolume: false, auxiliary: true },
+  ], navigation: { source: 'publication', entries: [{ label: 'Authored note heading', target, unavailable: false, children: [] }] } });
+  const vm = await open();
+  await waitForProgressWrites('book');
+  vi.mocked(saveProgress).mockClear();
+  vi.mocked(getChapterContent).mockResolvedValueOnce({ version: 2, contentRevision: 7, offlineCopy: false, document: {
+    kind: 'prose', structureVersion: 2, title: 'Note', blocks: [{ kind: 'paragraph', id: 'note', children: [{ kind: 'text', text: 'Note body', children: [] }] }],
+  } });
+  vm.activeSheet = 'toc';
+  await flushPromises();
+  const sheet = wrapper.getComponent({ name: 'ReaderTocSheet' });
+  expect(sheet.props('navigation')).toEqual(vm.catalogNavigation);
+  sheet.vm.$emit('openTarget', target);
+  await flushPromises();
+  expect(vm.navigation).toMatchObject({ contentRevision: 7, current: { chapterIndex: 1, anchor: 'note', note: true } });
+  expect(vm.navigation?.returns).toHaveLength(1);
+  expect(vm.activeSheet).toBe('');
+  // Leaving the main section may flush its position; the note itself cannot write progress.
+  expect(vi.mocked(saveProgress).mock.calls.every(call => call[3] === 0)).toBe(true);
+  vi.mocked(saveProgress).mockClear();
+  await vm.persistProgress();
+  expect(saveProgress).not.toHaveBeenCalled();
+  await vm.returnFromNote();
+  expect(vm.currentIndex).toBe(0);
+});

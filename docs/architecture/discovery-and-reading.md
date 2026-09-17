@@ -115,7 +115,7 @@ means main membership; section indices are not renumbered when selecting main re
 The frontend also excludes auxiliary sections from ordinary navigation, prefetch, saved-resume
 fallback and local progress updates. Current TXT/BookSource providers do not emit auxiliary sections;
 the unexposed EPUB projection and note-return work are tracked in the [EPUB plan](../plans/2026-09-17-epub-support.md).
-Optional catalog `navigation` is a contents hierarchy, never the reading sequence. Its authored-versus-section-list provenance, grouping/unavailable entries and revision-qualified targets survive client parsing; the current flat TOC UI has not yet adopted it. Current providers omit it, while the unregistered EPUB projection is covered by a shared Go/frontend wire fixture.
+Optional catalog `navigation` is a contents hierarchy, never the reading sequence. Its authored-versus-section-list provenance, grouping/unavailable entries and revision-qualified targets survive client parsing. Reader and Book Detail share an expanded semantic outline with ancestor-preserving search; selection reuses qualified reader links or the existing anchor/note lifecycle. Display conversion preserves canonical labels and targets. Legacy catalogs retain the flat TOC. Current providers omit it, while the unregistered EPUB projection is covered by a shared Go/frontend wire fixture.
 There is no shared section table or duplicate shared metadata in BookSource storage.
 
 `GET /api/books` and `/api/books/{id}` return shared library fields plus optional cover/display-label

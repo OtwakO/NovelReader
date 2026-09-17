@@ -9,6 +9,7 @@ import {
   type Book,
   type LibraryBook,
 } from "../../api/books";
+import type { CatalogNavigation } from '../../api/catalog-navigation';
 import type { AltSource, Chapter } from "../../api/models";
 import { switchBookSource, waitForCatalog } from "../../api/reader";
 import AppIcon from '../../ui/components/AppIcon.vue';
@@ -38,6 +39,7 @@ export default defineComponent({
       book: null as LibraryBook | null,
       nativeBook: null as Book | null,
       chapters: [] as Chapter[],
+      catalogNavigation: undefined as CatalogNavigation | undefined,
       catalogRevision: 0,
       loading: true,
       bookError: "",
@@ -79,6 +81,7 @@ export default defineComponent({
       this.book = null;
       this.nativeBook = null;
       this.chapters = [];
+      this.catalogNavigation = undefined;
       this.removedBookId = "";
       this.cleanupPending = false;
       void this.load();
@@ -130,6 +133,7 @@ export default defineComponent({
         }
         this.catalogRevision = catalog.contentRevision;
         this.chapters = catalog.chapters;
+        this.catalogNavigation = catalog.navigation;
       } catch (cause) {
         if (request !== this.loadGeneration) return;
         this.tocError =
@@ -188,6 +192,7 @@ export default defineComponent({
         this.book = this.nativeBook = result.book;
         this.loadGeneration += 1;
         this.chapters = [];
+        this.catalogNavigation = undefined;
         this.tocError = "";
         this.sourceMessage =
           result.mapping === "title"
@@ -216,6 +221,7 @@ export default defineComponent({
         this.book = null;
         this.nativeBook = null;
         this.chapters = [];
+        this.catalogNavigation = undefined;
         this.removedBookId = bookId;
         this.cleanupPending = Boolean(result.warnings?.includes('txt_cleanup_pending'));
         if (!this.cleanupPending) await this.$router.replace("/shelf");
@@ -335,6 +341,8 @@ export default defineComponent({
       <BookDetailToc
         :book-id="book.id"
         :chapters="chapters"
+        :navigation="catalogNavigation"
+        :interactive="!catalogSyncing && !tocError"
         :content-revision="catalogRevision"
         :current-index="book.durChapterIndex"
         :error="tocError"

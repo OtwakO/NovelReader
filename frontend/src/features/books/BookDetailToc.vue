@@ -1,5 +1,8 @@
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
+import type { CatalogNavigation } from '../../api/catalog-navigation';
+import TocNavigationList from '../reader/TocNavigationList.vue';
+import { searchNavigation, currentNavigationTarget } from '../reader/toc-navigation';
 import type { Chapter } from "../../api/models";
 import AppButton from "../../ui/components/AppButton.vue";
 import TocChapterList from "../reader/TocChapterList.vue";
@@ -12,12 +15,13 @@ import {
 
 export default defineComponent({
   name: "BookDetailToc",
-  components: { AppButton, BookDetailSection, TocChapterList },
+  components: { AppButton, BookDetailSection, TocChapterList, TocNavigationList },
   props: {
     bookId: { type: String, required: true },
     contentRevision: { type: Number, default: undefined },
     chapters: { type: Array as PropType<Chapter[]>, default: () => [] },
     currentIndex: { type: Number, required: true },
+    navigation: { type: Object as PropType<CatalogNavigation>, default: undefined },
     error: { type: String, default: "" },
     interactive: { type: Boolean, default: true },
   },
@@ -25,10 +29,14 @@ export default defineComponent({
     return { query: "", order: "ascending" as TocOrder, expanded: false };
   },
   computed: {
+    navigationSearch() { return searchNavigation(this.navigation?.entries ?? [], this.query); },
+    currentTarget() { return currentNavigationTarget(this.navigation?.entries ?? [], this.currentIndex); },
+    titleKey(): string { return this.navigation ? (this.navigation.source === 'sections' ? 'reader.toc.sections' : 'reader.toc.title') : 'bookDetail.chapters'; },
     readableCount(): number {
       return readableChapterCount(this.chapters);
     },
     summaryKey(): string {
+      if (this.navigation) return 'reader.toc.sectionSummary';
       return this.readableCount === this.chapters.length
         ? "reader.toc.readableSummary"
         : "reader.toc.summary";
@@ -43,7 +51,7 @@ export default defineComponent({
     },
     canExpand(): boolean {
       return (
-        !this.query &&
+        !this.navigation && !this.query &&
         !this.expanded &&
         this.filteredChapters.length > this.visibleChapters.length
       );
@@ -72,18 +80,18 @@ export default defineComponent({
 </script>
 
 <template>
-  <BookDetailSection class="book-detail-toc" :title="$t('bookDetail.chapters')">
+  <BookDetailSection class="book-detail-toc" :title="$t(titleKey)">
     <template #summary>
 <p>
         {{
-          $t(summaryKey, { readable: readableCount, total: chapters.length })
+          $t(summaryKey, { readable: readableCount, total: chapters.length, count: readableCount })
         }}
       </p>
 </template>
     <template v-if="$slots.actions" #actions><slot name="actions" /></template>
     <template v-if="query" #status>
 <span class="toc-status">{{
-        $t("reader.toc.matches", { count: filteredChapters.length })
+        $t("reader.toc.matches", { count: navigation ? navigationSearch.matches : filteredChapters.length })
       }}</span>
 </template>
     <p v-if="error" class="banner-error" role="alert">{{ error }}</p>
@@ -92,7 +100,7 @@ export default defineComponent({
         <label><span>{{ $t("reader.toc.search") }}</span><span class="search-input"><input
               v-model="query"
               type="search"
-              :placeholder="$t('reader.toc.searchPlaceholder')"
+              :placeholder="$t(navigation ? 'reader.toc.outlineSearch' : 'reader.toc.searchPlaceholder')"
             ><button
               v-if="query"
               type="button"
@@ -102,7 +110,7 @@ export default defineComponent({
               ×
             </button></span></label>
         <div>
-          <AppButton variant="secondary" @click="toggleOrder">
+          <AppButton v-if="!navigation" variant="secondary" @click="toggleOrder">
 {{
             order === "ascending"
               ? $t("reader.toc.descending")
@@ -115,9 +123,10 @@ export default defineComponent({
 </AppButton>
         </div>
       </div>
-      <TocChapterList v-if="visibleChapters.length" :chapters="visibleChapters" :current-index="currentIndex" :book-id="bookId" :content-revision="contentRevision" :interactive="interactive" />
+      <TocNavigationList v-if="navigation && navigationSearch.entries.length" :entries="navigationSearch.entries" :current-target="currentTarget" :book-id="bookId" :interactive="interactive" />
+      <TocChapterList v-else-if="!navigation && visibleChapters.length" :chapters="visibleChapters" :current-index="currentIndex" :book-id="bookId" :content-revision="contentRevision" :interactive="interactive" />
       <section v-else class="no-matches">
-        <p>{{ $t("reader.toc.noMatches") }}</p>
+        <p>{{ $t(navigation ? 'reader.toc.outlineNoMatches' : 'reader.toc.noMatches') }}</p>
         <AppButton variant="secondary" @click="clearSearch">
 {{
           $t("reader.toc.clearSearch")

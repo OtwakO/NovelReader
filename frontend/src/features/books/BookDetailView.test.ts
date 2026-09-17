@@ -101,12 +101,13 @@ describe('BookDetailView catalog synchronization', () => {
   });
 });
 
-it('renders provider-neutral details without requesting BookSource context', async () => {
+it('renders provider-neutral details and passes authored contents without requesting BookSource context', async () => {
+  const navigation = { source: 'publication', entries: [{ label: 'Authored heading', target: { chapterIndex: 0, contentRevision: 2, anchor: 'a1' }, unavailable: false, children: [] }] };
   const item = { id: 'local', provider: 'fixture', name: 'Local publication', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', durChapterIndex: 0, durChapterPos: 0, totalChapterNum: 0, contentRevision: 2, stateVersion: 0 };
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === '/api/books/local') return new Response(JSON.stringify(item), { status: 200 });
-    if (url === '/api/books/local/chapters') return new Response(JSON.stringify({ chapters: [], contentRevision: 2 }), { status: 200 });
+    if (url === '/api/books/local/chapters') return new Response(JSON.stringify({ chapters: [{ index: 0, title: 'Section', isVolume: false }], contentRevision: 2, navigation }), { status: 200 });
     throw new Error(`Unexpected request: ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -117,6 +118,7 @@ it('renders provider-neutral details without requesting BookSource context', asy
   try {
     await flushPromises();
     expect(wrapper.text()).toContain('Local publication');
+    expect(wrapper.getComponent({ name: 'BookDetailToc' }).props('navigation')).toEqual(navigation);
     expect(wrapper.find('source-recovery-panel-stub').exists()).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   } finally { wrapper.unmount(); }

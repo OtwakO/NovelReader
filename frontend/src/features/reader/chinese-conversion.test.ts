@@ -87,3 +87,19 @@ it('converts structured text through the same service without changing canonical
   expect(JSON.stringify(result.content)).toContain('"contentRevision":9');
   expect(result.content?.document.title).toBe('converted:软件正文');
 });
+
+it('converts nested TOC labels once per catalog/mode while preserving targets and canonical text', async () => {
+  const navigation = { source: 'publication' as const, entries: [{ label: '分组', unavailable: false, children: [
+    { label: '注释', unavailable: false, children: [], target: { chapterIndex: 1, contentRevision: 7, anchor: 'opaque-anchor' } },
+  ] }] };
+  const original = JSON.stringify(navigation);
+  vi.mocked(convertChineseTexts).mockImplementation(async (_mode, texts) => texts.map(text => `converted:${text}`));
+  const convert = createReaderDisplayConverter();
+  const first = await convert(chapters, content, 'traditional', navigation);
+  const next = await convert(chapters, { ...content }, 'traditional', navigation);
+  expect(first.navigation?.entries[0]?.children[0]).toMatchObject({ label: 'converted:注释', target: { chapterIndex: 1, contentRevision: 7, anchor: 'opaque-anchor' } });
+  expect(next.navigation).toBe(first.navigation);
+  expect(JSON.stringify(navigation)).toBe(original);
+  expect((await convert(chapters, content, 'original', navigation)).navigation).toBe(navigation);
+  expect(vi.mocked(convertChineseTexts).mock.calls.filter(([, texts]) => texts.includes('分组'))).toHaveLength(1);
+});
