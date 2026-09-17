@@ -118,3 +118,14 @@ func TestVersionOneProseWireShapeIsUnchanged(t *testing.T) {
 		t.Fatal("empty version-1 blocks no longer serialized")
 	}
 }
+
+func TestEPUBCoverPlaceholderPreservesAnchorsWithoutInventedProse(t *testing.T) {
+	section := epub.PreparedSection{CoverPlaceholder: true, Root: epub.Node{Kind: "group", ID: "a1"}}
+	content, err := epubContent(context.Background(), 9, "Cover", section, func(string) string { t.Fatal("placeholder issued a resource"); return "" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !content.Document.CoverPlaceholder || content.Document.Blocks[0].ID != "a1" || content.Document.Blocks[0].Text != "" {
+		t.Fatalf("placeholder projection: %+v", content)
+	}
+}

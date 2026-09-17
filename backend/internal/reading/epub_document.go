@@ -73,5 +73,5 @@ func epubContent(ctx context.Context, revision int64, title string, section epub
 	if err := ctx.Err(); err != nil {
 		return Content{}, err
 	}
-	return Content{ContentRevision: revision, Version: StructuredDocumentVersion, Document: Document{Kind: "prose", Title: title, Blocks: []Block{root}}}, nil
+	return Content{ContentRevision: revision, Version: StructuredDocumentVersion, Document: Document{Kind: "prose", Title: title, Blocks: []Block{root}, CoverPlaceholder: section.CoverPlaceholder}}, nil
 }

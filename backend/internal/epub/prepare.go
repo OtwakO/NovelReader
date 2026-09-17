@@ -29,10 +29,11 @@ type PreparedSectionInfo struct {
 // Images is private storage evidence. Only Root is a presentation candidate;
 // image keys still require revision-qualified, authorized resource routes.
 type PreparedSection struct {
-	Ordinal     int
-	Root        Node
-	Images      map[string]PreparedImage
-	Diagnostics []string
+	CoverPlaceholder bool
+	Ordinal          int
+	Root             Node
+	Images           map[string]PreparedImage
+	Diagnostics      []string
 }
 
 type PreparedImage struct {
@@ -106,7 +107,7 @@ func Prepare(ctx context.Context, original io.ReaderAt, size int64, scratch io.R
 		for _, code := range section.Diagnostics {
 			out.warn(code)
 		}
-		if err := emit(PreparedSection{Ordinal: ordinal, Root: section.Root, Images: images, Diagnostics: section.Diagnostics}); err != nil {
+		if err := emit(PreparedSection{Ordinal: ordinal, Root: section.Root, Images: images, Diagnostics: section.Diagnostics, CoverPlaceholder: out.Sections[ordinal].CoverPlaceholder}); err != nil {
 			return Preparation{}, fmt.Errorf("epub: emit prepared section: %w", err)
 		}
 	}

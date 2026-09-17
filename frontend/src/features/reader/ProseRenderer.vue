@@ -1,5 +1,6 @@
 <script lang="ts">
 import { defineComponent, h, type PropType } from 'vue';
+import BookCover from '../books/BookCover.vue';
 import type { ProseDocument } from '../../api/reader';
 import type { ReadingTarget, StructuredProseDocument } from '../../api/structured-prose';
 import { proseNodes, renderProseNodes, type ProseNavigation } from './prose-nodes';
@@ -10,6 +11,7 @@ export default defineComponent({
     document: { type: Object as PropType<ProseDocument | StructuredProseDocument>, required: true },
     fallbackImageAlt: { type: String, required: true },
     imageUnavailable: { type: String, required: true },
+    coverUnavailable: { type: String, default: '' },
     showImages: { type: Boolean, required: true },
     targetHref: { type: Function as PropType<(target: ReadingTarget, note: boolean) => string>, default: undefined },
   },
@@ -28,6 +30,10 @@ export default defineComponent({
       // Structured prose retains authored headings; metadata is an accessible
       // document label rather than a second, potentially duplicate heading.
       ...(!structured ? [h('h1', this.document.title)] : []),
+      ...(structured && this.document.coverPlaceholder ? [h('figure', { class: 'prose-figure cover-placeholder', onClick: (event: MouseEvent) => event.stopPropagation() }, [
+        ...(this.showImages ? [h(BookCover, { name: this.document.title, class: 'placeholder-cover', lazy: true })] : []),
+        h('figcaption', this.coverUnavailable || this.imageUnavailable),
+      ])] : []),
       ...renderProseNodes(this.nodes, {
         showImages: this.showImages, fallbackImageAlt: this.fallbackImageAlt, imageUnavailable: this.imageUnavailable,
         failedResources: this.failedResources, imageFailed: href => { this.failedResources = new Set(this.failedResources).add(href); },
@@ -75,6 +81,8 @@ export default defineComponent({
   font: var(--weight-regular) .78rem/1.45 var(--font-ui);
   overflow-wrap: anywhere;
 }
+
+.placeholder-cover { width: min(100%, 16rem); }
 
 .image-failure {
   display: inline-block;

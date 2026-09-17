@@ -26,9 +26,10 @@ type ResourceReference struct {
 	MediaType string `json:"mediaType,omitempty"`
 }
 type Document struct {
-	Kind   string  `json:"kind"`
-	Title  string  `json:"title"`
-	Blocks []Block `json:"blocks"`
+	CoverPlaceholder bool    `json:"coverPlaceholder,omitempty"`
+	Kind             string  `json:"kind"`
+	Title            string  `json:"title"`
+	Blocks           []Block `json:"blocks"`
 }
 type Content struct {
 	ContentRevision int64    `json:"contentRevision"`

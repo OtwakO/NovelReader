@@ -19,7 +19,7 @@ export type StructuredProseNode = NodeAttributes & (
 );
 // Client-only discriminator: wire version stays on the content envelope. Legacy
 // callers can keep their existing documents without guessing from node fields.
-export interface StructuredProseDocument { kind: 'prose'; structureVersion: 2; title: string; blocks: StructuredProseNode[] }
+export interface StructuredProseDocument { kind: 'prose'; structureVersion: 2; title: string; coverPlaceholder?: boolean; blocks: StructuredProseNode[] }
 export interface StructuredChapterContent { version: 2; contentRevision: number; document: StructuredProseDocument; offlineCopy: boolean }
 
 function object(value: unknown): Record<string, unknown> {
@@ -94,7 +94,8 @@ export function parseStructuredChapterContent(input: unknown): StructuredChapter
       default: return { ...attrs, kind: choice(value.kind, proseContainerKinds) };
     }
   };
-  return { version: 2, contentRevision: revision, offlineCopy: Boolean(data.offlineCopy), document: { kind: 'prose', structureVersion: 2, title: text(doc.title), blocks: doc.blocks.map(node => parse(node, 1)) } };
+  if (doc.coverPlaceholder !== undefined && typeof doc.coverPlaceholder !== 'boolean') throw new Error('Invalid cover placeholder');
+  return { version: 2, contentRevision: revision, offlineCopy: Boolean(data.offlineCopy), document: { kind: 'prose', structureVersion: 2, title: text(doc.title), ...(doc.coverPlaceholder ? { coverPlaceholder: true } : {}), blocks: doc.blocks.map(node => parse(node, 1)) } };
 }
 
 /** Traverse only displayed text; identifiers, resources and actions stay intact. */

@@ -73,3 +73,17 @@ it('renders structured semantics safely and emits qualified navigation without r
   expect(wrapper.find('img').exists()).toBe(false);
   expect(wrapper.find('figcaption').text()).toBe('图片说明');
 });
+
+it('shows labeled default cover artwork without changing book text or anchors and respects hidden images', async () => {
+  const raw = { version: 2, contentRevision: 9, document: { kind: 'prose', title: 'Cover', coverPlaceholder: true, blocks: [{ kind: 'group', id: 'a1' }] } };
+  const content = parseStructuredChapterContent(raw);
+  const wrapper = mount(ProseRenderer, { props: { document: content.document, showImages: true, fallbackImageAlt: 'Image', imageUnavailable: 'Unavailable', coverUnavailable: 'Original cover unavailable' } });
+  expect(wrapper.find('img').attributes('src')).toContain('default-book-cover.webp');
+  expect(wrapper.find('figcaption').text()).toBe('Original cover unavailable');
+  expect(wrapper.vm.findAnchor('a1')).toBeDefined();
+  expect(content.document.blocks[0]!.children).toEqual([]);
+  await wrapper.setProps({ showImages: false });
+  expect(wrapper.find('img').exists()).toBe(false);
+  expect(wrapper.text()).toContain('Original cover unavailable');
+  expect(() => parseStructuredChapterContent({ ...raw, document: { ...raw.document, coverPlaceholder: 'yes' } })).toThrow('Invalid cover placeholder');
+});

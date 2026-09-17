@@ -52,7 +52,7 @@ func TestPrepareStagesDiscoveryAndBinding(t *testing.T) {
 		t.Fatalf("sections: %d/%d", len(sections), len(result.Sections))
 	}
 	for i, section := range result.Sections {
-		if section.Main != (i == 0 || i == 2) || sections[i].Ordinal != i {
+		if section.Main != (i == 0 || i == 2) || sections[i].Ordinal != i || sections[i].CoverPlaceholder != section.CoverPlaceholder {
 			t.Fatalf("main sequence/ordinal %d: %+v", i, section)
 		}
 	}
