@@ -16,7 +16,8 @@ const (
 // labeled spine-derived list during preparation. Diagnostics contain codes only.
 // Fragment existence and supported content still require section preparation.
 type Navigation struct {
-	Source      string // "nav", "ncx", or empty when no declaration exists
+	Source      string      // "nav", "ncx", or empty when no declaration exists
+	CoverPages  []Reference // private whole-document landmarks
 	Entries     []NavigationEntry
 	Diagnostics []string
 }
@@ -99,6 +100,10 @@ func inspectNavigation(ctx context.Context, a *archive, p Package) (Navigation, 
 	if n.Source == "ncx" && root.is(ncxNamespace, "ncx") {
 		container = root.child(ncxNamespace, "navMap")
 	} else if n.Source == "nav" && root.is(xhtmlNamespace, "html") {
+		n.CoverPages, err = landmarkCoverPages(ctx, &root, selected.Reference.Path, p)
+		if err != nil {
+			return Navigation{}, err
+		}
 		var navs []*xmlElement
 		root.tocNodes(&navs)
 		if len(navs) == 1 {

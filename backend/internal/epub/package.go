@@ -25,6 +25,7 @@ type Package struct {
 	Items       []Item
 	Spine       []SpineItem
 	NCXID       string
+	CoverPages  []Reference
 	Navigation  Navigation
 	Diagnostics []string
 }
@@ -53,6 +54,10 @@ func Inspect(ctx context.Context, original io.ReaderAt, size int64) (Package, er
 	if err != nil {
 		return Package{}, err
 	}
+	return inspectArchive(ctx, a)
+}
+
+func inspectArchive(ctx context.Context, a *archive) (Package, error) {
 	data, err := a.readMetadata(ctx, "META-INF/container.xml")
 	if err != nil {
 		return Package{}, err
@@ -159,6 +164,17 @@ func inspectPackage(ctx context.Context, name string, doc packageXML) (Package, 
 	if linear == 0 {
 		return Package{}, ErrPackage
 	}
+	if len(doc.Guide.References) > maxNavigationEntries {
+		return Package{}, ErrLimit
+	}
+	for _, ref := range doc.Guide.References {
+		if ref.Type != "cover" {
+			continue
+		}
+		if target, err := resolveReference(name, ref.Href); err == nil && target.Fragment == "" && paths[target.Path] == "application/xhtml+xml" {
+			p.CoverPages = append(p.CoverPages, target)
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return Package{}, err
 	}
@@ -188,6 +204,12 @@ type packageXML struct {
 		Properties string `xml:"properties,attr"`
 		Fallback   string `xml:"fallback,attr"`
 	} `xml:"manifest>item"`
+	Guide struct {
+		References []struct {
+			Type string `xml:"type,attr"`
+			Href string `xml:"href,attr"`
+		} `xml:"http://www.idpf.org/2007/opf reference"`
+	} `xml:"http://www.idpf.org/2007/opf guide"`
 	Spine struct {
 		TOC   string `xml:"toc,attr"`
 		Items []struct {

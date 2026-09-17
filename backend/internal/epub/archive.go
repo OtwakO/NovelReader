@@ -10,6 +10,7 @@ import (
 	"io"
 	"path"
 	"strings"
+	"unicode/utf8"
 )
 
 var (
@@ -30,8 +31,8 @@ const (
 	maxMetadataReadBytes int64  = 16 << 20
 )
 
-// An archive belongs to one sequential inspection. The caller owns the ReaderAt
-// and must keep it open and unchanged for the duration of Inspect.
+// An archive belongs to one sequential inspection/preparation. The caller owns
+// the ReaderAt and keeps it open and unchanged for the entire operation.
 type archive struct {
 	files     map[string]*zip.File
 	readBytes int64
@@ -85,7 +86,7 @@ func openArchive(ctx context.Context, source io.ReaderAt, size int64) (*archive,
 }
 
 func validEntryName(name string) bool {
-	return name != "" && name != "." && path.Clean(name) == name &&
+	return utf8.ValidString(name) && name != "" && name != "." && path.Clean(name) == name &&
 		!strings.HasPrefix(name, "/") && name != ".." && !strings.HasPrefix(name, "../") &&
 		!strings.ContainsAny(name, "\\\x00")
 }

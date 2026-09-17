@@ -5,6 +5,7 @@ package epub
 // until publication-wide target and image validation has resolved the bindings.
 // The version-2 wire contract will be frozen with the renderer proof.
 type Section struct {
+	Cover       bool // explicit body-level EPUB cover semantics, not a filename heuristic
 	Title       string
 	Root        Node
 	Anchors     map[string]string // original ID -> opaque node ID; empty means ambiguous

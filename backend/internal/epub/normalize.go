@@ -14,6 +14,15 @@ const maxSectionBytes = 16 << 20
 // or images. Preparation must validate those bindings across the publication
 // before this result can be read. No archive/library/storage ownership lives here.
 func NormalizeSection(ctx context.Context, data []byte, base string) (Section, error) {
+	section, err := normalizeSection(ctx, data, base)
+	if err == nil && !hasReadableContent(section.Root) {
+		return Section{}, fmt.Errorf("%w: no readable content", ErrUnsupported)
+	}
+	return section, err
+}
+
+// Preparation decides admission after image validation, including explicit covers.
+func normalizeSection(ctx context.Context, data []byte, base string) (Section, error) {
 	if !validEntryName(base) {
 		return Section{}, ErrReference
 	}
@@ -44,6 +53,7 @@ func NormalizeSection(ctx context.Context, data []byte, base string) (Section, e
 	if err != nil {
 		return Section{}, err
 	}
+	n.section.Cover = slices.Contains(strings.Fields(body.attr(epubNamespace, "type")), "cover")
 	n.section.Root = *node
 	// The html element's inherited language/direction also applies to body.
 	if n.section.Root.Language == "" {
@@ -54,9 +64,6 @@ func NormalizeSection(ctx context.Context, data []byte, base string) (Section, e
 	}
 	// A document-level ID targets the beginning, not a separate invisible node.
 	n.anchors(&root, &n.section.Root)
-	if !hasReadableContent(n.section.Root) {
-		return Section{}, fmt.Errorf("%w: no readable content", ErrUnsupported)
-	}
 	if err := ctx.Err(); err != nil {
 		return Section{}, err
 	}
