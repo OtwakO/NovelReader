@@ -1,4 +1,4 @@
-package epub
+package imageproc
 
 import (
 	"context"
@@ -37,7 +37,7 @@ func TestValidateImageDisplayDimensions(t *testing.T) {
 					data = append(append([]byte{}, original[:33]...), pngChunk("eXIf", exif)...)
 					data = append(data, original[33:]...)
 				}
-				info, err := ValidateImage(context.Background(), data, mediaType)
+				info, err := Validate(context.Background(), data, mediaType, fixtureLimits)
 				width, height := 3, 2
 				if orientation >= 5 {
 					width, height = height, width

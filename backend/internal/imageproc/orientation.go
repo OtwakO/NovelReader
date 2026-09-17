@@ -1,10 +1,10 @@
-package epub
+package imageproc
 
 import "encoding/binary"
 
 // Image bytes remain unchanged. Browsers orient JPEG APP1 and PNG eXIf images;
 // report the same display axes instead of reserving the encoded matrix's shape.
-// Pixel decoding/limits belong to ValidateImage, not this metadata reader.
+// Pixel decoding/limits belong to Validate, not this metadata reader.
 func imageSwapsAxes(data []byte, mediaType string) bool {
 	var exif []byte
 	if mediaType == "image/jpeg" {
