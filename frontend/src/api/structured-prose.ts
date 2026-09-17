@@ -45,7 +45,7 @@ function externalURL(value: unknown): string {
   return raw;
 }
 
-/** Candidate contract proof only. Live getChapterContent still accepts v1 alone. */
+/** Strict version-2 boundary; legacy content retains its separate version-1 parser. */
 export function parseStructuredChapterContent(input: unknown): StructuredChapterContent {
   const data = object(input);
   if (data.version !== 2) throw new Error('Unsupported structured prose version');

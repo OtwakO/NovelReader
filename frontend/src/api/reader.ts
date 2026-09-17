@@ -1,4 +1,4 @@
-import type { StructuredChapterContent } from './structured-prose';
+import { parseStructuredChapterContent, type StructuredChapterContent } from './structured-prose';
 import type { Book } from './models';
 import { API_BASE, request, requestForm } from './transport';
 import { parseContentResource, type ContentResourceReference } from './content-resource';
@@ -40,13 +40,12 @@ export async function waitForCatalog(bookId: string, options: CatalogPollingOpti
   }
   return { chapters: result.chapters, contentRevision: result.contentRevision, ...(result.navigation ? { navigation: result.navigation } : {}) };
 }
-// Shared session type includes the candidate document; network admission below
-// remains version 1 until the EPUB catalog/browser contract checkpoint is complete.
 export function getChapterContent(bookId: string, chapterIdx: number, contentRevision: number, signal?: AbortSignal): Promise<ReadingContent> {
   return request<Record<string, unknown>>(`/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content?contentRevision=${contentRevision}`, { signal }).then(parseChapterContent);
 }
 
-function parseChapterContent(data: Record<string, unknown>): ChapterContent {
+function parseChapterContent(data: Record<string, unknown>): ReadingContent {
+  if (data.version === 2) return parseStructuredChapterContent(data);
   if (typeof data.contentRevision !== 'number' || !Number.isSafeInteger(data.contentRevision) || data.contentRevision < 0 || data.version !== 1 || !data.document || typeof data.document !== 'object') throw new Error('Invalid chapter content response');
   const document = data.document as Record<string, unknown>;
   if (document.kind !== 'prose' || typeof document.title !== 'string' || !Array.isArray(document.blocks)) throw new Error('Invalid prose document');

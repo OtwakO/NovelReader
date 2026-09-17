@@ -94,3 +94,13 @@ it('retains validated auxiliary membership across catalog polling and rejects am
     await expect(getCatalog('book')).rejects.toThrow('Invalid catalog');
   }
 });
+
+it('rejects unknown versions and malformed structured content rather than falling back to legacy prose', async () => {
+  for (const version of [2, 3]) {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      version, contentRevision: 9,
+      document: { kind: 'prose', title: 'Invalid', blocks: [{ kind: 'publisher-widget' }] },
+    }), { status: 200 })));
+    await expect(getChapterContent('book', 0, 9)).rejects.toThrow();
+  }
+});

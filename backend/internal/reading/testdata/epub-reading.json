@@ -1,0 +1,309 @@
+{
+  "catalog": {
+    "chapters": [
+      {
+        "index": 0,
+        "title": "Main section",
+        "isVolume": false
+      },
+      {
+        "index": 1,
+        "title": "Notes",
+        "isVolume": false,
+        "auxiliary": true
+      }
+    ],
+    "contentRevision": 9,
+    "navigation": {
+      "source": "sections",
+      "entries": [
+        {
+          "label": "Main section",
+          "target": {
+            "chapterIndex": 0,
+            "contentRevision": 9
+          }
+        }
+      ]
+    }
+  },
+  "contents": [
+    {
+      "contentRevision": 9,
+      "version": 2,
+      "document": {
+        "kind": "prose",
+        "title": "Main section",
+        "blocks": [
+          {
+            "kind": "group",
+            "language": "zh-Hant",
+            "direction": "ltr",
+            "children": [
+              {
+                "kind": "group",
+                "id": "a1",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "Block introduction"
+                  }
+                ]
+              },
+              {
+                "kind": "heading",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "Heading"
+                  }
+                ],
+                "level": 2
+              },
+              {
+                "kind": "paragraph",
+                "id": "a2",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "Text "
+                  },
+                  {
+                    "kind": "inlineGroup",
+                    "language": "ja",
+                    "children": [
+                      {
+                        "kind": "ruby",
+                        "children": [
+                          {
+                            "kind": "text",
+                            "text": "字"
+                          },
+                          {
+                            "kind": "rubyText",
+                            "children": [
+                              {
+                                "kind": "text",
+                                "text": "じ"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "text",
+                    "text": " "
+                  },
+                  {
+                    "kind": "strong",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "strong"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "text",
+                    "text": " "
+                  },
+                  {
+                    "kind": "emphasis",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "emphasis"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "break"
+                  },
+                  {
+                    "kind": "link",
+                    "role": "noteref",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "Note"
+                      }
+                    ],
+                    "target": {
+                      "chapterIndex": 1,
+                      "contentRevision": 9,
+                      "anchor": "a1"
+                    }
+                  },
+                  {
+                    "kind": "link",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "Outside"
+                      }
+                    ],
+                    "url": "https://example.invalid/read"
+                  },
+                  {
+                    "kind": "link",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "Unavailable"
+                      }
+                    ],
+                    "unavailable": true
+                  }
+                ]
+              },
+              {
+                "kind": "figure",
+                "children": [
+                  {
+                    "kind": "image",
+                    "resource": {
+                      "href": "/api/books/proof/chapters/0/resources/r1?contentRevision=9",
+                      "mediaType": "image/png"
+                    },
+                    "alt": "A small map",
+                    "width": 40,
+                    "height": 30
+                  },
+                  {
+                    "kind": "figureCaption",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "Map caption"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "orderedList",
+                "children": [
+                  {
+                    "kind": "listItem",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "First"
+                      }
+                    ]
+                  }
+                ],
+                "start": 0
+              },
+              {
+                "kind": "table",
+                "children": [
+                  {
+                    "kind": "tableBody",
+                    "children": [
+                      {
+                        "kind": "row",
+                        "children": [
+                          {
+                            "kind": "headerCell",
+                            "children": [
+                              {
+                                "kind": "text",
+                                "text": "Heading"
+                              }
+                            ],
+                            "rowSpan": 2
+                          },
+                          {
+                            "kind": "cell",
+                            "children": [
+                              {
+                                "kind": "text",
+                                "text": "Cell"
+                              }
+                            ],
+                            "colSpan": 2
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "quote",
+                "children": [
+                  {
+                    "kind": "paragraph",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "Quote"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "preformatted",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "preserved  space"
+                  }
+                ]
+              },
+              {
+                "kind": "separator"
+              },
+              {
+                "kind": "inlineGroup",
+                "children": [
+                  {
+                    "kind": "text",
+                    "text": "fallback text"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "contentRevision": 9,
+      "version": 2,
+      "document": {
+        "kind": "prose",
+        "title": "Notes",
+        "blocks": [
+          {
+            "kind": "group",
+            "language": "zh-Hant",
+            "direction": "ltr",
+            "children": [
+              {
+                "kind": "group",
+                "id": "a1",
+                "role": "footnote",
+                "children": [
+                  {
+                    "kind": "paragraph",
+                    "children": [
+                      {
+                        "kind": "text",
+                        "text": "Note body"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
