@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -75,5 +77,46 @@ func TestLocationSeparatesProgressFromAuxiliaryBookmarks(t *testing.T) {
 				t.Fatalf("bookmark: %v", err)
 			}
 		})
+	}
+}
+
+// This synthetic wire fixture is also consumed by the frontend parser tests.
+func TestEPUBNavigationWireContract(t *testing.T) {
+	prepared := epub.Preparation{
+		Sections: []epub.PreparedSectionInfo{{Title: "First", Main: true}, {}, {Title: "Last", Main: true}},
+		Navigation: epub.ResolvedNavigation{Source: "nav", Entries: []epub.ResolvedNavigationEntry{{Label: "Part", Children: []epub.ResolvedNavigationEntry{
+			{Label: "Later first", Target: &epub.SectionTarget{Section: 2}},
+			{Label: "Opening", Target: &epub.SectionTarget{Section: 0, Anchor: "a1"}},
+			{Label: "Another heading", Target: &epub.SectionTarget{Section: 0, Anchor: "a2"}},
+			{Label: "Unavailable parent", Unavailable: true, Children: []epub.ResolvedNavigationEntry{{Label: "Notes", Target: &epub.SectionTarget{Section: 1, Anchor: "a3"}}}},
+		}}}},
+	}
+	expected, err := os.ReadFile("testdata/epub-navigation.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want any
+	if err := json.Unmarshal(expected, &want); err != nil {
+		t.Fatal(err)
+	}
+	for _, source := range []string{"nav", "ncx"} {
+		prepared.Navigation.Source = source
+		encoded, err := json.Marshal(epubCatalog(9, prepared))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got any
+		if err := json.Unmarshal(encoded, &got); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s projection differs from shared wire fixture: %s", source, encoded)
+		}
+	}
+	// Preparation, rather than this projection, owns spine fallback generation.
+	prepared.Navigation = epub.ResolvedNavigation{Source: "spine", Entries: []epub.ResolvedNavigationEntry{{Label: "Section 1", Target: &epub.SectionTarget{Section: 0}}}}
+	fallback := epubCatalog(9, prepared)
+	if fallback.Navigation.Source != "sections" || fallback.Navigation.Entries[0].Label != "Section 1" || fallback.Navigation.Entries[0].Target.ChapterIndex != 0 {
+		t.Fatalf("lost fallback provenance: %+v", fallback.Navigation)
 	}
 }

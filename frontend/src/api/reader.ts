@@ -20,8 +20,8 @@ export interface CatalogPollingOptions { retry?: boolean; isCurrent?: () => bool
 const catalogPollDelays = [500, 1000, 1500, 2000];
 
 export function getCatalog(bookId: string, retry = false): Promise<CatalogResult> {
-  return request<{ chapters?: unknown; contentRevision?: unknown; state?: unknown }>(`/books/${encodeURIComponent(bookId)}/chapters${retry ? '/sync' : ''}`, retry ? { method: 'POST' } : undefined).then((value) => {
-    if (Array.isArray(value?.chapters) && typeof value.contentRevision === 'number' && Number.isSafeInteger(value.contentRevision) && value.contentRevision >= 0) return { state: 'ready', ...parseChapterCatalog(value.chapters, value.contentRevision) };
+  return request<{ chapters?: unknown; contentRevision?: unknown; navigation?: unknown; state?: unknown }>(`/books/${encodeURIComponent(bookId)}/chapters${retry ? '/sync' : ''}`, retry ? { method: 'POST' } : undefined).then((value) => {
+    if (Array.isArray(value?.chapters) && typeof value.contentRevision === 'number' && Number.isSafeInteger(value.contentRevision) && value.contentRevision >= 0) return { state: 'ready', ...parseChapterCatalog(value.chapters, value.contentRevision, value.navigation) };
     if (value?.state === 'syncing') return { state: 'syncing' };
     throw new Error('Invalid catalog response');
   });
@@ -38,7 +38,7 @@ export async function waitForCatalog(bookId: string, options: CatalogPollingOpti
     result = await getCatalog(bookId);
     attempt += 1;
   }
-  return { chapters: result.chapters, contentRevision: result.contentRevision };
+  return { chapters: result.chapters, contentRevision: result.contentRevision, ...(result.navigation ? { navigation: result.navigation } : {}) };
 }
 // Shared session type includes the candidate document; network admission below
 // remains version 1 until the EPUB catalog/browser contract checkpoint is complete.

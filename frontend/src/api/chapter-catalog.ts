@@ -1,11 +1,12 @@
 import type { Chapter } from './models';
+import { parseCatalogNavigation, type CatalogNavigation } from './catalog-navigation';
 
-export interface ChapterCatalog { chapters: Chapter[]; contentRevision: number }
+export interface ChapterCatalog { chapters: Chapter[]; contentRevision: number; navigation?: CatalogNavigation }
 
-/** Catalog order is reading order; section indices remain stable across filtering. */
-export function parseChapterCatalog(chapters: unknown[], contentRevision: number): ChapterCatalog {
+/** Main progression follows section order, not TOC order; filtering never renumbers indices. */
+export function parseChapterCatalog(chapters: unknown[], contentRevision: number, navigation?: unknown): ChapterCatalog {
   const indices = new Set<number>();
-  return { contentRevision, chapters: chapters.map(input => {
+  const parsed = chapters.map(input => {
     if (!input || typeof input !== 'object') throw new Error('Invalid catalog section');
     const value = input as Record<string, unknown>;
     if (typeof value.index !== 'number' || !Number.isSafeInteger(value.index) || value.index < 0 || indices.has(value.index) || typeof value.title !== 'string') throw new Error('Invalid catalog section');
@@ -14,5 +15,6 @@ export function parseChapterCatalog(chapters: unknown[], contentRevision: number
     if (value.isVolume && value.auxiliary) throw new Error('Volume cannot be an auxiliary section');
     indices.add(value.index);
     return { index: value.index, title: value.title, isVolume: value.isVolume === true, ...(value.auxiliary === undefined ? {} : { auxiliary: value.auxiliary }) };
-  }) };
+  });
+  return { contentRevision, chapters: parsed, ...(navigation === undefined ? {} : { navigation: parseCatalogNavigation(navigation, parsed, contentRevision) }) };
 }

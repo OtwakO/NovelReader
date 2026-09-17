@@ -1,8 +1,9 @@
+import { parseReadingTarget, type ReadingTarget } from './reading-target';
 import { parseContentResource, type ContentResourceReference } from './content-resource';
 
 export const proseContainerKinds = ['group', 'inlineGroup', 'paragraph', 'quote', 'figure', 'figureCaption', 'unorderedList', 'listItem', 'table', 'tableHead', 'tableBody', 'tableFoot', 'row', 'caption', 'emphasis', 'strong', 'strike', 'subscript', 'superscript', 'code', 'preformatted', 'break', 'separator', 'ruby', 'rubyText', 'rubyFallback'] as const;
 export type ProseContainerKind = typeof proseContainerKinds[number];
-export interface ReadingTarget { chapterIndex: number; contentRevision: number; anchor?: string }
+export type { ReadingTarget } from './reading-target';
 interface NodeAttributes {
   id?: string; language?: string; direction?: 'ltr' | 'rtl' | 'auto'; role?: 'footnote' | 'endnote' | 'noteref';
   children: StructuredProseNode[];
@@ -84,10 +85,7 @@ export function parseStructuredChapterContent(input: unknown): StructuredChapter
         const unavailable = value.unavailable === true;
         let target: ReadingTarget | undefined;
         if (value.target !== undefined) {
-          const raw = object(value.target);
-          const contentRevision = integer(raw.contentRevision, 0);
-          if (contentRevision !== revision) throw new Error('Prose target revision mismatch');
-          target = { chapterIndex: integer(raw.chapterIndex, 0), contentRevision, ...(raw.anchor !== undefined ? { anchor: text(raw.anchor) } : {}) };
+          target = parseReadingTarget(value.target, revision);
         }
         const url = value.url !== undefined ? externalURL(value.url) : undefined;
         if ((unavailable && (target || url)) || (!unavailable && Number(Boolean(target)) + Number(Boolean(url)) !== 1)) throw new Error('Invalid prose link action');

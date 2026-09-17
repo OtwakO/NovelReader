@@ -10,9 +10,10 @@ type Chapter struct {
 }
 
 type Catalog struct {
-	Chapters        []Chapter `json:"chapters"`
-	ContentRevision int64     `json:"contentRevision"`
-	Syncing         bool      `json:"-"`
+	Chapters        []Chapter   `json:"chapters"`
+	ContentRevision int64       `json:"contentRevision"`
+	Syncing         bool        `json:"-"`
+	Navigation      *Navigation `json:"navigation,omitempty"`
 }
 
 const (
