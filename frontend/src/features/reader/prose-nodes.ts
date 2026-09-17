@@ -25,7 +25,7 @@ export interface ProseNavigation { target: ReadingTarget; note: boolean }
 interface RenderOptions {
   showImages: boolean; fallbackImageAlt: string; imageUnavailable: string;
   failedResources: ReadonlySet<string>; imageFailed: (href: string) => void;
-  targetHref?: (target: ReadingTarget) => string;
+  targetHref?: (target: ReadingTarget, note: boolean) => string;
   navigate: (action: ProseNavigation) => void;
 }
 
@@ -44,7 +44,7 @@ export function renderProseNodes(nodes: StructuredProseNode[], options: RenderOp
           loading: 'lazy', decoding: 'async', onClick: (event: MouseEvent) => event.stopPropagation(), onError: () => options.imageFailed(node.resource.href) });
       }
       case 'link': {
-        const href = node.url ?? (node.target && options.targetHref?.(node.target));
+        const href = node.url ?? (node.target && options.targetHref?.(node.target, node.role === 'noteref'));
         if (node.unavailable || !href) return h('span', { ...attrs, role: 'link', 'aria-disabled': 'true' }, children());
         return h('a', { ...attrs, href, ...(node.url ? { target: '_blank', rel: 'noopener noreferrer', referrerpolicy: 'no-referrer' } : {}),
           onClick: (event: MouseEvent) => {
@@ -60,7 +60,7 @@ export function renderProseNodes(nodes: StructuredProseNode[], options: RenderOp
       case 'cell': case 'headerCell': return h(node.kind === 'cell' ? 'td' : 'th', { ...attrs, colspan: node.colSpan, rowspan: node.rowSpan }, children());
       case 'figure':
         return h('figure', { ...attrs, class: 'prose-figure', onClick: (event: MouseEvent) => event.stopPropagation() }, children());
-      case 'table': return h('div', { class: 'prose-table-scroll', tabindex: 0 }, [h('table', attrs, children())]);
+      case 'table': return h('div', { class: 'prose-table-scroll', tabindex: 0, onClick: (event: MouseEvent) => event.stopPropagation() }, [h('table', attrs, children())]);
       default: return h(tags[node.kind], attrs, children());
     }
   };

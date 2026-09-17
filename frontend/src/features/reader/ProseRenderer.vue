@@ -11,7 +11,7 @@ export default defineComponent({
     fallbackImageAlt: { type: String, required: true },
     imageUnavailable: { type: String, required: true },
     showImages: { type: Boolean, required: true },
-    targetHref: { type: Function as PropType<(target: ReadingTarget) => string>, default: undefined },
+    targetHref: { type: Function as PropType<(target: ReadingTarget, note: boolean) => string>, default: undefined },
   },
   emits: { navigate: (action: ProseNavigation) => Number.isSafeInteger(action.target.contentRevision) },
   data: () => ({ failedResources: new Set<string>() }),

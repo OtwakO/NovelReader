@@ -20,3 +20,12 @@ describe('reader keyboard controls', () => {
     expect(readerKeyboardAction(event('ArrowRight'), true)).toBe('none');
   });
 });
+
+it('leaves focused prose links, return buttons and scrollable tables in control of their keys', () => {
+  for (const tag of ['a', 'button', 'div']) {
+    const target = document.createElement(tag);
+    if (tag === 'div') target.className = 'prose-table-scroll';
+    expect(readerKeyboardAction(event('ArrowRight', target), false)).toBe('none');
+    expect(readerKeyboardAction(event(' ', target), false)).toBe('none');
+  }
+});

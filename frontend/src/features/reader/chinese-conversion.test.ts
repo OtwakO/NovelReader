@@ -62,11 +62,12 @@ it('reuses catalog conversion and recent documents, with mode and catalog identi
   vi.mocked(convertChineseTexts).mockReset().mockImplementation(async (_mode, texts) => [...texts]);
   const convert = createReaderDisplayConverter();
   const first = { version: 1 as const, contentRevision: 7, offlineCopy: false, document: { kind: 'prose' as const, title: 'First', blocks: [] } };
-  const second = { ...first, document: { ...first.document, title: 'Second' } };
+  const second = parseStructuredChapterContent(structuredProseFixture());
   const chapters = [{ id: 'chapter', bookId: 'book', index: 0, title: 'Catalog title', url: '/chapter', isVolume: false }];
   await convert(chapters, first, 'traditional');
   await convert(chapters, second, 'traditional');
   await convert(chapters, first, 'traditional');
+  await convert(chapters, second, 'traditional');
   expect(convertChineseTexts).toHaveBeenCalledTimes(3);
   expect(vi.mocked(convertChineseTexts).mock.calls.filter(call => call[1].includes('Catalog title'))).toHaveLength(1);
   await convert(chapters, first, 'simplified');

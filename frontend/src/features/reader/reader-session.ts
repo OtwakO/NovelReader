@@ -35,8 +35,8 @@ export function checkReaderLink(value: unknown, contentRevision: number): void {
   if (typeof value !== 'string' || !/^\d+$/.test(value) || Number(value) !== contentRevision) throw new ReaderRevisionConflict();
 }
 
-export function readerLocation(bookId: string, chapterIndex: number, contentRevision: number, position?: number) {
-  return { name: 'reader', params: { bookId, chapterIndex }, query: { contentRevision: String(contentRevision), ...(position === undefined ? {} : { position: String(position) }) } };
+export function readerLocation(bookId: string, chapterIndex: number, contentRevision: number, position?: number, visit?: { anchor?: string; note?: boolean }) {
+  return { name: 'reader', params: { bookId, chapterIndex }, query: { contentRevision: String(contentRevision), ...(position === undefined ? {} : { position: String(position) }), ...(visit?.anchor === undefined ? {} : { anchor: visit.anchor }), ...(visit?.note ? { note: '1' } : {}) } };
 }
 
 // A book awaiting its first catalog has no section location to qualify. Open its

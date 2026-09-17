@@ -16,6 +16,7 @@ let wrapper:ReturnType<typeof shallowMount<typeof ReaderView>>;
 
 beforeEach(()=>{
   vi.clearAllMocks();resetProgressWriter();localStorage.clear();
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callback(0); return 0; });
   localStorage.setItem('novelreader.reader.preferences.v1',JSON.stringify({prefetchNextChapter:false}));
   vi.mocked(getBook).mockResolvedValue({...initialBook});
   vi.mocked(getBookSource).mockResolvedValue({...initialBook});
@@ -26,7 +27,7 @@ beforeEach(()=>{
 });
 afterEach(async()=>{wrapper?.unmount();await waitForProgressWrites('book');vi.unstubAllGlobals();});
 async function open(query: Record<string,string> = {}) {
-  wrapper=shallowMount(ReaderView,{global:{mocks:{$t:(key:string)=>key,$route:{params:{bookId:'book',chapterIndex:'0'},query},$router:{push:vi.fn(),replace:vi.fn()}},stubs:{RouterLink:true}}});
+  wrapper=shallowMount(ReaderView,{global:{mocks:{$t:(key:string)=>key,$route:{params:{bookId:'book',chapterIndex:'0'},query},$router:{push:vi.fn(),replace:vi.fn()}},stubs:{RouterLink:true,ProseRenderer:false}}});
   await flushPromises();return wrapper.vm;
 }
 
@@ -196,4 +197,90 @@ it('skips auxiliary prefetch and preserves main resume while viewing and bookmar
   wrapper.unmount();
   await waitForProgressWrites('book');
   expect(saveProgress).not.toHaveBeenCalled();
+});
+
+it('commits nested note visits with content, keeps refresh write-free, and returns one location at a time', async () => {
+  const vm = await open();
+  await waitForProgressWrites('book');
+  vm.lastPosition = .3;
+  await vm.followTarget({ chapterIndex: 0, contentRevision: 7 }, true);
+  await waitForProgressWrites('book');
+  expect(vm.navigation?.returns).toHaveLength(1);
+  expect(vm.previousIndex).toBeNull();
+  expect(vm.nextIndex).toBeNull();
+  vi.mocked(saveProgress).mockClear();
+  vm.lastPosition = .7;
+  await vm.followTarget({ chapterIndex: 1, contentRevision: 7 }, true);
+  await vm.refetchChapter();
+  await vm.persistProgress();
+  expect(saveProgress).not.toHaveBeenCalled();
+  expect(vm.book?.durChapterPos).toBe(0);
+  await vm.returnFromNote();
+  expect(vm.currentIndex).toBe(0);
+  expect(vm.lastPosition).toBe(.7);
+  expect(vm.navigation?.current.note).toBe(true);
+  expect(saveProgress).not.toHaveBeenCalled();
+  await vm.returnFromNote();
+  await waitForProgressWrites('book');
+  expect(vm.lastPosition).toBe(.3);
+  expect(vm.navigation?.returns).toHaveLength(0);
+  expect(saveProgress).toHaveBeenCalledWith('book', 7, expect.any(Number), 0, .3);
+});
+
+it('retains the displayed note trail after a failed target and ignores superseded note proposals', async () => {
+  const vm = await open();
+  await vm.followTarget({ chapterIndex: 1, contentRevision: 7 }, true);
+  const trail = vm.navigation;
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new Error('offline'));
+  await vm.followTarget({ chapterIndex: 2, contentRevision: 7 }, true);
+  expect(vm.navigation).toBe(trail);
+  expect(vm.currentIndex).toBe(1);
+  let release!: (content: ChapterContent) => void;
+  vi.mocked(getChapterContent).mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+  const pending = vm.followTarget({ chapterIndex: 2, contentRevision: 7 }, true);
+  await flushPromises();
+  await vm.navigate(0, .6);
+  release(chapter('late note'));
+  await pending;
+  expect(vm.currentIndex).toBe(0);
+  expect(vm.navigation?.returns).toHaveLength(0);
+  expect(vm.lastPosition).toBe(.6);
+});
+
+it('restores scoped anchors and rolls back an unavailable anchor without consuming return state', async () => {
+  const vm = await open();
+  const host = wrapper.get('.reader-scroll').element as HTMLElement;
+  Object.defineProperties(host, { scrollHeight: { value: 1000 }, clientHeight: { value: 200 } });
+  const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function(this: HTMLElement) {
+    return { top: this.dataset.proseAnchor === 'note' ? 400 : 0 } as DOMRect;
+  });
+  vi.mocked(getChapterContent).mockResolvedValueOnce({ version: 2, contentRevision: 7, offlineCopy: false, document: {
+    kind: 'prose', structureVersion: 2, title: 'Notes', blocks: [{ kind: 'paragraph', id: 'note', children: [{ kind: 'text', text: 'Note text', children: [] }] }],
+  } });
+  try {
+    vm.lastPosition = .3;
+    await vm.followTarget({ chapterIndex: 1, contentRevision: 7, anchor: 'note' }, true);
+    expect(vm.lastPosition).toBe(.5);
+    const trail = vm.navigation;
+    await vm.followTarget({ chapterIndex: 1, contentRevision: 7, anchor: 'missing' }, true);
+    expect(vm.error).toBe('reader.anchorUnavailable');
+    expect(vm.navigation).toBe(trail);
+    expect(vm.lastPosition).toBe(.5);
+    await vm.returnFromNote();
+    expect(vm.lastPosition).toBe(.3);
+    expect(vm.currentIndex).toBe(0);
+  } finally { rect.mockRestore(); }
+});
+
+it('keeps a directly opened note write-free and carries note intent in qualified links', async () => {
+  const vm = await open({ contentRevision: '7', note: '1' });
+  await waitForProgressWrites('book');
+  expect(vm.readingNote).toBe(true);
+  expect(vm.navigation?.returns).toHaveLength(0);
+  expect(saveProgress).not.toHaveBeenCalled();
+  expect(vm.previousIndex).toBeNull();
+  await vm.navigate(0, .2);
+  await waitForProgressWrites('book');
+  expect(vm.readingNote).toBe(false);
+  expect(vm.$router.push).toHaveBeenCalledWith({ name: 'reader', params: { bookId: 'book', chapterIndex: 0 }, query: { contentRevision: '7', position: '0.2' } });
 });

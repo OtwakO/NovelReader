@@ -5,6 +5,7 @@ export function readerKeyboardAction(event: Pick<KeyboardEvent, 'key'|'target'|'
   const target = event.target as HTMLElement | null;
   if (target?.closest?.('input,select,textarea,[contenteditable="true"]')) return 'none';
   if (event.key === 'Escape') return 'escape';
+  if (target?.closest?.('a,button,.prose-table-scroll')) return 'none';
   if (overlayOpen || selection.trim()) return 'none';
   if (event.key === 'ArrowLeft') return 'previous';
   if (event.key === 'ArrowRight') return 'next';

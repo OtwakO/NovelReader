@@ -1,3 +1,4 @@
+import type { StructuredChapterContent } from './structured-prose';
 import type { Book } from './models';
 import { API_BASE, request, requestForm } from './transport';
 import { parseContentResource, type ContentResourceReference } from './content-resource';
@@ -9,6 +10,7 @@ export type ProseBlock =
   | { kind: 'image'; resource: ContentResourceReference; alt?: string };
 export interface ProseDocument { kind: 'prose'; title: string; blocks: ProseBlock[] }
 export interface ChapterContent { version: 1; contentRevision: number; document: ProseDocument; offlineCopy: boolean }
+export type ReadingContent = ChapterContent | StructuredChapterContent;
 export interface Bookmark { id: string; bookId: string; contentRevision: number; chapterIndex: number; chapterTitle: string; position: number; note: string; orphaned: boolean; createdAt: number }
 export interface Font { id: string; name: string; fileName: string; fileSize: number }
 export type { ChapterCatalog } from './chapter-catalog';
@@ -38,7 +40,9 @@ export async function waitForCatalog(bookId: string, options: CatalogPollingOpti
   }
   return { chapters: result.chapters, contentRevision: result.contentRevision };
 }
-export function getChapterContent(bookId: string, chapterIdx: number, contentRevision: number, signal?: AbortSignal): Promise<ChapterContent> {
+// Shared session type includes the candidate document; network admission below
+// remains version 1 until the EPUB catalog/browser contract checkpoint is complete.
+export function getChapterContent(bookId: string, chapterIdx: number, contentRevision: number, signal?: AbortSignal): Promise<ReadingContent> {
   return request<Record<string, unknown>>(`/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content?contentRevision=${contentRevision}`, { signal }).then(parseChapterContent);
 }
 

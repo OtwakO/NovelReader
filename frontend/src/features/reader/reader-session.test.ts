@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { getBook, type LibraryBook } from '../../api/books';
 import { waitForCatalog } from '../../api/reader';
-import { checkReaderLink, loadReaderSnapshot, readerResumeLocation, ReaderRevisionConflict } from './reader-session';
+import { checkReaderLink, loadReaderSnapshot, readerLocation, readerResumeLocation, ReaderRevisionConflict } from './reader-session';
 
 vi.mock('../../api/books', () => ({ getBook: vi.fn() }));
 vi.mock('../../api/reader', () => ({ waitForCatalog: vi.fn() }));
@@ -24,4 +24,10 @@ it('accepts unqualified current-catalog links but never reuses stale or malforme
   expect(() => checkReaderLink(undefined, 2)).not.toThrow();
   expect(() => checkReaderLink('2', 2)).not.toThrow();
   for (const revision of ['1', '', ['2'], '2.0']) expect(() => checkReaderLink(revision, 2)).toThrow(ReaderRevisionConflict);
+});
+
+it('qualifies anchor links and preserves note intent for a new tab or reload', () => {
+  expect(readerLocation('book', 2, 7, undefined, { anchor: 'a1', note: true })).toEqual({
+    name: 'reader', params: { bookId: 'book', chapterIndex: 2 }, query: { contentRevision: '7', anchor: 'a1', note: '1' },
+  });
 });

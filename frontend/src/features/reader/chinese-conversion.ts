@@ -1,15 +1,15 @@
 import { convertChineseTexts } from '../../api/system';
-import type { ChapterContent } from '../../api/reader';
-import { mapStructuredText, structuredTextValues, type StructuredChapterContent } from '../../api/structured-prose';
+import type { ReadingContent } from '../../api/reader';
+import { mapStructuredText, structuredTextValues } from '../../api/structured-prose';
 import type { Chapter } from '../../api/models';
 import type { ChineseConversionMode } from './reader-preferences';
 
-export interface ConvertedReaderDisplay<T = ChapterContent> {
+export interface ConvertedReaderDisplay<T = ReadingContent> {
   chapters: Chapter[];
   content: T | null;
 }
 
-export async function convertReaderDisplay<T extends ChapterContent | StructuredChapterContent = ChapterContent>(
+export async function convertReaderDisplay<T extends ReadingContent = ReadingContent>(
   chapters: Chapter[],
   content: T | null,
   mode: ChineseConversionMode,
@@ -45,7 +45,7 @@ export async function convertReaderDisplay<T extends ChapterContent | Structured
 /** Reader-owned memoization: canonical objects stay unchanged; discarded chapters are collectible. */
 export function createReaderDisplayConverter() {
   const catalogs = new WeakMap<Chapter[], Map<ChineseConversionMode, Promise<ConvertedReaderDisplay>>>();
-  const documents = new WeakMap<ChapterContent, Map<ChineseConversionMode, Promise<ConvertedReaderDisplay>>>();
+  const documents = new WeakMap<ReadingContent, Map<ChineseConversionMode, Promise<ConvertedReaderDisplay>>>();
 
   function cached<T extends object>(cache: WeakMap<T, Map<ChineseConversionMode, Promise<ConvertedReaderDisplay>>>, key: T, mode: ChineseConversionMode, convert: () => Promise<ConvertedReaderDisplay>) {
     let modes = cache.get(key);
@@ -57,10 +57,10 @@ export function createReaderDisplayConverter() {
     return pending;
   }
 
-  return async (chapters: Chapter[], content: ChapterContent | null, mode: ChineseConversionMode): Promise<ConvertedReaderDisplay> => {
+  return async (chapters: Chapter[], content: ReadingContent | null, mode: ChineseConversionMode): Promise<ConvertedReaderDisplay> => {
     if (mode === 'original') return { chapters, content };
     const [catalog, document] = await Promise.all([
-      cached(catalogs, chapters, mode, () => convertReaderDisplay<ChapterContent>(chapters, null, mode)),
+      cached(catalogs, chapters, mode, () => convertReaderDisplay<ReadingContent>(chapters, null, mode)),
       content ? cached(documents, content, mode, () => convertReaderDisplay([], content, mode)) : null,
     ]);
     return { chapters: catalog.chapters, content: document?.content ?? null };
