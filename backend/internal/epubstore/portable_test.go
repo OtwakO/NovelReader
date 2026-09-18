@@ -14,16 +14,19 @@ import (
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
-// Only cleanup, ownership, and section-index checks run in this fixture.
+// Cleanup, ownership, section-index, and physical stream checks run here.
 // This does not prove complete untrusted EPUB portable validation.
 func TestPortablePreparationOwnership(t *testing.T) {
-	for _, phase := range []string{"queued", "running", "before-move", "after-move", "ready"} {
+	for _, phase := range []string{"queued", "running", "before-move", "after-move", "damaged-after-move", "ready"} {
 		t.Run(phase, func(t *testing.T) {
 			manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: func(ctx context.Context, tx *sql.Tx, root *os.Root) error {
 				if err := validatePortableOwnership(ctx, tx, root); err != nil {
 					return err
 				}
-				return validatePortableSectionIndexes(ctx, tx)
+				if err := validatePortableSectionIndexes(ctx, tx); err != nil {
+					return err
+				}
+				return validatePortableStreams(ctx, tx, root)
 			}})
 			if err != nil {
 				t.Fatal(err)
@@ -72,12 +75,15 @@ func TestPortablePreparationOwnership(t *testing.T) {
 						t.Fatal(err)
 					}
 					err = source.persistPreparationIntent(t.Context(), attempt, staged)
-					if err == nil && phase == "after-move" {
+					if err == nil && (phase == "after-move" || phase == "damaged-after-move") {
 						destination := preparationPath(receipt.ID, attempt.Generation)
 						err = root.MkdirAll(path.Dir(destination), 0700)
 						if err == nil {
 							err = root.Rename(path.Join(receiptPreparationWorkPath(receipt.ID), staged.Directory()), destination)
 						}
+					}
+					if err == nil && phase == "damaged-after-move" {
+						err = root.WriteFile(path.Join(preparationPath(receipt.ID, attempt.Generation), sectionStreamFile), []byte("truncated"), 0600)
 					}
 					unlock()
 					if err != nil {

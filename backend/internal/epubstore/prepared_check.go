@@ -2,7 +2,9 @@ package epubstore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path"
 
@@ -96,4 +98,30 @@ func (s *Store) checkInstalledPreparation(ctx context.Context, root *os.Root, a 
 		err = errInvalidSectionSpan
 	}
 	return err
+}
+
+// Joined read/close errors are incomplete only when every cause is known.
+// An I/O or cancellation error must not authorize discarding recoverable output.
+func isIncompletePreparation(err error) bool {
+	if err == nil {
+		return false
+	}
+	switch cause := err.(type) {
+	case interface{ Unwrap() []error }:
+		children := cause.Unwrap()
+		if len(children) == 0 {
+			return false
+		}
+		for _, child := range children {
+			if !isIncompletePreparation(child) {
+				return false
+			}
+		}
+		return true
+	case interface{ Unwrap() error }:
+		return isIncompletePreparation(cause.Unwrap())
+	}
+	var syntax *json.SyntaxError
+	var shape *json.UnmarshalTypeError
+	return errors.Is(err, errInvalidSectionSpan) || errors.Is(err, errIncompletePreparation) || errors.Is(err, os.ErrNotExist) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.As(err, &syntax) || errors.As(err, &shape)
 }

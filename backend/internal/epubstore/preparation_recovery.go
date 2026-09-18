@@ -2,10 +2,8 @@ package epubstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"strings"
@@ -104,10 +102,7 @@ func (s *Store) recoverFinalization(ctx context.Context, root *os.Root, a Prepar
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		var syntax *json.SyntaxError
-		var shape *json.UnmarshalTypeError
-		incomplete := errors.Is(err, errInvalidSectionSpan) || errors.Is(err, errIncompletePreparation) || errors.Is(err, os.ErrNotExist) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.As(err, &syntax) || errors.As(err, &shape)
-		if !incomplete {
+		if !isIncompletePreparation(err) {
 			return err
 		}
 		if cleanupErr := root.RemoveAll(destination); cleanupErr != nil {
