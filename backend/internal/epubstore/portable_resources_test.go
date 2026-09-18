@@ -2,6 +2,7 @@ package epubstore
 
 import (
 	"database/sql"
+	"encoding/json"
 	"os"
 	"path"
 	"testing"
@@ -86,5 +87,58 @@ func TestPortableResourceBytes(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPortableSummaryMatchesStoredEvidence(t *testing.T) {
+	store, root := receiptStore(t)
+	receipt := acquiredFixture(t, store, epub.OptimizedImages)
+	attempt, err := store.QueuePreparation(t.Context(), receipt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = store.Prepare(t.Context(), receipt.ID, attempt.Generation); err != nil {
+		t.Fatal(err)
+	}
+	metadata, _, _, err := store.preparationMetadata(t.Context(), receipt.ID, attempt.Generation, PreparationReady)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := json.Marshal(metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name   string
+		change func(*epub.Preparation)
+	}{
+		{"section index count", func(p *epub.Preparation) { p.Sections = append(p.Sections, epub.PreparedSectionInfo{}) }},
+		{"derivative total", func(p *epub.Preparation) { p.ImageProcessing.DerivativeBytes++ }},
+		{"cover identity", func(p *epub.Preparation) { p.Cover.Info.Width++ }},
+		{"unregistered cover", func(p *epub.Preparation) { p.Cover.Reference.Path = "unregistered.png" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var changed epub.Preparation
+			if err := json.Unmarshal(original, &changed); err != nil {
+				t.Fatal(err)
+			}
+			tc.change(&changed)
+			data, err := json.Marshal(changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = store.db.Exec(`UPDATE epub_preparations SET metadata_json=? WHERE file_id=? AND generation=?`, data, receipt.ID, attempt.Generation); err != nil {
+				t.Fatal(err)
+			}
+			if err = checkPortableResourceFixture(t, store, root); err == nil {
+				t.Fatal("inconsistent summary accepted")
+			}
+		})
+	}
+	if _, err = store.db.Exec(`UPDATE epub_preparations SET metadata_json=? WHERE file_id=? AND generation=?`, original, receipt.ID, attempt.Generation); err != nil {
+		t.Fatal(err)
+	}
+	if err = checkPortableResourceFixture(t, store, root); err != nil {
+		t.Fatal("original summary rejected", err)
 	}
 }
