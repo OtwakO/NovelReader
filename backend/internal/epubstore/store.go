@@ -31,6 +31,7 @@ type Receipt struct {
 	ID, OriginalName, Path string
 	State                  AcquisitionState
 	Size                   int64
+	PreparationGeneration  int64
 	ImageMode              epub.ImageMode
 	Error                  string
 	CreatedAt, UpdatedAt   int64
@@ -47,7 +48,7 @@ func NewStore(db *sql.DB, files readerstore.FileStore) *Store { return &Store{db
 
 func (s *Store) Get(ctx context.Context, id string) (Receipt, error) {
 	var r Receipt
-	err := s.db.QueryRowContext(ctx, `SELECT id,original_name,state,size,image_mode,error,created_at,updated_at FROM epub_files WHERE id=?`, id).Scan(&r.ID, &r.OriginalName, &r.State, &r.Size, &r.ImageMode, &r.Error, &r.CreatedAt, &r.UpdatedAt)
+	err := s.db.QueryRowContext(ctx, `SELECT id,original_name,state,size,preparation_generation,image_mode,error,created_at,updated_at FROM epub_files WHERE id=?`, id).Scan(&r.ID, &r.OriginalName, &r.State, &r.Size, &r.PreparationGeneration, &r.ImageMode, &r.Error, &r.CreatedAt, &r.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Receipt{}, ErrNotFound
 	}
@@ -70,13 +71,20 @@ func (s *Store) transition(ctx context.Context, r *Receipt, to AcquisitionState,
 	if err != nil {
 		return err
 	}
-	n, err := result.RowsAffected()
+	if err = changedOne(result); err != nil {
+		return err
+	}
+	r.State, r.Error, r.UpdatedAt = to, message, now
+	return nil
+}
+
+func changedOne(result sql.Result) error {
+	count, err := result.RowsAffected()
 	if err != nil {
 		return err
 	}
-	if n != 1 {
+	if count != 1 {
 		return ErrStateChanged
 	}
-	r.State, r.Error, r.UpdatedAt = to, message, now
 	return nil
 }
