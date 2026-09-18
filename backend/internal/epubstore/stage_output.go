@@ -2,30 +2,12 @@ package epubstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 
 	"github.com/otwako/novelreader/internal/epub"
 )
-
-// sectionFile is relative to the attempt directory; ordinals come from Prepare.
-func sectionFile(ordinal int) string { return fmt.Sprintf("sections/%06d.json", ordinal) }
-
-func writeSection(ctx context.Context, root *os.Root, section epub.PreparedSection, limit int64) (int64, error) {
-	f, err := root.OpenFile(sectionFile(section.Ordinal), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if err != nil {
-		return 0, err
-	}
-	w := &outputWriter{ctx: ctx, target: f, remaining: limit}
-	err = json.NewEncoder(w).Encode(section)
-	if err == nil {
-		err = f.Sync()
-	}
-	return w.written, errors.Join(err, f.Close())
-}
 
 func writeDerivative(ctx context.Context, root *os.Root, path string, data []byte) error {
 	f, err := root.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)

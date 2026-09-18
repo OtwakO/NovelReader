@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"image"
 	"image/png"
@@ -76,13 +75,45 @@ func TestStageOwnsOutputAndCleanup(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(attempt, "scratch")); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("scratch remains: %v", err)
 			}
-			var section epub.PreparedSection
-			encoded, err := os.ReadFile(filepath.Join(attempt, sectionFile(0)))
+			stream, err := os.Open(filepath.Join(attempt, sectionStreamFile))
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err = json.Unmarshal(encoded, &section); err != nil {
+			info, err := stream.Stat()
+			if err != nil {
+				stream.Close()
 				t.Fatal(err)
+			}
+			if len(staged.SectionSpans) != len(staged.Preparation.Sections) {
+				stream.Close()
+				t.Fatal("missing spans")
+			}
+			var end int64
+			for ordinal, span := range staged.SectionSpans {
+				if span.Offset != end {
+					stream.Close()
+					t.Fatal("non-contiguous stream")
+				}
+				if _, err = readSection(t.Context(), stream, info.Size(), ordinal, span); err != nil {
+					stream.Close()
+					t.Fatal(err)
+				}
+				end += span.Length
+			}
+			if end != info.Size() {
+				stream.Close()
+				t.Fatal("unindexed bytes")
+			}
+			section, err := readSection(t.Context(), stream, info.Size(), 0, staged.SectionSpans[0])
+			if closeErr := stream.Close(); closeErr != nil {
+				t.Fatal(closeErr)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			entries, err := os.ReadDir(attempt)
+			if err != nil || len(entries) != 2 {
+				t.Fatalf("expected only stream and images directory: %v %v", entries, err)
 			}
 			if section.Ordinal != 0 || len(section.Images) == 0 {
 				t.Fatal("section evidence lost")
@@ -116,7 +147,7 @@ func TestStageOwnsOutputAndCleanup(t *testing.T) {
 			if err = staged.Close(); err != nil {
 				t.Fatal(err)
 			}
-			entries, err := os.ReadDir(path)
+			entries, err = os.ReadDir(path)
 			if err != nil || len(entries) != 0 {
 				t.Fatalf("cleanup: %v %v", entries, err)
 			}
@@ -147,19 +178,5 @@ func TestStageFailureDiscardsAttemptOnly(t *testing.T) {
 	entries, err := os.ReadDir(path)
 	if err != nil || len(entries) != 1 || entries[0].Name() != "another-attempt" {
 		t.Fatalf("attempt isolation: %v %v", entries, err)
-	}
-}
-
-func TestSectionOutputLimit(t *testing.T) {
-	root, err := os.OpenRoot(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer root.Close()
-	if err = root.Mkdir("sections", 0700); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = writeSection(context.Background(), root, epub.PreparedSection{}, 1); !errors.Is(err, epub.ErrLimit) {
-		t.Fatal(err)
 	}
 }

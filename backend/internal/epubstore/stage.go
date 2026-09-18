@@ -27,8 +27,10 @@ const (
 // This object is single-owner; do not close it while consuming its files.
 type StagedPreparation struct {
 	Preparation epub.Preparation
-	work        *os.Root
-	directory   string
+	// SectionSpans contains only the byte index; no section trees are retained.
+	SectionSpans []SectionSpan
+	work         *os.Root
+	directory    string
 }
 
 func (s *StagedPreparation) Directory() string { return s.directory }
@@ -65,12 +67,19 @@ func Stage(ctx context.Context, work *os.Root, original io.ReaderAt, size int64,
 			result = nil
 		}
 	}()
-	if err = root.Mkdir("sections", 0700); err != nil {
-		return nil, err
-	}
 	if err = root.Mkdir("images", 0700); err != nil {
 		return nil, err
 	}
+	stream, err := root.OpenFile(sectionStreamFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = errors.Join(err, stream.Close())
+		if err != nil {
+			result = nil
+		}
+	}()
 	scratch, err := root.OpenFile("scratch", os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
@@ -78,9 +87,13 @@ func Stage(ctx context.Context, work *os.Root, original io.ReaderAt, size int64,
 	// Close scratch before cleanup even if preparation or an output write fails.
 	var sectionBytes int64
 	prepared, prepareErr := epub.Prepare(ctx, original, size, scratch, func(section epub.PreparedSection) error {
-		n, err := writeSection(ctx, root, section, min(maxSectionBytes, maxSectionTotalBytes-sectionBytes))
-		sectionBytes += n
-		return err
+		span, err := appendSection(ctx, stream, section, sectionBytes)
+		if err != nil {
+			return err
+		}
+		s.SectionSpans = append(s.SectionSpans, span)
+		sectionBytes += span.Length
+		return nil
 	}, epub.ImageOptions{
 		Mode: mode, MaxDerivativeBytes: maxDerivativeBytes, MaxTotalDerivativeBytes: maxDerivativeTotalBytes,
 		Emit: func(ctx context.Context, _ epub.Reference, _ epub.ImageInfo, data []byte) (string, error) {
@@ -90,6 +103,9 @@ func Stage(ctx context.Context, work *os.Root, original io.ReaderAt, size int64,
 		},
 	})
 	if err = errors.Join(prepareErr, scratch.Close()); err != nil {
+		return nil, err
+	}
+	if err = stream.Sync(); err != nil {
 		return nil, err
 	}
 	if err = root.Remove("scratch"); err != nil {
