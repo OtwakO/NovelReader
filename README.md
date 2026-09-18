@@ -117,6 +117,11 @@ recovery until resolved. A prepared-but-unstarted request must be canceled befor
 server's process-local record is gone, explicitly continue with fresh state and inspect the library;
 an unknown result does not mean success or failure.
 
+Portable reader backups have the same limits on export and restore: 2 GiB compressed,
+8 GiB of unpacked entry payloads, and 100,000 entries (including directories and backup
+metadata). An over-limit export fails; discard any partial download. For larger homes,
+use the complete deployment backup above.
+
 A successful replacement may report recovery or old-file cleanup warnings: the new data is already
 active, while retained records/files need attention; check server logs. Corrupt or incompatible
 archives are still rejected before replacement.
