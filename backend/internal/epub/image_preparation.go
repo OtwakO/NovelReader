@@ -14,6 +14,7 @@ const (
 	OriginalImages        ImageMode = "original"
 	OptimizedImages       ImageMode = "optimized"
 	optimizedImageProfile           = "webp-q92-edge2048-v1"
+	optimizedImageMaxEdge           = 2048
 )
 
 var (
@@ -65,7 +66,7 @@ func (r *imageResolver) prepareImage(ctx context.Context, ref Reference, data []
 		return imageResult{}, ErrLimit
 	}
 	result, err := imageproc.Optimize(ctx, data, mediaType, imageproc.Profile{
-		Limits: rasterLimits(), MaxEdge: 2048, Quality: 92,
+		Limits: rasterLimits(), MaxEdge: optimizedImageMaxEdge, Quality: 92,
 		MaxOutputBytes: min(r.options.MaxDerivativeBytes, remaining),
 	})
 	if err != nil {

@@ -14,10 +14,10 @@ import (
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
-// Cleanup, ownership, section-index, and physical stream checks run here.
+// Cleanup, ownership, index, stream, and image-resource checks run here.
 // This does not prove complete untrusted EPUB portable validation.
 func TestPortablePreparationOwnership(t *testing.T) {
-	for _, phase := range []string{"queued", "running", "before-move", "after-move", "damaged-after-move", "ready"} {
+	for _, phase := range []string{"queued", "running", "before-move", "after-move", "damaged-after-move", "ready", "optimized-ready"} {
 		t.Run(phase, func(t *testing.T) {
 			manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: func(ctx context.Context, tx *sql.Tx, root *os.Root) error {
 				if err := validatePortableOwnership(ctx, tx, root); err != nil {
@@ -26,7 +26,10 @@ func TestPortablePreparationOwnership(t *testing.T) {
 				if err := validatePortableSectionIndexes(ctx, tx); err != nil {
 					return err
 				}
-				return validatePortableStreams(ctx, tx, root)
+				if err := validatePortableStreams(ctx, tx, root); err != nil {
+					return err
+				}
+				return validatePortableResources(ctx, tx, root)
 			}})
 			if err != nil {
 				t.Fatal(err)
@@ -50,7 +53,11 @@ func TestPortablePreparationOwnership(t *testing.T) {
 			}
 			t.Cleanup(func() { root.Close() })
 			source := NewStore(home.DB(), home.Files())
-			receipt := acquiredFixture(t, source, epub.OriginalImages)
+			mode := epub.OriginalImages
+			if phase == "optimized-ready" {
+				mode = epub.OptimizedImages
+			}
+			receipt := acquiredFixture(t, source, mode)
 			original, err := root.ReadFile(receipt.Path)
 			if err != nil {
 				t.Fatal(err)
@@ -59,7 +66,7 @@ func TestPortablePreparationOwnership(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if phase == "ready" {
+			if phase == "ready" || phase == "optimized-ready" {
 				if err = source.Prepare(t.Context(), receipt.ID, attempt.Generation); err != nil {
 					t.Fatal(err)
 				}
@@ -154,7 +161,7 @@ func TestPortablePreparationOwnership(t *testing.T) {
 			want := PreparationFailed
 			if phase == "queued" {
 				want = PreparationQueued
-			} else if phase == "after-move" || phase == "ready" {
+			} else if phase == "after-move" || phase == "ready" || phase == "optimized-ready" {
 				want = PreparationReady
 			}
 			if got.State != want {

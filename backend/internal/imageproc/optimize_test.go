@@ -44,6 +44,10 @@ func TestOptimizeDimensionsAndOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		validated, validationErr := ValidateWebP(context.Background(), result.Data, Limits{MaxBytes: profile.MaxOutputBytes, MaxDimension: profile.MaxEdge, MaxPixels: int64(profile.MaxEdge) * int64(profile.MaxEdge)})
+		if validationErr != nil || validated != result.Info {
+			t.Fatalf("optimized validation: %+v %v", validated, validationErr)
+		}
 		decoded, err := webp.Decode(bytes.NewReader(result.Data))
 		if err != nil {
 			t.Fatal(err)
@@ -129,5 +133,29 @@ func TestOptimizeFailureBoundaries(t *testing.T) {
 func TestNativeEncoderRequirement(t *testing.T) {
 	if os.Getenv("NOVELREADER_TEST_REQUIRE_NATIVE_WEBP") == "1" && EncoderBackend() != "native" {
 		t.Fatal("release image must provide native WebP")
+	}
+}
+
+func TestValidateWebPRejectsMetadataAndLimits(t *testing.T) {
+	result, err := Optimize(t.Context(), encodePNG(t, image.NewNRGBA(image.Rect(0, 0, 3, 2))), "image/png", testProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	limits := Limits{MaxBytes: testProfile.MaxOutputBytes, MaxDimension: 2048, MaxPixels: 2048 * 2048}
+	limited := limits
+	limited.MaxPixels = 1
+	if _, err = ValidateWebP(t.Context(), result.Data, limited); !errors.Is(err, ErrLimit) {
+		t.Fatal("pixel budget", err)
+	}
+	// The optimizer strips metadata. Do not let restored EXIF alter browser axes.
+	data := append(bytes.Clone(result.Data), []byte{'E', 'X', 'I', 'F', 0, 0, 0, 0}...)
+	binary.LittleEndian.PutUint32(data[4:8], uint32(len(data)-8))
+	if _, err = ValidateWebP(t.Context(), data, limits); !errors.Is(err, ErrUnsupported) {
+		t.Fatal("metadata accepted", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err = ValidateWebP(ctx, result.Data, limits); !errors.Is(err, context.Canceled) {
+		t.Fatal("cancellation", err)
 	}
 }
