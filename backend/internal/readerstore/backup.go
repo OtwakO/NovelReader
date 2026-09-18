@@ -37,24 +37,29 @@ func (m *Manager) SnapshotHome(ctx context.Context, userID UserID, destination s
 		return cleanup(err)
 	}
 	defer home.Close()
-	unlock, err := home.Files().LockMutation(ctx)
+	// Protect the coherent copy, not validation of its independent files. Keep
+	// the home lease until return so deletion/replacement remains coordinated.
+	err = func() error {
+		unlock, err := home.Files().LockMutation(ctx)
+		if err != nil {
+			return err
+		}
+		defer unlock()
+		if err := writeHomeManifest(destination); err != nil {
+			return err
+		}
+		if err := backupDatabase(ctx, home.DB(), filepath.Join(destination, ReaderDatabaseName)); err != nil {
+			return fmt.Errorf("readerstore: snapshot reader database: %w", err)
+		}
+		if err := preparePortableDatabase(ctx, filepath.Join(destination, ReaderDatabaseName), m.schemas); err != nil {
+			return err
+		}
+		if err := initializeCredentialsDatabase(filepath.Join(destination, CredentialsDatabaseName), m.schemas); err != nil {
+			return fmt.Errorf("readerstore: initialize snapshot credentials: %w", err)
+		}
+		return copyDurableFiles(ctx, home.Files().root, filepath.Join(destination, FilesDirectory))
+	}()
 	if err != nil {
-		return cleanup(err)
-	}
-	defer unlock()
-	if err := writeHomeManifest(destination); err != nil {
-		return cleanup(err)
-	}
-	if err := backupDatabase(ctx, home.DB(), filepath.Join(destination, ReaderDatabaseName)); err != nil {
-		return cleanup(fmt.Errorf("readerstore: snapshot reader database: %w", err))
-	}
-	if err := preparePortableDatabase(ctx, filepath.Join(destination, ReaderDatabaseName), m.schemas); err != nil {
-		return cleanup(err)
-	}
-	if err := initializeCredentialsDatabase(filepath.Join(destination, CredentialsDatabaseName), m.schemas); err != nil {
-		return cleanup(fmt.Errorf("readerstore: initialize snapshot credentials: %w", err))
-	}
-	if err := copyDurableFiles(ctx, home.Files().root, filepath.Join(destination, FilesDirectory)); err != nil {
 		return cleanup(err)
 	}
 	if err := validatePortableHome(ctx, destination, m.schemas); err != nil {

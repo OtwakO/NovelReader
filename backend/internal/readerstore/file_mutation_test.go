@@ -2,7 +2,9 @@ package readerstore
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -112,3 +114,73 @@ func TestSnapshotCopyReaderStopsBetweenReads(t *testing.T) {
 type copyTestReader func([]byte) (int, error)
 
 func (r copyTestReader) Read(p []byte) (int, error) { return r(p) }
+
+func TestSnapshotValidationDoesNotBlockLiveMutation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		manager := newBackupTestManager(t)
+		entered, resume := make(chan struct{}), make(chan struct{})
+		manager.schemas[0].ValidatePortableFiles = func(ctx context.Context, tx *sql.Tx, root *os.Root) error {
+			close(entered)
+			<-resume
+			var value string
+			if err := tx.QueryRowContext(ctx, `SELECT value FROM portable_value`).Scan(&value); err != nil {
+				return err
+			}
+			data, err := root.ReadFile(filepath.Join(FontsDirectory, "font"))
+			if err != nil {
+				return err
+			}
+			if value != "copied" || string(data) != "copied" {
+				return fmt.Errorf("snapshot changed during validation: database=%q file=%q", value, data)
+			}
+			return nil
+		}
+		if err := manager.Create(t.Context(), testUserAlice); err != nil {
+			t.Fatal(err)
+		}
+		home, err := manager.Open(t.Context(), testUserAlice)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer home.Close()
+		if _, err = home.DB().Exec(`INSERT INTO portable_value VALUES ('copied')`); err != nil {
+			t.Fatal(err)
+		}
+		if err = home.Files().WriteFile([]byte("copied"), 0600, FontsDirectory, "font"); err != nil {
+			t.Fatal(err)
+		}
+		snapshotDone := make(chan error, 1)
+		destination := filepath.Join(t.TempDir(), "snapshot")
+		go func() { snapshotDone <- manager.SnapshotHome(t.Context(), testUserAlice, destination) }()
+		<-entered
+		mutationDone := make(chan error, 1)
+		go func() {
+			mutationDone <- func() error {
+				unlock, err := home.Files().LockMutation(t.Context())
+				if err != nil {
+					return err
+				}
+				defer unlock()
+				if _, err = home.DB().Exec(`UPDATE portable_value SET value='live'`); err != nil {
+					return err
+				}
+				return home.Files().WriteFile([]byte("live"), 0600, FontsDirectory, "font")
+			}()
+		}()
+		synctest.Wait()
+		select {
+		case err := <-mutationDone:
+			close(resume)
+			snapshotErr := <-snapshotDone
+			if err != nil || snapshotErr != nil {
+				t.Fatalf("mutation=%v snapshot=%v", err, snapshotErr)
+			}
+		default:
+			// Release the validator before failing so all leases/goroutines can drain.
+			close(resume)
+			<-snapshotDone
+			<-mutationDone
+			t.Fatal("snapshot validation still holds the live mutation gate")
+		}
+	})
+}
