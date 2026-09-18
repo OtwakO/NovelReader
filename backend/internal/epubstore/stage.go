@@ -29,6 +29,7 @@ type StagedPreparation struct {
 	Preparation epub.Preparation
 	// SectionSpans contains only the byte index; no section trees are retained.
 	SectionSpans []SectionSpan
+	Resources    []PreparedResource
 	work         *os.Root
 	directory    string
 }
@@ -85,11 +86,15 @@ func Stage(ctx context.Context, work *os.Root, original io.ReaderAt, size int64,
 		return nil, err
 	}
 	// Close scratch before cleanup even if preparation or an output write fails.
+	resources := newResourceIndex()
 	var sectionBytes int64
 	prepared, prepareErr := epub.Prepare(ctx, original, size, scratch, func(section epub.PreparedSection) error {
 		span, err := appendSection(ctx, stream, section, sectionBytes)
 		if err != nil {
 			return err
+		}
+		for _, image := range section.Images {
+			resources.add(image)
 		}
 		s.SectionSpans = append(s.SectionSpans, span)
 		sectionBytes += span.Length
@@ -99,6 +104,9 @@ func Stage(ctx context.Context, work *os.Root, original io.ReaderAt, size int64,
 		Emit: func(ctx context.Context, _ epub.Reference, _ epub.ImageInfo, data []byte) (string, error) {
 			id := rand.Text()
 			err := writeDerivative(ctx, root, "images/"+id+".webp", data)
+			if err == nil {
+				resources.sizes[id] = int64(len(data))
+			}
 			return id, err
 		},
 	})
@@ -110,6 +118,12 @@ func Stage(ctx context.Context, work *os.Root, original io.ReaderAt, size int64,
 	}
 	if err = root.Remove("scratch"); err != nil {
 		return nil, err
+	}
+	if prepared.Cover != nil {
+		resources.add(*prepared.Cover)
+	}
+	for _, resource := range resources.byPath {
+		s.Resources = append(s.Resources, resource)
 	}
 	s.Preparation = prepared
 	return s, nil

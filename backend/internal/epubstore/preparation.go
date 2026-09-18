@@ -12,9 +12,11 @@ import (
 type PreparationState string
 
 const (
-	PreparationQueued  PreparationState = "queued"
-	PreparationRunning PreparationState = "preparing"
-	PreparationFailed  PreparationState = "failed"
+	PreparationQueued     PreparationState = "queued"
+	PreparationRunning    PreparationState = "preparing"
+	PreparationFailed     PreparationState = "failed"
+	PreparationFinalizing PreparationState = "finalizing"
+	PreparationReady      PreparationState = "ready" // complete output, not review approval
 )
 
 // PreparationAttempt identifies ownership of one preparation, not publication.
@@ -44,6 +46,15 @@ func (s *Store) QueuePreparation(ctx context.Context, id string) (PreparationAtt
 	}
 	if r.State != Acquired {
 		return PreparationAttempt{}, ErrStateChanged
+	}
+	if r.PreparationGeneration > 0 {
+		current, err := s.GetPreparation(ctx, id, r.PreparationGeneration)
+		if err != nil {
+			return PreparationAttempt{}, err
+		}
+		if current.State == PreparationFinalizing || current.State == PreparationReady {
+			return PreparationAttempt{}, ErrStateChanged
+		}
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

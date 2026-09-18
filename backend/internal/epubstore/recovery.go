@@ -122,7 +122,7 @@ func (s *Store) Discard(ctx context.Context, id string) (err error) {
 }
 
 func (s *Store) finishRemoval(ctx context.Context, root *os.Root, r Receipt) error {
-	if err := errors.Join(root.RemoveAll(path.Dir(r.Path)), removeTransfer(root, r.ID)); err != nil {
+	if err := errors.Join(root.RemoveAll(path.Dir(r.Path)), root.RemoveAll(receiptPreparationWorkPath(r.ID)), removeTransfer(root, r.ID)); err != nil {
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM epub_files WHERE id=? AND state='removing'`, r.ID)

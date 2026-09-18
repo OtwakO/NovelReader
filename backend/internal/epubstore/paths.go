@@ -3,6 +3,7 @@ package epubstore
 import (
 	"errors"
 	"path"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -31,3 +32,10 @@ func validateID(id string) error {
 }
 func originalPath(id string) string { return path.Join("epub", id, "original.epub") }
 func transferPath(id string) string { return path.Join(readerstore.WorkDirectory, "epub", id+".part") }
+
+func preparationPath(id string, generation int64) string {
+	return path.Join("epub", id, "preparations", strconv.FormatInt(generation, 10))
+}
+func preparationWorkPath() string { return path.Join(readerstore.WorkDirectory, "epub-preparations") }
+
+func receiptPreparationWorkPath(id string) string { return path.Join(preparationWorkPath(), id) }
