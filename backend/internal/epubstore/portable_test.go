@@ -2,6 +2,8 @@ package epubstore
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path"
@@ -12,12 +14,17 @@ import (
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
-// Only cleanup and ownership checks are registered in this isolated fixture.
+// Only cleanup, ownership, and section-index checks run in this fixture.
 // This does not prove complete untrusted EPUB portable validation.
 func TestPortablePreparationOwnership(t *testing.T) {
 	for _, phase := range []string{"queued", "running", "before-move", "after-move", "ready"} {
 		t.Run(phase, func(t *testing.T) {
-			manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: validatePortableOwnership})
+			manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: func(ctx context.Context, tx *sql.Tx, root *os.Root) error {
+				if err := validatePortableOwnership(ctx, tx, root); err != nil {
+					return err
+				}
+				return validatePortableSectionIndexes(ctx, tx)
+			}})
 			if err != nil {
 				t.Fatal(err)
 			}

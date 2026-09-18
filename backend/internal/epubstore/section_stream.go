@@ -16,6 +16,12 @@ const sectionStreamFile = "sections.jsonl"
 // Offsets are byte offsets, not character positions. Order is the section ordinal.
 type SectionSpan struct{ Offset, Length int64 }
 
+func (span SectionSpan) validFor(size int64) bool {
+	return size >= 0 && size <= maxSectionTotalBytes && span.Offset >= 0 &&
+		span.Length > 0 && span.Length <= maxSectionBytes &&
+		span.Offset <= size && span.Length <= size-span.Offset
+}
+
 var errInvalidSectionSpan = errors.New("epubstore: invalid section span")
 
 func appendSection(ctx context.Context, output io.Writer, section epub.PreparedSection, offset int64) (SectionSpan, error) {
@@ -33,7 +39,7 @@ func readSection(ctx context.Context, input io.ReaderAt, size int64, ordinal int
 	if err := ctx.Err(); err != nil {
 		return epub.PreparedSection{}, err
 	}
-	if ordinal < 0 || span.Offset < 0 || span.Length <= 0 || span.Length > maxSectionBytes || size < 0 || size > maxSectionTotalBytes || span.Offset > size || span.Length > size-span.Offset {
+	if ordinal < 0 || !span.validFor(size) {
 		return epub.PreparedSection{}, errInvalidSectionSpan
 	}
 	data := make([]byte, int(span.Length))
