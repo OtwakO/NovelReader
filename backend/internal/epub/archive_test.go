@@ -23,7 +23,7 @@ func TestArchiveBoundary(t *testing.T) {
 	if _, err := openArchive(ctx, bytes.NewReader(data), int64(len(data))); !errors.Is(err, ErrArchive) {
 		t.Fatalf("duplicate: %v", err)
 	}
-	if _, err := openArchive(ctx, bytes.NewReader(nil), maxArchiveBytes+1); !errors.Is(err, ErrLimit) {
+	if _, err := openArchive(ctx, bytes.NewReader(nil), MaxInputBytes+1); !errors.Is(err, ErrLimit) {
 		t.Fatalf("input size: %v", err)
 	}
 	canceled, cancel := context.WithCancel(ctx)

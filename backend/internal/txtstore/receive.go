@@ -8,6 +8,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/txt"
 )
 
@@ -65,21 +66,11 @@ func (s *Store) Receive(ctx context.Context, id, name string, input io.Reader) (
 }
 
 func receiveWork(ctx context.Context, root *os.Root, destination string, input io.Reader) (int64, error) {
-	if err := root.MkdirAll(path.Dir(destination), 0o700); err != nil {
-		return 0, err
+	size, err := readerstore.WriteWorkFile(ctx, root, destination, input, txt.MaxInputBytes)
+	if errors.Is(err, readerstore.ErrFileTooLarge) {
+		err = errors.Join(ErrInputTooLarge, err)
 	}
-	file, err := root.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if err != nil {
-		return 0, err
-	}
-	size, copyErr := io.Copy(file, io.LimitReader(receiveReader{ctx: ctx, reader: input}, txt.MaxInputBytes+1))
-	if size > txt.MaxInputBytes {
-		copyErr = ErrInputTooLarge
-	}
-	if copyErr == nil {
-		copyErr = file.Sync()
-	}
-	return size, errors.Join(copyErr, file.Close())
+	return size, err
 }
 
 func (s *Store) failTransfer(ctx context.Context, root *os.Root, value Receipt, cause error) (Receipt, error) {

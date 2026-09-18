@@ -24,7 +24,8 @@ var (
 // Initial import budgets, not operator settings. They bound work before any
 // publication exists; semantic section/image limits belong to normalization.
 const (
-	maxArchiveBytes      int64  = 256 << 20
+	// MaxInputBytes is shared by acquisition and archive inspection.
+	MaxInputBytes        int64  = 256 << 20
 	maxEntries                  = 20000
 	maxExpandedBytes     uint64 = 1 << 30
 	maxMetadataBytes     int64  = 4 << 20
@@ -45,7 +46,7 @@ func openArchive(ctx context.Context, source io.ReaderAt, size int64) (*archive,
 	if size < 0 {
 		return nil, ErrArchive
 	}
-	if size > maxArchiveBytes {
+	if size > MaxInputBytes {
 		return nil, ErrLimit
 	}
 	zr, err := zip.NewReader(contextReaderAt{ctx, source}, size)
