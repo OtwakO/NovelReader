@@ -52,7 +52,7 @@ func TestPrepareCoverSelection(t *testing.T) {
 				{"art.bin", string(art)}, {"decoration.png", string(rasterFixture(t, "image/png"))},
 			})
 			emitted := 0
-			result, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(PreparedSection) error { emitted++; return nil })
+			result, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(PreparedSection) error { emitted++; return nil }, ImageOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}

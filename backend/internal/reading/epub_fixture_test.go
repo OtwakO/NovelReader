@@ -60,7 +60,7 @@ func prepareReadingEPUB(t *testing.T) (epub.Preparation, []epub.PreparedSection)
 		}
 	})
 	var sections []epub.PreparedSection
-	prepared, err := epub.Prepare(context.Background(), bytes.NewReader(original.Bytes()), int64(original.Len()), scratch, func(section epub.PreparedSection) error { sections = append(sections, section); return nil })
+	prepared, err := epub.Prepare(context.Background(), bytes.NewReader(original.Bytes()), int64(original.Len()), scratch, func(section epub.PreparedSection) error { sections = append(sections, section); return nil }, epub.ImageOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

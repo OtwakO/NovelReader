@@ -26,17 +26,23 @@ type ImageInfo = imageproc.Info
 // ValidateImage preserves EPUB's admission/error contract while the shared
 // module owns raster validation and orientation. No image bytes are retained.
 func ValidateImage(ctx context.Context, data []byte, declaredType string) (ImageInfo, error) {
-	info, err := imageproc.Validate(ctx, data, declaredType, imageproc.Limits{
-		MaxBytes: maxRasterBytes, MaxDimension: maxImageDimension, MaxPixels: maxImagePixels,
-	})
+	info, err := imageproc.Validate(ctx, data, declaredType, rasterLimits())
+	return info, imageError(err)
+}
+
+func rasterLimits() imageproc.Limits {
+	return imageproc.Limits{MaxBytes: maxRasterBytes, MaxDimension: maxImageDimension, MaxPixels: maxImagePixels}
+}
+
+func imageError(err error) error {
 	switch {
 	case errors.Is(err, imageproc.ErrLimit):
-		return ImageInfo{}, ErrLimit
+		return ErrLimit
 	case errors.Is(err, imageproc.ErrUnsupported):
-		return ImageInfo{}, ErrImageUnsupported
+		return ErrImageUnsupported
 	case errors.Is(err, imageproc.ErrInvalid):
-		return ImageInfo{}, fmt.Errorf("%w: %w", ErrImageInvalid, err)
+		return fmt.Errorf("%w: %w", ErrImageInvalid, err)
 	default:
-		return info, err
+		return err
 	}
 }

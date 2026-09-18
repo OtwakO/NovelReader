@@ -63,7 +63,7 @@ func (w *preparationWork) selectCover(ctx context.Context) (*PreparedImage, erro
 }
 
 func (w *preparationWork) coverResource(ctx context.Context, ref Reference) (*PreparedImage, error) {
-	info, err := w.images.resolve(ctx, ref)
+	_, err := w.images.resolve(ctx, ref)
 	if err != nil {
 		if !optionalImageError(err) {
 			return nil, err
@@ -71,5 +71,6 @@ func (w *preparationWork) coverResource(ctx context.Context, ref Reference) (*Pr
 		w.result.warn("cover_" + imageDiagnostic(err))
 		return nil, nil
 	}
-	return &PreparedImage{Reference: ref, Info: info}, nil
+	image := w.images.preparedImage(ref)
+	return &image, nil
 }

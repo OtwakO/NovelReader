@@ -10,14 +10,17 @@ import (
 // share validation metadata, not decoded bitmaps or byte caches. Its key set is
 // bounded by the inspected manifest; cancellation/I/O/limit failures aren't cached.
 type imageResolver struct {
-	archive *archive
-	items   map[string]Item
-	cache   map[string]imageResult
+	archive    *archive
+	items      map[string]Item
+	cache      map[string]imageResult
+	options    ImageOptions
+	processing ImageProcessing
 }
 
 type imageResult struct {
-	info ImageInfo
-	err  error
+	info         ImageInfo
+	derivativeID string
+	err          error
 }
 
 func newImageResolver(a *archive, items []Item) *imageResolver {
@@ -29,6 +32,11 @@ func newImageResolver(a *archive, items []Item) *imageResolver {
 }
 
 func optionalImageError(err error) bool {
+	// Storage failures must never be softened into optional content warnings,
+	// even if their wrapped cause happens to use an image error category.
+	if errors.Is(err, ErrImageOutput) {
+		return false
+	}
 	return errors.Is(err, ErrImageUnavailable) || errors.Is(err, ErrImageUnsupported) || errors.Is(err, ErrImageInvalid)
 }
 
@@ -46,7 +54,7 @@ func (r *imageResolver) resolve(ctx context.Context, ref Reference) (ImageInfo, 
 	if result, found := r.cache[ref.Path]; found {
 		return result.info, result.err
 	}
-	var info ImageInfo
+	var result imageResult
 	var err error
 	switch {
 	case item.MediaType != "image/jpeg" && item.MediaType != "image/png":
@@ -57,13 +65,14 @@ func (r *imageResolver) resolve(ctx context.Context, ref Reference) (ImageInfo, 
 		var data []byte
 		data, err = r.archive.readBounded(ctx, ref.Path, maxRasterBytes, int64(maxExpandedBytes))
 		if err == nil {
-			info, err = ValidateImage(ctx, data, item.MediaType)
+			result, err = r.prepareImage(ctx, ref, data, item.MediaType)
 		}
 	}
 	if err == nil || optionalImageError(err) {
-		r.cache[ref.Path] = imageResult{info: info, err: err}
+		result.err = err
+		r.cache[ref.Path] = result
 	}
-	return info, err
+	return result.info, err
 }
 
 // resolveSection mutates only preparation evidence; discard it on error. Missing

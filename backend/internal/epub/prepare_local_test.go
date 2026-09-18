@@ -21,7 +21,7 @@ func TestLocalPreparation(t *testing.T) {
 		payloadBytes += len(data)
 		images += len(section.Images)
 		return err
-	})
+	}, ImageOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -44,7 +44,7 @@ func preparationScratch(t *testing.T) *os.File {
 func TestPrepareStagesDiscoveryAndBinding(t *testing.T) {
 	data := fixtureArchive(t, preparationFixture(t))
 	var sections []PreparedSection
-	result, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(section PreparedSection) error { sections = append(sections, section); return nil })
+	result, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(section PreparedSection) error { sections = append(sections, section); return nil }, ImageOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestPrepareAdmissionAndOutputFailure(t *testing.T) {
 			}
 			data := fixtureArchive(t, entries)
 			emitted := 0
-			result, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(PreparedSection) error { emitted++; return nil })
+			result, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(PreparedSection) error { emitted++; return nil }, ImageOptions{})
 			if !errors.Is(err, want) || emitted != 0 || len(result.Sections) != 0 {
 				t.Fatalf("admission: %v emitted=%d", err, emitted)
 			}
@@ -110,7 +110,7 @@ func TestPrepareAdmissionAndOutputFailure(t *testing.T) {
 	}
 	data := fixtureArchive(t, preparationFixture(t))
 	failure := errors.New("output disk unavailable")
-	result, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(PreparedSection) error { return failure })
+	result, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(PreparedSection) error { return failure }, ImageOptions{})
 	if !errors.Is(err, failure) || len(result.Sections) != 0 {
 		t.Fatalf("partial result escaped: %+v %v", result, err)
 	}
@@ -122,7 +122,7 @@ func TestPreparationScratchAndCancellation(t *testing.T) {
 	if _, err := scratch.WriteString("preserve"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), scratch, func(PreparedSection) error { t.Fatal("unexpected output"); return nil }); err == nil {
+	if _, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), scratch, func(PreparedSection) error { t.Fatal("unexpected output"); return nil }, ImageOptions{}); err == nil {
 		t.Fatal("accepted occupied scratch")
 	}
 	stored, err := os.ReadFile(scratch.Name())
@@ -131,7 +131,7 @@ func TestPreparationScratchAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	emitted := 0
-	result, err := Prepare(ctx, bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(PreparedSection) error { emitted++; cancel(); return nil })
+	result, err := Prepare(ctx, bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(PreparedSection) error { emitted++; cancel(); return nil }, ImageOptions{})
 	if !errors.Is(err, context.Canceled) || emitted != 1 || len(result.Sections) != 0 {
 		t.Fatalf("canceled preparation: %v emitted=%d", err, emitted)
 	}
@@ -170,7 +170,7 @@ func TestExplicitCoverDeclarations(t *testing.T) {
 				entries = append(entries, fixtureEntry{"nav.xhtml", xhtml(`<nav epub:type="toc"><ol><li><a href="main.xhtml">Main</a></li></ol></nav><nav epub:type="landmarks"><ol><li><a epub:type="cover" href="` + href + `">Cover</a></li></ol></nav>`)})
 			}
 			data := fixtureArchive(t, entries)
-			result, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(PreparedSection) error { return nil })
+			result, err := Prepare(context.Background(), bytes.NewReader(data), int64(len(data)), preparationScratch(t), func(PreparedSection) error { return nil }, ImageOptions{})
 			if declaration == "fragment" {
 				if !errors.Is(err, ErrUnsupported) {
 					t.Fatalf("fragment exempted whole document: %v", err)
@@ -205,7 +205,7 @@ func TestPrepareLargeSection(t *testing.T) {
 			t.Fatalf("large section truncated: %d", len(section.Root.Children))
 		}
 		return nil
-	})
+	}, ImageOptions{})
 	if err != nil || count != 3 || len(result.Sections) != 3 {
 		t.Fatalf("large section: %v count=%d", err, count)
 	}
