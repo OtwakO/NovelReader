@@ -12,12 +12,12 @@ import (
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
-// Only the cleanup hook is registered in this isolated fixture. This proves
-// copied-state ownership/recovery, not untrusted EPUB portable validation.
+// Only cleanup and ownership checks are registered in this isolated fixture.
+// This does not prove complete untrusted EPUB portable validation.
 func TestPortablePreparationOwnership(t *testing.T) {
 	for _, phase := range []string{"queued", "running", "before-move", "after-move", "ready"} {
 		t.Run(phase, func(t *testing.T) {
-			manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable})
+			manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: validatePortableOwnership})
 			if err != nil {
 				t.Fatal(err)
 			}
