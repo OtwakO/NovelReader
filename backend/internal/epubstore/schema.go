@@ -29,7 +29,8 @@ func initializeSchema(tx *sql.Tx) error {
  stage_name TEXT NOT NULL DEFAULT '',
  stream_size INTEGER NOT NULL DEFAULT 0 CHECK(stream_size >= 0),
  CHECK(state NOT IN ('finalizing','ready') OR (format_version > 0 AND metadata_json IS NOT NULL AND stream_size > 0)),
- CHECK((state = 'finalizing') = (stage_name <> '')),
+ -- Portable finalizations keep installed output but carry no local work name.
+ CHECK(state = 'finalizing' OR stage_name = ''),
  PRIMARY KEY(file_id,generation)
  );
  CREATE TABLE epub_sections (

@@ -69,14 +69,20 @@ func (s *Store) recoverFinalization(ctx context.Context, root *os.Root, a Prepar
 	if err != nil {
 		return err
 	}
-	if !strings.HasPrefix(stage, "epub-") {
-		return errors.New("epubstore: invalid staging identity")
-	}
-	if err = validateID(strings.TrimPrefix(stage, "epub-")); err != nil {
-		return err
+	if stage != "" {
+		if !strings.HasPrefix(stage, "epub-") {
+			return errors.New("epubstore: invalid staging identity")
+		}
+		if err = validateID(strings.TrimPrefix(stage, "epub-")); err != nil {
+			return err
+		}
 	}
 	destination := preparationPath(a.ReceiptID, a.Generation)
 	if _, err = root.Lstat(destination); errors.Is(err, os.ErrNotExist) {
+		// Portable copies have no authority to adopt installation-local work.
+		if stage == "" {
+			return s.failInterruptedPreparation(ctx, a, "prepared output missing; retry required")
+		}
 		source := path.Join(receiptPreparationWorkPath(a.ReceiptID), stage)
 		if _, err = root.Lstat(source); errors.Is(err, os.ErrNotExist) {
 			return s.failInterruptedPreparation(ctx, a, "prepared output missing; retry required")
