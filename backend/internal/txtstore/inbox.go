@@ -8,13 +8,15 @@ import (
 	"path"
 	"time"
 
+	"github.com/otwako/novelreader/internal/inboxfiles"
+	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/txt"
 )
 
 var ErrInboxPending = errors.New("txtstore: inbox entry has an unresolved claim; review or explicitly retry it")
-var ErrInboxChanged = errors.New("txtstore: inbox entry changed during acquisition")
-var ErrInboxEntryMissing = errors.New("txtstore: inbox entry is missing")
-var ErrInboxEntryType = errors.New("txtstore: inbox entry must be a regular file")
+var ErrInboxChanged = inboxfiles.ErrChanged
+var ErrInboxEntryMissing = inboxfiles.ErrMissing
+var ErrInboxEntryType = inboxfiles.ErrType
 
 type InboxClaim struct {
 	Name      string
@@ -94,30 +96,12 @@ func (s *Store) claimInbox(ctx context.Context, inbox, managed *os.Root, value R
 	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, value, err
 	}
-	info, err := inbox.Lstat(value.OriginalName)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, value, ErrInboxEntryMissing
+	info, err := inboxfiles.Inspect(inbox, value.OriginalName, txt.MaxInputBytes)
+	if errors.Is(err, readerstore.ErrFileTooLarge) {
+		err = errors.Join(ErrInputTooLarge, err)
 	}
 	if err != nil {
 		return nil, value, err
-	}
-	if !info.Mode().IsRegular() {
-		return nil, value, ErrInboxEntryType
-	}
-	if info.Size() > txt.MaxInputBytes {
-		return nil, value, ErrInputTooLarge
-	}
-	// Check readability before consuming the input; rename preserves its mode.
-	input, err := inbox.Open(value.OriginalName)
-	if err != nil {
-		return nil, value, err
-	}
-	opened, statErr := input.Stat()
-	if err := errors.Join(statErr, input.Close()); err != nil {
-		return nil, value, err
-	}
-	if !sameInboxFile(info, opened) {
-		return nil, value, ErrInboxChanged
 	}
 	value.Size = info.Size()
 	if err := s.recordInboxIntent(ctx, value); err != nil {
@@ -132,11 +116,11 @@ func (s *Store) claimInbox(ctx context.Context, inbox, managed *os.Root, value R
 	if err != nil {
 		return nil, value, err
 	}
-	if !sameInboxFile(info, current) {
+	if !inboxfiles.SameFile(info, current) {
 		return nil, value, ErrInboxChanged
 	}
 	err = s.files.MoveInboxTo(value.OriginalName, value.Path)
-	if isCrossDevice(err) {
+	if inboxfiles.IsCrossDevice(err) {
 		return info, value, nil
 	}
 	if err != nil {

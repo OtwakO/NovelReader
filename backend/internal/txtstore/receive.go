@@ -91,18 +91,6 @@ func (s *Store) recordFailure(ctx context.Context, root *os.Root, value Receipt,
 	return value, errors.Join(cleanupErr, err)
 }
 
-type receiveReader struct {
-	ctx    context.Context
-	reader io.Reader
-}
-
-func (r receiveReader) Read(data []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return r.reader.Read(data)
-}
-
 func removeIfPresent(root *os.Root, name string) error {
 	err := root.Remove(name)
 	if errors.Is(err, os.ErrNotExist) {

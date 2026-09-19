@@ -22,11 +22,9 @@ func (s *Store) Receive(ctx context.Context, id, name string, input io.Reader, m
 	if err = ValidateFilename(name); err != nil {
 		return Receipt{}, err
 	}
-	if mode == "" {
-		mode = epub.OriginalImages
-	}
-	if mode != epub.OriginalImages && mode != epub.OptimizedImages {
-		return Receipt{}, epub.ErrImagePolicy
+	mode, err = acquisitionImageMode(mode)
+	if err != nil {
+		return Receipt{}, err
 	}
 	root, err := s.files.OpenRoot()
 	if err != nil {
@@ -88,4 +86,14 @@ func removeTransfer(root *os.Root, id string) error {
 		return nil
 	}
 	return err
+}
+
+func acquisitionImageMode(mode epub.ImageMode) (epub.ImageMode, error) {
+	if mode == "" {
+		mode = epub.OriginalImages
+	}
+	if mode != epub.OriginalImages && mode != epub.OptimizedImages {
+		return "", epub.ErrImagePolicy
+	}
+	return mode, nil
 }

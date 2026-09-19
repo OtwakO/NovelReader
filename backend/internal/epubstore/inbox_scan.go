@@ -1,12 +1,12 @@
-package txtstore
+package epubstore
 
 import (
 	"context"
 	"sort"
 	"strings"
 
+	"github.com/otwako/novelreader/internal/epub"
 	"github.com/otwako/novelreader/internal/inboxfiles"
-	"github.com/otwako/novelreader/internal/txt"
 )
 
 type InboxEntry struct {
@@ -23,7 +23,7 @@ func (s *Store) ScanInbox(ctx context.Context, after string, limit int) ([]Inbox
 		return nil, err
 	}
 	defer root.Close()
-	entries, err := inboxfiles.Scan(ctx, root, after, limit, txt.MaxInputBytes, ValidateFilename)
+	entries, err := inboxfiles.Scan(ctx, root, after, limit, epub.MaxInputBytes, ValidateFilename)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (s *Store) ScanInbox(ctx context.Context, after string, limit int) ([]Inbox
 		args[index] = entry.Name
 	}
 	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(args)), ",")
-	rows, err := s.db.QueryContext(ctx, `SELECT name,receipt_id FROM txt_inbox_claims WHERE name IN (`+placeholders+`)`, args...)
+	rows, err := s.db.QueryContext(ctx, `SELECT name,receipt_id FROM epub_inbox_claims WHERE name IN (`+placeholders+`)`, args...)
 	if err != nil {
 		return nil, err
 	}

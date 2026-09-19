@@ -1,15 +1,15 @@
-package txtstore
+package epubstore
 
 import (
 	"context"
 	"database/sql"
 	"errors"
 
+	"github.com/otwako/novelreader/internal/epub"
 	"github.com/otwako/novelreader/internal/inboxfiles"
-	"github.com/otwako/novelreader/internal/txt"
 )
 
-var ErrInboxNotDuplicate = errors.New("txtstore: inbox file has no matching managed original; keep or release it")
+var ErrInboxNotDuplicate = errors.New("epubstore: inbox file has no matching managed original; keep or release it")
 
 // InboxReview is a server-owned approval proof, not a client request DTO. Its
 // private fields bind the reviewed entry to this database lifetime. HTTP callers
@@ -37,7 +37,7 @@ func (s *Store) ReviewInbox(ctx context.Context, id string) (*InboxReview, error
 		return nil, err
 	}
 	defer inbox.Close()
-	input, err := inboxfiles.Review(ctx, inbox, claim.Name, txt.MaxInputBytes)
+	input, err := inboxfiles.Review(ctx, inbox, claim.Name, epub.MaxInputBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -50,10 +50,7 @@ func (s *Store) ReviewInbox(ctx context.Context, id string) (*InboxReview, error
 		return nil, err
 	}
 	defer managed.Close()
-	if err := validateReceiptPath(*value); err != nil {
-		return nil, err
-	}
-	original, err := inboxfiles.Review(ctx, managed, value.Path, txt.MaxInputBytes)
+	original, err := inboxfiles.Review(ctx, managed, value.Path, epub.MaxInputBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +64,10 @@ func (s *Store) settledInboxClaim(ctx context.Context, id string) (InboxClaim, *
 	if err != nil {
 		return claim, nil, err
 	}
-	if _, err := managedPath(claim.Name, claim.ReceiptID); err != nil {
+	if err := ValidateFilename(claim.Name); err != nil {
+		return claim, nil, err
+	}
+	if err := validateID(claim.ReceiptID); err != nil {
 		return claim, nil, err
 	}
 	value, err := s.Get(ctx, id)
@@ -77,7 +77,7 @@ func (s *Store) settledInboxClaim(ctx context.Context, id string) (InboxClaim, *
 	if err != nil {
 		return claim, nil, err
 	}
-	if value.State == Receiving {
+	if value.State == Receiving || value.State == Finalizing {
 		return claim, nil, ErrStateChanged
 	}
 	return claim, &value, nil

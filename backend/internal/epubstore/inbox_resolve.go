@@ -1,11 +1,11 @@
-package txtstore
+package epubstore
 
 import (
 	"context"
 	"errors"
 
+	"github.com/otwako/novelreader/internal/epub"
 	"github.com/otwako/novelreader/internal/inboxfiles"
-	"github.com/otwako/novelreader/internal/txt"
 )
 
 // ConfirmInboxRemoval removes only the reviewed duplicate, never managed bytes.
@@ -44,12 +44,12 @@ func (s *Store) resolveInbox(ctx context.Context, review *InboxReview, remove bo
 		return err
 	}
 	defer inbox.Close()
-	input, err := inboxfiles.Review(ctx, inbox, claim.Name, txt.MaxInputBytes)
+	input, err := inboxfiles.Review(ctx, inbox, claim.Name, epub.MaxInputBytes)
 	if err != nil {
 		return err
 	}
 	if !inboxfiles.SameEvidence(review.input, input) {
-		return ErrInboxChanged
+		return inboxfiles.ErrChanged
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -58,15 +58,12 @@ func (s *Store) resolveInbox(ctx context.Context, review *InboxReview, remove bo
 		if !review.removable || value == nil || value.State == Removing {
 			return ErrInboxNotDuplicate
 		}
-		if err := validateReceiptPath(*value); err != nil {
-			return err
-		}
 		managed, err := s.files.OpenRoot()
 		if err != nil {
 			return err
 		}
 		defer managed.Close()
-		original, err := inboxfiles.Review(ctx, managed, value.Path, txt.MaxInputBytes)
+		original, err := inboxfiles.Review(ctx, managed, value.Path, epub.MaxInputBytes)
 		if err != nil {
 			return err
 		}
@@ -80,7 +77,7 @@ func (s *Store) resolveInbox(ctx context.Context, review *InboxReview, remove bo
 			return err
 		}
 		if !inboxfiles.SameFile(input.Info, current) {
-			return ErrInboxChanged
+			return inboxfiles.ErrChanged
 		}
 		if err := ctx.Err(); err != nil {
 			return err

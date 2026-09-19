@@ -5,34 +5,19 @@ import (
 	"errors"
 	"os"
 	"path"
-)
 
-func sameInboxFile(expected, current os.FileInfo) bool {
-	return current.Mode().IsRegular() && os.SameFile(expected, current) && expected.Size() == current.Size() && expected.ModTime().Equal(current.ModTime())
-}
+	"github.com/otwako/novelreader/internal/inboxfiles"
+	"github.com/otwako/novelreader/internal/readerstore"
+	"github.com/otwako/novelreader/internal/txt"
+)
 
 // copyInbox is the cross-filesystem path after intent is committed. The inbox
 // original remains untouched until the managed copy and receipt are complete.
 func (s *Store) copyInbox(ctx context.Context, inbox, managed *os.Root, value Receipt, expected os.FileInfo) (Receipt, error) {
-	input, err := inbox.Open(value.OriginalName)
-	if err != nil {
-		return s.failTransfer(ctx, managed, value, err)
+	size, err := inboxfiles.CopyWork(ctx, inbox, managed, value.OriginalName, workPath(value.ID), expected, txt.MaxInputBytes)
+	if errors.Is(err, readerstore.ErrFileTooLarge) {
+		err = errors.Join(ErrInputTooLarge, err)
 	}
-	current, err := input.Stat()
-	if err == nil && !sameInboxFile(expected, current) {
-		err = ErrInboxChanged
-	}
-	var size int64
-	if err == nil {
-		size, err = receiveWork(ctx, managed, workPath(value.ID), input)
-	}
-	if err == nil {
-		current, err = input.Stat()
-		if err == nil && (size != expected.Size() || !sameInboxFile(expected, current)) {
-			err = ErrInboxChanged
-		}
-	}
-	err = errors.Join(err, input.Close())
 	if err != nil {
 		return s.failTransfer(ctx, managed, value, err)
 	}
@@ -61,11 +46,11 @@ func (s *Store) copyInbox(ctx context.Context, inbox, managed *os.Root, value Re
 		return value, err
 	}
 	value = stored
-	current, err = inbox.Lstat(value.OriginalName)
+	current, err := inbox.Lstat(value.OriginalName)
 	if err != nil {
 		return value, err
 	}
-	if !sameInboxFile(expected, current) {
+	if !inboxfiles.SameFile(expected, current) {
 		return value, ErrInboxChanged
 	}
 	if err := inbox.Remove(value.OriginalName); err != nil {
