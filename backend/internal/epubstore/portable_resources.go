@@ -15,8 +15,8 @@ import (
 
 // Follows ownership and section-index validation. Resource bytes are checked once
 // per registry entry, not per image occurrence in a section or cover. Summary
-// evidence is matched here without another resource walk. JSON allocation limits
-// and section semantics remain required before live registration.
+// evidence is matched here without another resource walk. Section semantics
+// remain required before live registration.
 func validatePortableResources(ctx context.Context, tx *sql.Tx, root *os.Root) error {
 	var orphan bool
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM epub_resources r LEFT JOIN epub_preparations p ON p.file_id=r.file_id AND p.generation=r.generation WHERE p.file_id IS NULL)`).Scan(&orphan); err != nil {
@@ -25,9 +25,11 @@ func validatePortableResources(ctx context.Context, tx *sql.Tx, root *os.Root) e
 	if orphan {
 		return fmt.Errorf("epubstore: resource lacks a preparation")
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT p.file_id,p.generation,p.image_mode,p.state,p.format_version,f.state,p.metadata_json,
+	rows, err := tx.QueryContext(ctx, `SELECT p.file_id,p.generation,p.image_mode,p.state,p.format_version,f.state,
+ length(CAST(p.metadata_json AS BLOB)),
+ CASE WHEN length(CAST(p.metadata_json AS BLOB))<=? THEN p.metadata_json END,
  (SELECT COUNT(*) FROM epub_sections s WHERE s.file_id=p.file_id AND s.generation=p.generation)
- FROM epub_preparations p JOIN epub_files f ON f.id=p.file_id ORDER BY p.file_id,p.generation`)
+ FROM epub_preparations p JOIN epub_files f ON f.id=p.file_id ORDER BY p.file_id,p.generation`, maxPreparedJSONBytes)
 	if err != nil {
 		return err
 	}
@@ -36,14 +38,21 @@ func validatePortableResources(ctx context.Context, tx *sql.Tx, root *os.Root) e
 		var a PreparationAttempt
 		var version, sectionCount int
 		var data []byte
+		var metadataSize sql.NullInt64
 		var receiptState AcquisitionState
-		if err = rows.Scan(&a.ReceiptID, &a.Generation, &a.ImageMode, &a.State, &version, &receiptState, &data, &sectionCount); err != nil {
+		if err = rows.Scan(&a.ReceiptID, &a.Generation, &a.ImageMode, &a.State, &version, &receiptState, &metadataSize, &data, &sectionCount); err != nil {
 			return err
+		}
+		if metadataSize.Valid && metadataSize.Int64 > maxPreparedJSONBytes {
+			return fmt.Errorf("epubstore: preparation metadata: %w", epub.ErrLimit)
 		}
 		var metadata *epub.Preparation
 		if version == preparationFormatVersion {
 			metadata = &epub.Preparation{}
-			if err = json.Unmarshal(data, metadata); err == nil {
+			if err = checkPreparedJSON(ctx, data); err == nil {
+				err = json.Unmarshal(data, metadata)
+			}
+			if err == nil {
 				err = epub.ValidatePreparedMetadata(ctx, *metadata, a.ImageMode, sectionCount)
 			}
 			if err != nil {

@@ -25,8 +25,18 @@ func (span SectionSpan) validFor(size int64) bool {
 var errInvalidSectionSpan = errors.New("epubstore: invalid section span")
 
 func appendSection(ctx context.Context, output io.Writer, section epub.PreparedSection, offset int64) (SectionSpan, error) {
+	data, err := json.Marshal(section)
+	if err != nil {
+		return SectionSpan{}, err
+	}
+	if err = checkPreparedJSON(ctx, data); err != nil {
+		return SectionSpan{}, err
+	}
 	w := &outputWriter{ctx: ctx, target: output, remaining: min(maxSectionBytes, maxSectionTotalBytes-offset)}
-	if err := json.NewEncoder(w).Encode(section); err != nil {
+	if _, err = w.Write(data); err != nil {
+		return SectionSpan{}, err
+	}
+	if _, err = w.Write([]byte{'\n'}); err != nil {
 		return SectionSpan{}, err
 	}
 	return SectionSpan{Offset: offset, Length: w.written}, nil
@@ -36,20 +46,43 @@ func appendSection(ctx context.Context, output io.Writer, section epub.PreparedS
 // avoids a shared seek cursor, allowing concurrent reads without a book cache.
 // This checks the record/span contract, not portable semantic/resource validity.
 func readSection(ctx context.Context, input io.ReaderAt, size int64, ordinal int, span SectionSpan) (epub.PreparedSection, error) {
-	if err := ctx.Err(); err != nil {
+	data, err := readSectionData(ctx, input, size, ordinal, span)
+	if err != nil {
 		return epub.PreparedSection{}, err
 	}
+	return decodeSection(ctx, data, ordinal)
+}
+
+func readPortableSection(ctx context.Context, input io.ReaderAt, size int64, ordinal int, span SectionSpan) (epub.PreparedSection, error) {
+	data, err := readSectionData(ctx, input, size, ordinal, span)
+	if err == nil {
+		err = checkPreparedJSON(ctx, data)
+	}
+	if err != nil {
+		return epub.PreparedSection{}, err
+	}
+	return decodeSection(ctx, data, ordinal)
+}
+
+func readSectionData(ctx context.Context, input io.ReaderAt, size int64, ordinal int, span SectionSpan) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if ordinal < 0 || !span.validFor(size) {
-		return epub.PreparedSection{}, errInvalidSectionSpan
+		return nil, errInvalidSectionSpan
 	}
 	data := make([]byte, int(span.Length))
 	_, err := io.ReadFull(io.NewSectionReader(contextReaderAt{ctx: ctx, input: input}, span.Offset, span.Length), data)
 	if err != nil {
-		return epub.PreparedSection{}, fmt.Errorf("epubstore: read section: %w", err)
+		return nil, fmt.Errorf("epubstore: read section: %w", err)
 	}
+	return data, nil
+}
+
+func decodeSection(ctx context.Context, data []byte, ordinal int) (epub.PreparedSection, error) {
 	var section epub.PreparedSection
 	// Unmarshal rejects a second record or truncated JSON in the indexed span.
-	if err = json.Unmarshal(data, &section); err != nil {
+	if err := json.Unmarshal(data, &section); err != nil {
 		return epub.PreparedSection{}, fmt.Errorf("epubstore: decode section: %w", err)
 	}
 	if section.Ordinal != ordinal {

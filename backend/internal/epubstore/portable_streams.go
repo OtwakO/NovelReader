@@ -70,7 +70,7 @@ func checkPortableStream(ctx context.Context, tx *sql.Tx, root *os.Root, id stri
 		if err = rows.Scan(&ordinal, &span.Offset, &span.Length); err != nil {
 			return err
 		}
-		if _, err = readSection(ctx, file, size, ordinal, span); err != nil {
+		if _, err = readPortableSection(ctx, file, size, ordinal, span); err != nil {
 			return err
 		}
 	}

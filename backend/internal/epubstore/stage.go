@@ -4,6 +4,7 @@ package epubstore
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -124,6 +125,13 @@ func Stage(ctx context.Context, work *os.Root, original io.ReaderAt, size int64,
 	}
 	for _, resource := range resources.byPath {
 		s.Resources = append(s.Resources, resource)
+	}
+	metadata, marshalErr := json.Marshal(prepared)
+	if marshalErr != nil {
+		return nil, marshalErr
+	}
+	if err = checkPreparedJSON(ctx, metadata); err != nil {
+		return nil, err
 	}
 	s.Preparation = prepared
 	return s, nil
