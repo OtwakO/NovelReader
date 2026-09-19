@@ -3,7 +3,7 @@ package epubstore
 import "database/sql"
 
 // EPUB storage schema fragment, not registered with live reader homes.
-// Portable validation and application lifecycle integration must precede activation.
+// Portable hooks are assembled; application lifecycle integration must precede activation.
 func initializeSchema(tx *sql.Tx) error {
 	_, err := tx.Exec(`CREATE TABLE epub_files (
  id TEXT PRIMARY KEY,

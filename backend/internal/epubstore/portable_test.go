@@ -2,8 +2,6 @@ package epubstore
 
 import (
 	"bytes"
-	"context"
-	"database/sql"
 	"errors"
 	"os"
 	"path"
@@ -19,18 +17,7 @@ import (
 func TestPortablePreparationOwnership(t *testing.T) {
 	for _, phase := range []string{"queued", "running", "before-move", "after-move", "damaged-after-move", "ready", "optimized-ready"} {
 		t.Run(phase, func(t *testing.T) {
-			manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: func(ctx context.Context, tx *sql.Tx, root *os.Root) error {
-				if err := validatePortableOwnership(ctx, tx, root); err != nil {
-					return err
-				}
-				if err := validatePortableSectionIndexes(ctx, tx); err != nil {
-					return err
-				}
-				if err := validatePortableStreams(ctx, tx, root); err != nil {
-					return err
-				}
-				return validatePortableResources(ctx, tx, root)
-			}})
+			manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: validatePortableFiles})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -182,5 +169,69 @@ func TestPortablePreparationOwnership(t *testing.T) {
 				t.Fatal("original changed", err)
 			}
 		})
+	}
+}
+
+func TestPortableHookRejectsCorruptReplacement(t *testing.T) {
+	manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: validatePortableFiles})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	alice := readerstore.UserID("11111111-1111-4111-8111-111111111111")
+	bob := readerstore.UserID("22222222-2222-4222-8222-222222222222")
+	for _, id := range []readerstore.UserID{alice, bob} {
+		if err = manager.Create(t.Context(), id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sourceHome, err := manager.Open(t.Context(), alice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sourceHome.Close()
+	targetHome, err := manager.Open(t.Context(), bob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer targetHome.Close()
+	source := NewStore(sourceHome.DB(), sourceHome.Files())
+	receipt := acquiredFixture(t, source, epub.OriginalImages)
+	attempt, err := source.QueuePreparation(t.Context(), receipt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = source.Prepare(t.Context(), receipt.ID, attempt.Generation); err != nil {
+		t.Fatal(err)
+	}
+	// Give the target real data to protect, not merely an empty home.
+	target := NewStore(targetHome.DB(), targetHome.Files())
+	targetReceipt := acquiredFixture(t, target, epub.OriginalImages)
+	snapshot := filepath.Join(t.TempDir(), "snapshot")
+	if err = manager.SnapshotHome(t.Context(), alice, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	stream := filepath.Join(snapshot, readerstore.FilesDirectory, preparationPath(receipt.ID, attempt.Generation), sectionStreamFile)
+	data, err := os.ReadFile(stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := bytes.Replace(data, []byte(`"anchor":"a1"`), []byte(`"anchor":"a9"`), 1)
+	if bytes.Equal(data, changed) {
+		t.Fatal("fixture lacks anchor target")
+	}
+	if err = os.WriteFile(stream, changed, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = manager.PrepareReplacement(t.Context(), bob, filepath.Join(snapshot, readerstore.ReaderDatabaseName), filepath.Join(snapshot, readerstore.FilesDirectory)); !errors.Is(err, epub.ErrPreparedSection) {
+		t.Fatal("corrupt replacement accepted", err)
+	}
+	var generation int64
+	if err = target.db.QueryRow(`SELECT preparation_generation FROM epub_files WHERE id=?`, targetReceipt.ID).Scan(&generation); err != nil || generation != 0 {
+		t.Fatal("target receipt changed", generation, err)
+	}
+	section, err := source.PreparedSection(t.Context(), receipt.ID, attempt.Generation, 0)
+	if err != nil || section.Root.Kind != "group" {
+		t.Fatal("source preparation changed", err)
 	}
 }
