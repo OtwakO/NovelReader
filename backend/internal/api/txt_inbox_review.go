@@ -14,7 +14,7 @@ func (s *readerAPI) requireFinishedInboxAcquisition(ctx context.Context, id stri
 	if _, err := s.txtStore.GetInboxClaim(ctx, id); err != nil {
 		return err
 	}
-	if s.txtAdmission.Active(s.home.ID(), id) {
+	if s.fileAdmission.Active(s.home.ID(), id) {
 		return txtstore.ErrStateChanged
 	}
 	return nil
@@ -39,7 +39,7 @@ func (s *readerAPI) handleReviewTXTInbox(w http.ResponseWriter, r *http.Request)
 	}
 	var warnings []string
 	if value != nil && value.State == txtstore.Received {
-		warnings = wakeTXTAnalysis(s.txtImports, s.home.ID(), id)
+		warnings = wakeTXTAnalysis(s.fileImports, s.home.ID(), id)
 	}
 	review, err := s.txtStore.ReviewInbox(r.Context(), id)
 	if err != nil {

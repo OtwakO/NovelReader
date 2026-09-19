@@ -22,7 +22,7 @@ func (s *Server) handleAcquireTXTInbox(w http.ResponseWriter, r *http.Request) {
 	}
 	account, _ := auth.IdentityFromContext(r.Context())
 	id := r.PathValue("id")
-	ctx, release, err := s.txtAdmission.Begin(r.Context(), account.ID, id)
+	ctx, release, err := s.fileAdmission.Begin(r.Context(), account.ID, id)
 	if err != nil {
 		writeTXTError(w, err)
 		return
@@ -50,7 +50,7 @@ func (s *Server) acquireTXTInbox(ctx context.Context, reader readerstore.UserID,
 	if acquireErr != nil && value.State != txtstore.Received {
 		return value, nil, errors.Join(acquireErr, home.Close())
 	}
-	warnings := wakeTXTAnalysis(s.txtImports, reader, id)
+	warnings := wakeTXTAnalysis(s.fileImports, reader, id)
 	if acquireErr != nil {
 		slog.Warn("TXT acquired; inbox cleanup requires review", "reader_id", reader, "receipt_id", id, "error", acquireErr)
 		warnings = append(warnings, "txt_inbox_cleanup_pending")

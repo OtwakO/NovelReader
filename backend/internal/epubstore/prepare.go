@@ -13,11 +13,13 @@ import (
 // Prepare owns claim, original access and staging so callers cannot accidentally
 // finalize output from another receipt. Expensive interpretation stays outside
 // the mutation gate. Ready output still requires explicit review/admission.
-func (s *Store) Prepare(ctx context.Context, id string, generation int64) (err error) {
-	attempt, err := s.ClaimPreparation(ctx, id, generation)
-	if err != nil {
-		return err
-	}
+func (s *Store) Prepare(ctx context.Context, id string, generation int64) error {
+	_, err := s.PreparePending(ctx, PreparationAttempt{ReceiptID: id, Generation: generation})
+	return err
+}
+
+func (s *Store) prepareClaimed(ctx context.Context, attempt PreparationAttempt) (err error) {
+	id, generation := attempt.ReceiptID, attempt.Generation
 	// Only running attempts are failed here. Finalizing intent survives errors so
 	// recovery can distinguish an installed generation from a disposable attempt.
 	defer func() {

@@ -139,7 +139,7 @@ func TestTXTUploadRejectsBeforeConsumptionAndRetainsFailedReceipt(t *testing.T) 
 	if body.read {
 		t.Fatal("unadmitted input consumed")
 	}
-	ticket, err := server.txtAdmission.Request(alice)
+	ticket, err := server.fileAdmission.Request(alice)
 	if err != nil {
 		t.Fatal(err)
 	}

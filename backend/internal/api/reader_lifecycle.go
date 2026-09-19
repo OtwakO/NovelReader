@@ -18,22 +18,22 @@ const ReaderHomeCapacity = readerRuntimeCapacity + fileimport.Workers + fileimpo
 func (s *Server) quiesceReader(ctx context.Context, id readerstore.UserID) error {
 	// Stop intake first so no new transfers enter while foreground work drains.
 	// All owners must drain before replacement/removal; errors retain barriers.
-	intakeErr := s.txtAdmission.Quiesce(ctx, id)
+	intakeErr := s.fileAdmission.Quiesce(ctx, id)
 	runtimeErr := s.runtimes.quiesce(ctx, id)
 	if runtimeErr == nil {
 		s.services.txtInbox.invalidate(id)
 	}
-	return errors.Join(intakeErr, runtimeErr, s.txtImports.Quiesce(ctx, id))
+	return errors.Join(intakeErr, runtimeErr, s.fileImports.Quiesce(ctx, id))
 }
 
 func (s *Server) resumeReader(id readerstore.UserID) {
-	s.txtImports.Resume(id)
+	s.fileImports.Resume(id)
 	s.runtimes.resume(id)
-	s.txtAdmission.Resume(id)
+	s.fileAdmission.Resume(id)
 }
 
 func (s *Server) forgetReader(id readerstore.UserID) error {
-	if err := errors.Join(s.txtAdmission.Forget(id), s.txtImports.Forget(id)); err != nil {
+	if err := errors.Join(s.fileAdmission.Forget(id), s.fileImports.Forget(id)); err != nil {
 		return err
 	}
 	s.services.txtInbox.invalidate(id)
@@ -43,10 +43,20 @@ func (s *Server) forgetReader(id readerstore.UserID) error {
 	return nil
 }
 
-func (s *Server) recoverRestoredTXT(ctx context.Context, id readerstore.UserID) []string {
+func (s *Server) recoverRestoredImports(ctx context.Context, id readerstore.UserID) []string {
 	if err := fileimport.RecoverHome(ctx, s.runtimes.readers, id); err != nil {
-		slog.Warn("Reader data restored; TXT recovery incomplete", "reader_id", id, "error", err)
-		return []string{"txt_recovery_incomplete"}
+		slog.Warn("Reader data restored; import recovery incomplete", "reader_id", id, "error", err)
+		var warnings []string
+		if errors.Is(err, fileimport.ErrTXTRecovery) {
+			warnings = append(warnings, "txt_recovery_incomplete")
+		}
+		if errors.Is(err, fileimport.ErrEPUBRecovery) {
+			warnings = append(warnings, "epub_recovery_incomplete")
+		}
+		if len(warnings) == 0 {
+			warnings = append(warnings, "import_recovery_incomplete")
+		}
+		return warnings
 	}
 	return nil
 }

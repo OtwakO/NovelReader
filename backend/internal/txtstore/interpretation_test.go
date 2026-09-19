@@ -20,7 +20,7 @@ func TestInterpretationGenerationIsAllocatedBeforeWork(t *testing.T) {
 	if err := home.DB().QueryRow(`SELECT state FROM txt_files WHERE id=?`, receipt.ID).Scan(&state); err != nil || state != "acquired" {
 		t.Fatalf("file lifecycle=%s: %v", state, err)
 	}
-	if worked, err := store.AnalyzeNext(t.Context()); err != nil || !worked {
+	if worked, err := analyzeNext(t.Context(), store); err != nil || !worked {
 		t.Fatalf("analysis=%v: %v", worked, err)
 	}
 	preview, err := store.Preview(t.Context(), receipt.ID)
@@ -37,7 +37,7 @@ func TestInterpretationGenerationIsAllocatedBeforeWork(t *testing.T) {
 	if err := store.saveInterpretation(t.Context(), receipt.ID, preview.Version, preview.Analysis); !errors.Is(err, ErrStateChanged) {
 		t.Fatalf("late result=%v", err)
 	}
-	claim, err := store.claimAnalysis(t.Context(), receipt.ID)
+	claim, err := store.claimAnalysis(t.Context(), receipt.ID, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestPublishedReadingIgnoresCandidateWork(t *testing.T) {
 			if _, err := store.QueueReparse(t.Context(), item.ID, item.ContentRevision, 0, txt.Options{}); !errors.Is(err, ErrStateChanged) {
 				t.Fatalf("stale absence=%v", err)
 			}
-			claim, err := store.claimAnalysis(t.Context(), receipt.ID)
+			claim, err := store.claimAnalysis(t.Context(), receipt.ID, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -106,7 +106,7 @@ func TestPublishedReadingIgnoresCandidateWork(t *testing.T) {
 				t.Fatal(err)
 			}
 			assertActive()
-			if worked, err := store.AnalyzeNext(t.Context()); !worked || (err != nil) != (test.encoding != "") {
+			if worked, err := analyzeNext(t.Context(), store); !worked || (err != nil) != (test.encoding != "") {
 				t.Fatalf("resume=%v: %v", worked, err)
 			}
 			var candidateState State

@@ -30,12 +30,11 @@ func (s *Store) QueueAnalysis(ctx context.Context, id string, version int64, opt
 	return tx.Commit()
 }
 
-// AnalyzeNext atomically claims at most one queued candidate and loads its saved
-// options. It returns whether it claimed work, even on a per-file failure, so the
-// scheduler can advance to another file. It retains neither results nor file handles.
-// Call Recover only with intake quiescent, not before individual worker attempts.
-func (s *Store) AnalyzeNext(ctx context.Context) (bool, error) {
-	value, err := s.claimAnalysis(ctx, "")
+// AnalyzePending claims only the selected generation and loads its saved options.
+// It reports whether it claimed work even on failure, so scheduling can advance.
+// A replacement cannot inherit an older candidate's scheduling priority.
+func (s *Store) AnalyzePending(ctx context.Context, pending PendingAnalysis) (bool, error) {
+	value, err := s.claimAnalysis(ctx, pending.ReceiptID, pending.Generation)
 	if errors.Is(err, ErrNotFound) {
 		return false, nil
 	}

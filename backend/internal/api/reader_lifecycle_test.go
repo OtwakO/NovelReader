@@ -26,13 +26,13 @@ func TestRestoreReconcilesTXTAndReportsCommittedWarning(t *testing.T) {
 	if err := server.quiesceReader(t.Context(), alice); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.txtImports.Notify(alice); !errors.Is(err, fileimport.ErrPaused) {
+	if err := server.fileImports.Notify(alice); !errors.Is(err, fileimport.ErrPaused) {
 		t.Fatalf("source not paused: %v", err)
 	}
-	if _, err := server.txtAdmission.Request(alice); !errors.Is(err, fileimport.ErrPaused) {
+	if _, err := server.fileAdmission.Request(alice); !errors.Is(err, fileimport.ErrPaused) {
 		t.Fatalf("intake not paused: %v", err)
 	}
-	oldTicket, err := server.txtAdmission.Request(ownershipBob)
+	oldTicket, err := server.fileAdmission.Request(ownershipBob)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,13 +100,13 @@ func TestRestoreReconcilesTXTAndReportsCommittedWarning(t *testing.T) {
 	}
 	// Old intake authority is invalidated; fresh admission and existing readers
 	// resume despite the warning, using new data.
-	if _, err := server.txtAdmission.Status(ownershipBob, oldTicket.ID); !errors.Is(err, fileimport.ErrTicketNotFound) {
+	if _, err := server.fileAdmission.Status(ownershipBob, oldTicket.ID); !errors.Is(err, fileimport.ErrTicketNotFound) {
 		t.Fatalf("pre-restore admission survived: %v", err)
 	}
-	if _, err := server.txtAdmission.Request(ownershipBob); err != nil {
+	if _, err := server.fileAdmission.Request(ownershipBob); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.txtImports.Notify(ownershipBob); err != nil {
+	if err := server.fileImports.Notify(ownershipBob); err != nil {
 		t.Fatal(err)
 	}
 	if got := authenticatedOwnershipRequest(t, server, sessions, ownershipBob, "/api/books/restored-book"); got.Code != http.StatusOK {
@@ -169,10 +169,10 @@ func TestServerCloseDrainsWorkersAndRuntimesAfterOtherCleanupFails(t *testing.T)
 	if _, err := server.services.txtInbox.take(alice, proof); !errors.Is(err, errInboxProofMissing) {
 		t.Fatal("shutdown retained inbox approval")
 	}
-	if err := server.txtImports.Notify(alice); !errors.Is(err, fileimport.ErrClosed) {
+	if err := server.fileImports.Notify(alice); !errors.Is(err, fileimport.ErrClosed) {
 		t.Fatalf("workers still admitted work: %v", err)
 	}
-	if _, err := server.txtAdmission.Request(alice); !errors.Is(err, fileimport.ErrClosed) {
+	if _, err := server.fileAdmission.Request(alice); !errors.Is(err, fileimport.ErrClosed) {
 		t.Fatalf("intake still admitted work: %v", err)
 	}
 	if _, release, err := server.runtimes.acquire(t.Context(), alice); err == nil {

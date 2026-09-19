@@ -38,8 +38,8 @@ type Server struct {
 	health              interface{ PingContext(context.Context) error }
 	collectionScheduler *sourceCollectionScheduler
 	backups             *backupservice.Service
-	txtImports          *fileimport.Pool
-	txtAdmission        *fileimport.Admission
+	fileImports         *fileimport.Pool
+	fileAdmission       *fileimport.Admission
 }
 
 func (s *Server) Mux() *http.ServeMux { return s.mux }
@@ -61,11 +61,11 @@ func (s *Server) Close() error {
 	if s.collectionScheduler != nil {
 		s.collectionScheduler.Close()
 	}
-	if s.txtAdmission != nil {
-		s.txtAdmission.Close()
+	if s.fileAdmission != nil {
+		s.fileAdmission.Close()
 	}
-	if s.txtImports != nil {
-		s.txtImports.Close()
+	if s.fileImports != nil {
+		s.fileImports.Close()
 	}
 	if s.services != nil && s.services.chineseConversion != nil {
 		closeErr = errors.Join(closeErr, s.services.chineseConversion.Close())
@@ -114,7 +114,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		webViewProbe: webViewProbe, chineseConversion: conversion, txtInbox: newTXTInboxControls(),
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
-	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services, txtAdmission: fileimport.NewAdmission()}
+	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services, fileAdmission: fileimport.NewAdmission()}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, readerRuntimeCapacity, limits.SessionTTL, services)
 	services.runtimes = s.runtimes
 	// Startup is the admission gate: recover before routes or schedulers run.
@@ -122,17 +122,17 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 	defer cancel()
 	ids, err := authHandler.ListReaderHomeIDs(startupCtx)
 	if err == nil {
-		s.txtImports, err = fileimport.Start(startupCtx, readers, ids)
+		s.fileImports, err = fileimport.Start(startupCtx, readers, ids)
 	}
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("initialize TXT work: %w", err), s.Close())
+		return nil, errors.Join(fmt.Errorf("initialize file imports: %w", err), s.Close())
 	}
-	backups, err := backupservice.NewService(readers, dataRoot, s.quiesceReader, s.resumeReader, s.recoverRestoredTXT)
+	backups, err := backupservice.NewService(readers, dataRoot, s.quiesceReader, s.resumeReader, s.recoverRestoredImports)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("initialize backup service: %w", err), s.Close())
 	}
 	s.backups = backups
-	services.txtImports, services.txtAdmission = s.txtImports, s.txtAdmission
+	services.fileImports, services.fileAdmission = s.fileImports, s.fileAdmission
 	s.collectionScheduler = newSourceCollectionScheduler(s.runtimes, services.collectionLoader, authHandler.ListActiveReaderIDs)
 	s.collectionScheduler.Start()
 	authHandler.ConfigureDeletionLifecycle(readers, s.quiesceReader, s.forgetReader)

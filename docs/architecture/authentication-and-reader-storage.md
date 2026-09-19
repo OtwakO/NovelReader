@@ -28,15 +28,19 @@ data/users/<immutable-reader-id>/
     covers/
     chapter-assets/
     txt/<readable-name>--<id>/original.txt
+    epub/<id>/original.epub
+    epub/<id>/preparations/<generation>/sections.jsonl
+    epub/<id>/preparations/<generation>/images/
     .work/txt/                 # disposable transfer work, not portable
+    .work/epub/                # disposable EPUB transfer/preparation work
 ```
 
 `reader.db` and ordinary files are portable plaintext Reader Data: BookSources, shelf books, chapters, progress, bookmarks, caches, preferences, source profiles, and file metadata. They remain inspectable without an application secret. Browser-only Reader preferences are outside
 this storage/backup boundary; see [Reader state](discovery-and-reading.md#reader-state).
 
-Reader schema epoch 13 composes library-owned shared metadata/state/bookmarks and independent last-read timestamps, BookSource-owned
-bindings/catalog/cache, managed TXT files/interpretations/indexes and the other reader modules. Foreign keys are enabled on every pooled reader
-connection. Epoch-12 or older homes and portable archives are incompatible; there is no automatic migration or
+Reader schema epoch 14 composes library-owned shared metadata/state/bookmarks and independent last-read timestamps, BookSource-owned
+bindings/catalog/cache, managed TXT files/interpretations/indexes, EPUB receipts/preparations/section spans/resources and the other reader modules. Foreign keys are enabled on every pooled reader
+connection. Epoch-13 or older homes and portable archives are incompatible; there is no automatic migration or
 reset. Preservation and rollback instructions live in the [development reset runbook](../runbooks/development-data-reset.md).
 
 The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT intake, review, reading and removal are connected. Custom patterns and explicit published-reparse controls are available through the shared interpretation workflow. See the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
@@ -96,20 +100,20 @@ Older raw error text receives generic guidance, never string-based classificatio
 Both review screens share translated correction guidance. Cancellation remains queued work, not a
 terminal analysis failure; no schema change or migration is needed.
 
-### TXT background ownership
+### Shared file-import background ownership
 
-`fileimport` (formerly `txtimport`) runs two independent workers, at most one file per reader, with fair reader turns and durable candidate work. Idle hints retire; queued readers hold no home lease or per-file job object. `api.ReaderHomeCapacity` budgets API runtime, analysis-worker and transfer homes separately. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.
+`fileimport` (formerly `txtimport`) runs two independent workers, at most one file per reader, with fair reader turns and durable TXT/EPUB work. Each turn compares the two stores' oldest pending requests by immutable queue time (TXT first for equal timestamps), then claims that exact generation. Selection and preparation SQL remain format-owned. Superseded requests cannot inherit an older queue position. Idle hints retire; queued readers hold no home lease or per-file job object. `api.ReaderHomeCapacity` budgets API runtime, analysis-worker and transfer homes separately. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.
 
-Before serving, TXT recovery visits retained account homes (including disabled accounts, excluding deleting accounts), then starts workers. Login disabling retains accepted local work. Missing/corrupt homes or failed per-file cleanup are logged without stopping unrelated homes; no inbox originals are replayed or swept. New accounts start empty. Recovery never runs on ordinary runtime initialization or before each job. After restore it runs while that reader remains quiescent. Browser-upload admission and transfers are composed outside the API runtime cache. Bounded receipt review/control handlers use ordinary reader runtimes; no HTTP handler performs analysis.
+Before serving, TXT and EPUB recovery visit retained account homes (including disabled accounts, excluding deleting accounts), then starts workers. Login disabling retains accepted local work. Missing/corrupt homes or failed per-file cleanup are logged without stopping unrelated homes; no inbox originals are replayed or swept. New accounts start empty. Recovery never runs on ordinary runtime initialization or before each job. After restore it runs while that reader remains quiescent. Browser-upload admission and transfers are composed outside the API runtime cache. Bounded receipt review/control handlers use ordinary reader runtimes; no HTTP handler performs analysis.
 
 `fileimport.Admission` owns only bounded, reader-fair transfer tickets and cancellation. It neither
 opens homes nor reads files. Waiting/granted tickets expire; active transfers keep their slot until
 I/O and the home lease have ended, even after cancellation. Tickets are reader-bound, single-use,
 process-local permission to start a transfer—not durable receipts or inbox cleanup proofs. The
 [accepted admission contract](../plans/2026-09-10-multi-provider-library.md#accepted-txt-intake-admission)
-records the original scheduling limits. The [EPUB plan](../plans/2026-09-17-epub-support.md#shared-import-scheduling--accepted-integration-pending) retains two workers and two transfers for the shared service; concrete dispatch and recovery currently remain TXT-only.
+records the original scheduling limits. The [EPUB plan](../plans/2026-09-17-epub-support.md#shared-import-scheduling) retains two workers and two transfers for the shared service. Interrupted EPUB preparation is failed for explicit retry; queued attempts remain schedulable. EPUB storage and portable hooks are registered, but publication/resource HTTP and import UI are not yet exposed.
 
-Restore/deletion stops and drains intake, then API runtimes and TXT workers. Successful deletion
+Restore/deletion stops and drains intake, then API runtimes and shared preparation workers. Successful deletion
 forgets the drained barriers; failure keeps them for retry. Restore resumes fresh admission without
 replaying old tickets. Shutdown joins transfers before workers and runtimes, even when another
 service reports a cleanup error.
@@ -290,24 +294,24 @@ credential store. Reserved `files/.work/` transfer work is excluded from both sn
 
 Archive export and restore share the fixed limits defined in `backup/archive_limits.go` (operator limits are listed in the [README](../../README.md#back-up-the-deployment)). Both count logical tar entries, including directories and manifest/help files, and their payload sizes; export also bounds all compressed output, including gzip finalization. Exceeding a limit returns an error, even if part of a download has already been written. These archive-format checks do not replace provider-specific portable validation.
 
-`FileStore.LockMutation(ctx)` coordinates composite metadata/file changes with snapshots through one gate shared by all leases of a reader home. Font add/delete/cleanup acquire it before their SQLite transaction. `SnapshotHome` holds the same gate from database snapshot through local file copying and validation; archive compression/transmission happens afterward. Ordinary reads and progress writes do not acquire this gate, and other reader homes are independent. Waiting and file copying honor cancellation between I/O operations. Once font publication begins, its short metadata transaction completes independently of request cancellation to avoid rolling back metadata during a file write.
+`FileStore.LockMutation(ctx)` coordinates composite metadata/file changes with snapshots through one gate shared by all leases of a reader home. Font add/delete/cleanup acquire it before their SQLite transaction. `SnapshotHome` holds the same gate from database snapshot through local file copying, then releases it before private-copy validation while retaining the home lease; archive compression/transmission happens afterward. Ordinary reads and progress writes do not acquire this gate, and other reader homes are independent. Waiting and file copying honor cancellation between I/O operations. Once font publication begins, its short metadata transaction completes independently of request cancellation to avoid rolling back metadata during a file write.
 
 `FileStore.OpenRoot()` provides a caller-closed, confined `os.Root` for streaming and range I/O without loading entire files. It does not acquire the mutation gate implicitly.
 
 New durable-file writers must join this boundary around the whole metadata/file operation, not individual raw file calls. The gate prevents concurrent snapshot mismatches; it does not itself provide crash recovery, reference validation, or garbage collection.
 
-`ReaderSchema.PreparePortable` strips installation-local operational authority from the copied database on export and import, without modifying live records. TXT uses it for unresolved inbox claims; even a discarded receipt's leftover claim remains local until explicitly resolved. Copies containing such authority are rejected at publication validation.
+`ReaderSchema.PreparePortable` strips installation-local operational authority from the copied database on export and import, without modifying live records. TXT uses it for unresolved inbox claims; even a discarded receipt's leftover claim remains local until explicitly resolved. EPUB strips attempt-local staging paths while retaining installed finalization evidence for recovery. Copies containing installation-local authority are rejected at publication validation.
 
-Features can contribute `ReaderSchema.ValidatePortableFiles` to check references against the copied read-only database and confined files. Checks run after snapshot copying, after replacement staging, and before replacement publication—not on ordinary home opens. TXT validates file/publication ownership, legal interpretation roles/generations, completed section ranges and original files. Interrupted acquisition/removal records retain their lifecycle-specific allowances for missing or damaged originals. Validation never decodes the novel or executes stored patterns; pending reparse work is tracked in the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md). No live records are repaired or deleted by these checks.
+Features can contribute `ReaderSchema.ValidatePortableFiles` to check references against the copied read-only database and confined files. Checks run after snapshot copying, after replacement staging, and before replacement publication—not on ordinary home opens. TXT validates file/publication ownership, legal interpretation roles/generations, completed section ranges and original files. Interrupted acquisition/removal records retain their lifecycle-specific allowances for missing or damaged originals. TXT validation never decodes the novel or executes stored patterns; EPUB validates bounded prepared semantics and image resources without re-preparing the book. Pending reparse work is tracked in the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md). No live records are repaired or deleted by these checks.
 
 Restore behavior:
 
 1. upload and validate the archive in a bounded staging workspace while reading may continue;
 2. prepare a complete replacement reader home;
-3. quiesce and drain that reader's API runtime and TXT workers;
+3. quiesce and drain that reader's shared intake, API runtime and TXT/EPUB workers;
 4. atomically replace Reader Data on the same filesystem;
-5. reconcile unfinished TXT records against the new home, bounded independently of request disconnects;
-6. resume the reader, returning `restored: true` plus warnings when recovery or cleanup cannot finish (`txt_recovery_incomplete`, `reader_cleanup_pending`, or `restore_staging_cleanup_pending`). Raw diagnostics remain server-side; retained records/files remain recoverable. A typed readerstore cleanup error distinguishes committed replacement from a failure before publication, so cleanup failure cannot invite replay of a completed restore. The frontend keeps the translated warning visible instead of reloading it away.
+5. reconcile unfinished TXT and EPUB records against the new home, bounded independently of request disconnects;
+6. resume the reader, returning `restored: true` plus warnings when recovery or cleanup cannot finish (`txt_recovery_incomplete`, `epub_recovery_incomplete`, `import_recovery_incomplete`, `reader_cleanup_pending`, or `restore_staging_cleanup_pending`). Raw diagnostics remain server-side; retained records/files remain recoverable. A typed readerstore cleanup error distinguishes committed replacement from a failure before publication, so cleanup failure cannot invite replay of a completed restore. The frontend keeps the translated warning visible instead of reloading it away.
 
 Replacement itself remains atomic; provider reconciliation warnings do not undo a committed replacement or bypass archive validation. Interrupted filesystem replacement states are reconciled on startup.
 

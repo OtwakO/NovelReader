@@ -22,7 +22,7 @@ func TestPendingAnalysisPersistsOptionsAndRevokesPreview(t *testing.T) {
 		t.Fatalf("stale options replaced queued work: %v", err)
 	}
 	reopened := NewStore(home.DB(), home.Files())
-	if worked, err := reopened.AnalyzeNext(t.Context()); err != nil || !worked {
+	if worked, err := analyzeNext(t.Context(), reopened); err != nil || !worked {
 		t.Fatalf("pending analysis=%v %v", worked, err)
 	}
 	current, err := reopened.Preview(t.Context(), receipt.ID)
@@ -32,7 +32,7 @@ func TestPendingAnalysisPersistsOptionsAndRevokesPreview(t *testing.T) {
 	if current.Analysis.Preset != txt.GeneratedSections || len(current.Analysis.ReviewReasons) != 1 || current.Analysis.ReviewReasons[0] != txt.NoHeadings {
 		t.Fatalf("custom fallback lost: %+v", current.Analysis)
 	}
-	if worked, err := reopened.AnalyzeNext(t.Context()); err != nil || worked {
+	if worked, err := analyzeNext(t.Context(), reopened); err != nil || worked {
 		t.Fatalf("completed analysis repeated: %v %v", worked, err)
 	}
 }
@@ -43,7 +43,7 @@ func TestFailedPendingFileDoesNotBlockNextOriginal(t *testing.T) {
 	if err := root.Remove(broken.Path); err != nil {
 		t.Fatal(err)
 	}
-	if worked, err := store.AnalyzeNext(t.Context()); !worked || err == nil {
+	if worked, err := analyzeNext(t.Context(), store); !worked || err == nil {
 		t.Fatalf("missing original result=%v %v", worked, err)
 	}
 	failed, err := store.Get(t.Context(), broken.ID)
@@ -51,7 +51,7 @@ func TestFailedPendingFileDoesNotBlockNextOriginal(t *testing.T) {
 		t.Fatalf("failure not recorded: %+v %v", failed, err)
 	}
 	next := mustReceive(t, store)
-	if worked, err := store.AnalyzeNext(t.Context()); !worked || err != nil {
+	if worked, err := analyzeNext(t.Context(), store); !worked || err != nil {
 		t.Fatalf("next file blocked: %v %v", worked, err)
 	}
 	if _, err := store.Preview(t.Context(), next.ID); err != nil {
@@ -66,7 +66,7 @@ func TestCancelledAnalysisReturnsOnlyItsClaimToPending(t *testing.T) {
 	if err := store.QueueAnalysis(t.Context(), receipt.ID, receipt.AnalysisVersion, txt.Options{Preset: txt.GeneratedSections}); err != nil {
 		t.Fatal(err)
 	}
-	claim, err := store.claimAnalysis(t.Context(), receipt.ID)
+	claim, err := store.claimAnalysis(t.Context(), receipt.ID, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestCancelledAnalysisReturnsOnlyItsClaimToPending(t *testing.T) {
 	if err != nil || pending.State != Received || pending.Options != claim.Options {
 		t.Fatalf("cancelled request lost: %+v %v", pending, err)
 	}
-	if worked, err := store.AnalyzeNext(t.Context()); !worked || err != nil {
+	if worked, err := analyzeNext(t.Context(), store); !worked || err != nil {
 		t.Fatalf("resume=%v %v", worked, err)
 	}
 	current, err := store.Preview(t.Context(), receipt.ID)
@@ -93,4 +93,24 @@ func TestCancelledAnalysisReturnsOnlyItsClaimToPending(t *testing.T) {
 	if err != nil || after.Version != current.Version {
 		t.Fatalf("old claim invalidated current result: %+v %v", after, err)
 	}
+}
+
+// Drive the storage selection/claim boundary without the application scheduler.
+func analyzeNext(ctx context.Context, store *Store) (bool, error) {
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	pending, err := NextAnalysis(ctx, tx)
+	if errors.Is(err, ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if err = tx.Commit(); err != nil {
+		return false, err
+	}
+	return store.AnalyzePending(ctx, pending)
 }

@@ -128,3 +128,10 @@ func (s *Store) finishRemoval(ctx context.Context, root *os.Root, r Receipt) err
 	_, err := s.db.ExecContext(ctx, `DELETE FROM epub_files WHERE id=? AND state='removing'`, r.ID)
 	return err
 }
+
+// Recover runs only with intake and workers quiescent. Both format-specific
+// recovery phases retain their own cleanup and mutation-gate ownership.
+func (s *Store) Recover(ctx context.Context) error {
+	acquisitionErr := s.RecoverAcquisitions(ctx)
+	return errors.Join(acquisitionErr, s.RecoverPreparations(ctx))
+}

@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/otwako/novelreader/internal/txtstore"
 	"strings"
 	"testing"
 )
@@ -28,7 +29,7 @@ func TestTXTReparseHTTPReviewApplyAndDiscard(t *testing.T) {
 	if response = f.request("DELETE", "/api/imports/txt/receipts/"+f.item.ID, ""); response.Code != 409 {
 		t.Fatalf("pending discard crossed publication boundary: %d", response.Code)
 	}
-	if worked, err := f.store.AnalyzeNext(t.Context()); !worked || err != nil {
+	if worked, err := f.store.AnalyzePending(t.Context(), txtstore.PendingAnalysis{ReceiptID: f.item.ID, Generation: queued.Generation}); !worked || err != nil {
 		t.Fatalf("analysis: %v %v", worked, err)
 	}
 	response = f.request("GET", fmt.Sprintf("%s/preview?generation=%d&limit=1", resource, queued.Generation), "")

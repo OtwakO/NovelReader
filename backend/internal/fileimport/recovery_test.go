@@ -9,6 +9,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/otwako/novelreader/internal/epubstore"
 	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/txtstore"
@@ -19,7 +20,7 @@ const recoveryBob readerstore.UserID = "22222222-2222-4222-8222-222222222222"
 
 func recoveryManager(t *testing.T, capacity int) *readerstore.Manager {
 	t.Helper()
-	readers, err := readerstore.NewManager(t.TempDir(), capacity, library.ReaderSchema(), txtstore.ReaderSchema())
+	readers, err := readerstore.NewManager(t.TempDir(), capacity, library.ReaderSchema(), txtstore.ReaderSchema(), epubstore.ReaderSchema())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,6 +69,11 @@ func TestStartRecoversBeforeDiscoveringPendingWork(t *testing.T) {
 			t.Fatal("expected retained cleanup record")
 		}
 		root.Close()
+		epubPending := pendingEPUB(t, home)
+		epubInterrupted := pendingEPUB(t, home)
+		if _, err := epubstore.NewStore(home.DB(), home.Files()).ClaimPreparation(t.Context(), epubInterrupted.ReceiptID, epubInterrupted.Generation); err != nil {
+			t.Fatal(err)
+		}
 		home.Close()
 		pool, err := Start(t.Context(), readers, []readerstore.UserID{recoveryAlice})
 		if err != nil {
@@ -81,6 +87,14 @@ func TestStartRecoversBeforeDiscoveringPendingWork(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer home.Close()
+		epubs := epubstore.NewStore(home.DB(), home.Files())
+		if _, err := epubs.PreparedSection(t.Context(), epubPending.ReceiptID, epubPending.Generation, 0); err != nil {
+			t.Fatal("queued EPUB not prepared", err)
+		}
+		interrupted, err := epubs.GetPreparation(t.Context(), epubInterrupted.ReceiptID, epubInterrupted.Generation)
+		if err != nil || interrupted.State != epubstore.PreparationFailed {
+			t.Fatal("interrupted EPUB not recovered", interrupted, err)
+		}
 		store := txtstore.NewStore(home.DB(), home.Files())
 		ready, err := store.Get(t.Context(), complete.ID)
 		if err != nil || (ready.State != txtstore.Ready && ready.State != txtstore.NeedsReview) {

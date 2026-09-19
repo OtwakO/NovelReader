@@ -55,7 +55,11 @@ func TestTXTReparseAnalysisFailureResponse(t *testing.T) {
 	if response.Code != 202 {
 		t.Fatalf("prepare: %d %s", response.Code, response.Body.String())
 	}
-	if worked, err := f.store.AnalyzeNext(t.Context()); !worked || err == nil {
+	var queued struct{ Generation int64 }
+	if err := json.Unmarshal(response.Body.Bytes(), &queued); err != nil {
+		t.Fatal(err)
+	}
+	if worked, err := f.store.AnalyzePending(t.Context(), txtstore.PendingAnalysis{ReceiptID: f.item.ID, Generation: queued.Generation}); !worked || err == nil {
 		t.Fatalf("expected encoding failure: %v %v", worked, err)
 	}
 	response = f.request("GET", resource, "")

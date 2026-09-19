@@ -27,7 +27,7 @@ func (s *Store) Analyze(ctx context.Context, id string, options txt.Options) (In
 	if err := s.QueueAnalysis(ctx, id, value.AnalysisVersion, options); err != nil {
 		return Interpretation{}, err
 	}
-	claim, err := s.claimAnalysis(ctx, id)
+	claim, err := s.claimAnalysis(ctx, id, 0)
 	if errors.Is(err, ErrNotFound) {
 		return Interpretation{}, ErrStateChanged
 	}

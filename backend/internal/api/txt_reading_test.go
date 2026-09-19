@@ -33,7 +33,7 @@ func newTXTReadingFixture(t *testing.T) txtReadingFixture {
 	t.Helper()
 	server, sessions, readers, alice, closeStores := newOwnershipServer(t)
 	t.Cleanup(closeStores)
-	if err := server.txtImports.Quiesce(t.Context(), alice); err != nil {
+	if err := server.fileImports.Quiesce(t.Context(), alice); err != nil {
 		t.Fatal(err)
 	}
 	home, err := readers.Open(t.Context(), alice)

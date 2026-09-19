@@ -81,7 +81,7 @@ func (p *Pool) Forget(id readerstore.UserID) error {
 }
 
 // Close stops admission and joins all workers before reader storage may be closed.
-// Pending work stays in TXT records; no job goroutine or scheduling history survives.
+// Pending work stays in format-owned records; no job goroutine or scheduling history survives.
 func (p *Pool) Close() {
 	p.mu.Lock()
 	if !p.closed {

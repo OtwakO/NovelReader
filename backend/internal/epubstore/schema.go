@@ -1,9 +1,15 @@
 package epubstore
 
-import "database/sql"
+import (
+	"database/sql"
+	"github.com/otwako/novelreader/internal/readerstore"
+)
 
-// EPUB storage schema fragment, not registered with live reader homes.
-// Portable hooks are assembled; application lifecycle integration must precede activation.
+// ReaderSchema keeps EPUB persistence and portable validation under one owner.
+func ReaderSchema() readerstore.ReaderSchema {
+	return readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: validatePortableFiles}
+}
+
 func initializeSchema(tx *sql.Tx) error {
 	_, err := tx.Exec(`CREATE TABLE epub_files (
  id TEXT PRIMARY KEY,
@@ -32,7 +38,7 @@ func initializeSchema(tx *sql.Tx) error {
  -- Portable finalizations keep installed output but carry no local work name.
  CHECK(state = 'finalizing' OR stage_name = ''),
  PRIMARY KEY(file_id,generation)
- );
+ ); CREATE INDEX idx_epub_preparations_pending ON epub_preparations(state,created_at,file_id);
  CREATE TABLE epub_sections (
  file_id TEXT NOT NULL,
  generation INTEGER NOT NULL,

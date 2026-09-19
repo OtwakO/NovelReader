@@ -22,11 +22,11 @@ func TestTXTInboxReviewRejectsActiveChangedAndInvalidatedApprovals(t *testing.T)
 		t.Fatal(err)
 	}
 	defer inbox.Close()
-	ticket, err := server.txtAdmission.Request(alice)
+	ticket, err := server.fileAdmission.Request(alice)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, finish, err := server.txtAdmission.Begin(t.Context(), alice, ticket.ID)
+	ctx, finish, err := server.fileAdmission.Begin(t.Context(), alice, ticket.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -31,7 +31,7 @@ func TestReparseImpactApplyAndRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if worked, err := store.AnalyzeNext(t.Context()); !worked || err != nil {
+	if worked, err := analyzeNext(t.Context(), store); !worked || err != nil {
 		t.Fatalf("analysis=%v: %v", worked, err)
 	}
 	impact, err := store.ReparseImpact(t.Context(), item.ID, generation)
@@ -100,7 +100,7 @@ func TestReparseRequiresExplicitResumeAndNeverRevivesOrphans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AnalyzeNext(t.Context()); err != nil {
+	if _, err := analyzeNext(t.Context(), store); err != nil {
 		t.Fatal(err)
 	}
 	impact, err := store.ReparseImpact(t.Context(), item.ID, generation)
@@ -131,7 +131,7 @@ func TestReparseRequiresExplicitResumeAndNeverRevivesOrphans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AnalyzeNext(t.Context()); err != nil {
+	if _, err := analyzeNext(t.Context(), store); err != nil {
 		t.Fatal(err)
 	}
 	impact, err = store.ReparseImpact(t.Context(), item.ID, generation)

@@ -31,7 +31,7 @@ func (s *Server) handleUploadTXT(w http.ResponseWriter, r *http.Request) {
 	}
 	account, _ := auth.IdentityFromContext(r.Context())
 	id := r.PathValue("id")
-	ctx, release, err := s.txtAdmission.Begin(r.Context(), account.ID, id)
+	ctx, release, err := s.fileAdmission.Begin(r.Context(), account.ID, id)
 	if err != nil {
 		writeTXTError(w, err)
 		return
@@ -60,7 +60,7 @@ func (s *Server) receiveTXTUpload(ctx context.Context, readerID readerstore.User
 	value, receiveErr := txtstore.NewStore(home.DB(), home.Files()).Receive(ctx, id, name, r.Body)
 	var warnings []string
 	if receiveErr == nil {
-		warnings = wakeTXTAnalysis(s.txtImports, readerID, id)
+		warnings = wakeTXTAnalysis(s.fileImports, readerID, id)
 	}
 	cleanupErr := errors.Join(finishBody(), home.Close())
 	if receiveErr != nil {

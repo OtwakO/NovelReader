@@ -42,7 +42,7 @@ func TestPublishedPortableReferencesAndMissingOriginal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.claimAnalysis(t.Context(), receipt.ID); err != nil {
+	if _, err := store.claimAnalysis(t.Context(), receipt.ID, 0); err != nil {
 		t.Fatal(err)
 	}
 	snapshot := filepath.Join(t.TempDir(), "snapshot")
@@ -83,7 +83,7 @@ func TestPublishedPortableReferencesAndMissingOriginal(t *testing.T) {
 	if err := restoredTXT.Recover(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if worked, err := restoredTXT.AnalyzeNext(t.Context()); !worked || err != nil {
+	if worked, err := analyzeNext(t.Context(), restoredTXT); !worked || err != nil {
 		t.Fatalf("restored candidate=%v: %v", worked, err)
 	}
 	status, err := restoredTXT.ReparseStatus(t.Context(), item.ID)

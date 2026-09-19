@@ -59,7 +59,7 @@ func requireChange(result sql.Result, err error) error {
 // Wait for a connection cancellably, then finish the short claim independently of
 // cancellation. The worker must receive its committed claim so it can release it.
 // No generation is allocated here: retries continue the same immutable request.
-func (s *Store) claimAnalysis(ctx context.Context, id string) (Receipt, error) {
+func (s *Store) claimAnalysis(ctx context.Context, id string, generation int64) (Receipt, error) {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return Receipt{}, err
@@ -76,13 +76,11 @@ func (s *Store) claimAnalysis(ctx context.Context, id string) (Receipt, error) {
 	}
 	defer tx.Rollback()
 	var claim Receipt
-	query := `UPDATE txt_interpretations SET state='analyzing',error='',updated_at=? WHERE role='candidate' AND state='queued' AND file_id=`
-	args := []any{time.Now().UnixMilli()}
-	if id == "" {
-		query += `(SELECT file_id FROM txt_interpretations WHERE role='candidate' AND state='queued' ORDER BY queued_at,file_id LIMIT 1)`
-	} else {
-		query += `?`
-		args = append(args, id)
+	query := `UPDATE txt_interpretations SET state='analyzing',error='',updated_at=? WHERE role='candidate' AND state='queued' AND file_id=?`
+	args := []any{time.Now().UnixMilli(), id}
+	if generation != 0 {
+		query += ` AND generation=?`
+		args = append(args, generation)
 	}
 	err = tx.QueryRowContext(claimCtx, query+` RETURNING file_id,generation,requested_encoding,requested_preset,requested_pattern`, args...).Scan(&claim.ID, &claim.AnalysisVersion, &claim.Options.Encoding, &claim.Options.Preset, &claim.Options.Pattern)
 	if errors.Is(err, sql.ErrNoRows) {

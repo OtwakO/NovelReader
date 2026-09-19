@@ -15,6 +15,7 @@ import (
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/epubstore"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/fontstore"
@@ -28,7 +29,7 @@ func TestTXTWorkersLeaveForegroundCapacityAndReleaseHomes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const foregroundSlots = 2
 		readers, err := readerstore.NewManager(t.TempDir(), foregroundSlots+fileimport.Workers+fileimport.Transfers,
-			library.ReaderSchema(), booksource.ReaderSchema(), book.ReaderSchema(), fontstore.ReaderSchema(), sourceprofile.ReaderSchema(), txtstore.ReaderSchema())
+			library.ReaderSchema(), booksource.ReaderSchema(), book.ReaderSchema(), fontstore.ReaderSchema(), sourceprofile.ReaderSchema(), txtstore.ReaderSchema(), epubstore.ReaderSchema())
 		if err != nil {
 			t.Fatal(err)
 		}

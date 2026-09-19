@@ -111,14 +111,31 @@ func (s *Store) transitionPreparation(ctx context.Context, id string, generation
 		return PreparationAttempt{}, err
 	}
 	defer unlock()
-	result, err := s.db.ExecContext(ctx, `UPDATE epub_preparations SET state=?,error=?,updated_at=?
- WHERE file_id=? AND generation=? AND state=? AND EXISTS(
- SELECT 1 FROM epub_files WHERE id=? AND state='acquired' AND preparation_generation=?)`, to, message, time.Now().UnixMilli(), id, generation, from, id, generation)
+	if err := ctx.Err(); err != nil {
+		return PreparationAttempt{}, err
+	}
+	// Return a committed claim even when shutdown cancels the worker during this
+	// short transaction. The caller then owns settling that claim and its cleanup.
+	commitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataTimeout)
+	defer cancel()
+	tx, err := s.db.BeginTx(commitCtx, nil)
 	if err != nil {
 		return PreparationAttempt{}, err
 	}
-	if err = changedOne(result); err != nil {
+	defer tx.Rollback()
+	var a PreparationAttempt
+	err = tx.QueryRowContext(commitCtx, `UPDATE epub_preparations SET state=?,error=?,updated_at=?
+ WHERE file_id=? AND generation=? AND state=? AND EXISTS(
+ SELECT 1 FROM epub_files WHERE id=? AND state='acquired' AND preparation_generation=?)
+ RETURNING file_id,generation,state,image_mode,error,created_at,updated_at`, to, message, time.Now().UnixMilli(), id, generation, from, id, generation).Scan(&a.ReceiptID, &a.Generation, &a.State, &a.ImageMode, &a.Error, &a.CreatedAt, &a.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = ErrStateChanged
+	}
+	if err != nil {
 		return PreparationAttempt{}, err
 	}
-	return s.GetPreparation(ctx, id, generation)
+	if err = tx.Commit(); err != nil {
+		return PreparationAttempt{}, err
+	}
+	return a, nil
 }

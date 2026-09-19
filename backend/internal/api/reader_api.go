@@ -28,8 +28,8 @@ type readerServices struct {
 	candidateOperations *candidate.Manager
 	coverReferenceKey   []byte
 	collectionLoader    *booksource.RemoteLoader
-	txtImports          *fileimport.Pool
-	txtAdmission        *fileimport.Admission
+	fileImports         *fileimport.Pool
+	fileAdmission       *fileimport.Admission
 	txtInbox            *txtInboxControls
 }
 
@@ -56,7 +56,7 @@ func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 			ImageHref: chapterImageHref},
 	}
 	a.registerRoutes()
-	if a.txtStore != nil && services.txtImports != nil {
+	if a.txtStore != nil && services.fileImports != nil {
 		a.registerTXTReceiptRoutes()
 		if services.txtInbox != nil {
 			a.registerTXTInboxRoutes()

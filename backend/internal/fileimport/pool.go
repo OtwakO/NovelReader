@@ -1,6 +1,5 @@
 // Package fileimport owns bounded file intake and preparation scheduling,
-// independently of API runtimes. The current dispatcher processes TXT work;
-// EPUB dispatch will join this same lifecycle when its storage is registered.
+// independently of API runtimes. TXT and EPUB share one process budget.
 package fileimport
 
 import (
@@ -10,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/otwako/novelreader/internal/readerstore"
-	"github.com/otwako/novelreader/internal/txtstore"
 )
 
 // Workers is the initial process-wide analysis bound. Production storage must
@@ -31,7 +29,7 @@ type readerWork struct {
 
 // Pool owns fixed workers and deduplicated reader wake-ups, not per-file jobs or
 // reader runtimes. Create one pool per application. Persist work before Notify;
-// queued candidates already represent pending automatic analysis. Caller-owned
+// queued candidates/preparations already represent pending work. Caller-owned
 // startup/intake recovery must finish before admitting transfers or notifications.
 type Pool struct {
 	mu      sync.Mutex
@@ -47,7 +45,7 @@ type Pool struct {
 
 func NewPool(readers *readerstore.Manager) *Pool {
 	return newPool(Workers, func(ctx context.Context, id readerstore.UserID) (bool, error) {
-		return analyzeNext(ctx, readers, id)
+		return prepareNext(ctx, readers, id)
 	})
 }
 
@@ -116,11 +114,11 @@ func (p *Pool) run() {
 		worked, err := p.process(ctx, id)
 		if err != nil {
 			level := slog.LevelWarn
-			if ctx.Err() != nil || errors.Is(err, txtstore.ErrStateChanged) {
+			if ctx.Err() != nil || isSuperseded(err) {
 				level = slog.LevelInfo
 			}
 			// Keep joined cleanup errors visible even when cancellation is expected.
-			slog.Log(context.Background(), level, "TXT analysis attempt did not complete", "reader_id", id, "error", err)
+			slog.Log(context.Background(), level, "File preparation attempt did not complete", "reader_id", id, "error", err)
 		}
 		cancel()
 		p.mu.Lock()

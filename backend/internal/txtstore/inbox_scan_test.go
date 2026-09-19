@@ -57,7 +57,7 @@ func TestSettlingOneAcquisitionDoesNotRecoverActiveAnalysisOrConsumeInbox(t *tes
 	receipt := mustReceive(t, store)
 	interruptAcquisition(t, store, receipt.ID)
 	other := mustReceive(t, store)
-	if _, err := store.claimAnalysis(t.Context(), other.ID); err != nil {
+	if _, err := store.claimAnalysis(t.Context(), other.ID, 0); err != nil {
 		t.Fatal(err)
 	}
 	value, err := store.SettleAcquisition(t.Context(), receipt.ID)

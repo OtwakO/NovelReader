@@ -44,7 +44,7 @@ func TestTXTInboxAcquisitionAndExplicitLeftoverResolution(t *testing.T) {
 			t.Fatalf("scan: %s", scan.Body.String())
 		}
 		acquire := func() (string, int, string) {
-			ticket, err := server.txtAdmission.Request(alice)
+			ticket, err := server.fileAdmission.Request(alice)
 			if err != nil {
 				t.Fatal(err)
 			}

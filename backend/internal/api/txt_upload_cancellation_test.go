@@ -24,7 +24,7 @@ func TestTXTDiscardInterruptsBlockedHTTPUploadBeforeRemovingReceipt(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	ticket, err := server.txtAdmission.Request(alice)
+	ticket, err := server.fileAdmission.Request(alice)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestTXTDiscardInterruptsBlockedHTTPUploadBeforeRemovingReceipt(t *testing.T
 	// Discard waited for receive/failure cleanup; it cannot leave a new orphan
 	// receipt or consume the reader's next grant when the old request unwinds.
 	requireTXTStatus(t, txtImportRequest(t, server, sessions, alice, http.MethodGet, "/api/imports/txt/receipts/"+ticket.ID, nil), http.StatusNotFound)
-	fresh, err := server.txtAdmission.Request(alice)
+	fresh, err := server.fileAdmission.Request(alice)
 	if err != nil || fresh.ID == ticket.ID {
 		t.Fatalf("fresh admission: %+v %v", fresh, err)
 	}

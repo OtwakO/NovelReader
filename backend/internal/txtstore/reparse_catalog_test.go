@@ -36,7 +36,7 @@ func TestReparseApplyIndexedCatalogAndEncodingChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AnalyzeNext(t.Context()); err != nil {
+	if _, err := analyzeNext(t.Context(), store); err != nil {
 		t.Fatal(err)
 	}
 	impact, err := store.ReparseImpact(t.Context(), item.ID, generation)

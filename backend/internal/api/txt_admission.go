@@ -38,7 +38,7 @@ func writeTXTAdmission(w http.ResponseWriter, ticket fileimport.AdmissionTicket)
 
 func (s *Server) handleRequestTXTAdmission(w http.ResponseWriter, r *http.Request) {
 	account, _ := auth.IdentityFromContext(r.Context()) // RequireIdentity owns authentication.
-	ticket, err := s.txtAdmission.Request(account.ID)
+	ticket, err := s.fileAdmission.Request(account.ID)
 	if err != nil {
 		writeTXTError(w, err)
 		return
@@ -48,7 +48,7 @@ func (s *Server) handleRequestTXTAdmission(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) handleGetTXTAdmission(w http.ResponseWriter, r *http.Request) {
 	account, _ := auth.IdentityFromContext(r.Context())
-	ticket, err := s.txtAdmission.Status(account.ID, r.PathValue("id"))
+	ticket, err := s.fileAdmission.Status(account.ID, r.PathValue("id"))
 	if err != nil {
 		writeTXTError(w, err)
 		return
@@ -58,7 +58,7 @@ func (s *Server) handleGetTXTAdmission(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCancelTXTAdmission(w http.ResponseWriter, r *http.Request) {
 	account, _ := auth.IdentityFromContext(r.Context())
-	if err := s.txtAdmission.Cancel(r.Context(), account.ID, r.PathValue("id")); err != nil {
+	if err := s.fileAdmission.Cancel(r.Context(), account.ID, r.PathValue("id")); err != nil {
 		writeTXTError(w, err)
 		return
 	}

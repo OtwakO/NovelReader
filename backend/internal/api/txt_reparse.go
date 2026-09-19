@@ -78,7 +78,7 @@ func (s *readerAPI) handlePrepareTXTReparse(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusAccepted, struct {
 		Generation int64    `json:"generation"`
 		Warnings   []string `json:"warnings,omitempty"`
-	}{generation, wakeTXTAnalysis(s.txtImports, s.home.ID(), id)})
+	}{generation, wakeTXTAnalysis(s.fileImports, s.home.ID(), id)})
 }
 func (s *readerAPI) handleDiscardTXTReparse(w http.ResponseWriter, r *http.Request) {
 	var input struct {

@@ -107,7 +107,7 @@ func (s *readerAPI) handleAnalyzeTXTReceipt(w http.ResponseWriter, r *http.Reque
 		writeTXTError(w, err)
 		return
 	}
-	warnings := wakeTXTAnalysis(s.txtImports, s.home.ID(), r.PathValue("id"))
+	warnings := wakeTXTAnalysis(s.fileImports, s.home.ID(), r.PathValue("id"))
 	writeJSON(w, http.StatusAccepted, struct {
 		Status   string   `json:"status"`
 		Warnings []string `json:"warnings,omitempty"`
@@ -139,7 +139,7 @@ func (s *readerAPI) handleAcceptTXTReceipt(w http.ResponseWriter, r *http.Reques
 
 func (s *readerAPI) handleDiscardTXTReceipt(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := s.txtAdmission.Cancel(r.Context(), s.home.ID(), id); err != nil {
+	if err := s.fileAdmission.Cancel(r.Context(), s.home.ID(), id); err != nil {
 		writeTXTError(w, err)
 		return
 	}
