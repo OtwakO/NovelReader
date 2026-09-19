@@ -159,6 +159,40 @@ response. Refresh preserves unsent drafts and renews impact/confirmation rather 
 new state. After Apply, only the affected book's writer state is invalidated; normal reader loading
 selects the newly saved resume. No extra worker, lease owner, revision history or schema change.
 
+### Shared file admission and EPUB browser HTTP
+
+`POST /api/imports/admission`, `GET /api/imports/admission/{id}` and
+`DELETE /api/imports/admission/{id}` use the single reader-fair transfer owner;
+responses advertise format-specific byte limits. Existing `/api/imports/txt/admission`
+routes are compatibility aliases with the unchanged TXT response/error contract, not
+an independent allowance. Shared HTTP helpers own control deadlines, bounded JSON
+requests and interruption/joining of blocked upload bodies; format handlers own DTOs.
+
+Authenticated EPUB routes live under `/api/imports/epub`:
+
+- `PUT /uploads/{id}?filename=<name>&imageMode=original|optimized` consumes one grant,
+  streams a bounded raw body, retains the unchanged original and queues preparation.
+  Omitted image mode means original. A `201` acknowledges acquisition, never publication.
+  Queue/wake failures remain visible as warnings; resolve uncertain delivery by receipt ID.
+- `GET /receipts` and `GET /receipts/{id}` project acquisition/current preparation state
+  from a single joined database read, without decoding metadata. History uses `after`/`limit`
+  and `nextCursor`. Preview `/receipts/{id}/preview?generation=<generation>` projects
+  saved evidence, at most 100 section headings, and a 4096-byte UTF-8 text sample from
+  the section selected by `start`; it does not expose archive paths or binding maps.
+- `POST /receipts/{id}/retry` requires the observed generation (zero for an acquired,
+  unprepared receipt); only unprepared/failed work can be queued. `/accept` requires the
+  exact ready generation and reviewed name/author and delegates atomic publication to
+  storage. `DELETE /receipts/{id}` joins acquisition, then rejects running/finalizing
+  preparation under the claim gate. It never pauses an entire reader or discards a
+  publication; failed cleanup retains removal intent and a cleanup-pending response.
+
+Preparation failures expose allowlisted categories, not raw parser/filesystem messages.
+Portable-encoder performance notices are separate from content diagnostics and do not
+set `needsReview`. Pending optimized receipts describe the current encoder capability;
+ready previews use persisted actual-backend evidence, also after restore. The frontend
+must display these notices even when review-before-adding is disabled. EPUB inbox
+acquisition and frontend import/review integration remain pending.
+
 ### TXT browser upload HTTP
 
 Authenticated reader-owned routes live under `/api/imports/txt`:

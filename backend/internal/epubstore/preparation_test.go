@@ -66,7 +66,7 @@ func TestPreparationGenerationOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	stored, err = store.GetPreparation(t.Context(), r.ID, next.Generation)
-	if err != nil || stored.State != PreparationFailed || stored.Error != cause.Error() {
+	if err != nil || stored.State != PreparationFailed || stored.Error != "epub_preparation_failed" {
 		t.Fatal("failure not persisted", err)
 	}
 	original, err := store.Get(t.Context(), r.ID)

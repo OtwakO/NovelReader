@@ -8,7 +8,9 @@ import (
 )
 
 func (s *readerAPI) registerTXTInboxRoutes() {
-	register := func(pattern string, handler http.HandlerFunc) { s.mux.HandleFunc(pattern, txtControlHandler(handler)) }
+	register := func(pattern string, handler http.HandlerFunc) {
+		s.mux.HandleFunc(pattern, importControlHandler(handler))
+	}
 	register("GET /api/imports/txt/inbox", s.handleScanTXTInbox)
 	register("GET /api/imports/txt/inbox/claims", s.handleListTXTInboxClaims)
 	register("POST /api/imports/txt/inbox/claims/{id}/review", s.handleReviewTXTInbox)
@@ -18,7 +20,7 @@ func (s *readerAPI) registerTXTInboxRoutes() {
 }
 
 func txtInboxPage(w http.ResponseWriter, r *http.Request) (string, int, bool) {
-	limit, err := txtPageLimit(r)
+	limit, err := importPageLimit(r)
 	after := r.URL.Query().Get("after")
 	if err != nil || len(after) > 1024 {
 		writeErrorCode(w, http.StatusBadRequest, "txt_invalid_input", "Invalid inbox page")

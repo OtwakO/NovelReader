@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
-	"time"
 
 	"github.com/otwako/novelreader/internal/auth"
 	"github.com/otwako/novelreader/internal/readerstore"
@@ -53,7 +52,7 @@ func (s *Server) receiveTXTUpload(ctx context.Context, readerID readerstore.User
 		return txtstore.Receipt{}, nil, err
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, txt.MaxInputBytes)
-	finishBody, err := interruptTXTBody(ctx, w, r)
+	finishBody, err := interruptImportBody(ctx, w, r)
 	if err != nil {
 		return txtstore.Receipt{}, nil, errors.Join(err, home.Close())
 	}
@@ -72,34 +71,4 @@ func (s *Server) receiveTXTUpload(ctx context.Context, readerID readerstore.User
 		warnings = append(warnings, "txt_upload_attention")
 	}
 	return value, warnings, nil
-}
-
-// A context check before Read cannot interrupt an already blocked HTTP body read.
-// Set a read deadline before closing; Close alone can wait on Read's HTTP/1 lock.
-// Join the callback before resetting the deadline so it cannot affect keep-alive.
-func interruptTXTBody(ctx context.Context, w http.ResponseWriter, r *http.Request) (func() error, error) {
-	controller := http.NewResponseController(w)
-	deadline, _ := ctx.Deadline() // Admission.Begin always supplies a deadline.
-	setDeadline := func(at time.Time) error {
-		err := controller.SetReadDeadline(at)
-		if errors.Is(err, http.ErrNotSupported) {
-			return nil
-		} // In-memory handlers have no socket.
-		return err
-	}
-	if err := setDeadline(deadline); err != nil {
-		return nil, err
-	}
-	done := make(chan struct{})
-	var interruptErr error
-	stop := context.AfterFunc(ctx, func() {
-		interruptErr = errors.Join(setDeadline(time.Now()), r.Body.Close())
-		close(done)
-	})
-	return func() error {
-		if !stop() {
-			<-done
-		}
-		return errors.Join(interruptErr, setDeadline(time.Time{}))
-	}, nil
 }

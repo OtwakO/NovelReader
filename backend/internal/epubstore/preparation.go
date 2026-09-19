@@ -35,6 +35,16 @@ type PreparationAttempt struct {
 // the caller. Superseded attempt evidence is retained; the caller remains
 // responsible for staged work. This method neither removes files nor joins workers.
 func (s *Store) QueuePreparation(ctx context.Context, id string) (PreparationAttempt, error) {
+	return s.queuePreparation(ctx, id, nil)
+}
+
+// RetryPreparation is the user-control boundary: only the exact unprepared or
+// failed generation may be queued. It never supersedes in-flight work.
+func (s *Store) RetryPreparation(ctx context.Context, id string, expected int64) (PreparationAttempt, error) {
+	return s.queuePreparation(ctx, id, &expected)
+}
+
+func (s *Store) queuePreparation(ctx context.Context, id string, expected *int64) (PreparationAttempt, error) {
 	unlock, err := s.files.LockMutation(ctx)
 	if err != nil {
 		return PreparationAttempt{}, err
@@ -44,7 +54,7 @@ func (s *Store) QueuePreparation(ctx context.Context, id string) (PreparationAtt
 	if err != nil {
 		return PreparationAttempt{}, err
 	}
-	if r.State != Acquired {
+	if r.State != Acquired || r.LibraryID != "" || (expected != nil && r.PreparationGeneration != *expected) {
 		return PreparationAttempt{}, ErrStateChanged
 	}
 	if r.PreparationGeneration > 0 {
@@ -52,7 +62,7 @@ func (s *Store) QueuePreparation(ctx context.Context, id string) (PreparationAtt
 		if err != nil {
 			return PreparationAttempt{}, err
 		}
-		if current.State == PreparationFinalizing || current.State == PreparationReady {
+		if current.State == PreparationFinalizing || current.State == PreparationReady || (expected != nil && current.State != PreparationFailed) {
 			return PreparationAttempt{}, ErrStateChanged
 		}
 	}
@@ -101,7 +111,7 @@ func (s *Store) ClaimPreparation(ctx context.Context, id string, generation int6
 // FailPreparation must use a live cleanup context if the worker's operation
 // context was cancelled. A stale failure returns ErrStateChanged, not success.
 func (s *Store) FailPreparation(ctx context.Context, id string, generation int64, cause error) error {
-	_, err := s.transitionPreparation(ctx, id, generation, PreparationRunning, PreparationFailed, cause.Error())
+	_, err := s.transitionPreparation(ctx, id, generation, PreparationRunning, PreparationFailed, preparationFailureCode(cause))
 	return err
 }
 

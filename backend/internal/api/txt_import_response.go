@@ -2,28 +2,16 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/txt"
 	"github.com/otwako/novelreader/internal/txtstore"
 )
-
-func txtControlHandler(handler http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
-		handler(w, r.WithContext(ctx))
-	}
-}
 
 type txtReceiptResponse struct {
 	ID              string         `json:"id"`
@@ -118,29 +106,7 @@ func writeTXTError(w http.ResponseWriter, err error) {
 }
 
 func decodeTXTRequest(w http.ResponseWriter, r *http.Request, value any) bool {
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(value); err != nil {
-		writeErrorCode(w, http.StatusBadRequest, "txt_invalid_input", "Invalid TXT request")
-		return false
-	}
-	var extra any
-	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		writeErrorCode(w, http.StatusBadRequest, "txt_invalid_input", "Expected one JSON object")
-		return false
-	}
-	return true
-}
-
-func txtPageLimit(r *http.Request) (int, error) {
-	if r.URL.Query().Get("limit") == "" {
-		return 50, nil
-	}
-	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
-	if err != nil || limit < 1 || limit > 100 {
-		return 0, errors.New("limit must be between 1 and 100")
-	}
-	return limit, nil
+	return decodeImportRequest(w, r, value, "txt_invalid_input", "Invalid TXT request")
 }
 
 func writeTXTAcquired(w http.ResponseWriter, value txtstore.Receipt, warnings []string) {

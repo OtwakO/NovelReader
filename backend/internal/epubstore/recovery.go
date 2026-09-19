@@ -97,31 +97,52 @@ func (s *Store) recoverAcquisition(ctx context.Context, root *os.Root, r Receipt
 
 // Discard removes an acquisition, not a library publication. Callers must first
 // cancel and join work for this receipt. A failed cleanup retains removal intent.
-func (s *Store) Discard(ctx context.Context, id string) (err error) {
+func (s *Store) Discard(ctx context.Context, id string) error {
+	_, err := s.discard(ctx, id, false)
+	return err
+}
+
+// DiscardPending is safe with live workers: acquisition must be joined by the
+// caller, and running/finalizing preparation is rejected under the claim gate.
+func (s *Store) DiscardPending(ctx context.Context, id string) (bool, error) {
+	return s.discard(ctx, id, true)
+}
+
+func (s *Store) discard(ctx context.Context, id string, checkActive bool) (pending bool, err error) {
 	unlock, err := s.files.LockMutation(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer unlock()
 	r, err := s.Get(ctx, id)
 	if errors.Is(err, ErrNotFound) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	if r.LibraryID != "" {
-		return ErrStateChanged
+		return false, ErrStateChanged
+	}
+	if checkActive && r.PreparationGeneration > 0 {
+		attempt, err := s.GetPreparation(ctx, id, r.PreparationGeneration)
+		if err != nil {
+			return false, err
+		}
+		if attempt.State == PreparationRunning || attempt.State == PreparationFinalizing {
+			return false, ErrStateChanged
+		}
 	}
 	root, err := s.files.OpenRoot()
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() { err = errors.Join(err, root.Close()) }()
 	if err = s.transition(ctx, &r, Removing, ""); err != nil {
-		return err
+		return false, err
 	}
-	return s.finishRemoval(ctx, root, r)
+	err = s.finishRemoval(ctx, root, r)
+	return err != nil, err
 }
 
 func (s *Store) finishRemoval(ctx context.Context, root *os.Root, r Receipt) error {

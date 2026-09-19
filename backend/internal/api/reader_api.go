@@ -61,6 +61,7 @@ func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 	a.registerRoutes()
 	if a.txtStore != nil && services.fileImports != nil {
 		a.registerTXTReceiptRoutes()
+		a.registerEPUBImportRoutes()
 		if services.txtInbox != nil {
 			a.registerTXTInboxRoutes()
 		}

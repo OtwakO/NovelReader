@@ -15,7 +15,7 @@ import (
 func (s *readerAPI) registerTXTReceiptRoutes() {
 	s.registerTXTReparseRoutes()
 	register := func(pattern string, handler http.HandlerFunc) {
-		s.mux.HandleFunc(pattern, txtControlHandler(handler))
+		s.mux.HandleFunc(pattern, importControlHandler(handler))
 	}
 	register("GET /api/imports/txt/receipts", s.handleListTXTReceipts)
 	register("GET /api/imports/txt/receipts/{id}", s.handleGetTXTReceipt)
@@ -26,7 +26,7 @@ func (s *readerAPI) registerTXTReceiptRoutes() {
 }
 
 func (s *readerAPI) handleListTXTReceipts(w http.ResponseWriter, r *http.Request) {
-	limit, err := txtPageLimit(r)
+	limit, err := importPageLimit(r)
 	state := txtstore.State(r.URL.Query().Get("state"))
 	validState := false
 	switch state {
@@ -76,7 +76,7 @@ func (s *readerAPI) handlePreviewTXTReceipt(w http.ResponseWriter, r *http.Reque
 			start = -1
 		}
 	}
-	limit, limitErr := txtPageLimit(r)
+	limit, limitErr := importPageLimit(r)
 	if err != nil || version < 1 || start < 0 || limitErr != nil {
 		writeErrorCode(w, http.StatusBadRequest, "txt_invalid_input", "Expected an analysis version and bounded preview page")
 		return

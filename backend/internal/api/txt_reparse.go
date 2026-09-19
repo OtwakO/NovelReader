@@ -37,12 +37,12 @@ type txtReparseResponse struct {
 }
 
 func (s *readerAPI) registerTXTReparseRoutes() {
-	s.mux.HandleFunc("GET /api/books/{id}/txt/reparse", txtControlHandler(s.handleTXTReparseStatus))
-	s.mux.HandleFunc("POST /api/books/{id}/txt/reparse", txtControlHandler(s.handlePrepareTXTReparse))
-	s.mux.HandleFunc("DELETE /api/books/{id}/txt/reparse", txtControlHandler(s.handleDiscardTXTReparse))
-	s.mux.HandleFunc("GET /api/books/{id}/txt/reparse/preview", txtControlHandler(s.handlePreviewTXTReparse))
-	s.mux.HandleFunc("GET /api/books/{id}/txt/reparse/impact", txtControlHandler(s.handleTXTReparseImpact))
-	s.mux.HandleFunc("POST /api/books/{id}/txt/reparse/apply", txtControlHandler(s.handleApplyTXTReparse))
+	s.mux.HandleFunc("GET /api/books/{id}/txt/reparse", importControlHandler(s.handleTXTReparseStatus))
+	s.mux.HandleFunc("POST /api/books/{id}/txt/reparse", importControlHandler(s.handlePrepareTXTReparse))
+	s.mux.HandleFunc("DELETE /api/books/{id}/txt/reparse", importControlHandler(s.handleDiscardTXTReparse))
+	s.mux.HandleFunc("GET /api/books/{id}/txt/reparse/preview", importControlHandler(s.handlePreviewTXTReparse))
+	s.mux.HandleFunc("GET /api/books/{id}/txt/reparse/impact", importControlHandler(s.handleTXTReparseImpact))
+	s.mux.HandleFunc("POST /api/books/{id}/txt/reparse/apply", importControlHandler(s.handleApplyTXTReparse))
 }
 func (s *readerAPI) handleTXTReparseStatus(w http.ResponseWriter, r *http.Request) {
 	value, err := s.txtStore.ReparseStatus(r.Context(), r.PathValue("id"))
@@ -108,7 +108,7 @@ func (s *readerAPI) handlePreviewTXTReparse(w http.ResponseWriter, r *http.Reque
 			start = -1
 		}
 	}
-	limit, limitErr := txtPageLimit(r)
+	limit, limitErr := importPageLimit(r)
 	if err != nil || generation < 1 || start < 0 || limitErr != nil {
 		writeErrorCode(w, 400, "txt_invalid_input", "Expected a candidate generation and bounded preview page")
 		return
