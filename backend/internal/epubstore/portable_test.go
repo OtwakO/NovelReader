@@ -14,8 +14,8 @@ import (
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
-// Cleanup, ownership, index, stream, and image-resource checks run here.
-// This does not prove complete untrusted EPUB portable validation.
+// Cleanup, ownership, index, publication semantics, and image-resource checks
+// run in isolated homes here, not through live application/schema registration.
 func TestPortablePreparationOwnership(t *testing.T) {
 	for _, phase := range []string{"queued", "running", "before-move", "after-move", "damaged-after-move", "ready", "optimized-ready"} {
 		t.Run(phase, func(t *testing.T) {

@@ -88,9 +88,10 @@ func Stage(ctx context.Context, work *os.Root, original io.ReaderAt, size int64,
 	}
 	// Close scratch before cleanup even if preparation or an output write fails.
 	resources := newResourceIndex()
+	publication := epub.NewPreparedPublicationCheck()
 	var sectionBytes int64
 	prepared, prepareErr := epub.Prepare(ctx, original, size, scratch, func(section epub.PreparedSection) error {
-		if err := epub.ValidatePreparedSection(ctx, section); err != nil {
+		if err := publication.Add(ctx, section); err != nil {
 			return err
 		}
 		span, err := appendSection(ctx, stream, section, sectionBytes)
@@ -115,6 +116,9 @@ func Stage(ctx context.Context, work *os.Root, original io.ReaderAt, size int64,
 		},
 	})
 	if err = errors.Join(prepareErr, scratch.Close()); err != nil {
+		return nil, err
+	}
+	if err = publication.Finish(ctx, prepared); err != nil {
 		return nil, err
 	}
 	if err = stream.Sync(); err != nil {

@@ -9,15 +9,20 @@ import (
 
 var ErrPreparedSection = errors.New("epub: invalid prepared section")
 
-// ValidatePreparedSection checks local semantics after bounded JSON decoding.
-// It does not establish registry identity, target-section/anchor existence, or
-// agreement with the publication summary. Storage must validate those separately.
-func ValidatePreparedSection(ctx context.Context, section PreparedSection) error {
+// Add validates one decoded section and collects target evidence in the same
+// walk. The caller must first bound untrusted JSON decoding.
+func (p *PreparedPublicationCheck) Add(ctx context.Context, section PreparedSection) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if section.Ordinal < 0 {
-		return ErrPreparedSection
+	if section.Ordinal != len(p.placeholders) {
+		return fmt.Errorf("%w: section ordinal mismatch", ErrPreparedSection)
+	}
+	if len(p.placeholders) >= maxTargetSections {
+		return ErrLimit
+	}
+	if err := p.addTarget(p.anchors, SectionTarget{Section: section.Ordinal}); err != nil {
+		return err
 	}
 	for key, image := range section.Images {
 		if err := ctx.Err(); err != nil {
@@ -53,6 +58,14 @@ func ValidatePreparedSection(ctx context.Context, section PreparedSection) error
 				return fmt.Errorf("%w: duplicate or invalid anchor", ErrPreparedSection)
 			}
 			ids[node.ID] = true
+			if err := p.addTarget(p.anchors, SectionTarget{Section: section.Ordinal, Anchor: node.ID}); err != nil {
+				return err
+			}
+		}
+		if node.Target != nil {
+			if err := p.addTarget(p.references, *node.Target); err != nil {
+				return err
+			}
 		}
 		for _, child := range node.Children {
 			if err := visit(child, depth+1); err != nil {
@@ -67,6 +80,7 @@ func ValidatePreparedSection(ctx context.Context, section PreparedSection) error
 	if hasReadableContent(section.Root) == section.CoverPlaceholder {
 		return fmt.Errorf("%w: readability contradicts placeholder", ErrPreparedSection)
 	}
+	p.placeholders = append(p.placeholders, section.CoverPlaceholder)
 	return ctx.Err()
 }
 

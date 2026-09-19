@@ -15,7 +15,7 @@ func preparedSectionFixture() PreparedSection {
 }
 
 func TestPreparedSectionSemantics(t *testing.T) {
-	if err := ValidatePreparedSection(t.Context(), preparedSectionFixture()); err != nil {
+	if err := NewPreparedPublicationCheck().Add(t.Context(), preparedSectionFixture()); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
@@ -36,18 +36,18 @@ func TestPreparedSectionSemantics(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := preparedSectionFixture()
 			tc.change(&s)
-			if err := ValidatePreparedSection(t.Context(), s); err == nil {
+			if err := NewPreparedPublicationCheck().Add(t.Context(), s); err == nil {
 				t.Fatal("invalid semantics accepted")
 			}
 		})
 	}
 	placeholder := PreparedSection{CoverPlaceholder: true, Root: Node{Kind: "group", Children: []Node{{Kind: "unsupported"}}}}
-	if err := ValidatePreparedSection(t.Context(), placeholder); err != nil {
+	if err := NewPreparedPublicationCheck().Add(t.Context(), placeholder); err != nil {
 		t.Fatal("valid unavailable cover", err)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if err := ValidatePreparedSection(ctx, placeholder); !errors.Is(err, context.Canceled) {
+	if err := NewPreparedPublicationCheck().Add(ctx, placeholder); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -65,7 +65,7 @@ func TestPreparedSectionAcceptsNormalizedSemantics(t *testing.T) {
 	if err = targets.resolveSection(t.Context(), 0, &normalized); err != nil {
 		t.Fatal(err)
 	}
-	if err = ValidatePreparedSection(t.Context(), PreparedSection{Root: normalized.Root}); err != nil {
+	if err = NewPreparedPublicationCheck().Add(t.Context(), PreparedSection{Root: normalized.Root}); err != nil {
 		t.Fatal(err)
 	}
 	// Bounds apply even to structurally valid decoded trees.
@@ -73,7 +73,7 @@ func TestPreparedSectionAcceptsNormalizedSemantics(t *testing.T) {
 	for i := 0; i < maxXMLDepth; i++ {
 		root = Node{Kind: "group", Children: []Node{root}}
 	}
-	if err = ValidatePreparedSection(t.Context(), PreparedSection{Root: root}); !errors.Is(err, ErrLimit) {
+	if err = NewPreparedPublicationCheck().Add(t.Context(), PreparedSection{Root: root}); !errors.Is(err, ErrLimit) {
 		t.Fatal("depth", err)
 	}
 }

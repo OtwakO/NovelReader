@@ -61,14 +61,8 @@ func readPortableSection(ctx context.Context, input io.ReaderAt, size int64, ord
 	if err != nil {
 		return epub.PreparedSection{}, err
 	}
-	section, err := decodeSection(ctx, data, ordinal)
-	if err == nil {
-		err = epub.ValidatePreparedSection(ctx, section)
-	}
-	if err != nil {
-		return epub.PreparedSection{}, err
-	}
-	return section, nil
+	// The stream owner runs local/publication semantics together after decoding.
+	return decodeSection(ctx, data, ordinal)
 }
 
 func readSectionData(ctx context.Context, input io.ReaderAt, size int64, ordinal int, span SectionSpan) ([]byte, error) {

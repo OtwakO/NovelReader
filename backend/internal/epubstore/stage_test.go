@@ -20,7 +20,7 @@ func stagedFixture(t *testing.T, broken bool) []byte {
 	if err := png.Encode(&pic, image.NewRGBA(image.Rect(0, 0, 3, 2))); err != nil {
 		t.Fatal(err)
 	}
-	second := `<p>Second section</p>`
+	second := `<p id="second">Second section</p><a href="one.xhtml#first">Back</a>`
 	if broken {
 		second = `<script>not prose</script>`
 	}
@@ -28,7 +28,7 @@ func stagedFixture(t *testing.T, broken bool) []byte {
 		{"mimetype", "application/epub+zip"},
 		{"META-INF/container.xml", `<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`},
 		{"book.opf", `<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata/><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/><item id="image" href="private/pic.png" media-type="image/png" properties="cover-image"/></manifest><spine><itemref idref="one"/><itemref idref="two"/></spine></package>`},
-		{"one.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml"><body><p>First section</p><img src="private/pic.png"/><img src="private/pic.png"/></body></html>`},
+		{"one.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml"><body><p id="first">First section</p><a href="two.xhtml#second">Next</a><img src="private/pic.png"/><img src="private/pic.png"/></body></html>`},
 		{"two.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml"><body>` + second + `</body></html>`},
 		{"private/pic.png", pic.String()},
 	}
