@@ -90,6 +90,9 @@ func Stage(ctx context.Context, work *os.Root, original io.ReaderAt, size int64,
 	resources := newResourceIndex()
 	var sectionBytes int64
 	prepared, prepareErr := epub.Prepare(ctx, original, size, scratch, func(section epub.PreparedSection) error {
+		if err := epub.ValidatePreparedSection(ctx, section); err != nil {
+			return err
+		}
 		span, err := appendSection(ctx, stream, section, sectionBytes)
 		if err != nil {
 			return err

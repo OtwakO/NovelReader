@@ -103,3 +103,35 @@ func TestIncompletePreparationPreservesOtherFailures(t *testing.T) {
 		}
 	}
 }
+
+func TestPortableSemanticDamageIsNotInterruptedOutput(t *testing.T) {
+	store, root := receiptStore(t)
+	receipt := acquiredFixture(t, store, epub.OriginalImages)
+	attempt, err := store.QueuePreparation(t.Context(), receipt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = store.Prepare(t.Context(), receipt.ID, attempt.Generation); err != nil {
+		t.Fatal(err)
+	}
+	name := path.Join(preparationPath(receipt.ID, attempt.Generation), sectionStreamFile)
+	data, err := root.ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := bytes.Replace(data, []byte(`"kind":"group"`), []byte(`"kind":"bogus"`), 1)
+	if bytes.Equal(data, changed) {
+		t.Fatal("fixture lacks group node")
+	}
+	if err = root.WriteFile(name, changed, 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, state := range []PreparationState{PreparationReady, PreparationFinalizing} {
+		if _, err = store.db.Exec(`UPDATE epub_preparations SET state=? WHERE file_id=?`, state, receipt.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err = checkPortableStreams(t, store, root); !errors.Is(err, epub.ErrPreparedSection) {
+			t.Fatalf("%s admitted malformed semantics: %v", state, err)
+		}
+	}
+}

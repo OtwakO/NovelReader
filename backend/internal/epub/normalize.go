@@ -253,7 +253,7 @@ func (n *sectionNormalizer) integerAttribute(source *xmlElement, name string) in
 		return 0
 	}
 	number, err := strconv.Atoi(value)
-	if err != nil || number < 1 || number > 1000 {
+	if err != nil || number < 1 || number > maxCellSpan {
 		n.warn("invalid_structure")
 		return 0
 	}

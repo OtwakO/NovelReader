@@ -1,5 +1,7 @@
 package epub
 
+const maxCellSpan = 1000
+
 // Section is preparation evidence, not a wire document. Only Nodes and their
 // opaque keys are presentation-safe. Source anchors/references remain private
 // until publication-wide target and image validation has resolved the bindings.

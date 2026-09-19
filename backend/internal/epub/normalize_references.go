@@ -17,9 +17,8 @@ func (n *sectionNormalizer) link(source *xmlElement, out *Node) {
 	if !found {
 		return
 	} // An anchor need not also be a link.
-	parsed, err := url.Parse(href)
-	if err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Hostname() != "" && parsed.User == nil {
-		out.Kind, out.URL = "link", parsed.String()
+	if external, ok := externalLink(href); ok {
+		out.Kind, out.URL = "link", external
 		return
 	}
 	ref, err := resolveReference(n.base, href)
@@ -104,4 +103,13 @@ func (n *sectionNormalizer) foreignNode(source *xmlElement) (*Node, error) {
 	}
 	n.anchors(source, &out)
 	return &out, n.ctx.Err()
+}
+
+// Shared by normalization and portable validation; never used to fetch content.
+func externalLink(href string) (string, bool) {
+	parsed, err := url.Parse(href)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" || parsed.User != nil {
+		return "", false
+	}
+	return parsed.String(), true
 }

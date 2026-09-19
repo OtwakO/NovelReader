@@ -10,8 +10,9 @@ import (
 )
 
 // validatePortableStreams follows ownership and index validation. It verifies
-// physical records, not semantic nodes, metadata, or resource bindings. Failed
-// attempts and receipts being removed need not retain their disposable output.
+// bounded records and local semantics, not publication-wide metadata/resource
+// agreement or target existence. Failed attempts and receipts being removed need
+// not retain their disposable output.
 func validatePortableStreams(ctx context.Context, tx *sql.Tx, root *os.Root) error {
 	rows, err := tx.QueryContext(ctx, `SELECT p.file_id,p.generation,p.state,p.stream_size FROM epub_preparations p
  JOIN epub_files f ON f.id=p.file_id WHERE f.state='acquired' AND p.state IN ('ready','finalizing') ORDER BY p.file_id,p.generation`)
