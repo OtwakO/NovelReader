@@ -59,7 +59,7 @@ Accepted future-facing architecture:
 
 ## Current State
 
-Reader schema is **14**, adding EPUB persistence and shared import lifecycle. Existing epoch-13 homes/backups remain preserved, not migrated. [Independent last-read tracking](docs/plans/2026-09-17-last-read-tracking.md), introduced at epoch 13, continues to separate reading from additions/metadata updates.
+Reader schema is **15**, adding explicit EPUB publication binding and indexed section titles/main membership. Existing epoch-13/14 homes/backups remain preserved, not migrated. [Independent last-read tracking](docs/plans/2026-09-17-last-read-tracking.md), introduced at epoch 13, continues to separate reading from additions/metadata updates.
 
 ### Complete product foundations
 
@@ -128,13 +128,13 @@ Manual usability feedback is next.
 
 ## Active Work
 
-[EPUB support](docs/plans/2026-09-17-epub-support.md) — parsing/preparation, optional image optimization, indexed durable storage, portable validation and shared TXT/EPUB worker lifecycle are implemented. Epoch **14** registers EPUB storage with oldest-first cross-format selection, fair reader turns and the retained **2 workers + 2 transfers** budget. Existing structured-reader/TOC/note browser proofs use mocked APIs. Publication, authorized resources, import/review UI and the complete real EPUB journey remain pending. Existing homes/backups are not migrated or reset; see the plan for verification scope and rollback.
+[EPUB support](docs/plans/2026-09-17-epub-support.md) — parsing/preparation, optional image optimization, indexed durable storage, portable validation and shared TXT/EPUB worker lifecycle are implemented. Epoch **15** integrates exact-generation publication, shared catalog/content/progress/bookmarks, authorized original/optimized images and covers, portable publication checks, and durable removal. Shared scheduling retains **2 workers + 2 transfers**. Synthetic authenticated HTTP and storage tests cover this capability; existing browser proofs use mocked APIs. Import/review UI and the complete real-browser EPUB journey remain pending. Existing homes/backups are not migrated or reset; see the plan for verification scope and rollback.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities
 
-1. Complete [EPUB publication and authorized reading](docs/plans/2026-09-17-epub-support.md#next-action), then browser/inbox import and review UI. Parsing, preparation, durable/portable storage and shared TXT/EPUB scheduling are implemented; no EPUB publication or resource HTTP is exposed yet. Keep existing epoch-13 data untouched and verify on fresh epoch-14 homes.
+1. Connect [EPUB browser/inbox import and review UI](docs/plans/2026-09-17-epub-support.md#next-action), then verify the real-browser import/read/backup/restore/removal journey. Publication and authorized reading/resources are integrated; acceptance remains storage-owned, not an unfinished public import route. Keep existing epoch-13/14 data untouched and verify on fresh epoch-15 homes.
 2. Keep future work proportional to its risk: reuse the established storage, reading and lifecycle owners, use focused verification, and avoid speculative frameworks. The completed TXT plan is historical evidence, not an active backlog.
 3. The accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), bounded browser-UA provider and [browser lifecycle hardening](docs/plans/browser-worker-lifecycle.md) are implemented. Confirm any next compatibility slice with the user before implementation; retain the recorded verification limits. Do not claim universal compatibility.
 4. Select further compatibility slices from current evidence rather than historical unchecked boxes; introduce image-sequence documents and structured locations only when that modality becomes active work.

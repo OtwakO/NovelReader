@@ -6,6 +6,7 @@ import "errors"
 const (
 	BookSource = "booksource"
 	TXT        = "txt"
+	EPUB       = "epub"
 )
 
 var (

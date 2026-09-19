@@ -110,6 +110,9 @@ func (s *Store) Discard(ctx context.Context, id string) (err error) {
 	if err != nil {
 		return err
 	}
+	if r.LibraryID != "" {
+		return ErrStateChanged
+	}
 	root, err := s.files.OpenRoot()
 	if err != nil {
 		return err

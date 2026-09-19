@@ -81,9 +81,9 @@ NovelReader stores its data in the `data` folder beside `docker-compose.yml`. Th
 
 ## Update
 
-This revision requires reader schema epoch 14 (EPUB storage and shared import lifecycle).
-EPUB publication/import UI is not yet exposed. Existing epoch-13 (or older) homes and portable
-archives cannot be migrated automatically. Before upgrading an existing deployment,
+This revision requires reader schema epoch 15 (EPUB publication and authorized reading/resources).
+Prepared EPUBs can be accepted by storage and read through the shared reader; EPUB acquisition/review
+UI is not yet exposed. Existing epoch-14 (or older) homes and portable archives are rejected, not migrated. Before upgrading an existing deployment,
 stop it and preserve a complete `DATA_DIR` copy; follow the
 [compatibility and reset runbook](docs/runbooks/development-data-reset.md) rather than
 deleting data or editing schema markers to bypass the check.

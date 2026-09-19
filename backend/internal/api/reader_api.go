@@ -8,6 +8,7 @@ import (
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/candidate"
 	"github.com/otwako/novelreader/internal/chineseconv"
+	"github.com/otwako/novelreader/internal/epubstore"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/processor"
@@ -42,6 +43,7 @@ type readerAPI struct {
 	coverCacheScope string
 	reading         *reading.Service
 	txtStore        *txtstore.Store
+	epubStore       *epubstore.Store
 }
 
 func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
@@ -49,8 +51,9 @@ func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 	if runtime.home != nil {
 		a.coverCacheScope = readerstore.DeviceID(runtime.home.ID())
 		a.txtStore = txtstore.NewStore(runtime.db, runtime.home.Files())
+		a.epubStore = epubstore.NewStore(runtime.db, runtime.home.Files())
 	}
-	a.reading = &reading.Service{Library: runtime.libraryStore, TXT: a.txtStore,
+	a.reading = &reading.Service{Library: runtime.libraryStore, TXT: a.txtStore, EPUB: a.epubStore, EPUBResourceHref: a.epubResourceHref,
 		BookSource: &reading.BookSource{Store: runtime.bookStore, Sources: runtime.sourceStore,
 			Catalogs: runtime.catalogs, Searcher: runtime.searcher, ProcessorConfig: services.processorCfg,
 			ImageHref: chapterImageHref},

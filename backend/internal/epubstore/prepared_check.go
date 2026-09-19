@@ -59,7 +59,7 @@ func (s *Store) checkInstalledPreparation(ctx context.Context, root *os.Root, a 
 			return errIncompletePreparation
 		}
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT ordinal,offset,length FROM epub_sections WHERE file_id=? AND generation=? ORDER BY ordinal`, a.ReceiptID, a.Generation)
+	rows, err := s.db.QueryContext(ctx, `SELECT ordinal,offset,length,title,main FROM epub_sections WHERE file_id=? AND generation=? ORDER BY ordinal`, a.ReceiptID, a.Generation)
 	if err != nil {
 		return err
 	}
@@ -67,11 +67,13 @@ func (s *Store) checkInstalledPreparation(ctx context.Context, root *os.Root, a 
 	var end int64
 	for rows.Next() {
 		var storedOrdinal int
+		var title string
+		var main bool
 		var span SectionSpan
-		if err = rows.Scan(&storedOrdinal, &span.Offset, &span.Length); err != nil {
+		if err = rows.Scan(&storedOrdinal, &span.Offset, &span.Length, &title, &main); err != nil {
 			break
 		}
-		if storedOrdinal != ordinal || span.Offset != end {
+		if storedOrdinal != ordinal || span.Offset != end || ordinal >= len(metadata.Sections) || title != metadata.Sections[ordinal].Title || main != metadata.Sections[ordinal].Main {
 			err = errInvalidSectionSpan
 			break
 		}

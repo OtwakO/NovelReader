@@ -29,6 +29,7 @@ var (
 // Receipt describes original acquisition, not preparation or shelf admission.
 type Receipt struct {
 	ID, OriginalName, Path string
+	LibraryID              string
 	State                  AcquisitionState
 	Size                   int64
 	PreparationGeneration  int64
@@ -48,7 +49,7 @@ func NewStore(db *sql.DB, files readerstore.FileStore) *Store { return &Store{db
 
 func (s *Store) Get(ctx context.Context, id string) (Receipt, error) {
 	var r Receipt
-	err := s.db.QueryRowContext(ctx, `SELECT id,original_name,state,size,preparation_generation,image_mode,error,created_at,updated_at FROM epub_files WHERE id=?`, id).Scan(&r.ID, &r.OriginalName, &r.State, &r.Size, &r.PreparationGeneration, &r.ImageMode, &r.Error, &r.CreatedAt, &r.UpdatedAt)
+	err := s.db.QueryRowContext(ctx, `SELECT id,original_name,state,size,preparation_generation,image_mode,error,created_at,updated_at,COALESCE(library_id,'') FROM epub_files WHERE id=?`, id).Scan(&r.ID, &r.OriginalName, &r.State, &r.Size, &r.PreparationGeneration, &r.ImageMode, &r.Error, &r.CreatedAt, &r.UpdatedAt, &r.LibraryID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Receipt{}, ErrNotFound
 	}

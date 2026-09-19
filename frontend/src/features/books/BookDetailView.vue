@@ -223,7 +223,7 @@ export default defineComponent({
         this.chapters = [];
         this.catalogNavigation = undefined;
         this.removedBookId = bookId;
-        this.cleanupPending = Boolean(result.warnings?.includes('txt_cleanup_pending'));
+        this.cleanupPending = Boolean(result.warnings?.some(warning => warning === 'txt_cleanup_pending' || warning === 'epub_cleanup_pending'));
         if (!this.cleanupPending) await this.$router.replace("/shelf");
         else {
           await this.$nextTick();
@@ -310,7 +310,7 @@ export default defineComponent({
       >
         <strong>{{ $t("bookDetail.confirmRemoveTitle") }}</strong>
         <p>
-          {{ $t(book.provider === 'txt' ? 'bookDetail.confirmRemoveTXT' : 'bookDetail.confirmRemoveDescription', { name: book.name }) }}
+          {{ $t(book.provider === 'epub' ? 'bookDetail.confirmRemoveEPUB' : book.provider === 'txt' ? 'bookDetail.confirmRemoveTXT' : 'bookDetail.confirmRemoveDescription', { name: book.name }) }}
         </p>
         <div>
           <AppButton variant="secondary" @click="confirmingRemove = false">

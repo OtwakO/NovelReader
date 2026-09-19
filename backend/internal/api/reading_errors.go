@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/otwako/novelreader/internal/epubstore"
 	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/reading"
 	"github.com/otwako/novelreader/internal/txtstore"
@@ -13,9 +14,9 @@ import (
 func writeReadingError(w http.ResponseWriter, err error) {
 	var crawl *reading.CrawlError
 	switch {
-	case errors.Is(err, library.ErrNotFound), errors.Is(err, txtstore.ErrNotFound):
+	case errors.Is(err, library.ErrNotFound), errors.Is(err, txtstore.ErrNotFound), errors.Is(err, epubstore.ErrNotFound):
 		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-	case errors.Is(err, library.ErrStateChanged):
+	case errors.Is(err, library.ErrStateChanged), errors.Is(err, epubstore.ErrStateChanged):
 		writeErrorCode(w, http.StatusConflict, "state_changed", "book interpretation or reading state changed")
 	case errors.Is(err, reading.ErrChapterNotFound):
 		writeErrorCode(w, http.StatusNotFound, "chapter_not_found", "chapter not found")

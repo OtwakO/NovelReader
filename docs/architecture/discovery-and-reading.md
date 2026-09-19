@@ -107,15 +107,25 @@ The frontend Reading Session owns chapter loading, navigation, common chrome, re
 `library` owns publication IDs, provider discrimination, display metadata, catalog summaries,
 revision-qualified chapter/index and normalized in-chapter progress, and bookmarks. BookSource owns
 active/alternate bindings, native chapters and the bounded processed chapter cache. TXT owns its
-published byte-range index and managed original. The reading module validates each provider's
+published byte-range index and managed original. EPUB owns immutable prepared semantic streams,
+section/resource indexes and original/derivative files. The reading module validates each provider's
 readable chapter identity before library CAS commits progress or bookmarks. Empty title metadata is
 valid: bookmarks retain it, and the UI uses the one-based section number when no title is available. Catalog sections may carry
 `auxiliary: true`: these remain addressable/bookmarkable but cannot commit main progress. Omission
 means main membership; section indices are not renumbered when selecting main reading order.
 The frontend also excludes auxiliary sections from ordinary navigation, prefetch, saved-resume
 fallback and local progress updates. Current TXT/BookSource providers do not emit auxiliary sections;
-the unexposed EPUB projection and note-return work are tracked in the [EPUB plan](../plans/2026-09-17-epub-support.md).
-Optional catalog `navigation` is a contents hierarchy, never the reading sequence. Its authored-versus-section-list provenance, grouping/unavailable entries and revision-qualified targets survive client parsing. Reader and Book Detail share an expanded semantic outline with ancestor-preserving search; selection reuses qualified reader links or the existing anchor/note lifecycle. Display conversion preserves canonical labels and targets. Legacy catalogs retain the flat TOC. Current providers omit it, while the unregistered EPUB projection is covered by a shared Go/frontend wire fixture.
+EPUB emits saved main/auxiliary membership through its registered provider. Import UI and real-browser
+journey verification remain tracked in the [EPUB plan](../plans/2026-09-17-epub-support.md).
+Optional catalog `navigation` is a contents hierarchy, never the reading sequence. Its authored-versus-section-list provenance, grouping/unavailable entries and revision-qualified targets survive client parsing. Reader and Book Detail share an expanded semantic outline with ancestor-preserving search; selection reuses qualified reader links or the existing anchor/note lifecycle. Display conversion preserves canonical labels and targets. Legacy catalogs retain the flat TOC. EPUB emits its saved authored navigation (or explicit section fallback); TXT/BookSource omit it.
+EPUB catalogs read saved preparation metadata; location/progress and single-content reads use the
+indexed section without whole-book JSON decoding. Storage checks publication/revision/current ready
+generation before and after file reads. The existing version-2 projection maps section-local image
+keys to durable opaque resource IDs, never exposing archive paths. `GET /api/books/{id}/epub-resources/{resource}`
+requires `revision` and authenticated `reader` scope, retains the outer reader-home lease, and serves
+validated registry entries only. Originals use bounded ZIP-member reads; optimized derivatives use
+bounded file reads. No preparation or pixel validation runs during reading. Covers use the same
+endpoint. Responses have the stored media type, `nosniff`, and `Cache-Control: private, no-store`.
 There is no shared section table or duplicate shared metadata in BookSource storage.
 
 `GET /api/books` and `/api/books/{id}` return shared library fields plus optional cover/display-label
@@ -170,7 +180,9 @@ The Vue frontend owns presentation and interaction: shelf filtering/sorting/rest
 ## Publication removal
 
 The common delete route dispatches to the owning lifecycle. TXT removal first hides the library
-item and cascades its bookmarks, then deletes owned bytes/index/receipt. Cleanup failure returns
+item and cascades its bookmarks, then deletes owned bytes/index/receipt. EPUB likewise atomically
+hides the item with durable removal intent, then cleans its owned receipt/preparation directories;
+cleanup failure returns `epub_cleanup_pending` and is retryable by the same ID or recovery. Cleanup failure returns
 `status: removed` with warning `txt_cleanup_pending`; it is not a claim of complete byte deletion.
 Book Detail retains a focused result screen and retry control rather than navigating away and
 losing the warning. Retrying the same book ID reaches the retained removal record even when the

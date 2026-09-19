@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/otwako/novelreader/internal/epubstore"
 	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/txtstore"
 )
@@ -32,9 +33,11 @@ type provider interface {
 }
 
 type Service struct {
-	Library    *library.Store
-	BookSource *BookSource
-	TXT        *txtstore.Store
+	Library          *library.Store
+	BookSource       *BookSource
+	TXT              *txtstore.Store
+	EPUB             *epubstore.Store
+	EPUBResourceHref func(string, int64, string) string
 }
 
 func (s *Service) resolve(ctx context.Context, id string) (provider, *library.Item, error) {
@@ -48,6 +51,10 @@ func (s *Service) resolve(ctx context.Context, id string) (provider, *library.It
 	switch item.Provider {
 	case library.BookSource:
 		return s.BookSource, item, nil
+	case library.EPUB:
+		if s.EPUB != nil && s.EPUBResourceHref != nil {
+			return epubReader{s.EPUB, s.EPUBResourceHref}, item, nil
+		}
 	case library.TXT:
 		if s.TXT != nil {
 			return txtReader{s.TXT}, item, nil

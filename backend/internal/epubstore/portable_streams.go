@@ -74,16 +74,21 @@ func checkPortableStream(ctx context.Context, tx *sql.Tx, root *os.Root, id stri
 		return err
 	}
 	defer func() { err = errors.Join(err, resources.Close()) }()
-	rows, err := tx.QueryContext(ctx, `SELECT ordinal,offset,length FROM epub_sections WHERE file_id=? AND generation=? ORDER BY ordinal`, id, generation)
+	rows, err := tx.QueryContext(ctx, `SELECT ordinal,offset,length,title,main FROM epub_sections WHERE file_id=? AND generation=? ORDER BY ordinal`, id, generation)
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, rows.Close()) }()
 	for rows.Next() {
 		var ordinal int
+		var title string
+		var main bool
 		var span SectionSpan
-		if err = rows.Scan(&ordinal, &span.Offset, &span.Length); err != nil {
+		if err = rows.Scan(&ordinal, &span.Offset, &span.Length, &title, &main); err != nil {
 			return err
+		}
+		if ordinal >= len(metadata.Sections) || title != metadata.Sections[ordinal].Title || main != metadata.Sections[ordinal].Main {
+			return epub.ErrPreparedMetadata
 		}
 		section, readErr := readPortableSection(ctx, file, size, ordinal, span)
 		if readErr != nil {

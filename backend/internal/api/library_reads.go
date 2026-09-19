@@ -65,6 +65,13 @@ func (s *readerAPI) libraryBooks(ctx context.Context, id string) ([]libraryBookR
 				response.CoverDisplayURL = storedCoverDisplayURL(&projection, revisions[native.SourceID], s.coverCacheScope)
 			}
 		}
+		if item.Provider == library.EPUB {
+			response.OriginLabel = "EPUB"
+			response.CoverURL = ""
+			if item.CoverURL != "" {
+				response.CoverDisplayURL = s.epubResourceHref(item.ID, item.ContentRevision, item.CoverURL)
+			}
+		}
 		result = append(result, response)
 	}
 	return result, nil

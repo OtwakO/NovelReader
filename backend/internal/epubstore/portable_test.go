@@ -15,9 +15,9 @@ import (
 // Cleanup, ownership, index, publication semantics, and image-resource checks
 // run in isolated homes here, not through live application/schema registration.
 func TestPortablePreparationOwnership(t *testing.T) {
-	for _, phase := range []string{"queued", "running", "before-move", "after-move", "damaged-after-move", "ready", "optimized-ready"} {
+	for _, phase := range []string{"queued", "running", "before-move", "after-move", "damaged-after-move", "ready", "optimized-ready", "published"} {
 		t.Run(phase, func(t *testing.T) {
-			manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: validatePortableFiles})
+			manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeFixtureSchema, PreparePortable: preparePortable, ValidatePortableFiles: validatePortableFiles})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -53,7 +53,7 @@ func TestPortablePreparationOwnership(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if phase == "ready" || phase == "optimized-ready" {
+			if phase == "ready" || phase == "optimized-ready" || phase == "published" {
 				if err = source.Prepare(t.Context(), receipt.ID, attempt.Generation); err != nil {
 					t.Fatal(err)
 				}
@@ -83,6 +83,11 @@ func TestPortablePreparationOwnership(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
+				}
+			}
+			if phase == "published" {
+				if _, err = source.Accept(t.Context(), receipt.ID, attempt.Generation, "Portable book", "Author"); err != nil {
+					t.Fatal(err)
 				}
 			}
 			liveBefore, err := source.GetPreparation(t.Context(), receipt.ID, attempt.Generation)
@@ -148,7 +153,7 @@ func TestPortablePreparationOwnership(t *testing.T) {
 			want := PreparationFailed
 			if phase == "queued" {
 				want = PreparationQueued
-			} else if phase == "after-move" || phase == "ready" || phase == "optimized-ready" {
+			} else if phase == "after-move" || phase == "ready" || phase == "optimized-ready" || phase == "published" {
 				want = PreparationReady
 			}
 			if got.State != want {
@@ -157,6 +162,11 @@ func TestPortablePreparationOwnership(t *testing.T) {
 			if want == PreparationReady {
 				if _, err = restored.PreparedSection(t.Context(), receipt.ID, attempt.Generation, 1); err != nil {
 					t.Fatal(err)
+				}
+			}
+			if phase == "published" {
+				if _, revision, err := restored.GetCatalog(t.Context(), receipt.ID); err != nil || revision != 1 {
+					t.Fatal("restored publication", revision, err)
 				}
 			}
 			restoredRoot, err := restoredHome.Files().OpenRoot()
@@ -173,7 +183,7 @@ func TestPortablePreparationOwnership(t *testing.T) {
 }
 
 func TestPortableHookRejectsCorruptReplacement(t *testing.T) {
-	manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeSchema, PreparePortable: preparePortable, ValidatePortableFiles: validatePortableFiles})
+	manager, err := readerstore.NewManager(t.TempDir(), 2, readerstore.ReaderSchema{Initialize: initializeFixtureSchema, PreparePortable: preparePortable, ValidatePortableFiles: validatePortableFiles})
 	if err != nil {
 		t.Fatal(err)
 	}

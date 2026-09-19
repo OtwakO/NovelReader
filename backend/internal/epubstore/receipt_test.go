@@ -10,14 +10,16 @@ import (
 	"testing"
 	"testing/iotest"
 
+	"database/sql"
 	"github.com/otwako/novelreader/internal/epub"
+	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
 func receiptStore(t *testing.T) (*Store, *os.Root) {
 	t.Helper()
-	// This isolated schema fragment is deliberately NOT registered in the app.
-	manager, err := readerstore.NewManager(t.TempDir(), 1, readerstore.ReaderSchema{Initialize: initializeSchema})
+	// Fixture composition keeps each schema owner explicit.
+	manager, err := readerstore.NewManager(t.TempDir(), 1, readerstore.ReaderSchema{Initialize: initializeFixtureSchema})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,4 +225,11 @@ func TestReceiveRetainsIntentWhenCommitFails(t *testing.T) {
 	if err != nil || stored.State != Acquired {
 		t.Fatal("not recovered", err)
 	}
+}
+
+func initializeFixtureSchema(tx *sql.Tx) error {
+	if err := library.ReaderSchema().Initialize(tx); err != nil {
+		return err
+	}
+	return initializeSchema(tx)
 }

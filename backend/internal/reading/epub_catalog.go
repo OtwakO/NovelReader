@@ -3,7 +3,6 @@ package reading
 import "github.com/otwako/novelreader/internal/epub"
 
 // epubCatalog keeps the section inventory and contents hierarchy separate.
-// Like epubContent, this proof is not registered with a live provider yet.
 func epubCatalog(revision int64, prepared epub.Preparation) Catalog {
 	chapters := make([]Chapter, len(prepared.Sections))
 	for index, section := range prepared.Sections {

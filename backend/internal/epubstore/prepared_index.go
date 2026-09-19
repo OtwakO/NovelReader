@@ -36,12 +36,12 @@ func (s *Store) persistPreparationIntent(ctx context.Context, a PreparationAttem
 	if err = changedOne(result); err != nil {
 		return err
 	}
-	sections, err := tx.PrepareContext(ctx, `INSERT INTO epub_sections(file_id,generation,ordinal,offset,length) VALUES(?,?,?,?,?)`)
+	sections, err := tx.PrepareContext(ctx, `INSERT INTO epub_sections(file_id,generation,ordinal,offset,length,title,main) VALUES(?,?,?,?,?,?,?)`)
 	if err != nil {
 		return err
 	}
 	for ordinal, span := range staged.SectionSpans {
-		if _, err = sections.ExecContext(ctx, a.ReceiptID, a.Generation, ordinal, span.Offset, span.Length); err != nil {
+		if _, err = sections.ExecContext(ctx, a.ReceiptID, a.Generation, ordinal, span.Offset, span.Length, staged.Preparation.Sections[ordinal].Title, staged.Preparation.Sections[ordinal].Main); err != nil {
 			return errors.Join(err, sections.Close())
 		}
 	}

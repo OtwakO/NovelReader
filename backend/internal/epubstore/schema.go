@@ -14,6 +14,7 @@ func initializeSchema(tx *sql.Tx) error {
 	_, err := tx.Exec(`CREATE TABLE epub_files (
  id TEXT PRIMARY KEY,
  original_name TEXT NOT NULL,
+ library_id TEXT UNIQUE REFERENCES library_items(id) ON DELETE SET NULL CHECK(library_id IS NULL OR library_id=id),
  state TEXT NOT NULL CHECK(state IN ('receiving','finalizing','acquired','failed','removing')),
  size INTEGER NOT NULL DEFAULT 0 CHECK(size >= 0),
  preparation_generation INTEGER NOT NULL DEFAULT 0 CHECK(preparation_generation >= 0),
@@ -43,6 +44,8 @@ func initializeSchema(tx *sql.Tx) error {
  file_id TEXT NOT NULL,
  generation INTEGER NOT NULL,
  ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+ title TEXT NOT NULL,
+ main INTEGER NOT NULL CHECK(main IN (0,1)),
  offset INTEGER NOT NULL CHECK(offset >= 0),
  length INTEGER NOT NULL CHECK(length > 0),
  PRIMARY KEY(file_id,generation,ordinal),

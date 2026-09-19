@@ -356,6 +356,22 @@ func (s *readerAPI) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusInternalServerError, "storage_error", "failed to load book")
 		return
 	}
+	if s.epubStore != nil && (item == nil || item.Provider == library.EPUB) {
+		pending, err := s.epubStore.RemovePublication(r.Context(), id)
+		if pending || err != nil {
+			if pending {
+				slog.Warn("EPUB publication removed; file cleanup pending", "book_id", id, "error", err)
+				writeJSON(w, http.StatusOK, map[string]any{"status": "removed", "warnings": []string{"epub_cleanup_pending"}})
+			} else {
+				writeReadingError(w, err)
+			}
+			return
+		}
+		if item != nil {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+			return
+		}
+	}
 	// A hidden TXT publication can still have a removal record under its stable
 	// ID. Retry that lifecycle rather than treating a missing shelf row as done.
 	if s.txtStore != nil && (item == nil || item.Provider == library.TXT) {

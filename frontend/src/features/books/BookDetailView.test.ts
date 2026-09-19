@@ -11,7 +11,7 @@ const i18n = createI18n({
     imports: { reparse: { title: 'Reparse TXT' } },
     app: { common: { unknownAuthor: 'Unknown' } },
     bookDetail: {
-      title: 'Book details', description: 'Description', loading: 'Loading', loadFailed: 'Load failed', tocFailed: 'TOC failed', tocSyncing: 'Synchronizing the chapter list…', retryToc: 'Retry chapter list', notFound: 'Not found', back: 'Back', coverAlt: 'Cover of {name}', tocEntries: '{count} entries', progress: '{percent}% read', latest: 'Latest: {chapter}', currentSource: 'Current source: {source}', continue: 'Continue', remove: 'Remove', confirmRemoveTitle: 'Remove?', confirmRemoveDescription: 'Remove {name}?', cancel: 'Cancel', confirmRemove: 'Remove', confirmRemoveTXT: 'Delete managed original for {name}?', removed: 'Removed from your library', cleanupPending: 'File cleanup pending. You can retry.', retryCleanup: 'Retry file cleanup', synopsis: 'Synopsis', chapters: 'Chapters', noChapters: 'No chapters', showAll: 'Show all {count}',
+      title: 'Book details', description: 'Description', loading: 'Loading', loadFailed: 'Load failed', tocFailed: 'TOC failed', tocSyncing: 'Synchronizing the chapter list…', retryToc: 'Retry chapter list', notFound: 'Not found', back: 'Back', coverAlt: 'Cover of {name}', tocEntries: '{count} entries', progress: '{percent}% read', latest: 'Latest: {chapter}', currentSource: 'Current source: {source}', continue: 'Continue', remove: 'Remove', confirmRemoveTitle: 'Remove?', confirmRemoveDescription: 'Remove {name}?', cancel: 'Cancel', confirmRemove: 'Remove', confirmRemoveTXT: 'Delete managed original for {name}?', confirmRemoveEPUB: 'Delete managed original for {name}?', removed: 'Removed from your library', cleanupPending: 'File cleanup pending. You can retry.', retryCleanup: 'Retry file cleanup', synopsis: 'Synopsis', chapters: 'Chapters', noChapters: 'No chapters', showAll: 'Show all {count}',
     },
     reader: { toc: { readableSummary: '{readable} readable', summary: '{readable}/{total}', search: 'Search', searchPlaceholder: 'Search', clearSearch: 'Clear', ascending: 'Ascending', descending: 'Descending', jumpCurrent: 'Current', matches: '{count} matches', noMatches: 'No matches' } },
     sourceRecovery: { title: 'Sources', cleared: 'Cleared' },
@@ -103,7 +103,7 @@ describe('BookDetailView catalog synchronization', () => {
 
 it('renders provider-neutral details and passes authored contents without requesting BookSource context', async () => {
   const navigation = { source: 'publication', entries: [{ label: 'Authored heading', target: { chapterIndex: 0, contentRevision: 2, anchor: 'a1' }, unavailable: false, children: [] }] };
-  const item = { id: 'local', provider: 'fixture', name: 'Local publication', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', durChapterIndex: 0, durChapterPos: 0, totalChapterNum: 0, contentRevision: 2, stateVersion: 0 };
+  const item = { id: 'local', provider: 'epub', name: 'Local publication', author: 'Author', coverUrl: '', intro: '', kind: '', lastChapter: '', durChapterIndex: 0, durChapterPos: 0, totalChapterNum: 0, contentRevision: 2, stateVersion: 0 };
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === '/api/books/local') return new Response(JSON.stringify(item), { status: 200 });
@@ -124,8 +124,8 @@ it('renders provider-neutral details and passes authored contents without reques
   } finally { wrapper.unmount(); }
 });
 
-it('keeps TXT removal warnings visible and retries cleanup without restoring a shelf row', async () => {
-  const item = { id:'local',provider:'txt',name:'Local publication',author:'Author',coverUrl:'',intro:'',kind:'',lastChapter:'',durChapterIndex:0,durChapterPos:0,totalChapterNum:1,contentRevision:2,stateVersion:0 };
+it.each(['txt', 'epub'])('keeps %s removal warnings visible and retries cleanup without restoring a shelf row', async (provider) => {
+  const item = { id:'local',provider,name:'Local publication',author:'Author',coverUrl:'',intro:'',kind:'',lastChapter:'',durChapterIndex:0,durChapterPos:0,totalChapterNum:1,contentRevision:2,stateVersion:0 };
   let removals = 0;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -134,7 +134,7 @@ it('keeps TXT removal warnings visible and retries cleanup without restoring a s
     if (url === '/api/books?id=local' && init?.method === 'DELETE') {
       removals++;
       if (removals === 2) return new Response(JSON.stringify({error:'Cleanup unavailable'}), {status:500});
-      return new Response(JSON.stringify(removals === 1 ? {status:'removed',warnings:['txt_cleanup_pending']} : {status:'deleted'}));
+      return new Response(JSON.stringify(removals === 1 ? {status:'removed',warnings:[`${provider}_cleanup_pending`]} : {status:'deleted'}));
     }
     throw new Error(`Unexpected request: ${url}`);
   });

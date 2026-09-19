@@ -74,7 +74,7 @@ func TestPortableSectionIndexesRetainFailedOutputEvidence(t *testing.T) {
 		t.Fatal("failed output evidence rejected", err)
 	}
 	// The new queued generation must not claim any output ranges.
-	if _, err = store.db.Exec(`INSERT INTO epub_sections(file_id,generation,ordinal,offset,length) VALUES(?,?,0,0,1)`, r.ID, next.Generation); err != nil {
+	if _, err = store.db.Exec(`INSERT INTO epub_sections(file_id,generation,ordinal,offset,length,title,main) VALUES(?,?,0,0,1,'',1)`, r.ID, next.Generation); err != nil {
 		t.Fatal(err)
 	}
 	if err = checkPortableSectionIndexes(t, store); err == nil {
@@ -92,7 +92,7 @@ func TestPortableSectionIndexesRejectOrphans(t *testing.T) {
 	if _, err = tx.Exec(`PRAGMA defer_foreign_keys=ON`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = tx.Exec(`INSERT INTO epub_sections(file_id,generation,ordinal,offset,length) VALUES('ORPHAN',1,0,0,1)`); err != nil {
+	if _, err = tx.Exec(`INSERT INTO epub_sections(file_id,generation,ordinal,offset,length,title,main) VALUES('ORPHAN',1,0,0,1,'',1)`); err != nil {
 		t.Fatal(err)
 	}
 	if err = validatePortableSectionIndexes(t.Context(), tx); err == nil {

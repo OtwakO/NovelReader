@@ -8,7 +8,6 @@ import (
 
 // preparePortable runs only against a copied database. Temporary output is not
 // portable, but an installed finalizing generation can still be recovered.
-// Live registration still awaits application lifecycle integration.
 func preparePortable(ctx context.Context, tx *sql.Tx) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE epub_preparations SET stage_name='' WHERE stage_name<>''`); err != nil {
 		return err
@@ -30,5 +29,8 @@ func validatePortableFiles(ctx context.Context, tx *sql.Tx, root *os.Root) error
 	if err := validatePortableStreams(ctx, tx, root); err != nil {
 		return err
 	}
-	return validatePortableResources(ctx, tx, root)
+	if err := validatePortableResources(ctx, tx, root); err != nil {
+		return err
+	}
+	return validatePortablePublications(ctx, tx)
 }

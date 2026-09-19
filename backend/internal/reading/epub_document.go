@@ -7,10 +7,9 @@ import (
 	"github.com/otwako/novelreader/internal/epub"
 )
 
-// epubContent is the contract-proof projection, not a registered provider. It
-// consumes one successfully prepared section; it does not parse an archive or
-// authorize access. The eventual provider must obtain a revision-coherent
-// section and supply an application-owned, revision-qualified resource issuer.
+// epubContent projects one successfully prepared, revision-coherent section.
+// Storage authorizes publication identity; the provider supplies an application-
+// owned, revision-qualified resource issuer. This projection never parses archives.
 // Only opaque section-local image keys reach that issuer, never archive paths.
 func epubContent(ctx context.Context, revision int64, title string, section epub.PreparedSection, imageHref func(string) string) (Content, error) {
 	var project func(epub.Node) (Block, error)
