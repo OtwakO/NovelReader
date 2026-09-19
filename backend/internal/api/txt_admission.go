@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/otwako/novelreader/internal/auth"
+	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/txt"
-	"github.com/otwako/novelreader/internal/txtimport"
 )
 
 func (s *Server) registerTXTIntakeRoutes() {
@@ -24,15 +24,15 @@ func (s *Server) registerTXTIntakeRoutes() {
 	register("POST /api/imports/txt/inbox/acquisitions/{id}", s.handleAcquireTXTInbox)
 }
 
-func writeTXTAdmission(w http.ResponseWriter, ticket txtimport.AdmissionTicket) {
-	if ticket.State == txtimport.TicketWaiting {
+func writeTXTAdmission(w http.ResponseWriter, ticket fileimport.AdmissionTicket) {
+	if ticket.State == fileimport.TicketWaiting {
 		w.Header().Set("Retry-After", "5")
 	}
 	writeJSON(w, http.StatusOK, struct {
-		ID            string                `json:"id"`
-		State         txtimport.TicketState `json:"state"`
-		ExpiresAt     time.Time             `json:"expiresAt"`
-		MaxInputBytes int64                 `json:"maxInputBytes"`
+		ID            string                 `json:"id"`
+		State         fileimport.TicketState `json:"state"`
+		ExpiresAt     time.Time              `json:"expiresAt"`
+		MaxInputBytes int64                  `json:"maxInputBytes"`
 	}{ticket.ID, ticket.State, ticket.ExpiresAt, txt.MaxInputBytes})
 }
 

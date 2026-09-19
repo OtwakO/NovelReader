@@ -1,4 +1,4 @@
-package txtimport
+package fileimport
 
 import (
 	"context"
@@ -74,7 +74,7 @@ func (p *Pool) Forget(id readerstore.UserID) error {
 		return nil
 	}
 	if !entry.paused || entry.cancel != nil {
-		return errors.New("txtimport: reader must be quiescent before forgetting")
+		return errors.New("fileimport: reader must be quiescent before forgetting")
 	}
 	delete(p.entries, id)
 	return nil

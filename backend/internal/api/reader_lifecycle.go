@@ -5,15 +5,15 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/readerstore"
-	"github.com/otwako/novelreader/internal/txtimport"
 )
 
 const readerRuntimeCapacity = 32
 
 // ReaderHomeCapacity budgets separate foreground, analysis and transfer leases.
 // Waiting admission tickets never reserve or open reader homes.
-const ReaderHomeCapacity = readerRuntimeCapacity + txtimport.Workers + txtimport.Transfers
+const ReaderHomeCapacity = readerRuntimeCapacity + fileimport.Workers + fileimport.Transfers
 
 func (s *Server) quiesceReader(ctx context.Context, id readerstore.UserID) error {
 	// Stop intake first so no new transfers enter while foreground work drains.
@@ -44,7 +44,7 @@ func (s *Server) forgetReader(id readerstore.UserID) error {
 }
 
 func (s *Server) recoverRestoredTXT(ctx context.Context, id readerstore.UserID) []string {
-	if err := txtimport.RecoverHome(ctx, s.runtimes.readers, id); err != nil {
+	if err := fileimport.RecoverHome(ctx, s.runtimes.readers, id); err != nil {
 		slog.Warn("Reader data restored; TXT recovery incomplete", "reader_id", id, "error", err)
 		return []string{"txt_recovery_incomplete"}
 	}

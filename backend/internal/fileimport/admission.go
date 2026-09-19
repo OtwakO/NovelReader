@@ -1,4 +1,4 @@
-package txtimport
+package fileimport
 
 import (
 	"context"
@@ -23,9 +23,9 @@ const (
 )
 
 var (
-	ErrAdmissionFull  = errors.New("txtimport: intake queue full")
-	ErrTicketNotFound = errors.New("txtimport: intake ticket missing or expired")
-	ErrTicketNotReady = errors.New("txtimport: intake ticket is not an unused grant")
+	ErrAdmissionFull  = errors.New("fileimport: intake queue full")
+	ErrTicketNotFound = errors.New("fileimport: intake ticket missing or expired")
+	ErrTicketNotReady = errors.New("fileimport: intake ticket is not an unused grant")
 )
 
 type TicketState string

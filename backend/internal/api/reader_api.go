@@ -9,10 +9,10 @@ import (
 	"github.com/otwako/novelreader/internal/candidate"
 	"github.com/otwako/novelreader/internal/chineseconv"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/reading"
-	"github.com/otwako/novelreader/internal/txtimport"
 	"github.com/otwako/novelreader/internal/txtstore"
 )
 
@@ -28,8 +28,8 @@ type readerServices struct {
 	candidateOperations *candidate.Manager
 	coverReferenceKey   []byte
 	collectionLoader    *booksource.RemoteLoader
-	txtImports          *txtimport.Pool
-	txtAdmission        *txtimport.Admission
+	txtImports          *fileimport.Pool
+	txtAdmission        *fileimport.Admission
 	txtInbox            *txtInboxControls
 }
 

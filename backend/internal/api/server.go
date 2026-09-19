@@ -19,12 +19,12 @@ import (
 	"github.com/otwako/novelreader/internal/candidate"
 	"github.com/otwako/novelreader/internal/chineseconv"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/sourceinteraction"
-	"github.com/otwako/novelreader/internal/txtimport"
 )
 
 // Server owns process services and the authentication/backup boundary.
@@ -38,8 +38,8 @@ type Server struct {
 	health              interface{ PingContext(context.Context) error }
 	collectionScheduler *sourceCollectionScheduler
 	backups             *backupservice.Service
-	txtImports          *txtimport.Pool
-	txtAdmission        *txtimport.Admission
+	txtImports          *fileimport.Pool
+	txtAdmission        *fileimport.Admission
 }
 
 func (s *Server) Mux() *http.ServeMux { return s.mux }
@@ -114,7 +114,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 		webViewProbe: webViewProbe, chineseConversion: conversion, txtInbox: newTXTInboxControls(),
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
-	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services, txtAdmission: txtimport.NewAdmission()}
+	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services, txtAdmission: fileimport.NewAdmission()}
 	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, readerRuntimeCapacity, limits.SessionTTL, services)
 	services.runtimes = s.runtimes
 	// Startup is the admission gate: recover before routes or schedulers run.
@@ -122,7 +122,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 	defer cancel()
 	ids, err := authHandler.ListReaderHomeIDs(startupCtx)
 	if err == nil {
-		s.txtImports, err = txtimport.Start(startupCtx, readers, ids)
+		s.txtImports, err = fileimport.Start(startupCtx, readers, ids)
 	}
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("initialize TXT work: %w", err), s.Close())

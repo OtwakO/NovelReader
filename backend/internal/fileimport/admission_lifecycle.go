@@ -1,4 +1,4 @@
-package txtimport
+package fileimport
 
 import (
 	"context"
@@ -58,7 +58,7 @@ func (a *Admission) Forget(id readerstore.UserID) error {
 		return nil
 	}
 	if !a.paused[id] || a.entries[id] != nil {
-		return errors.New("txtimport: intake must be quiescent before forgetting")
+		return errors.New("fileimport: intake must be quiescent before forgetting")
 	}
 	delete(a.paused, id)
 	return nil

@@ -1,4 +1,4 @@
-package txtimport
+package fileimport
 
 import (
 	"context"

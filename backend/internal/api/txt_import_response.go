@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/txt"
-	"github.com/otwako/novelreader/internal/txtimport"
 	"github.com/otwako/novelreader/internal/txtstore"
 )
 
@@ -84,15 +84,15 @@ func writeTXTError(w http.ResponseWriter, err error) {
 		status, code, message = http.StatusNotFound, "txt_inbox_missing", "Inbox entry not found"
 	case errors.Is(err, txtstore.ErrInboxEntryType):
 		status, code, message = http.StatusBadRequest, "txt_invalid_input", "Inbox entry must be a regular TXT file"
-	case errors.Is(err, txtimport.ErrAdmissionFull):
+	case errors.Is(err, fileimport.ErrAdmissionFull):
 		status, code, message = http.StatusTooManyRequests, "txt_intake_busy", "TXT intake queue is full"
-	case errors.Is(err, txtimport.ErrPaused), errors.Is(err, txtimport.ErrClosed):
+	case errors.Is(err, fileimport.ErrPaused), errors.Is(err, fileimport.ErrClosed):
 		status, code, message = http.StatusServiceUnavailable, "txt_intake_unavailable", "TXT intake is temporarily unavailable"
-	case errors.Is(err, txtimport.ErrTicketNotFound):
+	case errors.Is(err, fileimport.ErrTicketNotFound):
 		status, code, message = http.StatusNotFound, "txt_ticket_not_found", "Intake ticket is missing or expired; check the receipt before requesting another"
 	case errors.Is(err, txtstore.ErrNotFound):
 		status, code, message = http.StatusNotFound, "txt_receipt_not_found", "TXT receipt not found"
-	case errors.Is(err, txtimport.ErrTicketNotReady), errors.Is(err, txtstore.ErrStateChanged):
+	case errors.Is(err, fileimport.ErrTicketNotReady), errors.Is(err, txtstore.ErrStateChanged):
 		status, code, message = http.StatusConflict, "txt_state_changed", "TXT state changed; refresh before continuing"
 	case errors.Is(err, txtstore.ErrInputTooLarge), errors.As(err, &sizeError):
 		status, code, message = http.StatusRequestEntityTooLarge, "txt_too_large", "File exceeds the TXT input size limit"

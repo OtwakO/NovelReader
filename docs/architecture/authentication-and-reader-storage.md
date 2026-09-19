@@ -98,16 +98,16 @@ terminal analysis failure; no schema change or migration is needed.
 
 ### TXT background ownership
 
-`txtimport` runs two independent workers, at most one file per reader, with fair reader turns and durable candidate work. Idle hints retire; queued readers hold no home lease or per-file job object. `api.ReaderHomeCapacity` budgets API runtime, analysis-worker and transfer homes separately. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.
+`fileimport` (formerly `txtimport`) runs two independent workers, at most one file per reader, with fair reader turns and durable candidate work. Idle hints retire; queued readers hold no home lease or per-file job object. `api.ReaderHomeCapacity` budgets API runtime, analysis-worker and transfer homes separately. Capacity waits are cancelled by quiesce/shutdown rather than dropping accepted work after a fixed wait.
 
 Before serving, TXT recovery visits retained account homes (including disabled accounts, excluding deleting accounts), then starts workers. Login disabling retains accepted local work. Missing/corrupt homes or failed per-file cleanup are logged without stopping unrelated homes; no inbox originals are replayed or swept. New accounts start empty. Recovery never runs on ordinary runtime initialization or before each job. After restore it runs while that reader remains quiescent. Browser-upload admission and transfers are composed outside the API runtime cache. Bounded receipt review/control handlers use ordinary reader runtimes; no HTTP handler performs analysis.
 
-`txtimport.Admission` owns only bounded, reader-fair transfer tickets and cancellation. It neither
+`fileimport.Admission` owns only bounded, reader-fair transfer tickets and cancellation. It neither
 opens homes nor reads files. Waiting/granted tickets expire; active transfers keep their slot until
 I/O and the home lease have ended, even after cancellation. Tickets are reader-bound, single-use,
 process-local permission to start a transfer—not durable receipts or inbox cleanup proofs. The
 [accepted admission contract](../plans/2026-09-10-multi-provider-library.md#accepted-txt-intake-admission)
-owns the scheduling limits.
+records the original scheduling limits. The [EPUB plan](../plans/2026-09-17-epub-support.md#shared-import-scheduling--accepted-integration-pending) retains two workers and two transfers for the shared service; concrete dispatch and recovery currently remain TXT-only.
 
 Restore/deletion stops and drains intake, then API runtimes and TXT workers. Successful deletion
 forgets the drained barriers; failure keeps them for retry. Restore resumes fresh admission without

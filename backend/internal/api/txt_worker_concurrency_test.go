@@ -16,18 +16,18 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/sourceprofile"
-	"github.com/otwako/novelreader/internal/txtimport"
 	"github.com/otwako/novelreader/internal/txtstore"
 )
 
 func TestTXTWorkersLeaveForegroundCapacityAndReleaseHomes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const foregroundSlots = 2
-		readers, err := readerstore.NewManager(t.TempDir(), foregroundSlots+txtimport.Workers+txtimport.Transfers,
+		readers, err := readerstore.NewManager(t.TempDir(), foregroundSlots+fileimport.Workers+fileimport.Transfers,
 			library.ReaderSchema(), booksource.ReaderSchema(), book.ReaderSchema(), fontstore.ReaderSchema(), sourceprofile.ReaderSchema(), txtstore.ReaderSchema())
 		if err != nil {
 			t.Fatal(err)
@@ -39,8 +39,8 @@ func TestTXTWorkersLeaveForegroundCapacityAndReleaseHomes(t *testing.T) {
 			receipt txtstore.Receipt
 			id      readerstore.UserID
 		}
-		held := make([]heldImport, 0, txtimport.Workers)
-		for index := range txtimport.Workers {
+		held := make([]heldImport, 0, fileimport.Workers)
+		for index := range fileimport.Workers {
 			id := readerstore.UserID(fmt.Sprintf("%08x-1111-4111-8111-111111111111", index+1))
 			if err := readers.Create(t.Context(), id); err != nil {
 				t.Fatal(err)
@@ -64,7 +64,7 @@ func TestTXTWorkersLeaveForegroundCapacityAndReleaseHomes(t *testing.T) {
 			defer conn.Close()
 			held = append(held, heldImport{home: home, conn: conn, receipt: receipt, id: id})
 		}
-		pool := txtimport.NewPool(readers)
+		pool := fileimport.NewPool(readers)
 		defer pool.Close()
 		for _, current := range held {
 			if err := pool.Notify(current.id); err != nil {
@@ -78,14 +78,14 @@ func TestTXTWorkersLeaveForegroundCapacityAndReleaseHomes(t *testing.T) {
 			}
 		}
 		// Active transfers have their own home allowance; queued readers hold none.
-		admission := txtimport.NewAdmission()
+		admission := fileimport.NewAdmission()
 		defer admission.Close()
 		type heldTransfer struct {
 			home    *readerstore.Home
 			release func()
 		}
-		transfers := make([]heldTransfer, 0, txtimport.Transfers)
-		for index := range txtimport.Transfers {
+		transfers := make([]heldTransfer, 0, fileimport.Transfers)
+		for index := range fileimport.Transfers {
 			id := readerstore.UserID(fmt.Sprintf("%08x-3333-4333-8333-333333333333", index+1))
 			if err := readers.Create(t.Context(), id); err != nil {
 				t.Fatal(err)
@@ -108,7 +108,7 @@ func TestTXTWorkersLeaveForegroundCapacityAndReleaseHomes(t *testing.T) {
 		}
 		// This reader has no home: scheduling cannot create one or borrow a slot.
 		waiting, err := admission.Request("cccccccc-3333-4333-8333-333333333333")
-		if err != nil || waiting.State != txtimport.TicketWaiting {
+		if err != nil || waiting.State != fileimport.TicketWaiting {
 			t.Fatalf("unexpected intake admission: %+v %v", waiting, err)
 		}
 		limits := book.DefaultSearcherLimits()

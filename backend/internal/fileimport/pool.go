@@ -1,6 +1,7 @@
-// Package txtimport coordinates TXT intake admission and durable analysis
-// independently of API runtimes.
-package txtimport
+// Package fileimport owns bounded file intake and preparation scheduling,
+// independently of API runtimes. The current dispatcher processes TXT work;
+// EPUB dispatch will join this same lifecycle when its storage is registered.
+package fileimport
 
 import (
 	"context"
@@ -17,8 +18,8 @@ import (
 const Workers = 2
 
 var (
-	ErrClosed = errors.New("txtimport: imports closed")
-	ErrPaused = errors.New("txtimport: reader imports paused")
+	ErrClosed = errors.New("fileimport: imports closed")
+	ErrPaused = errors.New("fileimport: reader imports paused")
 )
 
 type readerWork struct {

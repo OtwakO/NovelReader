@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	"github.com/otwako/novelreader/internal/auth"
+	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/readerstore"
-	"github.com/otwako/novelreader/internal/txtimport"
 	"github.com/otwako/novelreader/internal/txtstore"
 )
 
@@ -62,7 +62,7 @@ func (s *Server) acquireTXTInbox(ctx context.Context, reader readerstore.UserID,
 	return value, warnings, nil
 }
 
-func wakeTXTAnalysis(pool *txtimport.Pool, reader readerstore.UserID, id string) []string {
+func wakeTXTAnalysis(pool *fileimport.Pool, reader readerstore.UserID, id string) []string {
 	if err := pool.Notify(reader); err != nil {
 		slog.Warn("TXT work retained; analysis wake-up failed", "reader_id", reader, "receipt_id", id, "error", err)
 		return []string{"txt_analysis_pending"}
