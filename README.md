@@ -83,7 +83,8 @@ NovelReader stores its data in the `data` folder beside `docker-compose.yml`. Th
 
 This revision requires reader schema epoch 15 (EPUB publication and authorized reading/resources).
 EPUB browser upload/review HTTP endpoints now use shared file admission and storage-owned acceptance;
-accepted books read through the shared reader. EPUB import/review UI and inbox acquisition remain pending. Existing epoch-14 (or older) homes and portable archives are rejected, not migrated. Before upgrading an existing deployment,
+accepted books read through the shared reader. The browser import/review UI supports TXT and EPUB;
+server-inbox EPUB acquisition remains pending. Existing epoch-14 (or older) homes and portable archives are rejected, not migrated. Before upgrading an existing deployment,
 stop it and preserve a complete `DATA_DIR` copy; follow the
 [compatibility and reset runbook](docs/runbooks/development-data-reset.md) rather than
 deleting data or editing schema markers to bypass the check.
@@ -127,17 +128,17 @@ A successful replacement may report recovery or old-file cleanup warnings: the n
 active, while retained records/files need attention; check server logs. Corrupt or incompatible
 archives are still rejected before replacement.
 
-## TXT imports and re-analysis
+## Local TXT and EPUB imports
 
-Admitted TXT publications use the existing chapter reader, progress, bookmarks, and removal
-controls. TXT is displayed as literal prose, not interpreted as HTML. Removing a TXT book also
-deletes its managed original. If file cleanup is incomplete, Book Detail keeps a warning and a
+Admitted TXT and EPUB books use the existing reader, progress, bookmarks, and removal
+controls. TXT is literal prose; EPUB uses sanitized structured prose, not publisher HTML/CSS.
+Removing a local book also deletes its managed original and prepared files. If file cleanup is incomplete, Book Detail keeps a warning and a
 **Retry file cleanup** action visible; the book is already removed from the library and the cleanup
 record remains recoverable. On the shelf, choose **Local import** (**本地匯入**) to open the dedicated
 page, then **Choose files**. **Review before adding to shelf** is enabled by default; uploaded books
 wait for **Check book → Add book**. This device-local setting is shared with Settings. Turn it off to
-automatically add newly selected, warning-free books; changing it does not approve files already queued.
-Warnings and failures always require attention. Inspect the text and optionally open **Adjust chapters**
+automatically add newly selected books without content warnings; changing it does not approve files already queued.
+Content warnings and failures require attention. Inspect the text and, for TXT, optionally open **Adjust chapters**
 before adding; choose **Read** once the book is on the shelf. **Earlier imports** and **Import from server folder** keep recovery and server tools in
 collapsible sections. The shelf itself has no upload or review workspace.
 Failed analysis shows guidance specific to encoding, input format, section limits or storage problems;
@@ -148,7 +149,15 @@ imports** and explicitly add them there; automatic approval is not applied to ol
 pauses remaining uploads without silently repeating an uncertain upload or addition. Imports also
 provides pending-discard and retained cleanup-retry controls.
 
-Earlier imports shows persisted records, including transfers still visible in this tab. It is paginated
+EPUB imports keep original images by default. **Optimize EPUB images** applies to EPUBs selected next:
+server-prepared WebP quality 92, with proportional resizing to a maximum 2048-pixel longest edge.
+Both modes retain the unchanged EPUB. If native encoding is unavailable, an explicit portable-encoder
+performance notice appears; this alone does not force review. EPUB review shows saved sections,
+a bounded text sample, content-loss notes and editable book metadata. Retry uses the observed failed
+preparation; wait for running preparation to finish before discarding it. No EPUB reparse/image-mode
+change is offered after acquisition. The server-folder section currently accepts **TXT only**.
+
+Earlier imports uses a **Format** selector and shows persisted records, including transfers still visible in this tab. It is paginated
 by ID, not newest-first. It is not a second copy of book content: published originals/indexes remain
 needed for reading. Pending/failed imports retain their files until discarded; there is no automatic
 expiry. Removing a book or discarding a pending import deletes its record after file cleanup succeeds.

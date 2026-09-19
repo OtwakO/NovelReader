@@ -3,6 +3,7 @@ import { createPinia } from 'pinia';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as api from '../../api/txt-imports';
+import * as admission from '../../api/file-imports';
 import * as books from '../../api/books';
 import ShelfView from '../shelf/ShelfView.vue';
 import ImportWorkspace from './ImportWorkspace.vue';
@@ -15,7 +16,7 @@ const receipt = (state: api.TXTState): api.TXTReceipt => ({ id: 'file', state, o
 beforeEach(() => {
   localStorage.clear();
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
-  vi.spyOn(api, 'requestTXTAdmission').mockResolvedValue({ id: 'ticket', expiresAt: '', maxInputBytes: 1000, state: 'granted' });
+  vi.spyOn(admission, 'requestImportAdmission').mockResolvedValue({ id: 'ticket', expiresAt: '', limits: { txt: 1000, epub: 1000 }, state: 'granted' });
   vi.spyOn(api, 'acquireTXT').mockResolvedValue({ receipt: receipt('received') });
 });
 afterEach(async () => { view?.unmount(); queue.resetReaderState(); await flushPromises(); vi.restoreAllMocks(); localStorage.clear(); });

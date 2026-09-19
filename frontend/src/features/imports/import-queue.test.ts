@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as api from '../../api/txt-imports';
+import * as admission from '../../api/file-imports';
 import { resetReaderState } from '../../app/reader-state';
 import { useImportQueue } from './import-queue';
 import ImportQueuePanel from './ImportQueuePanel.vue';
@@ -12,7 +13,7 @@ let serial = 0;
 beforeEach(() => {
   setActivePinia(createPinia()); serial = 0;
   vi.spyOn(api, 'getTXTReceipt').mockImplementation(async id => acquired(id).receipt);
-  vi.spyOn(api, 'requestTXTAdmission').mockImplementation(async () => ({ id: String(++serial), state: 'granted', expiresAt: '', maxInputBytes: 1000 }));
+  vi.spyOn(admission, 'requestImportAdmission').mockImplementation(async () => ({ id: String(++serial), state: 'granted', expiresAt: '', limits: { txt: 1000, epub: 1000 } }));
 });
 afterEach(() => { useImportQueue().resetReaderState(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -38,9 +39,9 @@ it('continues across view unmount, releases file references, and pauses only at 
 
 it('waits on reader admission without sending bytes or taking over another tab transfer', async () => {
   vi.useFakeTimers();
-  vi.mocked(api.requestTXTAdmission).mockResolvedValueOnce({ id: 'other', state: 'transferring', expiresAt: '', maxInputBytes: 1000 })
-    .mockResolvedValueOnce({ id: 'mine', state: 'waiting', expiresAt: '', maxInputBytes: 1000 });
-  vi.spyOn(api, 'getTXTAdmission').mockResolvedValue({ id: 'mine', state: 'granted', expiresAt: '', maxInputBytes: 1000 });
+  vi.mocked(admission.requestImportAdmission).mockResolvedValueOnce({ id: 'other', state: 'transferring', expiresAt: '', limits: { txt: 1000, epub: 1000 } })
+    .mockResolvedValueOnce({ id: 'mine', state: 'waiting', expiresAt: '', limits: { txt: 1000, epub: 1000 } });
+  vi.spyOn(admission, 'getImportAdmission').mockResolvedValue({ id: 'mine', state: 'granted', expiresAt: '', limits: { txt: 1000, epub: 1000 } });
   const transfer = vi.spyOn(api, 'acquireTXT').mockResolvedValue(acquired('mine'));
   useImportQueue().enqueue(['inbox.txt']);
   await vi.advanceTimersByTimeAsync(0); expect(transfer).not.toHaveBeenCalled();
@@ -88,7 +89,7 @@ it('keeps a representative batch as lightweight references with a bounded render
 });
 
 it('preserves unsent selections when admission is unavailable', async () => {
-  vi.mocked(api.requestTXTAdmission).mockRejectedValueOnce(new Error('Offline'));
+  vi.mocked(admission.requestImportAdmission).mockRejectedValueOnce(new Error('Offline'));
   const transfer = vi.spyOn(api, 'acquireTXT').mockResolvedValue(acquired('received'));
   const file = new File(['synthetic'], 'keep.txt'); const queue = useImportQueue();
   queue.enqueue([file]); await flushPromises();

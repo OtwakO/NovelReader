@@ -173,7 +173,7 @@ it('shows persisted imports even while their completed transfer remains in this 
   const item = receipt({ state: 'published', libraryId: 'sample' });
   vi.spyOn(api, 'listTXTReceipts').mockResolvedValue({ items: [item] });
   const pinia = createPinia();
-  useImportQueue(pinia).entries.push({ key: 1, name: item.originalName, receiptId: item.id, receipt: item, libraryId: item.libraryId, state: 'added' });
+  useImportQueue(pinia).entries.push({ key: 1, format: 'txt', imageMode: 'original', name: item.originalName, receiptId: item.id, receipt: item, libraryId: item.libraryId, state: 'added' });
   const view = mount(ImportReceiptsPanel, { global: { plugins: [pinia, await routerFor('/imports')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
   await flushPromises();
   expect(view.get('.import-list').text()).toContain(item.originalName);

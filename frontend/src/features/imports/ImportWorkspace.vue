@@ -1,23 +1,26 @@
 <script lang="ts">
 import AppDisclosure from '../../ui/components/AppDisclosure.vue';
-import { defineComponent, nextTick } from 'vue';
+import { defineComponent, nextTick, type PropType } from 'vue';
 import ImportQueuePanel from './ImportQueuePanel.vue';
 import ImportReceiptsPanel from './ImportReceiptsPanel.vue';
 import ImportInboxPanel from './ImportInboxPanel.vue';
 import ImportReviewView from './ImportReviewView.vue';
-import type { TXTReceipt } from '../../api/txt-imports';
+import EPUBReviewView from './EPUBReviewView.vue';
+import type { ImportFormat } from '../../api/file-imports';
+import { receiptFormat, receiptState, type ImportReceipt } from './import-format';
 import { useImportQueue } from './import-queue';
 import './imports.css';
 export default defineComponent({
-  components: { AppDisclosure, ImportQueuePanel, ImportReceiptsPanel, ImportInboxPanel, ImportReviewView },
-  props: { initialReview: { type: String, default: '' } },
+  components: { AppDisclosure, ImportQueuePanel, ImportReceiptsPanel, ImportInboxPanel, ImportReviewView, EPUBReviewView },
+  props: { initialReview: { type: String, default: '' }, initialFormat: { type: String as PropType<ImportFormat>, default: 'txt' } },
   emits: ['review-closed'],
-  data: () => ({ queue: useImportQueue(), selected: '', historyOpen: false, inboxOpen: false, returnFocus: undefined as HTMLElement | undefined }),
-  watch: { initialReview: { immediate: true, handler(value: string) { if (value) void this.review(value); } } },
+  data: () => ({ queue: useImportQueue(), selected: '', format: 'txt' as ImportFormat, historyOpen: false, inboxOpen: false, returnFocus: undefined as HTMLElement | undefined }),
+  computed: { initialSelection(): string { return `${this.initialFormat}:${this.initialReview}`; } },
+  watch: { initialSelection: { immediate: true, handler() { if (this.initialReview) void this.review(this.initialReview, this.initialFormat); } } },
   methods: {
-    async review(id: string) {
+    async review(id: string, format: ImportFormat = 'txt') {
       this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-      this.selected = id;
+      this.selected = id; this.format = format;
       await nextTick();
       const heading = (this.$el as HTMLElement).querySelector<HTMLElement>('#import-review-title');
       heading?.focus({ preventScroll: true });
@@ -29,13 +32,13 @@ export default defineComponent({
       if (this.returnFocus?.isConnected) this.returnFocus.focus();
       else (this.$el as HTMLElement).querySelector<HTMLInputElement>('input[type="file"]')?.focus();
     },
-    updated(receipt: TXTReceipt) {
-      const inQueue = this.queue.entries.some(item => item.receiptId === receipt.id);
+    updated(receipt: ImportReceipt) {
+      const inQueue = this.queue.entries.some(item => item.receiptId === receipt.id && item.format === receiptFormat(receipt));
       this.queue.updateReceipt(receipt);
-      if (inQueue && receipt.state === 'published') void this.closeReview();
+      if (inQueue && receiptState(receipt) === 'published') void this.closeReview();
     },
     removed(id: string) {
-      const entry = this.queue.entries.find(item => item.receiptId === id);
+      const entry = this.queue.entries.find(item => item.receiptId === id && item.format === this.format);
       if (entry) this.queue.remove(entry.key);
       (this.$refs.history as InstanceType<typeof ImportReceiptsPanel> | undefined)?.refresh();
     },
@@ -45,7 +48,7 @@ export default defineComponent({
 <template>
   <div class="imports-page import-workspace">
     <ImportQueuePanel @review="review" />
-    <ImportReviewView v-if="selected" :key="selected" :receipt-id="selected" @updated="updated" @removed="removed" @close="closeReview" />
+    <component :is="format === 'epub' ? 'EPUBReviewView' : 'ImportReviewView'" v-if="selected" :key="`${format}:${selected}`" :receipt-id="selected" @updated="updated" @removed="removed" @close="closeReview" />
     <div class="import-secondary">
       <AppDisclosure v-model:open="historyOpen">
         <template #summary>{{ $t('imports.flow.history') }}</template>

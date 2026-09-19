@@ -19,6 +19,6 @@ export default defineComponent({
     <template #actions>
       <RouterLink class="app-button app-button--secondary" to="/shelf">{{ $t('imports.flow.backToShelf') }}</RouterLink>
     </template>
-    <ImportWorkspace :initial-review="reviewId" @review-closed="closeReview" />
+    <ImportWorkspace :initial-review="reviewId" :initial-format="$route.query.format === 'epub' ? 'epub' : 'txt'" @review-closed="closeReview" />
   </FeatureScaffold>
 </template>

@@ -1,4 +1,5 @@
 import { request } from './transport';
+import { importControl as control } from './file-imports';
 
 export type TXTState = 'receiving' | 'received' | 'analyzing' | 'ready' | 'needs_review' | 'analysis_failed' | 'failed' | 'published' | 'removing';
 export type TXTEncoding = '' | 'utf-8' | 'utf-16le' | 'utf-16be' | 'gb18030' | 'big5';
@@ -10,7 +11,6 @@ export interface TXTReceipt extends TXTOptions {
 }
 export interface TXTPage<T> { items: T[]; nextCursor?: string }
 export interface TXTWarnings { warnings?: string[] }
-export interface TXTAdmission { id: string; state: 'waiting' | 'granted' | 'transferring'; expiresAt: string; maxInputBytes: number }
 export interface TXTAcquisition extends TXTWarnings { receipt: TXTReceipt }
 export interface TXTPreview {
   analysisVersion: number; encoding: TXTEncoding; preset: TXTPreset; parserVersion: number;
@@ -25,11 +25,6 @@ export interface TXTInboxReview extends TXTWarnings {
 }
 const base = '/imports/txt';
 const idPath = (id: string) => `${base}/receipts/${encodeURIComponent(id)}`;
-function control<T>(path: string, signal: AbortSignal, method = 'GET', body?: object): Promise<T> {
-  return request<T>(path, { method, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]), body: body === undefined ? undefined : JSON.stringify(body) });
-}
-export const requestTXTAdmission = (signal: AbortSignal) => control<TXTAdmission>(`${base}/admission`, signal, 'POST');
-export const getTXTAdmission = (id: string, signal: AbortSignal) => control<TXTAdmission>(`${base}/admission/${encodeURIComponent(id)}`, signal);
 export const getTXTReceipt = (id: string, signal: AbortSignal) => control<TXTReceipt>(idPath(id), signal);
 export const listTXTReceipts = (after: string, state: string, signal: AbortSignal) => control<TXTPage<TXTReceipt>>(`${base}/receipts?${new URLSearchParams({ after, state, limit: '25' })}`, signal);
 export const previewTXT = (id: string, version: number, start: number, signal: AbortSignal) => control<TXTPreview>(`${idPath(id)}/preview?analysisVersion=${version}&start=${start}&limit=25`, signal);

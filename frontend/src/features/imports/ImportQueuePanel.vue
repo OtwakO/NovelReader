@@ -4,11 +4,12 @@ import { RouterLink } from 'vue-router';
 import ImportPreferenceControl from './ImportPreferenceControl.vue';
 import AppButton from '../../ui/components/AppButton.vue';
 import { useImportQueue, type ImportTransfer } from './import-queue';
-import { analysisErrorKey, importedTitle, importErrorKey } from './import-feedback';
+import { analysisErrorKey, importedTitle, importErrorKey, encoderNoticeKey } from './import-feedback';
+import { receiptState } from './import-format';
 export default defineComponent({
   components: { RouterLink, AppButton, ImportPreferenceControl },
   emits: ['review'],
-  data: () => ({ queue: useImportQueue(), offset: 0 }),
+  data: () => ({ queue: useImportQueue(), offset: 0, optimizeImages: false }),
   computed: {
     visible() { return this.queue.entries.slice(this.offset, this.offset + 25); },
     added(): number { return this.queue.entries.filter(item => item.state === 'added').length; },
@@ -19,10 +20,10 @@ export default defineComponent({
   },
   watch: { 'queue.entries.length'() { this.offset = Math.min(this.offset, Math.floor(Math.max(0, this.queue.entries.length - 1) / 25) * 25); } },
   methods: {
-    importedTitle, importErrorKey, analysisErrorKey,
+    importedTitle, importErrorKey, analysisErrorKey, encoderNoticeKey, receiptState,
     choose(event: Event) {
       const input = event.target as HTMLInputElement;
-      this.queue.enqueue(Array.from(input.files || [])); input.value = '';
+      this.queue.enqueue(Array.from(input.files || []), this.optimizeImages ? 'optimized' : 'original'); input.value = '';
     },
     status(item: ImportTransfer): string {
       if (item.state === 'attention') return 'imports.flow.check';
@@ -37,8 +38,9 @@ export default defineComponent({
   <section class="import-upload" :aria-label="$t('imports.flow.title')">
     <div class="import-upload-bar">
       <div class="import-upload-copy"><h2>{{ $t('imports.flow.title') }}</h2><p>{{ $t('imports.flow.hint') }}</p></div>
-      <label class="app-button app-button--primary import-picker">{{ $t('imports.flow.choose') }}<input type="file" accept=".txt,text/plain" multiple :aria-label="$t('imports.flow.choose')" @change="choose"></label>
+      <label class="app-button app-button--primary import-picker">{{ $t('imports.flow.choose') }}<input type="file" accept=".txt,text/plain,.epub,application/epub+zip" multiple :aria-label="$t('imports.flow.choose')" @change="choose"></label>
       <ImportPreferenceControl />
+      <label class="import-preference"><input v-model="optimizeImages" type="checkbox"><span><strong>{{ $t('imports.epub.optimize') }}</strong><small>{{ $t('imports.epub.optimizeHint') }}</small></span></label>
     </div>
     <template v-if="queue.entries.length">
       <div class="import-progress-summary">
@@ -60,11 +62,12 @@ export default defineComponent({
             <strong>{{ importedTitle(item.name) }}</strong>
             <span>{{ $t(status(item)) }}</span>
             <p v-if="item.error" class="import-error">{{ $t(importErrorKey(item.error)) }}</p>
-            <p v-else-if="item.receipt?.state === 'analysis_failed'" class="import-error">{{ $t(analysisErrorKey(item.receipt.errorCode)) }}</p>
+            <p v-else-if="item.receipt && receiptState(item.receipt) === 'analysis_failed'" class="import-error">{{ $t(analysisErrorKey(item.receipt.errorCode)) }}</p>
+            <p v-for="notice in item.notices || []" :key="notice" class="import-note">{{ $t(encoderNoticeKey(notice)) }}</p>
             <p v-if="item.warnings?.length" class="import-note">{{ $t('imports.flow.cleanupNote') }}</p>
           </div>
           <RouterLink v-if="item.libraryId" class="app-button app-button--secondary import-read" :to="{ name: 'reader', params: { bookId: item.libraryId } }">{{ $t('imports.flow.read') }}</RouterLink>
-          <AppButton v-else-if="['review', 'attention'].includes(item.state) && item.receiptId" variant="secondary" @click="$emit('review', item.receiptId)">{{ $t('imports.flow.checkBook') }}</AppButton>
+          <AppButton v-else-if="['review', 'attention'].includes(item.state) && item.receiptId" variant="secondary" @click="$emit('review', item.receiptId, item.format)">{{ $t('imports.flow.checkBook') }}</AppButton>
           <AppButton v-else-if="item.state === 'attention'" variant="quiet" @click="queue.remove(item.key)">{{ $t('imports.dismiss') }}</AppButton>
         </li>
       </ul>

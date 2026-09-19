@@ -1,15 +1,17 @@
 import { computed, markRaw, onScopeDispose, ref, watch } from 'vue';
 import { defineStore } from 'pinia';
-import { acceptTXT, acquireTXT, getTXTAdmission, getTXTReceipt, requestTXTAdmission, type TXTAdmission, type TXTReceipt } from '../../api/txt-imports';
+import { acquireTXT } from '../../api/txt-imports';
+import { acquireEPUB, type EPUBImageMode } from '../../api/epub-imports';
+import { getImportAdmission, requestImportAdmission, type ImportAdmission, type ImportFormat } from '../../api/file-imports';
+import { acceptImport, additionDetails, getImportReceipt, isEPUBReceipt, receiptFormat, receiptGeneration, receiptState, type ImportReceipt } from './import-format';
 import { ApiError, readerRequestSignal } from '../../api/transport';
-import { importedTitle } from './import-feedback';
 import { useImportPreferences } from './import-preferences';
 
 export interface ImportTransfer {
-  key: number; name: string; size?: number; input?: File | string;
+  key: number; name: string; format: ImportFormat; imageMode: EPUBImageMode; size?: number; input?: File | string;
   state: 'queued' | 'waiting' | 'transferring' | 'acquired' | 'adding' | 'added' | 'review' | 'attention';
-  receiptId?: string; receipt?: TXTReceipt; initialGeneration?: number; libraryId?: string;
-  error?: unknown; warnings?: string[]; reviewBeforeAdding?: boolean;
+  receiptId?: string; receipt?: ImportReceipt; initialGeneration?: number; libraryId?: string;
+  error?: unknown; warnings?: string[]; notices?: string[]; reviewBeforeAdding?: boolean;
 }
 
 const activeStates = ['queued', 'waiting', 'transferring', 'acquired', 'adding'];
@@ -23,7 +25,7 @@ function wait(signal: AbortSignal, delay = 5000): Promise<void> {
   });
 }
 
-export const useImportQueue = defineStore('txt-import-queue', () => {
+export const useImportQueue = defineStore('file-import-queue', () => {
   const preferences = useImportPreferences();
   const entries = ref<ImportTransfer[]>([]);
   const running = ref(false);
@@ -43,7 +45,7 @@ export const useImportQueue = defineStore('txt-import-queue', () => {
   }, { flush: 'sync' });
   onScopeDispose(() => { resetReaderState(); window.removeEventListener('beforeunload', warnBeforeLeaving); });
 
-  function enqueue(inputs: (File | string)[]) {
+  function enqueue(inputs: (File | string)[], imageMode: EPUBImageMode = 'original') {
     const pending: ImportTransfer[] = [];
     const retained = new Set(entries.value.map(item => item.input));
     for (const input of inputs) {
@@ -51,27 +53,29 @@ export const useImportQueue = defineStore('txt-import-queue', () => {
       // Coalesce repeated clicks/selections only while that same local input is queued.
       if (retained.has(input)) continue;
       retained.add(input);
-      pending.push({ key: ++sequence, name, reviewBeforeAdding: preferences.reviewBeforeAdding, size: typeof input === 'string' ? undefined : input.size,
-        input: typeof input === 'string' ? input : markRaw(input), state: /\.txt$/i.test(name) ? 'queued' : 'attention',
-        error: /\.txt$/i.test(name) ? undefined : new ApiError(400, { code: 'txt_invalid_input' }),
+      const format = /\.epub$/i.test(name) ? 'epub' : 'txt';
+      const supported = /\.txt$/i.test(name) || (format === 'epub' && typeof input !== 'string');
+      pending.push({ key: ++sequence, name, format, imageMode, reviewBeforeAdding: preferences.reviewBeforeAdding, size: typeof input === 'string' ? undefined : input.size,
+        input: supported ? (typeof input === 'string' ? input : markRaw(input)) : undefined, state: supported ? 'queued' : 'attention',
+        error: supported ? undefined : new ApiError(400, { code: 'import_invalid_input' }),
       });
     }
     entries.value.push(...pending);
     void start();
   }
 
-  async function grant(signal: AbortSignal): Promise<TXTAdmission | undefined> {
-    let ticket: TXTAdmission | undefined;
+  async function grant(signal: AbortSignal): Promise<ImportAdmission | undefined> {
+    let ticket: ImportAdmission | undefined;
     while (!paused.value) {
       try {
-        ticket = ticket ? await getTXTAdmission(ticket.id, signal) : await requestTXTAdmission(signal);
+        ticket = ticket ? await getImportAdmission(ticket.id, signal) : await requestImportAdmission(signal);
         signal.throwIfAborted();
         if (ticket.state === 'granted') return ticket;
         // Another tab may own the active transfer. Never reuse or cancel it.
         if (ticket.state === 'transferring') ticket = undefined;
       } catch (cause) {
         signal.throwIfAborted();
-        if (!(cause instanceof ApiError) || !['txt_intake_busy', 'txt_ticket_not_found'].includes(cause.code)) throw cause;
+        if (!(cause instanceof ApiError) || !['import_intake_busy', 'import_ticket_not_found'].includes(cause.code)) throw cause;
         ticket = undefined;
       }
       await wait(signal);
@@ -93,14 +97,17 @@ export const useImportQueue = defineStore('txt-import-queue', () => {
           const ticket = await grant(signal);
           signal.throwIfAborted();
           if (!ticket || paused.value) { entry.state = 'queued'; break; }
-          if (entry.size !== undefined && entry.size > ticket.maxInputBytes) throw new ApiError(413, { code: 'txt_too_large' });
+          if (entry.size !== undefined && entry.size > ticket.limits[entry.format]) throw new ApiError(413, { code: `${entry.format}_too_large` });
           entry.receiptId = ticket.id;
           entry.state = 'transferring'; attempted = true;
-          const result = await acquireTXT(ticket.id, entry.input!, signal);
+          const result = entry.format === 'epub'
+            ? await acquireEPUB(ticket.id, entry.input as File, entry.imageMode, signal)
+            : await acquireTXT(ticket.id, entry.input!, signal);
           signal.throwIfAborted();
           entry.receiptId = result.receipt.id;
           entry.receipt = result.receipt;
-          entry.initialGeneration = result.receipt.analysisVersion;
+          entry.initialGeneration = receiptGeneration(result.receipt);
+          entry.notices = isEPUBReceipt(result.receipt) ? result.receipt.notices : [];
           entry.warnings = result.warnings;
           entry.state = 'acquired';
           entry.input = undefined; // Release File/Blob ownership at the file boundary.
@@ -110,7 +117,7 @@ export const useImportQueue = defineStore('txt-import-queue', () => {
           if (signal.aborted) return;
           entry.error = cause;
           if (cause instanceof ApiError && cause.body.receiptId) entry.receiptId = cause.body.receiptId;
-          if (!attempted && !(cause instanceof ApiError && cause.code === 'txt_too_large')) {
+          if (!attempted && !(cause instanceof ApiError && cause.code === `${entry.format}_too_large`)) {
             // Admission failed before bytes were sent. Preserve the selection and
             // pause, rather than failing every remaining file during an outage.
             entry.state = 'queued'; paused.value = true;
@@ -146,20 +153,26 @@ export const useImportQueue = defineStore('txt-import-queue', () => {
         offset += batch.length;
         for (const entry of batch) {
           try {
-            const receipt = await getTXTReceipt(entry.receiptId!, signal);
+            const receipt = await getImportReceipt(entry.format, entry.receiptId!, signal);
             signal.throwIfAborted();
             entry.receipt = receipt;
-            if (receipt.state === 'published') { updateReceipt(receipt); continue; }
-            if (receipt.analysisVersion !== entry.initialGeneration) throw new ApiError(409, { code: 'txt_state_changed' });
-            if (receipt.hasError || entry.warnings?.length || ['needs_review', 'analysis_failed', 'failed', 'removing'].includes(receipt.state)) {
+            const state = receiptState(receipt);
+            if (state === 'published') { updateReceipt(receipt); continue; }
+            if (receiptGeneration(receipt) !== entry.initialGeneration) throw new ApiError(409, { code: `${entry.format}_state_changed` });
+            if (receipt.hasError || entry.warnings?.length || ['needs_review', 'analysis_failed', 'failed', 'removing'].includes(state)) {
               entry.state = 'attention'; continue;
             }
-            if (receipt.state !== 'ready') continue;
+            if (state !== 'ready') continue;
+            const details = await additionDetails(receipt, signal);
+            signal.throwIfAborted();
+            entry.notices = details.notices;
+            if (details.needsReview) { entry.state = 'attention'; continue; }
             if (entry.reviewBeforeAdding !== false) { entry.state = 'review'; revision.value++; continue; }
             entry.state = 'adding';
-            const result = await acceptTXT(receipt.id, receipt.analysisVersion, importedTitle(receipt.originalName), '', signal);
+            const result = await acceptImport(receipt, details, signal);
             signal.throwIfAborted();
-            updateReceipt({ ...receipt, state: 'published', libraryId: result.libraryId });
+            if (isEPUBReceipt(receipt)) updateReceipt({ ...receipt, libraryId: result.libraryId });
+            else updateReceipt({ ...receipt, state: 'published', libraryId: result.libraryId });
           } catch (cause) {
             if (signal.aborted) return;
             // No blind replay of an uncertain accept. Inline review fetches the
@@ -173,13 +186,14 @@ export const useImportQueue = defineStore('txt-import-queue', () => {
     finally { if (publicationController === owner) publicationController = undefined; }
   }
 
-  function updateReceipt(receipt: TXTReceipt) {
-    const entry = entries.value.find(item => item.receiptId === receipt.id);
-    if (receipt.state === 'published' && receipt.libraryId && entry?.libraryId !== receipt.libraryId) libraryRevision.value++;
+  function updateReceipt(receipt: ImportReceipt) {
+    const entry = entries.value.find(item => item.receiptId === receipt.id && item.format === receiptFormat(receipt));
+    if (receiptState(receipt) === 'published' && receipt.libraryId && entry?.libraryId !== receipt.libraryId) libraryRevision.value++;
     if (entry) {
       entry.receipt = receipt;
+      if (isEPUBReceipt(receipt) && receipt.notices) entry.notices = receipt.notices;
       entry.error = undefined;
-      if (receipt.state === 'published' && receipt.libraryId) {
+      if (receiptState(receipt) === 'published' && receipt.libraryId) {
         entry.state = 'added'; entry.libraryId = receipt.libraryId;
       }
     }

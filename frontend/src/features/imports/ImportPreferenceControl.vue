@@ -11,8 +11,10 @@ export default defineComponent({
     <span><strong>{{ $t('imports.preferences.review') }}</strong><small>{{ $t('imports.preferences.hint') }}</small></span>
   </label>
 </template>
-<style scoped>
-.import-preference { display: flex; align-items: flex-start; gap: var(--space-3); padding-block: var(--space-3); cursor: pointer; }
+<style>
+/* Also used by the sibling EPUB image choice. Keep these styles with this
+   control so Settings does not depend on loading the import workspace CSS. */
+.import-preference, .imports-page .import-preference { display: flex; align-items: flex-start; gap: var(--space-3); padding-block: var(--space-3); cursor: pointer; }
 .import-preference input { flex: 0 0 auto; margin-top: .35rem; }
 .import-preference span { min-width: 0; }
 .import-preference strong { display: block; font-size: var(--text-body); font-weight: var(--weight-regular); }

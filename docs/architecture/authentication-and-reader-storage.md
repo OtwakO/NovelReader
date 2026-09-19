@@ -190,8 +190,8 @@ Preparation failures expose allowlisted categories, not raw parser/filesystem me
 Portable-encoder performance notices are separate from content diagnostics and do not
 set `needsReview`. Pending optimized receipts describe the current encoder capability;
 ready previews use persisted actual-backend evidence, also after restore. The frontend
-must display these notices even when review-before-adding is disabled. EPUB inbox
-acquisition and frontend import/review integration remain pending.
+displays these notices even when review-before-adding is disabled. EPUB inbox
+acquisition remains pending.
 
 ### TXT browser upload HTTP
 
@@ -250,7 +250,7 @@ bind approvals to the exact database lifetime; cache eviction or reader replacem
 a proof before its maximum expiry. Runtime drain invalidates reader proofs before restore/removal;
 shutdown clears them after controls finish. Client JSON/flags never authorize deletion. Limits are
 recorded in the [accepted inbox checkpoint](../plans/2026-09-10-multi-provider-library.md#inbox-http-checkpoint).
-### TXT frontend ownership
+### Shared file-import frontend ownership
 
 `frontend/src/features/imports/ImportWorkspace.vue` belongs to the dedicated Local Import page:
 choose files, follow one progress list, handle exceptions inline and open the current saved reader
@@ -259,10 +259,19 @@ History and server-inbox controls use the shared Search-style disclosure and loa
 The Vue Options API and [shared UI owners](../../frontend/src/ui/README.md) are reused. Review takes a
 receipt prop rather than owning navigation; legacy `/imports/:id` links redirect to `/imports?review=id`.
 
-`import-queue.ts` is the only browser import owner. Its Pinia lifetime survives page navigation,
+`import-format.ts` provides concrete TXT/EPUB dispatch and UI status projection while retaining each
+wire receipt/generation contract; it is not a provider registry. EPUB saved previews are fetched only
+when ready to check diagnostics and metadata, not on each poll. `EPUBReviewView` owns its complete
+review/retry/discard interactions; TXT interpretation controls remain separate. History selects a
+format to preserve independent bounded cursors and keeps TXT state filters. Bulk EPUB addition
+checks its exact saved preview and sends content warnings to individual review. Encoder notices
+remain visible independently of review policy. Image mode defaults to original and is captured
+per selection; changing the checkbox affects only later selections.
+
+`import-queue.ts` is the only TXT/EPUB browser import owner. Its Pinia lifetime survives page navigation,
 holds lightweight File references or inbox names, and starts one admitted byte transfer at a time.
 One independent round-robin loop checks at most 16 owned receipts per round, with a 1.5-second pause;
-there is no timer per file. It automatically accepts only warning-free, ready initial generations from
+there is no timer per file. It automatically accepts only content-warning-free, ready initial generations from
 this tab's newly selected files queued with review-before-adding disabled. The default is review on;
 `import-preferences.ts` owns the browser-local preference shared by Settings and Local Import. Each
 queue entry snapshots it at selection; later toggles never approve existing work. Ready entries awaiting

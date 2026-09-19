@@ -77,7 +77,7 @@ export function parseStructuredChapterContent(input: unknown): StructuredChapter
       };
       case 'image': {
         const resource = parseContentResource(value.resource);
-        choice(resource.mediaType, ['image/png', 'image/jpeg']);
+        choice(resource.mediaType, ['image/png', 'image/jpeg', 'image/webp']);
         return { ...attrs, kind: 'image', resource, width: integer(value.width, 1, 16384), height: integer(value.height, 1, 16384), ...(value.alt !== undefined ? { alt: text(value.alt) } : {}) };
       }
       case 'link': {

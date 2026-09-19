@@ -70,3 +70,9 @@ it('accepts prepared Go prose through transport and resolves its note target wit
   expect(nodes.find(node => node.id === note.target!.anchor)).toMatchObject({ role: 'footnote' });
   expect(structuredTextValues(contents[0]!.document)).toContain('fallback text');
 });
+
+it('accepts optimized WebP resources without changing their authorized URL or display dimensions', () => {
+  const image = { kind: 'image', resource: { href: '/api/books/example/epub-resources/image?revision=1&reader=scope', mediaType: 'image/webp' }, width: 480, height: 240 };
+  const content = parseStructuredChapterContent({ version: 2, contentRevision: 1, document: { kind: 'prose', title: 'Optimized illustration', blocks: [image] } });
+  expect(content.document.blocks[0]).toEqual({ ...image, children: [] });
+});
