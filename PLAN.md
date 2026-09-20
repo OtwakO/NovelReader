@@ -87,6 +87,8 @@ Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for un
 
 ### Completed workstream handoffs
 
+[EPUB support](docs/plans/2026-09-17-epub-support.md) — completed bounded reflowable novel-reading milestone at epoch 16. Browser/inbox intake, review, shared reading and image resources, progress/bookmarks, portable lifecycle and removal are integrated without a second reader or scheduler. The final isolated Chromium journey covered inbox import → reading/bookmark → export → removal → restore → restart → reading/resources → removal. Existing data was untouched; deployment, broad real-book compatibility and stress/power-loss testing are not claimed.
+
 [Parallel release builds](docs/plans/parallel-release-builds.md) — concurrent production builds are
 merged and verified. The first release passed in 5m21s with a cached app layer; source-change timing
 and comparison limits are recorded in the plan. All verification and publication gates remain.
@@ -128,13 +130,11 @@ Manual usability feedback is next.
 
 ## Active Work
 
-[EPUB support](docs/plans/2026-09-17-epub-support.md) — parsing/preparation, optional image optimization, indexed durable storage, portable validation and shared TXT/EPUB worker lifecycle are implemented. Epoch **15** integrates exact-generation publication, shared catalog/content/progress/bookmarks, authorized original/optimized images and covers, portable publication checks, and durable removal. Shared scheduling retains **2 workers + 2 transfers**. Format-neutral admission (with compatible TXT aliases) and EPUB browser upload, receipt/review, retry/discard and acceptance HTTP are implemented and covered by synthetic tests. Receipt polling avoids metadata decoding; review exposes bounded saved evidence and separate encoder notices. The shared browser queue/workspace now imports TXT and EPUB, with bounded format-specific review and visible encoder notices. A real isolated-backend Chromium check covers optimized EPUB upload → review → publication → authorized image reading/cross-section navigation at desktop/mobile widths. EPUB inbox acquisition is integrated; the backup/restore/published-removal browser journey remains pending. Existing homes/backups are not migrated or reset; see the plan for verification scope and rollback.
-
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities
 
-1. Connect [EPUB browser/inbox import and review UI](docs/plans/2026-09-17-epub-support.md#next-action), then verify the real-browser import/read/backup/restore/removal journey. Browser import/review UI/HTTP, publication and authorized reading/resources are integrated. EPUB inbox acquisition is now integrated. Next extend real-browser verification through backup/restore, restart and published removal. Keep existing epoch-13/14 data untouched and verify on fresh epoch-15 homes.
+1. Gather manual usability and real-book compatibility feedback for the completed [EPUB milestone](docs/plans/2026-09-17-epub-support.md). Scope any resulting defects separately; preserve epoch-15 and older data rather than migrating or resetting it implicitly.
 2. Keep future work proportional to its risk: reuse the established storage, reading and lifecycle owners, use focused verification, and avoid speculative frameworks. The completed TXT plan is historical evidence, not an active backlog.
 3. The accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), bounded browser-UA provider and [browser lifecycle hardening](docs/plans/browser-worker-lifecycle.md) are implemented. Confirm any next compatibility slice with the user before implementation; retain the recorded verification limits. Do not claim universal compatibility.
 4. Select further compatibility slices from current evidence rather than historical unchecked boxes; introduce image-sequence documents and structured locations only when that modality becomes active work.
