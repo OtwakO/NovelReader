@@ -7,32 +7,32 @@ import (
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
-func (s *readerAPI) registerTXTInboxRoutes() {
+func (s *readerAPI) registerEPUBInboxRoutes() {
 	register := func(pattern string, handler http.HandlerFunc) {
 		s.mux.HandleFunc(pattern, importControlHandler(handler))
 	}
-	register("GET /api/imports/txt/inbox", s.handleScanTXTInbox)
-	register("GET /api/imports/txt/inbox/claims", s.handleListTXTInboxClaims)
-	register("POST /api/imports/txt/inbox/claims/{id}/review", s.handleReviewTXTInbox)
-	register("POST /api/imports/txt/inbox/reviews/{token}/confirm", s.handleConfirmTXTInbox)
-	register("POST /api/imports/txt/inbox/reviews/{token}/release", s.handleReleaseTXTInbox)
-	register("DELETE /api/imports/txt/inbox/reviews/{token}", s.handleCancelTXTInboxReview)
+	register("GET /api/imports/epub/inbox", s.handleScanEPUBInbox)
+	register("GET /api/imports/epub/inbox/claims", s.handleListEPUBInboxClaims)
+	register("POST /api/imports/epub/inbox/claims/{id}/review", s.handleReviewEPUBInbox)
+	register("POST /api/imports/epub/inbox/reviews/{token}/confirm", s.handleConfirmEPUBInbox)
+	register("POST /api/imports/epub/inbox/reviews/{token}/release", s.handleReleaseEPUBInbox)
+	register("DELETE /api/imports/epub/inbox/reviews/{token}", s.handleCancelEPUBInboxReview)
 }
 
-func (s *readerAPI) handleScanTXTInbox(w http.ResponseWriter, r *http.Request) {
-	after, limit, valid := inboxPage(w, r, "txt_invalid_input")
+func (s *readerAPI) handleScanEPUBInbox(w http.ResponseWriter, r *http.Request) {
+	after, limit, valid := inboxPage(w, r, "epub_invalid_input")
 	if !valid {
 		return
 	}
 	release, err := s.fileInbox.beginIO()
 	if err != nil {
-		writeTXTError(w, err)
+		writeEPUBError(w, err)
 		return
 	}
 	defer release()
-	entries, err := s.txtStore.ScanInbox(r.Context(), after, limit+1)
+	entries, err := s.epubStore.ScanInbox(r.Context(), after, limit+1)
 	if err != nil {
-		writeTXTError(w, err)
+		writeEPUBError(w, err)
 		return
 	}
 	type entry struct {
@@ -57,14 +57,14 @@ func (s *readerAPI) handleScanTXTInbox(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *readerAPI) handleListTXTInboxClaims(w http.ResponseWriter, r *http.Request) {
-	after, limit, valid := inboxPage(w, r, "txt_invalid_input")
+func (s *readerAPI) handleListEPUBInboxClaims(w http.ResponseWriter, r *http.Request) {
+	after, limit, valid := inboxPage(w, r, "epub_invalid_input")
 	if !valid {
 		return
 	}
-	claims, err := s.txtStore.PendingInbox(r.Context(), after, limit+1)
+	claims, err := s.epubStore.PendingInbox(r.Context(), after, limit+1)
 	if err != nil {
-		writeTXTError(w, err)
+		writeEPUBError(w, err)
 		return
 	}
 	type claim struct {

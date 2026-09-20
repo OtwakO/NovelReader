@@ -21,7 +21,7 @@ func (s *readerAPI) requireFinishedInboxAcquisition(ctx context.Context, id stri
 }
 
 func (s *readerAPI) handleReviewTXTInbox(w http.ResponseWriter, r *http.Request) {
-	release, err := s.txtInbox.beginIO()
+	release, err := s.fileInbox.beginIO()
 	if err != nil {
 		writeTXTError(w, err)
 		return
@@ -46,7 +46,7 @@ func (s *readerAPI) handleReviewTXTInbox(w http.ResponseWriter, r *http.Request)
 		writeTXTError(w, err)
 		return
 	}
-	token, expiry, err := s.txtInbox.retain(s.home.ID(), review)
+	token, expiry, err := s.fileInbox.retain(s.home.ID(), inboxReview{txt: review})
 	if err != nil {
 		writeTXTError(w, err)
 		return
@@ -71,25 +71,25 @@ func (s *readerAPI) handleReleaseTXTInbox(w http.ResponseWriter, r *http.Request
 }
 
 func (s *readerAPI) resolveTXTInbox(w http.ResponseWriter, r *http.Request, remove bool) {
-	release, err := s.txtInbox.beginIO()
+	release, err := s.fileInbox.beginIO()
 	if err != nil {
 		writeTXTError(w, err)
 		return
 	}
 	defer release()
-	proof, err := s.txtInbox.take(s.home.ID(), r.PathValue("token"))
+	proof, err := s.fileInbox.take(s.home.ID(), r.PathValue("token"), "txt")
 	if err != nil {
 		writeTXTError(w, err)
 		return
 	}
-	if err := s.requireFinishedInboxAcquisition(r.Context(), proof.Claim.ReceiptID); err != nil {
+	if err := s.requireFinishedInboxAcquisition(r.Context(), proof.txt.Claim.ReceiptID); err != nil {
 		writeTXTError(w, err)
 		return
 	}
 	if remove {
-		err = s.txtStore.ConfirmInboxRemoval(r.Context(), proof)
+		err = s.txtStore.ConfirmInboxRemoval(r.Context(), proof.txt)
 	} else {
-		err = s.txtStore.ReleaseInbox(r.Context(), proof)
+		err = s.txtStore.ReleaseInbox(r.Context(), proof.txt)
 	}
 	if err != nil {
 		writeTXTError(w, err)
@@ -99,7 +99,7 @@ func (s *readerAPI) resolveTXTInbox(w http.ResponseWriter, r *http.Request, remo
 }
 
 func (s *readerAPI) handleCancelTXTInboxReview(w http.ResponseWriter, r *http.Request) {
-	if _, err := s.txtInbox.take(s.home.ID(), r.PathValue("token")); err != nil {
+	if _, err := s.fileInbox.take(s.home.ID(), r.PathValue("token"), "txt"); err != nil {
 		writeTXTError(w, err)
 		return
 	}

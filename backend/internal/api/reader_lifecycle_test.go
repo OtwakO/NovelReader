@@ -159,14 +159,14 @@ func TestServerCloseDrainsWorkersAndRuntimesAfterOtherCleanupFails(t *testing.T)
 	server, _, _, alice, closeStores := newOwnershipServer(t)
 	defer closeStores()
 	server.services.chineseConversion = failingConversionClose{}
-	proof, _, err := server.services.txtInbox.retain(alice, &txtstore.InboxReview{Claim: txtstore.InboxClaim{ReceiptID: "closed-proof"}})
+	proof, _, err := server.services.fileInbox.retain(alice, inboxReview{txt: &txtstore.InboxReview{Claim: txtstore.InboxClaim{ReceiptID: "closed-proof"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := server.Close(); err == nil || !strings.Contains(err.Error(), "conversion cleanup failed") {
 		t.Fatalf("cleanup error lost: %v", err)
 	}
-	if _, err := server.services.txtInbox.take(alice, proof); !errors.Is(err, errInboxProofMissing) {
+	if _, err := server.services.fileInbox.take(alice, proof, "txt"); !errors.Is(err, errInboxProofMissing) {
 		t.Fatal("shutdown retained inbox approval")
 	}
 	if err := server.fileImports.Notify(alice); !errors.Is(err, fileimport.ErrClosed) {

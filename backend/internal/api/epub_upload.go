@@ -52,7 +52,11 @@ func (s *Server) handleUploadEPUB(w http.ResponseWriter, r *http.Request) {
 		writeEPUBError(w, err)
 		return
 	}
-	w.Header().Set("Location", "/api/imports/epub/receipts/"+id)
+	writeEPUBAcquired(w, value, warnings)
+}
+
+func writeEPUBAcquired(w http.ResponseWriter, value epubstore.ImportReceipt, warnings []string) {
+	w.Header().Set("Location", "/api/imports/epub/receipts/"+value.ID)
 	writeJSON(w, http.StatusCreated, struct {
 		Receipt  epubReceiptResponse `json:"receipt"`
 		Warnings []string            `json:"warnings,omitempty"`
@@ -74,19 +78,7 @@ func (s *Server) receiveEPUBUpload(ctx context.Context, reader readerstore.UserI
 	value := epubstore.ImportReceipt{Receipt: receipt}
 	var warnings []string
 	if receiveErr == nil {
-		// Acquisition is durable. A disconnect must not lose the short initial queue
-		// write; an unsuccessful queue remains an acquired receipt for explicit retry.
-		queueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		attempt, queueErr := store.RetryPreparation(queueCtx, id, 0)
-		cancel()
-		if queueErr != nil {
-			slog.Warn("EPUB acquired; preparation queue needs attention", "reader_id", reader, "receipt_id", id, "error", queueErr)
-			warnings = append(warnings, "epub_preparation_pending")
-		} else {
-			value.PreparationGeneration, value.PreparationState = attempt.Generation, attempt.State
-			value.UpdatedAt = attempt.UpdatedAt
-			warnings = wakeEPUBPreparation(s.fileImports, reader, id)
-		}
+		value, warnings = queueAcquiredEPUB(ctx, store, s.fileImports, reader, receipt)
 	}
 	cleanupErr := errors.Join(finishBody(), home.Close())
 	if receiveErr != nil {
@@ -105,4 +97,25 @@ func wakeEPUBPreparation(pool *fileimport.Pool, reader readerstore.UserID, id st
 		return []string{"epub_preparation_pending"}
 	}
 	return nil
+}
+
+// Initial preparation is shared by browser/inbox acquisition and explicit
+// recovery review. A failed queue write leaves a durable, retryable receipt.
+func queueAcquiredEPUB(ctx context.Context, store *epubstore.Store, pool *fileimport.Pool, reader readerstore.UserID, receipt epubstore.Receipt) (epubstore.ImportReceipt, []string) {
+	value := epubstore.ImportReceipt{Receipt: receipt}
+	var warnings []string
+	// Acquisition is durable. A disconnect must not lose the short initial queue
+	// write; an unsuccessful queue remains an acquired receipt for explicit retry.
+	queueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	attempt, queueErr := store.RetryPreparation(queueCtx, receipt.ID, 0)
+	cancel()
+	if queueErr != nil {
+		slog.Warn("EPUB acquired; preparation queue needs attention", "reader_id", reader, "receipt_id", receipt.ID, "error", queueErr)
+		warnings = append(warnings, "epub_preparation_pending")
+	} else {
+		value.PreparationGeneration, value.PreparationState = attempt.Generation, attempt.State
+		value.UpdatedAt = attempt.UpdatedAt
+		warnings = wakeEPUBPreparation(pool, reader, receipt.ID)
+	}
+	return value, warnings
 }

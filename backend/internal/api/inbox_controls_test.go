@@ -13,8 +13,8 @@ import (
 
 func TestInboxHTTPProofsAreBoundedReaderOwnedAndExpiring(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		controls := newTXTInboxControls()
-		proof := &txtstore.InboxReview{Claim: txtstore.InboxClaim{ReceiptID: "first"}}
+		controls := newInboxControls()
+		proof := inboxReview{txt: &txtstore.InboxReview{Claim: txtstore.InboxClaim{ReceiptID: "first"}}}
 		old, _, err := controls.retain("alice", proof)
 		if err != nil {
 			t.Fatal(err)
@@ -23,16 +23,16 @@ func TestInboxHTTPProofsAreBoundedReaderOwnedAndExpiring(t *testing.T) {
 		if err != nil || token == old {
 			t.Fatalf("fresh review: %v", err)
 		}
-		if _, err := controls.take("alice", old); !errors.Is(err, errInboxProofMissing) {
+		if _, err := controls.take("alice", old, "txt"); !errors.Is(err, errInboxProofMissing) {
 			t.Fatalf("superseded proof: %v", err)
 		}
-		if _, err := controls.take("bob", token); !errors.Is(err, errInboxProofMissing) {
+		if _, err := controls.take("bob", token, "txt"); !errors.Is(err, errInboxProofMissing) {
 			t.Fatalf("cross-reader proof: %v", err)
 		}
-		if actual, err := controls.take("alice", token); err != nil || actual != proof {
+		if actual, err := controls.take("alice", token, "txt"); err != nil || actual != proof {
 			t.Fatal("did not retain the original server proof")
 		}
-		if _, err := controls.take("alice", token); !errors.Is(err, errInboxProofMissing) {
+		if _, err := controls.take("alice", token, "txt"); !errors.Is(err, errInboxProofMissing) {
 			t.Fatal("proof reused")
 		}
 		for index := 0; index < maxInboxProofs; index++ {
@@ -42,7 +42,7 @@ func TestInboxHTTPProofsAreBoundedReaderOwnedAndExpiring(t *testing.T) {
 				}
 			}
 			reader := readerstore.UserID(fmt.Sprintf("reader-%d", index/inboxProofsPerReader))
-			_, _, err := controls.retain(reader, &txtstore.InboxReview{Claim: txtstore.InboxClaim{ReceiptID: fmt.Sprint(index)}})
+			_, _, err := controls.retain(reader, inboxReview{txt: &txtstore.InboxReview{Claim: txtstore.InboxClaim{ReceiptID: fmt.Sprint(index)}}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -56,7 +56,7 @@ func TestInboxHTTPProofsAreBoundedReaderOwnedAndExpiring(t *testing.T) {
 			t.Fatal(err)
 		}
 		time.Sleep(inboxProofTTL)
-		if _, err := controls.take("new-reader", token); !errors.Is(err, errInboxProofMissing) {
+		if _, err := controls.take("new-reader", token, "txt"); !errors.Is(err, errInboxProofMissing) {
 			t.Fatalf("expired proof: %v", err)
 		}
 		if len(controls.proofs) != 0 {
@@ -66,7 +66,7 @@ func TestInboxHTTPProofsAreBoundedReaderOwnedAndExpiring(t *testing.T) {
 }
 
 func TestInboxControlIOHasIndependentBound(t *testing.T) {
-	controls := newTXTInboxControls()
+	controls := newInboxControls()
 	first, err := controls.beginIO()
 	if err != nil {
 		t.Fatal(err)

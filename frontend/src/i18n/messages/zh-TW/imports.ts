@@ -50,7 +50,7 @@ export default {
   batchResult: '已新增 {added} 項 · 未成功 {failed} 項', bulkConfirm: '確認新增這 {count} 項所選的就緒解析結果？書名預設使用去掉 .txt 的檔案名稱。如需修改書名或作者，請個別查看。',
   confirmAdd: '加入書架', noResults: '本頁沒有檔案。請選擇本機檔案、使用伺服器收件匣，或變更狀態篩選。',
   selectFile: '選擇 {name}', openBook: '開啟書籍', review: '檢查檔案', back: '返回本地匯入',
-  inbox: '伺服器收件匣', inboxHint: '開啟匯入頁面或掃描前，請先完成檔案複製。自動複製程式應先使用暫存名稱，完成後再改為 .txt。接收檔案會將其移入託管儲存空間。',
+  inbox: '伺服器收件匣', inboxHint: '開啟匯入頁面或掃描前，請先完成檔案複製。自動複製程式應先使用暫存名稱，完成後再改為 .txt 或 .epub。接收檔案會將其移入託管儲存空間。',
   inboxDirectory: '將檔案放入此資料夾', inboxFiles: '可匯入檔案',
   scan: '掃描收件匣', acquireSelected: '接收所選（{count}）', inboxEmpty: '本頁沒有已完成的 TXT 或 EPUB 檔案。',
   unavailableFile: '無法接收此檔案', claimRequired: '請先處理既有收件匣紀錄，再次匯入。',

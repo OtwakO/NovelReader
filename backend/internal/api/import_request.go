@@ -74,3 +74,13 @@ func interruptImportBody(ctx context.Context, w http.ResponseWriter, r *http.Req
 		return errors.Join(interruptErr, setDeadline(time.Time{}))
 	}, nil
 }
+
+func inboxPage(w http.ResponseWriter, r *http.Request, code string) (string, int, bool) {
+	limit, err := importPageLimit(r)
+	after := r.URL.Query().Get("after")
+	if err != nil || len(after) > 1024 {
+		writeErrorCode(w, http.StatusBadRequest, code, "Invalid inbox page")
+		return "", 0, false
+	}
+	return after, limit, true
+}

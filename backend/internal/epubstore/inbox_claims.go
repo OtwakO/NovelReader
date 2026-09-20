@@ -7,8 +7,8 @@ import (
 	"fmt"
 )
 
-// Inbox schema/hooks remain unregistered until HTTP/lifecycle integration and
-// the fresh-data epoch-16 cutover are complete. Tests install them explicitly.
+// Inbox persistence is part of the EPUB reader-schema contribution. Portable
+// copies strip these installation-local claims before validating the copy.
 func initializeInboxSchema(tx *sql.Tx) error {
 	_, err := tx.Exec(`CREATE TABLE epub_inbox_claims (
  name TEXT PRIMARY KEY,

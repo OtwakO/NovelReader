@@ -50,7 +50,7 @@ export default {
   batchResult: '{added} added · {failed} unsuccessful', bulkConfirm: 'Add these {count} selected ready interpretations? Titles use filenames without .txt. Open individual review to change a title or author.',
   confirmAdd: 'Add book', noResults: 'No files on this page. Choose files above, use the server inbox, or change the status filter.',
   selectFile: 'Select {name}', openBook: 'Open book', review: 'Review file', back: 'Back to Local import',
-  inbox: 'Server inbox', inboxHint: 'Finish copying before opening Imports or scanning. For automated copies, use a temporary name and rename to .txt only when complete. Acquiring a file moves it into managed storage.',
+  inbox: 'Server inbox', inboxHint: 'Finish copying before opening Imports or scanning. For automated copies, use a temporary name and rename to .txt or .epub only when complete. Acquiring a file moves it into managed storage.',
   inboxDirectory: 'Place files in this folder', inboxFiles: 'Files to import',
   scan: 'Scan inbox', acquireSelected: 'Acquire selected ({count})', inboxEmpty: 'No completed TXT or EPUB files on this page.',
   unavailableFile: 'Not available for acquisition', claimRequired: 'Resolve the existing inbox claim before importing again.',

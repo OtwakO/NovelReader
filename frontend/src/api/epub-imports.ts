@@ -25,9 +25,12 @@ export const acceptEPUB = (id: string, generation: number, name: string, author:
 export const discardEPUB = (id: string, signal: AbortSignal) => importControl<{ cleanupPending: boolean; warnings?: string[] }>(receiptPath(id), signal, 'DELETE');
 
 // Pass the File directly. The server owns parsing, image work and durable output.
-export function acquireEPUB(id: string, input: File, imageMode: EPUBImageMode, signal: AbortSignal): Promise<EPUBAcquisition> {
-  return request<EPUBAcquisition>(`${base}/uploads/${encodeURIComponent(id)}?${new URLSearchParams({ filename: input.name, imageMode })}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: input,
+export function acquireEPUB(id: string, input: File | string, imageMode: EPUBImageMode, signal: AbortSignal): Promise<EPUBAcquisition> {
+  const inbox = typeof input === 'string';
+  const name = inbox ? input : input.name;
+  const path = inbox ? 'inbox/acquisitions' : 'uploads';
+  return request<EPUBAcquisition>(`${base}/${path}/${encodeURIComponent(id)}?${new URLSearchParams({ filename: name, imageMode })}`, {
+    method: inbox ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: inbox ? undefined : input,
     signal: AbortSignal.any([signal, AbortSignal.timeout(31 * 60_000)]),
   });
 }

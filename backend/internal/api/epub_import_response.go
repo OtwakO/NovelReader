@@ -10,6 +10,7 @@ import (
 	"github.com/otwako/novelreader/internal/epub"
 	"github.com/otwako/novelreader/internal/epubstore"
 	"github.com/otwako/novelreader/internal/imageproc"
+	"github.com/otwako/novelreader/internal/inboxfiles"
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
@@ -54,6 +55,18 @@ func writeEPUBError(w http.ResponseWriter, err error) {
 	status, code, message := http.StatusInternalServerError, "epub_storage_error", "EPUB operation failed; check the receipt before retrying"
 	var sizeError *http.MaxBytesError
 	switch {
+	case errors.Is(err, errInboxControlBusy):
+		status, code, message = http.StatusTooManyRequests, "epub_inbox_busy", err.Error()
+	case errors.Is(err, errInboxProofLimit):
+		status, code, message = http.StatusTooManyRequests, "epub_inbox_review_limit", err.Error()
+	case errors.Is(err, errInboxProofMissing):
+		status, code, message = http.StatusConflict, "epub_inbox_review_expired", err.Error()
+	case errors.Is(err, inboxfiles.ErrChanged), errors.Is(err, epubstore.ErrInboxNotDuplicate):
+		status, code, message = http.StatusConflict, "epub_inbox_changed", "Inbox input or managed copy changed; review again before continuing"
+	case errors.Is(err, inboxfiles.ErrMissing):
+		status, code, message = http.StatusNotFound, "epub_inbox_missing", "Inbox entry not found"
+	case errors.Is(err, inboxfiles.ErrType):
+		status, code, message = http.StatusBadRequest, "epub_invalid_input", "Inbox entry must be a regular EPUB file"
 	case errors.Is(err, epubstore.ErrNotFound):
 		status, code, message = http.StatusNotFound, "epub_receipt_not_found", "EPUB receipt not found"
 	case errors.Is(err, epubstore.ErrStateChanged):
@@ -66,6 +79,12 @@ func writeEPUBError(w http.ResponseWriter, err error) {
 		status, code, message = http.StatusBadRequest, "epub_interrupted", "Upload ended before the complete file arrived; check its receipt before retrying"
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		status, code, message = http.StatusRequestTimeout, "epub_interrupted", "EPUB operation interrupted; refresh its current status before retrying"
+	}
+	if status == http.StatusTooManyRequests {
+		w.Header().Set("Retry-After", "2")
+	}
+	if errors.Is(err, errInboxProofLimit) {
+		w.Header().Set("Retry-After", "30")
 	}
 	if status == http.StatusInternalServerError {
 		slog.Warn("EPUB import operation failed", "error", err)

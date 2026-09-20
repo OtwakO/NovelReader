@@ -81,10 +81,10 @@ NovelReader stores its data in the `data` folder beside `docker-compose.yml`. Th
 
 ## Update
 
-This revision requires reader schema epoch 15 (EPUB publication and authorized reading/resources).
+This revision requires reader schema epoch 16 (EPUB server-inbox claims and portable cleanup ownership).
 EPUB browser upload/review HTTP endpoints now use shared file admission and storage-owned acceptance;
 accepted books read through the shared reader. The browser import/review UI supports TXT and EPUB;
-server-inbox EPUB acquisition remains pending. Existing epoch-14 (or older) homes and portable archives are rejected, not migrated. Before upgrading an existing deployment,
+server-inbox acquisition also supports both formats. Existing epoch-15 (or older) homes and portable archives are rejected, not migrated. Before upgrading an existing deployment,
 stop it and preserve a complete `DATA_DIR` copy; follow the
 [compatibility and reset runbook](docs/runbooks/development-data-reset.md) rather than
 deleting data or editing schema markers to bypass the check.
@@ -155,7 +155,7 @@ Both modes retain the unchanged EPUB. If native encoding is unavailable, an expl
 performance notice appears; this alone does not force review. EPUB review shows saved sections,
 a bounded text sample, content-loss notes and editable book metadata. Retry uses the observed failed
 preparation; wait for running preparation to finish before discarding it. No EPUB reparse/image-mode
-change is offered after acquisition. The server-folder section currently accepts **TXT only**.
+change is offered after acquisition. The server-folder section uses a **Format** selector for TXT or EPUB. Its EPUB image option applies to files selected next.
 
 Earlier imports uses a **Format** selector and shows persisted records, including transfers still visible in this tab. It is paginated
 by ID, not newest-first. It is not a second copy of book content: published originals/indexes remain

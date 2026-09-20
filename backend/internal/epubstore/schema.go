@@ -65,5 +65,8 @@ func initializeSchema(tx *sql.Tx) error {
  UNIQUE(file_id,generation,source_path),
  FOREIGN KEY(file_id,generation) REFERENCES epub_preparations(file_id,generation) ON DELETE CASCADE
  )`)
-	return err
+	if err != nil {
+		return err
+	}
+	return initializeInboxSchema(tx)
 }

@@ -3,6 +3,7 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as api from '../../api/txt-imports';
+import * as inbox from '../../api/file-imports';
 import * as books from '../../api/books';
 import { ApiError } from '../../api/transport';
 import ImportReviewView from './ImportReviewView.vue';
@@ -65,19 +66,19 @@ it('keeps incomplete cleanup visible through a failed retry', async () => {
 });
 
 it('consumes inbox approval on failure and requires a fresh explicit review before resolution', async () => {
-  vi.spyOn(api, 'scanTXTInbox').mockResolvedValue({ items: [], directory: 'inbox/reader' });
-  vi.spyOn(api, 'listTXTInboxClaims').mockResolvedValue({ items: [{ name: 'leftover.txt', receiptId: 'sample' }] });
-  const review = vi.spyOn(api, 'reviewTXTInbox').mockResolvedValueOnce({ token: 'old', expiresAt: '', name: 'leftover.txt', receiptId: 'sample', inputPresent: true, canRemove: true }).mockResolvedValue({ token: 'new', expiresAt: '', name: 'leftover.txt', receiptId: 'sample', inputPresent: true, canRemove: false });
-  const resolve = vi.spyOn(api, 'resolveTXTInbox').mockRejectedValueOnce(new ApiError(409, { code: 'txt_inbox_changed' })).mockResolvedValue(undefined);
+  vi.spyOn(inbox, 'scanInbox').mockResolvedValue({ items: [], directory: 'inbox/reader' });
+  vi.spyOn(inbox, 'listInboxClaims').mockResolvedValue({ items: [{ name: 'leftover.txt', receiptId: 'sample' }] });
+  const review = vi.spyOn(inbox, 'reviewInbox').mockResolvedValueOnce({ token: 'old', expiresAt: '', name: 'leftover.txt', receiptId: 'sample', inputPresent: true, canRemove: true }).mockResolvedValue({ token: 'new', expiresAt: '', name: 'leftover.txt', receiptId: 'sample', inputPresent: true, canRemove: false });
+  const resolve = vi.spyOn(inbox, 'resolveInbox').mockRejectedValueOnce(new ApiError(409, { code: 'txt_inbox_changed' })).mockResolvedValue(undefined);
   const view = mount(ImportInboxPanel, { global: { plugins: [createPinia()], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
   await flushPromises(); await button(view, 'imports.reviewLeftover').trigger('click'); await flushPromises();
   await button(view, 'imports.removeDuplicate').trigger('click'); await flushPromises();
   expect(view.text()).toContain('imports.errors.proof'); expect(view.find('.import-confirmation').exists()).toBe(false);
-  expect(review).toHaveBeenCalledTimes(1); expect(resolve).toHaveBeenCalledExactlyOnceWith('old', 'confirm', expect.any(AbortSignal));
+  expect(review).toHaveBeenCalledTimes(1); expect(resolve).toHaveBeenCalledExactlyOnceWith('txt', 'old', 'confirm', expect.any(AbortSignal));
   await button(view, 'imports.reviewLeftover').trigger('click'); await flushPromises();
   expect(button(view, 'imports.removeDuplicate').attributes('disabled')).toBeDefined();
   await button(view, 'imports.releaseClaim').trigger('click'); await flushPromises();
-  expect(resolve).toHaveBeenLastCalledWith('new', 'release', expect.any(AbortSignal));
+  expect(resolve).toHaveBeenLastCalledWith('txt', 'new', 'release', expect.any(AbortSignal));
 });
 
 it('bulk admission retains selected versions and reports partial success', async () => {
@@ -192,4 +193,25 @@ it('reloads history when an import finishes during an in-flight history request'
   expect(list).toHaveBeenCalledTimes(2);
   expect(view.get('.import-list a').attributes('href')).toBe('/books/sample');
   expect(view.get('.import-list a').text()).toBe('bookDetail.title');
+});
+
+it('switches inbox format only after cancelling its proof and snapshots the EPUB image choice', async () => {
+  vi.spyOn(inbox, 'scanInbox').mockImplementation(async format => ({ directory: '/inbox', items: format === 'txt'
+    ? [{ name: 'Old.txt', size: 5, modifiedAt: 0, receiptId: 'old' }]
+    : [{ name: 'New.epub', size: 5, modifiedAt: 0 }] }));
+  vi.spyOn(inbox, 'listInboxClaims').mockImplementation(async format => ({ items: format === 'txt' ? [{ name: 'Old.txt', receiptId: 'old' }] : [] }));
+  vi.spyOn(inbox, 'reviewInbox').mockResolvedValue({ token: 'proof', expiresAt: '', name: 'Old.txt', receiptId: 'old', inputPresent: true, canRemove: true });
+  const cancel = vi.spyOn(inbox, 'cancelInboxReview').mockResolvedValue();
+  const pinia = createPinia(); const queue = useImportQueue(pinia);
+  const enqueue = vi.spyOn(queue, 'enqueue').mockImplementation(() => {});
+  const view = mount(ImportInboxPanel, { global: { plugins: [pinia], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  await flushPromises(); await button(view, 'imports.reviewLeftover').trigger('click'); await flushPromises();
+  await view.get('select').setValue('epub'); await flushPromises();
+  expect(cancel).toHaveBeenCalledWith('txt', 'proof', expect.any(AbortSignal));
+  expect(inbox.scanInbox).toHaveBeenLastCalledWith('epub', '', expect.any(AbortSignal));
+  expect(view.text()).not.toContain('Old.txt'); expect(view.text()).not.toContain('imports.confirmDuplicate');
+  await view.get('input[aria-describedby="inbox-image-hint"]').setValue(true);
+  await view.get('.import-inbox-list input[type="checkbox"]').setValue(true);
+  await button(view, 'imports.acquireSelected').trigger('click');
+  expect(enqueue).toHaveBeenCalledWith(['New.epub'], 'optimized');
 });

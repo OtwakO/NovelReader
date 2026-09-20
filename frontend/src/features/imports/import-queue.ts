@@ -54,7 +54,7 @@ export const useImportQueue = defineStore('file-import-queue', () => {
       if (retained.has(input)) continue;
       retained.add(input);
       const format = /\.epub$/i.test(name) ? 'epub' : 'txt';
-      const supported = /\.txt$/i.test(name) || (format === 'epub' && typeof input !== 'string');
+      const supported = /\.txt$/i.test(name) || format === 'epub';
       pending.push({ key: ++sequence, name, format, imageMode, reviewBeforeAdding: preferences.reviewBeforeAdding, size: typeof input === 'string' ? undefined : input.size,
         input: supported ? (typeof input === 'string' ? input : markRaw(input)) : undefined, state: supported ? 'queued' : 'attention',
         error: supported ? undefined : new ApiError(400, { code: 'import_invalid_input' }),
@@ -101,7 +101,7 @@ export const useImportQueue = defineStore('file-import-queue', () => {
           entry.receiptId = ticket.id;
           entry.state = 'transferring'; attempted = true;
           const result = entry.format === 'epub'
-            ? await acquireEPUB(ticket.id, entry.input as File, entry.imageMode, signal)
+            ? await acquireEPUB(ticket.id, entry.input!, entry.imageMode, signal)
             : await acquireTXT(ticket.id, entry.input!, signal);
           signal.throwIfAborted();
           entry.receiptId = result.receipt.id;

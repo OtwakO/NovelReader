@@ -31,7 +31,7 @@ type readerServices struct {
 	collectionLoader    *booksource.RemoteLoader
 	fileImports         *fileimport.Pool
 	fileAdmission       *fileimport.Admission
-	txtInbox            *txtInboxControls
+	fileInbox           *fileInboxControls
 }
 
 // readerAPI is bound to one runtime for its entire lifetime. Requests never
@@ -62,8 +62,9 @@ func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 	if a.txtStore != nil && services.fileImports != nil {
 		a.registerTXTReceiptRoutes()
 		a.registerEPUBImportRoutes()
-		if services.txtInbox != nil {
+		if services.fileInbox != nil {
 			a.registerTXTInboxRoutes()
+			a.registerEPUBInboxRoutes()
 		}
 	}
 	return a

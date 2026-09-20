@@ -98,12 +98,12 @@ func TestTXTInboxReviewRejectsActiveChangedAndInvalidatedApprovals(t *testing.T)
 	}
 	server.resumeReader(alice)
 	confirm(proof.Token) // Draining invalidates even if the same DB remains open.
-	first, err := server.services.txtInbox.beginIO()
+	first, err := server.services.fileInbox.beginIO()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first()
-	second, err := server.services.txtInbox.beginIO()
+	second, err := server.services.fileInbox.beginIO()
 	if err != nil {
 		t.Fatal(err)
 	}

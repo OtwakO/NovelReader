@@ -8,6 +8,8 @@ export function importErrorKey(cause: unknown): string {
     import_invalid_input: 'invalid', import_intake_busy: 'busy', import_ticket_not_found: 'uncertain', import_intake_unavailable: 'unavailable', import_state_changed: 'changed',
     epub_invalid_input: 'invalid', epub_too_large: 'size', epub_state_changed: 'changed', epub_receipt_not_found: 'missing', epub_interrupted: 'uncertain',
     epub_review_required: 'reviewRequired',
+    epub_inbox_pending: 'claim', epub_inbox_changed: 'proof', epub_inbox_review_expired: 'proof',
+    epub_inbox_busy: 'busy', epub_inbox_review_limit: 'proofLimit', epub_inbox_missing: 'inboxMissing',
     txt_invalid_input: 'invalid', txt_invalid_pattern: 'pattern', txt_too_large: 'size', txt_state_changed: 'changed',
     txt_receipt_not_found: 'missing', txt_ticket_not_found: 'uncertain', txt_interrupted: 'uncertain',
     txt_inbox_pending: 'claim', txt_inbox_changed: 'proof', txt_inbox_review_expired: 'proof',

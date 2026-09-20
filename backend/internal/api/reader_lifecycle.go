@@ -21,7 +21,7 @@ func (s *Server) quiesceReader(ctx context.Context, id readerstore.UserID) error
 	intakeErr := s.fileAdmission.Quiesce(ctx, id)
 	runtimeErr := s.runtimes.quiesce(ctx, id)
 	if runtimeErr == nil {
-		s.services.txtInbox.invalidate(id)
+		s.services.fileInbox.invalidate(id)
 	}
 	return errors.Join(intakeErr, runtimeErr, s.fileImports.Quiesce(ctx, id))
 }
@@ -36,7 +36,7 @@ func (s *Server) forgetReader(id readerstore.UserID) error {
 	if err := errors.Join(s.fileAdmission.Forget(id), s.fileImports.Forget(id)); err != nil {
 		return err
 	}
-	s.services.txtInbox.invalidate(id)
+	s.services.fileInbox.invalidate(id)
 	// The home has been removed and account admission disabled. Release the
 	// API barrier too; a stale request cannot create a missing reader home.
 	s.runtimes.resume(id)

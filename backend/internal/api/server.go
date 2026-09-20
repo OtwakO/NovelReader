@@ -73,8 +73,8 @@ func (s *Server) Close() error {
 	if s.runtimes != nil {
 		closeErr = errors.Join(closeErr, s.runtimes.Close())
 	}
-	if s.services != nil && s.services.txtInbox != nil {
-		s.services.txtInbox.clear()
+	if s.services != nil && s.services.fileInbox != nil {
+		s.services.fileInbox.clear()
 	}
 	return closeErr
 }
@@ -111,7 +111,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // NewAuthenticatedServer creates the production Reader Data boundary.
 func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, dataRoot string, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, browser sourceinteraction.Browser, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) (*Server, error) {
 	services := &readerServices{fetcher: rootSearcher.SharedFetcher(), processorCfg: processorCfg, auth: authHandler,
-		webViewProbe: webViewProbe, chineseConversion: conversion, txtInbox: newTXTInboxControls(),
+		webViewProbe: webViewProbe, chineseConversion: conversion, fileInbox: newInboxControls(),
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
 	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services, fileAdmission: fileimport.NewAdmission()}

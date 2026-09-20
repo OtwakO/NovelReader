@@ -29,6 +29,7 @@ func (s *Server) registerFileIntakeRoutes() {
 	register("PUT /api/imports/txt/uploads/{id}", s.handleUploadTXT)
 	register("POST /api/imports/txt/inbox/acquisitions/{id}", s.handleAcquireTXTInbox)
 	register("PUT /api/imports/epub/uploads/{id}", s.handleUploadEPUB)
+	register("POST /api/imports/epub/inbox/acquisitions/{id}", s.handleAcquireEPUBInbox)
 }
 
 // The TXT alias preserves its response/error contract; tickets are format-neutral.

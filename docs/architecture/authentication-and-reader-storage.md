@@ -14,7 +14,7 @@ Describe the current ownership, storage, authentication, credential, and backup 
 - HTTP input never supplies the authoritative Reader Account ID for Reader Data access. Authentication resolves identity first; readerstore resolves the home.
 - Ordinary authenticated Reader Data requests acquire the target reader runtime. Feature modules do not construct reader paths; backup/restore uses the separate boundary described below.
 
-`api.Server` owns authentication, health, backup/restore, TXT worker lifecycle and process shutdown. Each `readerRuntime` owns one `readerAPI` with routes registered at runtime construction; the handler binds directly to that runtime and borrows explicitly assembled `readerServices`. Authenticated requests acquire a lease, invoke the cached handler and release the lease—no Server copy or per-request dependency replacement. A replacement runtime gets a new handler and reader-specific cover scope. Candidate operations acquire their own additional lease so they can outlive the starting request. Standalone `NewServer` binds one reader explicitly and preserves its existing HTTP wrapper.
+`api.Server` owns authentication, health, backup/restore, shared TXT/EPUB worker lifecycle and process shutdown. Each `readerRuntime` owns one `readerAPI` with routes registered at runtime construction; the handler binds directly to that runtime and borrows explicitly assembled `readerServices`. Authenticated requests acquire a lease, invoke the cached handler and release the lease—no Server copy or per-request dependency replacement. A replacement runtime gets a new handler and reader-specific cover scope. Candidate operations acquire their own additional lease so they can outlive the starting request. Standalone `NewServer` binds one reader explicitly and preserves its existing HTTP wrapper.
 
 ## Reader home
 
@@ -38,9 +38,9 @@ data/users/<immutable-reader-id>/
 `reader.db` and ordinary files are portable plaintext Reader Data: BookSources, shelf books, chapters, progress, bookmarks, caches, preferences, source profiles, and file metadata. They remain inspectable without an application secret. Browser-only Reader preferences are outside
 this storage/backup boundary; see [Reader state](discovery-and-reading.md#reader-state).
 
-Reader schema epoch 15 composes library-owned shared metadata/state/bookmarks and independent last-read timestamps, BookSource-owned
-bindings/catalog/cache, managed TXT files/interpretations/indexes, EPUB receipts/preparations/section spans/resources and the other reader modules. Foreign keys are enabled on every pooled reader
-connection. Epoch-14 or older homes and portable archives are incompatible; there is no automatic migration or
+Reader schema epoch 16 composes library-owned shared metadata/state/bookmarks and independent last-read timestamps, BookSource-owned
+bindings/catalog/cache, managed TXT files/interpretations/indexes, EPUB receipts/preparations/section spans/resources/inbox claims and the other reader modules. Foreign keys are enabled on every pooled reader
+connection. Epoch-15 or older homes and portable archives are incompatible; there is no automatic migration or
 reset. Preservation and rollback instructions live in the [development reset runbook](../runbooks/development-data-reset.md).
 
 The backend inbox capability uses `data/inbox/<reader-id>/`, outside replaceable homes and portable Reader Data. `FileStore` resolves it from the home identity; callers do not supply another reader's path. This permits bind mounts without moving them during restore. Unclaimed inputs are not deleted by home replacement/removal. TXT intake, review, reading and removal are connected. Custom patterns and explicit published-reparse controls are available through the shared interpretation workflow. See the [multi-provider plan](../plans/2026-09-10-multi-provider-library.md).
@@ -190,8 +190,7 @@ Preparation failures expose allowlisted categories, not raw parser/filesystem me
 Portable-encoder performance notices are separate from content diagnostics and do not
 set `needsReview`. Pending optimized receipts describe the current encoder capability;
 ready previews use persisted actual-backend evidence, also after restore. The frontend
-displays these notices even when review-before-adding is disabled. EPUB inbox
-acquisition remains pending.
+displays these notices even when review-before-adding is disabled. EPUB server-inbox acquisition uses the same preparation queue and review flow.
 
 ### TXT browser upload HTTP
 
@@ -250,6 +249,24 @@ bind approvals to the exact database lifetime; cache eviction or reader replacem
 a proof before its maximum expiry. Runtime drain invalidates reader proofs before restore/removal;
 shutdown clears them after controls finish. Client JSON/flags never authorize deletion. Limits are
 recorded in the [accepted inbox checkpoint](../plans/2026-09-10-multi-provider-library.md#inbox-http-checkpoint).
+### EPUB inbox integration
+
+The same inbox operations are exposed under `/api/imports/epub`, with format-specific
+errors and `imageMode=original|optimized` on acquisition (default original). Acquisition
+uses a shared admission ticket, then queues generation 1 through the same path as browser
+uploads. A claim blocks implicit reimport; `epub_inbox_cleanup_pending` reports successful
+acquisition with external cleanup still requiring review. Review checks the durable claim
+before testing active admission and settles only that receipt. It never runs whole-home
+recovery alongside workers.
+
+TXT/EPUB share bounded filesystem mechanics in `internal/inboxfiles`, and one HTTP
+control/proof owner. Tokens are reader- and format-bound. Each store owns its journal,
+transaction/finalization rules and deletion authorization. EPUB preserves `finalizing`
+before rename; partial cross-device copies remain `receiving`. Both journals survive
+receipt discard, but are stripped from portable copies and rejected if retained.
+The inbox UI switches format with separate scan/claim pages and abandons the old proof
+before switching. Selected EPUB names enter the existing queue with a captured image policy.
+
 ### Shared file-import frontend ownership
 
 `frontend/src/features/imports/ImportWorkspace.vue` belongs to the dedicated Local Import page:

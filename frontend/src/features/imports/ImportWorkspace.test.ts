@@ -41,7 +41,7 @@ async function choose() {
 
 it('keeps only a Local import link on the shelf while background additions still refresh books', async () => {
   const list = vi.spyOn(books, 'listBooks').mockResolvedValue([]);
-  const inbox = vi.spyOn(api, 'scanTXTInbox');
+  const inbox = vi.spyOn(admission, 'scanInbox');
   const router = await setup(ShelfView);
   expect(view!.find('input[type="file"]').exists()).toBe(false);
   expect(view!.findComponent(ImportWorkspace).exists()).toBe(false);
@@ -58,7 +58,7 @@ it('keeps only a Local import link on the shelf while background additions still
 it('opts into automatic addition from the dedicated page and offers Read without opening review or scanning inbox', async () => {
   vi.spyOn(api, 'getTXTReceipt').mockResolvedValue(receipt('ready'));
   const accept = vi.spyOn(api, 'acceptTXT').mockResolvedValue({ libraryId: 'book' });
-  const inbox = vi.spyOn(api, 'scanTXTInbox');
+  const inbox = vi.spyOn(admission, 'scanInbox');
   const preview = vi.spyOn(api, 'previewTXT');
   const router = await setup(ImportsView);
   expect(view!.get<HTMLInputElement>('.import-upload-bar .import-preference input').element.checked).toBe(true);

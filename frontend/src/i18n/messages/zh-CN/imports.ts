@@ -50,7 +50,7 @@ export default {
   batchResult: '已添加 {added} 项 · 未成功 {failed} 项', bulkConfirm: '确认添加这 {count} 项所选的就绪解析结果？书名默认使用去掉 .txt 的文件名。如需修改书名或作者，请单独查看。',
   confirmAdd: '加入书架', noResults: '本页没有文件。请选择本机文件、使用服务器收件箱，或更改状态筛选。',
   selectFile: '选择 {name}', openBook: '打开书籍', review: '检查文件', back: '返回本地导入',
-  inbox: '服务器收件箱', inboxHint: '打开导入页面或扫描前，请先完成文件复制。自动复制程序应先使用临时文件名，完成后再改为 .txt。接收文件会将其移入托管存储。',
+  inbox: '服务器收件箱', inboxHint: '打开导入页面或扫描前，请先完成文件复制。自动复制程序应先使用临时文件名，完成后再改为 .txt 或 .epub。接收文件会将其移入托管存储。',
   inboxDirectory: '将文件放入此文件夹', inboxFiles: '可导入文件',
   scan: '扫描收件箱', acquireSelected: '接收所选（{count}）', inboxEmpty: '本页没有已完成的 TXT 或 EPUB 文件。',
   unavailableFile: '无法接收此文件', claimRequired: '请先处理已有收件箱记录，再次导入。',

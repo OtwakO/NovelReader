@@ -296,19 +296,36 @@ The HTTP layer connects EPUB browser acquisition, lightweight receipt history/st
 
 Extend the existing import workspace rather than redesigning it. One queue owns TXT/EPUB admission, transfer, polling and reader-reset cancellation; a small concrete format boundary owns receipt-state interpretation and version-qualified publication. Add EPUB transport and a cohesive EPUB review component; reuse existing controls, layout, task cancellation and localization. Keep original images as the default and snapshot the optional optimization choice when files are selected. Encoder notices remain visible independently of content-review policy. Receipt history uses a format selector so each format retains correct bounded server pagination, rather than inventing a merged cursor. Keep TXT routes/review and server inbox working; EPUB inbox acquisition is a subsequent slice. Mixed-format queue ownership/automatic-add guards, review/retry/discard UI, type checks and production build pass. A real Chromium check on a fresh isolated epoch-15 backend (forced portable encoder) exercised optimized upload, saved review, desktop/mobile layout, draft discard, publication, authorized WebP decoding and cross-section links. It exposed a stale client PNG/JPEG-only MIME allowlist; the structured-prose boundary now also accepts the server-supported WebP type, with a regression shown failing before the fix. Resource URL, dimension, SVG and node checks remain unchanged. Final affected tests (53), scoped lint, production build/typecheck and whitespace checks passed.
 
-## Server-inbox integration — storage verified, application integration pending
+## Server-inbox integration — implemented at epoch 16
 
-Code review favors **shared filesystem mechanics with format-owned claims and acquisition/recovery**, rather than the previously suggested shared journal/state machine. TXT atomically marks acquisition complete and queues an interpretation (`txtstore/interpretation.go`); EPUB deliberately persists `finalizing` before installation and recovers it differently (`epubstore/receive.go`, `recovery.go`). Unifying these lifecycles would require transaction callbacks/adapters without removing the format-specific rules. Filename validators accept disjoint `.txt`/`.epub` names, so separate journals do not introduce competing claims for the same accepted filename. A unified UI does not require unified persistence.
+Accepted ownership is implemented: `internal/inboxfiles` shares bounded scanning, copying and
+identity/content evidence; TXT/EPUB stores own claims, acquisition transactions, recovery and
+deletion authorization. Format-specific HTTP routes preserve TXT compatibility and share one
+bounded reader/format-qualified proof owner and the existing admission/worker lifecycle.
+EPUB acquisition queues preparation through the browser acquisition path. Claim-first review
+rejects active acquisition and settles only its receipt. No second scheduler or generic state machine.
 
-Implemented storage boundary: `internal/inboxfiles` shares cohesive anchored file inspection, bounded copying/scanning and content/identity evidence used by TXT and EPUB; receipt transactions, claim ownership, finalization and cleanup authorization remain inside each store. No plugin registry, second admission pool or generic import state machine. Preserve existing TXT HTTP contracts. The unregistered schema addition is an EPUB-local inbox claim table, not a TXT table rename or new receipt states. Claims must survive receipt discard, be inserted atomically with acquisition intent, and be stripped from portable copies/rejected if retained. Recovery must not delete external inbox files. Explicit leftover removal must revalidate server-owned review evidence against both current input and retained original; copy work stays outside the mutation gate. EPUB direct rename must persist expected size and `finalizing` before moving bytes.
+The inbox UI uses a TXT/EPUB selector consistent with history, abandons old proof before switching,
+and captures original-by-default image policy for selected EPUB names. Epoch 16 composes the EPUB
+claim table and portable stripping/rejection hooks. Claims survive discarded receipts but do not
+carry external cleanup authority into restored homes. Existing epoch-15/older homes and backups
+are untouched; no migration, reset or deployment was performed. Rollback requires the prior
+application and matching preserved data, not a backward conversion.
 
-The user accepted this ownership direction after architecture review. Storage now supports atomic claim/receipt intent, same-filesystem rename, bounded cross-device copy, claim-backed scans, single-receipt acquisition settlement, and explicit review/confirmation/release. Claims survive receipt discard. Direct rename persists `finalizing` first; a cross-device failure moves back to `receiving` before copying, because a partial copy must not be recoverable as completed installation. Acquisition itself neither prepares nor publishes. Private inbox DDL and portable strip/reject hooks are tested explicitly but are not composed into `ReaderSchema` yet. Existing TXT callers use the shared mechanics without a second admission owner. Epoch 15 remains current; the inbox DDL and portable hooks stay unregistered until that complete boundary is ready. Before implementation, settle mixed-format inbox presentation/API scope and use the existing original-by-default EPUB image policy unless changed explicitly. Any eventual epoch-16 cutover must include the complete acquisition/review/recovery/portable boundary, use fresh test homes, and preserve older homes/backups without migration/reset. Reconsider shared journal ownership only if actual cross-format claim operations require it.
+Verification: affected backend race tests passed for API, epubstore, fileimport, readerstore,
+backup and cmd/server. The API tests exercise actual admission/preparation, reader/format token
+isolation, active-claim guards, settlement and invalidation. Snapshot/replacement tests verify
+claims disappear from restored data while the live source retains them. Frontend typecheck,
+51 affected tests and scoped lint pass. AFT timed out; compiled checks are authoritative.
+No new real-browser inbox or full persistence-journey proof is claimed yet.
 
 ## Next Action
 
-Connect the verified EPUB inbox storage to API/lifecycle/UI using the completed storage-owned acceptance and shared import service. Integrate reader-bound review tokens and draining, require claim-first inactive-admission checks before single-receipt settlement, and queue/wake preparation after acquisition as browser intake does. Compose inbox DDL plus portable strip/reject hooks together at the eventual epoch-16 cutover; do not register only the new table. Keep storage paths and private preparation maps behind `epubstore`; reading must not rerun preparation or image validation. Publication ownership/cleanup is now integrated with the library owner; continue to avoid a temporary reading bypass.
-
-Extend the real-backend browser proof to backup/restore, published-book removal and restart recovery. Browser acquisition → review → publication → reading (including optimized images and cross-section links) is now verified with a synthetic EPUB; the complete persistence journey is not yet claimed. No deployment or live-data reset is authorized.
+Extend the isolated real-backend browser proof through server-inbox selection, backup/restore,
+restart recovery and published-book removal. Fix only defects exposed by that journey, then
+reconcile milestone completion. Browser upload → review → publication → reading already has
+synthetic EPUB proof; the complete persistence journey is not yet claimed. No deployment or
+live-data reset is authorized.
 
 ## Verification
 

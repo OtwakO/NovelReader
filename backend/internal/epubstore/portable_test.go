@@ -98,6 +98,11 @@ func TestPortablePreparationOwnership(t *testing.T) {
 			if err = source.db.QueryRow(`SELECT stage_name FROM epub_preparations WHERE file_id=?`, receipt.ID).Scan(&localStage); err != nil {
 				t.Fatal(err)
 			}
+			if phase == "published" {
+				if _, err := source.db.Exec(`INSERT INTO epub_inbox_claims(name,receipt_id) VALUES(?,?)`, "synthetic.epub", receipt.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
 			snapshot := filepath.Join(t.TempDir(), "snapshot")
 			if err = manager.SnapshotHome(t.Context(), alice, snapshot); err != nil {
 				t.Fatal(err)
@@ -105,6 +110,12 @@ func TestPortablePreparationOwnership(t *testing.T) {
 			liveAfter, err := source.GetPreparation(t.Context(), receipt.ID, attempt.Generation)
 			if err != nil || liveAfter != liveBefore {
 				t.Fatal("live attempt changed", err)
+			}
+			if phase == "published" {
+				var count int
+				if err := source.db.QueryRow(`SELECT COUNT(*) FROM epub_inbox_claims`).Scan(&count); err != nil || count != 1 {
+					t.Fatalf("live claims=%d %v", count, err)
+				}
 			}
 			var unchangedStage string
 			if err = source.db.QueryRow(`SELECT stage_name FROM epub_preparations WHERE file_id=?`, receipt.ID).Scan(&unchangedStage); err != nil || unchangedStage != localStage {
@@ -127,6 +138,10 @@ func TestPortablePreparationOwnership(t *testing.T) {
 			}
 			t.Cleanup(func() { restoredHome.Close() })
 			restored := NewStore(restoredHome.DB(), restoredHome.Files())
+			var copiedClaims int
+			if err := restored.db.QueryRow(`SELECT COUNT(*) FROM epub_inbox_claims`).Scan(&copiedClaims); err != nil || copiedClaims != 0 {
+				t.Fatalf("restored claims=%d %v", copiedClaims, err)
+			}
 			var copiedStage string
 			if err = restored.db.QueryRow(`SELECT stage_name FROM epub_preparations WHERE file_id=?`, receipt.ID).Scan(&copiedStage); err != nil || copiedStage != "" {
 				t.Fatal("local staging authority retained", err)

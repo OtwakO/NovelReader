@@ -16,17 +16,6 @@ import (
 func inboxStore(t *testing.T) (*Store, *os.Root, *os.Root) {
 	t.Helper()
 	store, managed := receiptStore(t)
-	tx, err := store.db.BeginTx(t.Context(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = initializeInboxSchema(tx); err != nil {
-		tx.Rollback()
-		t.Fatal(err)
-	}
-	if err = tx.Commit(); err != nil {
-		t.Fatal(err)
-	}
 	inbox, err := store.files.OpenInbox()
 	if err != nil {
 		t.Fatal(err)
