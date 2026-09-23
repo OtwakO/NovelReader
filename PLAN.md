@@ -126,7 +126,7 @@ The completed [action-affordance pass](docs/plans/2026-09-16-action-affordances.
 aligns book-detail/reparse controls, fills the desktop prose preview, and updates locale/brand presentation.
 The [reader-first presentation pass](docs/plans/2026-09-16-reader-first-presentation.md) is complete: clearer typography/navigation, reader-first Settings and task guidance, retaining current fonts and parchment colors.
 [Import history and review](docs/plans/2026-09-16-import-history-and-review.md) fixes hidden/stale persisted imports and adds default-on review before shelf admission, shared with device-local Settings. Retention remains explicit discard/removal; chapter-click previews are deferred.
-Initial manual import feedback is recorded under Active Work; fixes await authorization.
+Initial manual import feedback and diagnosis progress are recorded under Active Work; fixes remain pending.
 
 ## Active Work
 
@@ -134,7 +134,7 @@ Initial manual import feedback is recorded under Active Work; fixes await author
 
 [Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted application-managed cache direction and immediate navigation feedback; documentation only, implementation pending authorization and narrow identity/freshness contract checks. TTL and recent-book retention values remain undecided.
 
-[Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) — recorded user reports and review findings; documentation only, fixes not yet authorized. Covers EPUB preference persistence/preview, mixed-format receipt filters, and scoped maintainability findings.
+[Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) — follow-up authorized; shared device-local EPUB image preference accepted, implementation pending. Preview diagnosis reproduces empty section titles and an image-only initial sample on the private fixture; remedy selection remains pending. Mixed-format receipt filters and scoped maintainability findings remain separately scoped.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 

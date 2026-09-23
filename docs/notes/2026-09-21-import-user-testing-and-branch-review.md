@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-Recorded for follow-up only. **No fixes, implementation design, schema change, or expanded preview contract is authorized by this record.** The user requested documentation first and no implementation yet. No subagents were used.
+Follow-up is now authorized in small, focused increments. The user accepted one device-local EPUB image-optimization preference shared by browser and server-folder intake, preserving queued choices. EPUB preview work is diagnosis-first: understand the root cause before selecting a remedy or expanding the preview contract. Mixed-format history/filter contracts remain unsettled. No schema change or expanded preview contract has been approved. No subagents were used.
 
 Branch reviewed: `feat/multi-provider-library`, HEAD `e68fbb0`; comparison with `main` merge-base `070246995b92a9dc597e6a56383a8f30479aebc1`. The quick review sampled shared library/reading, TXT/EPUB intake, lifecycle coordination, persistence, backup/restore and frontend state across a 496-file branch diff. It was not an exhaustive audit. The completed [EPUB milestone](../plans/2026-09-17-epub-support.md) remains historical verification, not proof that subsequent real-user cases work.
 
@@ -13,15 +13,18 @@ Branch reviewed: `feat/multi-provider-library`, HEAD `e68fbb0`; comparison with 
 - Report: **最佳化 EPUB 圖片** resets across page navigation or refresh, unlike **加入書架前先確認**.
 - Code evidence: `frontend/src/features/imports/ImportQueuePanel.vue` owns local `optimizeImages: false`; `ImportInboxPanel.vue` separately owns local `optimize: false`. These controls are not using the persisted import-preference owner.
 - Desired outcome: retain the user's image-mode preference across navigation and refresh. Browser/inbox consistency should be considered together. Already queued imports must keep their captured image mode rather than change retroactively.
-- Status: user-observed and consistent with inspected code; no new browser reproduction or fix. Preference scope/default and any shared-control decision remain unsettled.
+- Accepted direction: one device-local preference shared by browser and server-folder controls, using the existing import-preference owner and retaining original images as the default. Queued imports keep their captured mode. Implementation and verification remain pending.
 
 ### U2 — EPUB preview shows no titles, chapter contents or images
 
 - Report: EPUB review preview shows no ToC titles, chapter contents, or images.
 - Relevant path: `frontend/src/features/imports/EPUBReviewView.vue`, `frontend/src/api/epub-imports.ts`, `backend/internal/epubstore/review.go`, and the EPUB preview HTTP handler.
 - Important distinction: the current review template is designed to render a paged **section-heading inventory** and a bounded **plain-text sample**, not a full hierarchical publication ToC, selectable chapter reader, or image preview. It has no image-rendering path. Chapter-click preview was previously deferred (see the completed import-history handoff linked from `PLAN.md`).
-- Missing available headings/sample is a reported functional issue to reproduce against the affected receipt/book. Missing images and full chapter browsing also expose an expectation/scope gap; do not silently classify everything as either a parser bug or intended behavior.
-- Earlier synthetic browser evidence did show a prose sample; it does not invalidate this report or establish real-book coverage. Cause, affected inputs, receipt/preparation state, and response contents are not yet established.
+- The installed private EPUB reproduces missing titles and the initial empty sample through fresh acquisition → preparation → `epubstore.Review`, using a temporary reader home. This is backend-boundary evidence, not a reproduction against the user's existing receipt or a new browser check.
+- **Title cause:** `epub/normalize.go` derives section titles solely from XHTML `head/title`. The inspected source sections have empty title elements; sections 1 and 25 have body headings. All 1,737 saved section titles are empty. Authored NCX navigation labels and targets are separately retained, but `epubstore.Review` returns the section-title inventory, not that navigation. `EPUBReviewView.vue` displays those empty strings without a fallback. There is no evidence of titles being lost in storage or frontend transport.
+- **Sample cause:** `Review` samples only the section at the page's `start` index. Section 0 contains one image and no text; its plain-text projection is therefore empty. Explicit review starting at section 1 returns 301 sample bytes, and section 25 returns 4,094 bytes with truncation. Text preparation is working in those sections; the initial selection does not provide a useful prose sample for this book.
+- **Image absence:** the prepared first section retains its image binding. The review DTO/template supports only a text sample, not image resources; image absence is not evidence of failed image preparation.
+- These findings separate title presentation, sample selection and richer preview scope. A remedy is not yet selected; do not silently reinterpret authored navigation as one title per section, change persisted titles/revisions, or expand preview resource access.
 - No real EPUB needs to be committed for investigation. Keep any supplied private fixture local/ignored.
 
 ### U3 — Received-files format selector needs All
@@ -72,6 +75,16 @@ No measured performance defect justified caching, more workers, or speculative a
 - AFT diagnostics failed at the transport layer; not a clean diagnostics result.
 - No new full-repository suite, race run, or browser reproduction was performed during that review. None of these passing checks reproduces U2 or verifies the requested U1/U3/U4 changes.
 
+## Preview diagnosis verification
+
+The ignored local harness is `reference/epub-preview-diagnosis/review_test.go`, injected with a Go overlay so no diagnostic test or private fixture is added to the default suite. From `backend/`, set `NOVELREADER_EPUB_FIXTURE` to the absolute path of the installed private EPUB and run:
+
+```sh
+go test -overlay ../reference/epub-preview-diagnosis/overlay.json ./internal/epubstore -run '^TestLocalPreviewDiagnosis$' -count=1 -v
+```
+
+With that environment variable set, the diagnostic intentionally fails assertions for nonempty titles at starts 0, 1 and 25, and for a nonempty sample at start 0. It logs counts/booleans only, not book text, image bytes or archive member paths. Read-only ZIP/XML inspection independently confirmed empty source title elements, body headings in sections 1/25 and the image-only initial section. An initial harness invocation used an invalid receipt ID and failed before preparation; the corrected harness uses the existing generated-ID convention. No production code, original EPUB or existing reader data was changed. No frontend/browser verification was run during diagnosis.
+
 ## Next action
 
-Wait for user authorization. When authorized, reproduce the reported EPUB preview with the affected input/state and distinguish missing existing data from expanded preview expectations before choosing a fix. Resolve shared preference and mixed-history UX/contracts explicitly. Keep any accepted work small and root-cause-driven; link its plan here only if the eventual work warrants one.
+Present the reproduced preview causes and settle the smallest appropriate preview behavior before implementing it. The shared device-local image preference is already accepted and can be implemented independently. Resolve mixed-history/filter contracts before U3/U4 implementation; keep reader readability cleanup separate unless a functional correction requires it. Update this note as fixes land; create a dedicated plan only if the accepted work warrants one.
