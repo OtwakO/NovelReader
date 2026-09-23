@@ -130,6 +130,8 @@ Initial manual import feedback is recorded under Active Work; fixes await author
 
 ## Active Work
 
+[Continue Reading layout prototypes](frontend/prototypes/continue-reading/README.md) and [bookshelf-card layout prototypes](frontend/prototypes/bookshelf-cards/README.md) — disposable synthetic comparisons, not production UI changes. No layout selection or implementation is recorded.
+
 [Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted application-managed cache direction and immediate navigation feedback; documentation only, implementation pending authorization and narrow identity/freshness contract checks. TTL and recent-book retention values remain undecided.
 
 [Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) — recorded user reports and review findings; documentation only, fixes not yet authorized. Covers EPUB preference persistence/preview, mixed-format receipt filters, and scoped maintainability findings.
