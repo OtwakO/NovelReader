@@ -250,8 +250,8 @@ Requirements: Go, Node.js, and npm.
 The internal image optimizer can use portable Go encoding without native codecs.
 Native encoding is substantially faster and needs loadable `libwebp` and `libwebpdemux`
 (`libwebp.so` / `libwebpdemux.so` on Linux). The application container provisions these
-and checks actual native encoding during its build. EPUB optimization is not yet exposed
-in Local Import; see the [active EPUB plan](docs/plans/2026-09-17-epub-support.md).
+and checks actual native encoding during its build. Local Import offers optional EPUB image
+optimization for browser and server-folder intake; see [Local TXT and EPUB imports](#local-txt-and-epub-imports).
 
 ```bash
 cd frontend

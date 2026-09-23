@@ -64,7 +64,7 @@ Candidate operations are transient, reader-owned, bounded, reconnectable over SS
 ## Catalog synchronization
 
 Catalog availability is separate from shelf existence. The synchronization workflow below is
-BookSource-owned; TXT reads its already-published index without crawling or reanalysis.
+BookSource-owned; TXT and EPUB read their published indexes without crawling or reanalysis.
 
 - Cached chapters are read from SQLite.
 - A missing catalog starts or joins one active synchronization for that book.
@@ -74,8 +74,8 @@ BookSource-owned; TXT reads its already-published index without crawling or rean
 - Successful catalog state leaves process memory; failures remain observable until explicit retry.
 - Book deletion and source switching invalidate/drain old work for prompt cleanup, while the transactional source/version guard provides correctness.
 
-`GET /api/books/{id}/chapters` returns `{chapters, contentRevision}` for both providers. Common
-chapter entries contain only `index`, `title`, and `isVolume`; native IDs, URLs and file paths stay
+`GET /api/books/{id}/chapters` returns `{chapters, contentRevision}` for BookSource, TXT and EPUB. Common
+chapter entries contain `index`, `title`, `isVolume` and optional `auxiliary` membership; native IDs, URLs and file paths stay
 behind the reading interface. BookSource may instead return `202` synchronization state or a typed failure. `POST /api/books/{id}/chapters/sync` retries a retained failure; it does not force-refresh an already ready catalog.
 
 See the completed [catalog synchronization plan](../plans/2026-08-31-catalog-synchronization.md).
@@ -87,9 +87,9 @@ revision-qualified locations above the native stores. Its private provider inter
 catalog lookup, document opening and chapter lookup; acquisition, source management and file
 removal are separate operations. HTTP still owns authorization and issues image resource URLs.
 
-Both BookSource and TXT open chapters as versioned **Prose Documents**. BookSource supplies ordered
+BookSource, TXT and EPUB open chapters as versioned **Prose Documents**. BookSource supplies ordered
 paragraph and inline-image blocks; TXT reads one saved byte range and supplies literal paragraphs,
-without passing the original through HTML extraction or source-specific text cleanup. This is an explicit current modality, not a universal media-block model: future image-sequence or audio reading should add their own Reading Document and renderer behavior behind [decision 0002](../decisions/0002-reading-documents-and-resources.md).
+without passing the original through HTML extraction or source-specific text cleanup. EPUB supplies prepared structured prose with semantic formatting, internal links and illustrations. This is an explicit current modality, not a universal media-block model: future image-sequence or audio reading should add their own Reading Document and renderer behavior behind [decision 0002](../decisions/0002-reading-documents-and-resources.md).
 
 Inline-image blocks expose only opaque NovelReader-controlled Content Resource references. Source image origins remain backend-only in the bounded chapter cache. Authenticated chapter-image endpoints resolve remote resources from the active Exact Source Binding with source headers, cookies, request options, sessions, and portable decoding; bounded `data:image/...` resources are decoded locally through the same resource path. Existing text-only cached chapters without stored blocks are translated into paragraph blocks at the response seam rather than requiring a cache migration.
 
@@ -100,7 +100,7 @@ Image references carry the interpretation revision and cannot resolve images fro
 The frontend loader is bound to one book/revision and rejects mismatched responses before retention
 or display.
 
-The frontend Reading Session owns chapter loading, navigation, common chrome, recovery, and progress coordination. Its candidate structured-content lifecycle commits revision-bound note visits with displayed content, retains a transient nested return stack, and restores scoped anchors before permitting progress. Missing anchors roll back the prior view. Same-main-section note visits do not update main progress, and focused links/tables retain native interaction. Client transport admits version-1 and structured version-2 prose through separate strict parsers. A shared Go-projected synthetic fixture and composed desktop/mobile browser checks cover this boundary; current backend providers still emit version 1 and EPUB provider/resource integration remains unfinished in the [EPUB plan](../plans/2026-09-17-epub-support.md). A focused prose renderer owns paragraph and inline-image presentation. Images are responsive and centered; meaningful source alternative text is used accessibly and shown beneath the image as a centered caption. An image failure remains local to its figure and does not replace readable chapter prose.
+The frontend Reading Session owns chapter loading, navigation, common chrome, recovery, and progress coordination. Its structured-content lifecycle commits revision-bound note visits with displayed content, retains a transient nested return stack, and restores scoped anchors before permitting progress. Missing anchors roll back the prior view. Same-main-section note visits do not update main progress, and focused links/tables retain native interaction. Client transport admits version-1 and structured version-2 prose through separate strict parsers. A shared Go-projected synthetic fixture and composed desktop/mobile browser checks cover this boundary; BookSource/TXT emit version 1, while the integrated EPUB provider emits structured version 2. The completed [EPUB plan](../plans/2026-09-17-epub-support.md) records provider/resource integration and its verification limits. A focused prose renderer owns paragraph and inline-image presentation. Images are responsive and centered; meaningful source alternative text is used accessibly and shown beneath the image as a centered caption. An image failure remains local to its figure and does not replace readable chapter prose.
 
 ## Reader state
 
@@ -115,8 +115,7 @@ valid: bookmarks retain it, and the UI uses the one-based section number when no
 means main membership; section indices are not renumbered when selecting main reading order.
 The frontend also excludes auxiliary sections from ordinary navigation, prefetch, saved-resume
 fallback and local progress updates. Current TXT/BookSource providers do not emit auxiliary sections;
-EPUB emits saved main/auxiliary membership through its registered provider. Import UI and real-browser
-journey verification remain tracked in the [EPUB plan](../plans/2026-09-17-epub-support.md).
+EPUB emits saved main/auxiliary membership through its registered provider. Browser/inbox import UI and an isolated real-browser import, reading, backup/restore, restart and removal journey are complete; evidence and limits are recorded in the [EPUB plan](../plans/2026-09-17-epub-support.md).
 Optional catalog `navigation` is a contents hierarchy, never the reading sequence. Its authored-versus-section-list provenance, grouping/unavailable entries and revision-qualified targets survive client parsing. Reader and Book Detail share an expanded semantic outline with ancestor-preserving search; selection reuses qualified reader links or the existing anchor/note lifecycle. Display conversion preserves canonical labels and targets. Legacy catalogs retain the flat TOC. EPUB emits its saved authored navigation (or explicit section fallback); TXT/BookSource omit it.
 EPUB catalogs read saved preparation metadata; location/progress and single-content reads use the
 indexed section without whole-book JSON decoding. Storage checks publication/revision/current ready
@@ -134,7 +133,7 @@ Shelf metadata and native display inputs are read in one SQLite snapshot with a 
 queries; source cover revisions remain batched. Native bindings are not required on a generic item.
 
 `library_items.last_read_at` / JSON `lastReadAt` is the server UTC Unix-millisecond time of the
-last accepted reading-progress write; zero means never read. It is library-owned, shared by TXT and
+last accepted reading-progress write; zero means never read. It is library-owned, shared by TXT, EPUB and
 BookSource projections, and preserved in portable data. The Reader queues progress after displaying
 a main chapter even at the initial/unchanged position, then through its existing progress lifecycle.
 Admission, metadata/catalog updates, bookmarks, source switching, reparse and content fetch/prefetch
