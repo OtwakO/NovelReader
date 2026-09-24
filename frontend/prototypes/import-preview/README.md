@@ -18,10 +18,10 @@ Use the bottom arrows or keyboard left/right to switch. Choose desktop/mobile wi
 
 The app's existing tokens/button styles and placeholder artwork are referenced, not copied. The surrounding review context is simplified, not a proposal to redesign the entire import page. Static isolation follows the repository's existing prototype convention and avoids putting temporary controls into live import workflows.
 
-## Accepted intent; layout undecided
+## Selected direction: B
 
 The user wants whole selected TXT chapters, not the current 4 KiB sample, in import and re-analysis where they can reuse the same presentation without merging approval workflows. Center every displayed image in preview and reader for manual evaluation. Share preview appearance/interaction while retaining format-owned loading and authorization. Do not build a generic second reader.
 
-No layout has been selected. No production centering change, TXT endpoint extension or shared component has been implemented here. Prototype chapter text is synthetic and repeated to exercise scrolling, not a test of real TXT loading.
+The user selected B, including its refined persistent title/author, arrow navigation and 250px desktop contents column. Production work is tracked in the [unified import-preview plan](../../../docs/plans/2026-09-25-unified-import-preview.md). No production centering change, TXT endpoint extension or shared component has been implemented here. Prototype chapter text is synthetic and repeated to exercise scrolling, not a test of real TXT loading.
 
 Delete this directory to remove the mock. Nothing imports it into production; implement the selected design properly rather than promoting this code verbatim.

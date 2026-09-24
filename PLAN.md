@@ -133,7 +133,7 @@ The [reader-first presentation pass](docs/plans/2026-09-16-reader-first-presenta
 
 ## Active Work
 
-[Unified import-preview prototypes](frontend/prototypes/import-preview/README.md) — disposable A/B/C layout comparisons before selecting a shared TXT/EPUB UI. Whole selected TXT chapters for import/re-analysis and centering all displayed reader/preview images are requested; production implementation has not started.
+[Unified import preview](docs/plans/2026-09-25-unified-import-preview.md) — B selected: visible 250px desktop contents, persistent title/author and arrow navigation. Shared TXT/EPUB presentation, whole selected TXT chapters for import/re-analysis and all-image centering are accepted; production implementation is pending.
 
 [Continue Reading layout prototypes](frontend/prototypes/continue-reading/README.md) and [bookshelf-card layout prototypes](frontend/prototypes/bookshelf-cards/README.md) — disposable synthetic comparisons, not production UI changes. No layout selection or implementation is recorded.
 
