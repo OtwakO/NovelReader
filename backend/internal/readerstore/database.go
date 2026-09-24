@@ -23,8 +23,8 @@ var ErrReaderSchemaMismatch = errors.New("readerstore: reader database schema mi
 type ReaderSchema struct {
 	Initialize            func(*sql.Tx) error
 	InitializeCredentials func(*sql.Tx) error
-	// PreparePortable removes installation-local operational authority from a
-	// copied database, never the live home. The caller owns the transaction.
+	// PreparePortable removes disposable caches and installation-local operational
+	// authority from a copied database, never the live home. The caller owns the transaction.
 	PreparePortable func(context.Context, *sql.Tx) error
 	// ValidatePortableFiles checks feature-owned references in a copied home.
 	// The caller owns the read-only transaction and confined files root. This

@@ -78,5 +78,13 @@ func preparePortableDatabase(ctx context.Context, filename string, schemas []Rea
 			return err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	// DELETE alone can leave discarded payloads in unused pages. Compact the
+	// independent staged database, never the live home, before it is published.
+	if _, err := db.ExecContext(ctx, `VACUUM`); err != nil {
+		return fmt.Errorf("readerstore: compact portable database: %w", err)
+	}
+	return nil
 }

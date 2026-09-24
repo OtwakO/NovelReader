@@ -141,7 +141,7 @@ Continue Reading's narrow-screen reflow (`947a2b8`) and the bookshelf cover-gall
 
 ## Active Work
 
-[Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted end-to-end memory/IndexedDB/backend caching, two-chapter forward preparation/renewal, immediate feedback and portable-cache exclusion. Policy values are settled in the plan; documentation only, with implementation awaiting authorization and concrete resource-lifetime, execution-ownership and identity/freshness contracts.
+[Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted end-to-end memory/IndexedDB/backend caching, two-chapter forward preparation/renewal, immediate feedback and portable-cache exclusion. Implementation is authorized and underway: portable BookSource cache exclusion is implemented and tested. Cached reading still awaits concrete resource-lifetime, execution-ownership and identity/freshness contracts; settled policy and increment verification live in the plan.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 

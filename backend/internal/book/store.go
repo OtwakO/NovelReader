@@ -149,7 +149,19 @@ func NewStore(db *sql.DB) *Store {
 
 // ReaderSchema returns the current bookshelf schema module for fresh initialization and validation.
 func ReaderSchema() readerstore.ReaderSchema {
-	return readerstore.ReaderSchema{Initialize: func(tx *sql.Tx) error { return initSchema(tx) }}
+	return readerstore.ReaderSchema{
+		Initialize: func(tx *sql.Tx) error { return initSchema(tx) },
+		PreparePortable: func(ctx context.Context, tx *sql.Tx) error {
+			// Catalog identities are durable; fetched content and availability flags are not.
+			if _, err := tx.ExecContext(ctx, `DELETE FROM chapter_cache`); err != nil {
+				return fmt.Errorf("book: remove portable chapter cache: %w", err)
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE chapters SET cached=0 WHERE cached<>0`); err != nil {
+				return fmt.Errorf("book: clear portable chapter cache flags: %w", err)
+			}
+			return nil
+		},
+	}
 }
 
 type schemaDatabase interface {

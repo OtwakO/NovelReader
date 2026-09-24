@@ -119,6 +119,11 @@ recovery until resolved. A prepared-but-unstarted request must be canceled befor
 server's process-local record is gone, explicitly continue with fresh state and inspect the library;
 an unknown result does not mean success or failure.
 
+Portable reader backups exclude fetched BookSource chapter caches on both export and restore;
+those chapters require upstream access again after restoration. Saved catalogs, progress,
+bookmarks, and imported TXT/EPUB originals and prepared reading data are preserved. Export
+does not clear the live reader cache. The complete deployment copy above remains unfiltered.
+
 Portable reader backups have the same limits on export and restore: 2 GiB compressed,
 8 GiB of unpacked entry payloads, and 100,000 entries (including directories and backup
 metadata). An over-limit export fails; discard any partial download. For larger homes,

@@ -1,5 +1,5 @@
 ---
-status: design-accepted
+status: in-progress
 updated: 2026-09-25
 ---
 
@@ -11,7 +11,7 @@ Make opening/reopening books and adjacent chapter navigation responsive, without
 
 **Simplify ownership and implementation, not the desired behavior.** Persistent client caching, backend cache-first reads, display-ready prefetch, active-reader renewal and immediate feedback all belong to this workstream. Do not defer a requirement merely to make the design smaller. Use cohesive existing modules, small interfaces and explicit identities/lifetimes rather than patches, generic frameworks or parallel implementations.
 
-This update authorizes **documentation only**. Application implementation, deployment, data reset and schema migration are not authorized. The design is accepted at the architectural level; the concrete engineering gates below remain unfinished.
+Application implementation is authorized. Deployment, data reset and schema-epoch migration are not authorized. The architectural direction is accepted; concrete resource, execution and identity contracts must still be settled before dependent implementation.
 
 ## Fresh-session entry
 
@@ -199,7 +199,7 @@ Intentional changes: one forward target becomes two; the retained ±1 window bec
 
 ## Current State
 
-**Documentation/design only; no application changes or implementation verification.** Evidence from direct source inspection:
+**First increment implemented and verified:** portable export/restore staging excludes fetched BookSource cache rows and clears catalog cache flags through `ReaderSchema.PreparePortable`. Shared staging compaction removes unused pages; live caches, archive inputs, catalogs and reading state remain unchanged. No schema change. See `backend/internal/book/portable_test.go` for the regression. Cached reading is not implemented; remaining engineering gates still apply. Source observations (update affected rows as increments land):
 
 | Current fact | Entry points |
 |---|---|
@@ -212,14 +212,14 @@ Intentional changes: one forward target becomes two; the retained ±1 window bec
 | Source switching/reparse already advance interpretation revisions | `backend/internal/book/source_switch.go`, `backend/internal/library/state.go`, `backend/internal/txtstore/reparse_apply.go` |
 | BookSource image ordinals resolve against the current replaceable cache row | `backend/internal/api/chapter_image.go`, `backend/internal/book/image.go` |
 | No home-replacement generation; device-derived EPUB reader scope survives ordinary restart but cannot distinguish restore | `backend/internal/readerstore/home.go`, `device_identity.go`, `backend/internal/api/reader_api.go`, `epub_resources.go` |
-| Portable preparation exists on export/import; BookSource currently supplies no cache-stripping callback | `backend/internal/readerstore/backup.go`, `portable_validation.go`, `database.go`, `backend/internal/book/store.go` |
+| Portable preparation strips BookSource cache rows/flags on export/import and compacts the staged database | `backend/internal/readerstore/backup.go`, `portable_validation.go`, `database.go`, `backend/internal/book/store.go` |
 | Current frontend request/reset and pending-restore lifetime is tab-local, not a persistent cross-tab cache-write gate | `frontend/src/app/reader-state.ts`, `frontend/src/api/transport.ts`, `frontend/src/features/backups/restore-session.ts` |
 
 The reported unexpected Next-chapter refetch remains **unreproduced**. Failure-fallback non-retention, unfinished prefetch and conversion waits are investigation leads, not a diagnosed root cause. No latency gain has been measured.
 
 ## Next Action and implementation tracking
 
-Await application implementation authorization. Before implementing affected interfaces, settle and record:
+Portable-cache exclusion is complete. Next, settle the immutable image-resource and reader-home identity contracts together, tracing `chapter_image.go`, `book/image.go`, `readerstore/home.go` and the replacement boundary. Then resolve execution ownership before enabling cache-first retrieval or persistent client reads. Before implementing the affected interfaces, settle and record:
 
 1. **Resource contract:** concrete immutable resource representation, bounded retention/availability and compatibility, including inline images and restore.
 2. **Execution contract:** actual shared-session scope, owner lifetime, matching-request sharing, cancellation and Refresh ordering; no assumptions about existing serialization.
@@ -231,7 +231,7 @@ TTL, client book count and window are settled; do not reopen them as unanswered 
 Track complete, verified increments here, adjusting order for actual dependencies rather than cutting scope:
 
 - [ ] Settle engineering gates and record compatibility/rollback decisions.
-- [ ] Exclude disposable caches through portable preparation; verify preserved durable reading/recovery state.
+- [x] Exclude existing disposable chapter caches through portable preparation; verify preserved durable reading/recovery state. Any new resource-cache state must join this boundary when introduced.
 - [ ] Implement home/resource identity and narrow execution ownership needed by cached reads.
 - [ ] Implement backend cache-first freshness and explicit Refresh without expired-copy fallback.
 - [ ] Implement client memory/IndexedDB lifecycle, retention, invalidation and storage-failure behavior.
@@ -243,7 +243,7 @@ Update Current State, this checklist/Next Action and Verification at meaningful 
 
 ## Verification
 
-**Performed:** original-plan/conversation cross-check, fresh-session handoff review and targeted source inspection; documentation whitespace checks pass and relative links in this plan and `PLAN.md` resolve. Markdown has no authoritative LSP diagnostics here. No application tests, browser journeys or timing measurements were run; this documentation update is not implementation verification.
+**Performed:** original-plan/conversation cross-check and fresh-session handoff review; documentation whitespace/link checks passed. The portable-cache regression first failed on retained cache rows, then passed after the fix. `cd backend && go test ./internal/readerstore ./internal/backup ./internal/book` passes; `go test ./internal/epubstore ./internal/txtstore -run Portable` passes. These cover the first increment, not cached-reading implementation. No browser journeys or timing measurements have been run. AFT did not provide authoritative Go diagnostics for this increment; Go test compilation is the verification gate.
 
 Use existing synthetic fixtures and the fewest tests that establish these contracts:
 
