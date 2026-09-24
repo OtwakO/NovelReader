@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { mount, RouterLinkStub } from '@vue/test-utils';
 import { describe, expect, test } from 'vitest';
 import type { Chapter } from '../../api/models';
 import TocChapterList from './TocChapterList.vue';
@@ -23,7 +23,10 @@ describe('TocChapterList', () => {
   });
 
   test('emits the canonical index when used as the Reader action list', async () => {
-    const wrapper = mount(TocChapterList, { props: { chapters, currentIndex: 1 } });
+    const wrapper = mount(TocChapterList, {
+      props: { chapters, currentIndex: 1 },
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    });
     await wrapper.find('button').trigger('click');
     expect(wrapper.emitted('open')).toEqual([[1]]);
   });

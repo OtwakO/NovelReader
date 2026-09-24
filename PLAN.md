@@ -135,11 +135,11 @@ The [reader-first presentation pass](docs/plans/2026-09-16-reader-first-presenta
 
 Continue Reading's narrow-screen reflow (`947a2b8`) and the bookshelf cover-gallery layout (`aed9220`) are implemented in `ShelfView.vue`. Their disposable prototypes, along with the completed import-preview prototypes, have been removed; Git history retains the experiments.
 
+[Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) — U1–U4 and R1–R3 are resolved: preview/history improvements, retained inbox refresh notifications, behavior-preserving reader readability, and corrected test fixtures. Final reader/import verification passed 126 tests without warnings, typecheck and production build. The note retains original findings and scoped verification limits.
+
 ## Active Work
 
 [Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted application-managed cache direction and immediate navigation feedback; documentation only, implementation pending authorization and narrow identity/freshness contract checks. TTL and recent-book retention values remain undecided.
-
-[Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) retains the original reports and reproduced preview causes. U1–U4 are resolved by the completed preview and history/filter work above; the inbox-refresh race (R1) is also fixed. Reader readability (R2) is complete without behavior changes; test-fixture warning cleanup (R3) is authorized and remains open.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 

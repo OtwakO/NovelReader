@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, mount, RouterLinkStub, type VueWrapper } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import type { CatalogNavigation } from '../../api/catalog-navigation';
 import ReaderTocSheet from './ReaderTocSheet.vue';
@@ -26,7 +26,7 @@ afterEach(() => {
 const mocks = { $t: (key: string) => key };
 
 it('searches an expanded outline with ancestor context and emits the exact qualified target', async () => {
-  wrapper = mount(ReaderTocSheet, { props: { chapters, navigation, currentIndex: 2, currentAnchor: 'a2' }, global: { mocks } });
+  wrapper = mount(ReaderTocSheet, { props: { chapters, navigation, currentIndex: 2, currentAnchor: 'a2' }, global: { mocks, stubs: { RouterLink: RouterLinkStub } } });
   await flushPromises();
   expect(wrapper.findAll('[aria-current="location"]')).toHaveLength(1);
   expect(wrapper.get('[aria-current="location"]').text()).toBe('Later heading');

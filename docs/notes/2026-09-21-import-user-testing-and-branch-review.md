@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-Follow-up is authorized in small, focused increments. After root-cause diagnosis and code-based approach analysis, the user accepted a selected-section EPUB preview and one shared device-local image-optimization preference. U1/U2 are implemented and verified within the limits recorded in the [completed EPUB import preview plan](../plans/2026-09-24-epub-import-preview.md). U3/U4 are implemented and verified in the [completed mixed-format history/filter plan](../plans/2026-09-24-import-history-filters.md). No schema change is approved. No subagents were used.
+Follow-up is authorized in small, focused increments. After root-cause diagnosis and code-based approach analysis, the user accepted a selected-section EPUB preview and one shared device-local image-optimization preference. U1/U2 are implemented and verified within the limits recorded in the [completed EPUB import preview plan](../plans/2026-09-24-epub-import-preview.md). U3/U4 are implemented and verified in the [completed mixed-format history/filter plan](../plans/2026-09-24-import-history-filters.md). R1–R3 are also resolved, with focused verification recorded below. No schema change is approved. No subagents were used.
 
 Branch reviewed: `feat/multi-provider-library`, HEAD `e68fbb0`; comparison with `main` merge-base `070246995b92a9dc597e6a56383a8f30479aebc1`. The quick review sampled shared library/reading, TXT/EPUB intake, lifecycle coordination, persistence, backup/restore and frontend state across a 496-file branch diff. It was not an exhaustive audit. The completed [EPUB milestone](../plans/2026-09-17-epub-support.md) remains historical verification, not proof that subsequent real-user cases work.
 
@@ -53,7 +53,7 @@ After reviewing the disposable import-preview prototypes (preserved in Git histo
 
 ### R1 — Inbox refresh notification can be dropped while busy (resolved)
 
-`ImportInboxPanel.vue` watches `queue.revision` and requests a scan; `import-task.ts` refuses a task while busy. There is no retained pending refresh. Completion during a scan/review can leave the inbox stale until manual refresh. `ImportReceiptsPanel.vue` already handles revision changes during its load loop.
+Original finding: `ImportInboxPanel.vue` watched `queue.revision` and requested a scan; `import-task.ts` refused a task while busy, with no retained pending refresh. Completion during a scan/review can leave the inbox stale until manual refresh. `ImportReceiptsPanel.vue` already handles revision changes during its load loop.
 
 Reproduced with deferred scan and review responses, then fixed with one panel-owned pending refresh. A subsequent load consumes the pending notification; notifications during that load request another pass. Explicit review/resolution is never interrupted, proof remains intact, and failed actions retain their error until an explicit retry rather than being hidden by automatic refresh. The shared task guard is unchanged.
 
@@ -61,15 +61,17 @@ Verification: 23 tests in `import-views.test.ts` and `import-image-preference.te
 
 ### R2 — Shared reader orchestration is unnecessarily compressed (resolved)
 
-`frontend/src/features/reader/ReaderView.vue`, especially mounting/loading, conversion and content-commit methods, packs asynchronous operations and state changes into dense lines. The ordering of navigation, displayed content, scroll and progress is hard to review safely.
+Original finding: `frontend/src/features/reader/ReaderView.vue`, especially mounting/loading, conversion and content-commit methods, packed asynchronous operations and state changes into dense lines. The ordering of navigation, displayed content, scroll and progress is hard to review safely.
 
 Resolved by expanding the script's compressed statements, state fields and blocks using normal formatting. No extraction, ownership change or new abstraction was needed. The TypeScript AST was compared before/after (ignoring redundant parentheses); template and styles are unchanged. Frontend typecheck and 76 tests across reader features plus `ImportWorkspace.test.ts` passed. The existing fixture warnings remain for R3; no new reader behavior is claimed.
 
-### R3 — Passing frontend tests emit avoidable warnings (low)
+### R3 — Passing frontend tests emit avoidable warnings (resolved)
 
 The reviewed run emitted missing i18n keys, unresolved `RouterLink`, and missing test-router routes. Examples include `ReaderSettingsSheet.test.ts`, `ReaderBookmarksSheet.test.ts`, `TocNavigationList.test.ts`, `TocChapterList.test.ts`, `ReaderView.test.ts`, and `ImportWorkspace.test.ts`.
 
-Assessment: incomplete fixture setup obscures useful warnings; these warnings do not prove production routes/translations are broken. Supply needed test stubs/routes/translations rather than globally suppress warnings.
+Reproduced in the scoped run and corrected at the fixture boundary: reader tests now load the existing English message modules into test-local i18n instances, button-only ToC tests register `RouterLinkStub`, and the import-workspace router includes `/explore`. No global warning suppression or production translation/router changes.
+
+Verification: 126 tests across the reader and import directories (29 files) passed without warnings, followed by frontend typecheck and production build. Runs use `NODE_OPTIONS=--no-experimental-webstorage` for the local Node 25 test environment. No full repository suite, new browser journey, backend run or deployment is claimed for R1–R3.
 
 ## Overall assessment and optimization limits
 
@@ -97,4 +99,4 @@ With that environment variable set, the diagnostic intentionally fails assertion
 
 ## Next action
 
-U1–U4 are complete within the verification limits of the linked preview and history/filter plans. Preview-consistency follow-up is implemented within the completed B plan's verification limits above. The remaining review fixes are authorized. R1 and R2 are resolved; continue with R3 fixture-warning cleanup as a separate commit. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.
+U1–U4 are complete within the verification limits of the linked preview and history/filter plans. Preview-consistency follow-up is implemented within the completed B plan's verification limits above. R1–R3 are resolved. Gather further manual usability feedback; scope any new findings separately. No implementation remains pending from this note. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.

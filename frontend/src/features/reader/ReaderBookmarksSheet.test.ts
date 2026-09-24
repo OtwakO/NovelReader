@@ -1,9 +1,12 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, expect, it, vi } from 'vitest';
 import { deleteBookmark, listBookmarks, type Bookmark } from '../../api/reader';
-import { i18n } from '../../i18n';
+import { createI18n } from 'vue-i18n';
+import readerMessages from '../../i18n/messages/en/reader';
 import ReaderBookmarksSheet from './ReaderBookmarksSheet.vue';
 import { resetProgressWriter, setProgressVersion } from './progress-writer';
+
+const i18n = createI18n({ legacy: false, globalInjection: true, locale: 'en', messages: { en: { reader: readerMessages } } });
 
 vi.mock('../../api/reader', () => ({ listBookmarks: vi.fn(), deleteBookmark: vi.fn(), addBookmark: vi.fn(), saveProgress: vi.fn() }));
 afterEach(() => { resetProgressWriter(); vi.resetAllMocks(); });

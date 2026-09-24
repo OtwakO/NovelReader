@@ -27,6 +27,7 @@ async function setup(component: typeof ShelfView | typeof ImportWorkspace | type
     { path: '/shelf', component: { template: '<div />' } },
     { path: '/imports', component: { template: '<div />' } },
     { path: '/search', component: { template: '<div />' } },
+    { path: '/explore', component: { template: '<div />' } },
     { path: '/books/:bookId/read', name: 'reader', component: { template: '<div />' } },
   ] });
   await router.push(component === ShelfView ? '/shelf' : '/imports'); await router.isReady();
