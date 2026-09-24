@@ -102,6 +102,13 @@ or display.
 
 The frontend Reading Session owns chapter loading, navigation, common chrome, recovery, and progress coordination. Its structured-content lifecycle commits revision-bound note visits with displayed content, retains a transient nested return stack, and restores scoped anchors before permitting progress. Missing anchors roll back the prior view. Same-main-section note visits do not update main progress, and focused links/tables retain native interaction. Client transport admits version-1 and structured version-2 prose through separate strict parsers. A shared Go-projected synthetic fixture and composed desktop/mobile browser checks cover this boundary; BookSource/TXT emit version 1, while the integrated EPUB provider emits structured version 2. The completed [EPUB plan](../plans/2026-09-17-epub-support.md) records provider/resource integration and its verification limits. A focused prose renderer owns paragraph and inline-image presentation. Images are responsive and centered; meaningful source alternative text is used accessibly and shown beneath the image as a centered caption. An image failure remains local to its figure and does not replace readable chapter prose.
 
+EPUB import review reuses safe prose projection and `ProseRenderer`, but not the Reading Session.
+Its document envelope is receipt-generation-qualified, has no library content revision, and disables
+internal prose links. Authored contents selection and scoped anchors remain local to the review;
+preview does not write progress, bookmarks or last-read state. Import image access has its own
+[ready-receipt authorization boundary](authentication-and-reader-storage.md#shared-file-admission-and-epub-browser-http),
+sharing bounded reads without weakening published-resource checks.
+
 ## Reader state
 
 `library` owns publication IDs, provider discrimination, display metadata, catalog summaries,

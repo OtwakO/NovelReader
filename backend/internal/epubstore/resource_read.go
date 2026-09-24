@@ -22,11 +22,23 @@ func (s *Store) ReadResource(ctx context.Context, id string, revision int64, res
 	if p.revision != revision {
 		return nil, "", library.ErrStateChanged
 	}
+	data, mediaType, err = s.readPreparedResource(ctx, id, p.generation, resourceID)
+	if err != nil {
+		return nil, "", err
+	}
+	if err = s.currentPublication(ctx, id, p); err != nil {
+		return nil, "", err
+	}
+	return data, mediaType, nil
+}
+
+// The caller authorizes before and after the bounded file read.
+func (s *Store) readPreparedResource(ctx context.Context, id string, generation int64, resourceID string) (data []byte, mediaType string, err error) {
 	if err = validateID(id); err != nil {
 		return nil, "", err
 	}
 	var resource PreparedResource
-	err = s.db.QueryRowContext(ctx, `SELECT source_path,derivative_id,derivative_bytes,media_type,width,height FROM epub_resources WHERE file_id=? AND generation=? AND id=?`, id, p.generation, resourceID).Scan(&resource.Image.Reference.Path, &resource.Image.DerivativeID, &resource.DerivativeBytes, &resource.Image.Info.MediaType, &resource.Image.Info.Width, &resource.Image.Info.Height)
+	err = s.db.QueryRowContext(ctx, `SELECT source_path,derivative_id,derivative_bytes,media_type,width,height FROM epub_resources WHERE file_id=? AND generation=? AND id=?`, id, generation, resourceID).Scan(&resource.Image.Reference.Path, &resource.Image.DerivativeID, &resource.DerivativeBytes, &resource.Image.Info.MediaType, &resource.Image.Info.Width, &resource.Image.Info.Height)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = ErrNotFound
 	}
@@ -46,7 +58,7 @@ func (s *Store) ReadResource(ctx context.Context, id string, revision int64, res
 		if resource.DerivativeBytes <= 0 || resource.DerivativeBytes > maxDerivativeBytes {
 			return nil, "", errIncompletePreparation
 		}
-		name = path.Join(preparationPath(id, p.generation), "images", resource.Image.DerivativeID+".webp")
+		name = path.Join(preparationPath(id, generation), "images", resource.Image.DerivativeID+".webp")
 	}
 	file, err := root.Open(name)
 	if err != nil {
@@ -82,9 +94,6 @@ func (s *Store) ReadResource(ctx context.Context, id string, revision int64, res
 		return nil, "", err
 	}
 	if err = ctx.Err(); err != nil {
-		return nil, "", err
-	}
-	if err = s.currentPublication(ctx, id, p); err != nil {
 		return nil, "", err
 	}
 	return data, resource.Image.Info.MediaType, nil

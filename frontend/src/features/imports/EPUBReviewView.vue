@@ -8,15 +8,16 @@ import { deleteBook } from '../../api/books';
 import { analysisErrorKey, encoderNoticeKey, importedTitle, importErrorKey } from './import-feedback';
 import { receiptState } from './import-format';
 import { createImportTask } from './import-task';
+import EPUBSectionPreview from './EPUBSectionPreview.vue';
 import './imports.css';
 
 export default defineComponent({
-  components: { RouterLink, AppButton, AppDisclosure },
+  components: { RouterLink, AppButton, AppDisclosure, EPUBSectionPreview },
   props: { receiptId: { type: String, required: true } },
   emits: ['updated', 'removed', 'close'],
   data: () => ({
     task: createImportTask(), receipt: undefined as EPUBReceipt | undefined, preview: undefined as EPUBPreview | undefined,
-    name: '', author: '', start: 0, warnings: [] as string[], confirmDiscard: false, removed: false, cleanupPending: false,
+    name: '', author: '', warnings: [] as string[], confirmDiscard: false, removed: false, cleanupPending: false,
     timer: undefined as ReturnType<typeof setInterval> | undefined,
   }),
   computed: {
@@ -28,7 +29,7 @@ export default defineComponent({
     notices(): string[] { return this.preview?.notices || this.receipt?.notices || []; },
   },
   watch: { receiptId: { immediate: true, handler() {
-    this.task.cancel(); this.receipt = undefined; this.preview = undefined; this.name = ''; this.author = ''; this.start = 0;
+    this.task.cancel(); this.receipt = undefined; this.preview = undefined; this.name = ''; this.author = '';
     this.warnings = []; this.confirmDiscard = false; this.removed = false; this.cleanupPending = false; this.refresh();
   } } },
   mounted() { this.timer = setInterval(() => { if (!this.removed && this.pending && document.visibilityState === 'visible') this.refresh(); }, 5000); },
@@ -40,12 +41,12 @@ export default defineComponent({
       const value = await getEPUBReceipt(this.receiptId, signal);
       signal.throwIfAborted();
       if (!this.receipt) this.name = importedTitle(value.originalName);
-      if (this.receipt?.generation !== value.generation) { this.preview = undefined; this.start = 0; }
+      if (this.receipt?.generation !== value.generation) { this.preview = undefined; }
       this.receipt = value;
       if (value.state === 'removing') { this.removed = true; this.cleanupPending = true; }
       if (value.state === 'acquired' && value.preparationState === 'ready') {
         if (!this.preview) {
-          const preview = await previewEPUB(value.id, value.generation, this.start, signal);
+          const preview = await previewEPUB(value.id, value.generation, 0, signal);
           signal.throwIfAborted(); this.preview = preview;
           this.name = preview.title.trim() || importedTitle(value.originalName); this.author = preview.authors.join(', ');
         }
@@ -53,10 +54,6 @@ export default defineComponent({
       this.$emit('updated', { ...value, notices: this.preview ? (this.preview.notices || []) : value.notices });
     },
     refresh() { void this.task.run(this.load); },
-    previewPage(start: number) { void this.task.run(async signal => {
-      const value = await previewEPUB(this.receiptId, this.receipt!.generation, start, signal);
-      signal.throwIfAborted(); this.start = start; this.preview = value;
-    }); },
     retry() { void this.task.run(async signal => {
       const result = await retryEPUB(this.receiptId, this.receipt!.generation, signal);
       signal.throwIfAborted(); this.warnings = result.warnings || []; await this.load(signal);
@@ -96,18 +93,11 @@ export default defineComponent({
       <AppButton v-if="canRetry" variant="secondary" :busy="task.busy" :disabled="!!task.error" @click="retry">{{ $t('imports.epub.retry') }}</AppButton>
       <p v-if="receipt" class="import-note">{{ $t(receipt.imageMode === 'optimized' ? 'imports.epub.optimizedImages' : 'imports.epub.originalImages') }}</p>
       <section v-if="preview" class="import-section" aria-labelledby="epub-preview-title">
-        <h3 id="epub-preview-title">{{ $t('imports.flow.preview') }}</h3>
+        <h3 id="epub-preview-title">{{ $t('imports.epub.previewTitle') }}</h3>
         <p>{{ $t('imports.epub.sectionCount', { count: preview.totalSections }) }}</p>
         <p v-if="preview.needsReview" class="import-review-guidance">{{ $t('imports.epub.reviewHint') }}</p>
         <ul v-if="preview.diagnostics.length"><li v-for="code in preview.diagnostics" :key="code">{{ $t(diagnosticKey(code)) }}</li></ul>
-        <div class="import-preview">
-          <div class="import-chapters">
-<h4>{{ $t('imports.epub.sections') }}</h4>
-            <ol :start="start + 1" tabindex="0" :aria-label="$t('imports.epub.sections')"><li v-for="heading in preview.headings" :key="heading.index">{{ heading.title }} <small v-if="heading.auxiliary">({{ $t('imports.epub.auxiliary') }})</small></li></ol>
-            <div v-if="start || preview.hasMore" class="app-actions import-actions"><AppButton variant="secondary" :disabled="!start || task.busy" @click="previewPage(Math.max(0, start - 25))">{{ $t('imports.previous') }}</AppButton><AppButton variant="secondary" :disabled="!preview.hasMore || task.busy" @click="previewPage(start + 25)">{{ $t('imports.next') }}</AppButton></div>
-          </div>
-          <div class="import-text-preview"><h4>{{ $t('imports.flow.textPreview') }}</h4><pre class="import-sample" tabindex="0" :aria-label="$t('imports.flow.textPreview')">{{ preview.sample || $t('imports.epub.noTextSample') }}</pre><p v-if="preview.sampleTruncated">{{ $t('imports.flow.sampleNote') }}</p></div>
-        </div>
+        <EPUBSectionPreview :receipt-id="receiptId" :generation="preview.generation" :total-sections="preview.totalSections" />
       </section>
       <form v-if="preview && !receipt?.libraryId" id="epub-add-form" class="import-section" @submit.prevent="accept">
         <AppDisclosure class="import-options">

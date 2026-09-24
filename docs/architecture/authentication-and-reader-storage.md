@@ -179,6 +179,15 @@ Authenticated EPUB routes live under `/api/imports/epub`:
   and `nextCursor`. Preview `/receipts/{id}/preview?generation=<generation>` projects
   saved evidence, at most 100 section headings, and a 4096-byte UTF-8 text sample from
   the section selected by `start`; it does not expose archive paths or binding maps.
+- On-demand visual review uses `GET /receipts/{id}/navigation?generation=<generation>`,
+  `GET /receipts/{id}/sections/{section}?generation=<generation>` and scoped image URLs under
+  `/receipts/{id}/resources/{resource}?generation=<generation>&reader=<scope>`. The summary above
+  remains unchanged for automatic/bulk admission. Navigation targets are section/anchor pairs
+  qualified by the response generation, not library revisions. Section responses reuse version-2
+  safe prose documents with internal links unavailable, without a `contentRevision` field.
+  Store preview operations check the current acquired/ready generation before and after reads;
+  resources additionally require the authenticated reader scope and are private/no-store. Published
+  resource authorization remains separate; both paths share bounded prepared-file reading mechanics.
 - `POST /receipts/{id}/retry` requires the observed generation (zero for an acquired,
   unprepared receipt); only unprepared/failed work can be queued. `/accept` requires the
   exact ready generation and reviewed name/author and delegates atomic publication to
@@ -279,11 +288,16 @@ receipt prop rather than owning navigation; legacy `/imports/:id` links redirect
 `import-format.ts` provides concrete TXT/EPUB dispatch and UI status projection while retaining each
 wire receipt/generation contract; it is not a provider registry. EPUB saved previews are fetched only
 when ready to check diagnostics and metadata, not on each poll. `EPUBReviewView` owns its complete
-review/retry/discard interactions; TXT interpretation controls remain separate. History selects a
+review/retry/discard interactions; its `EPUBSectionPreview` owns on-demand contents, selected-section
+loading, cancellation and scoped anchor positioning. It reuses the prose renderer/parser, not the
+Reading Session. It has no progress/bookmark writes, publication identity or persistent content cache.
+A native selector displays authored hierarchy; Previous/Next also reaches sections absent from contents.
+TXT interpretation controls remain separate. History selects a
 format to preserve independent bounded cursors and keeps TXT state filters. Bulk EPUB addition
 checks its exact saved preview and sends content warnings to individual review. Encoder notices
-remain visible independently of review policy. Image mode defaults to original and is captured
-per selection; changing the checkbox affects only later selections.
+remain visible independently of review policy. Image mode defaults to original; `import-preferences.ts`
+persists one device-local choice shared by browser/inbox controls. The queue captures it per selection,
+so changing either checkbox affects only later selections.
 
 `import-queue.ts` is the only TXT/EPUB browser import owner. Its Pinia lifetime survives page navigation,
 holds lightweight File references or inbox names, and starts one admitted byte transfer at a time.

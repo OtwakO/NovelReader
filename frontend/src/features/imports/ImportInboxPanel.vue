@@ -6,11 +6,12 @@ import { ApiError } from '../../api/transport';
 import { useImportQueue } from './import-queue';
 import { createImportTask } from './import-task';
 import { importErrorKey } from './import-feedback';
+import { useImportPreferences } from './import-preferences';
 export default defineComponent({
   components: { AppButton },
   data: () => ({
     queue: useImportQueue(), task: createImportTask(), entries: [] as InboxEntry[], claims: [] as InboxClaim[],
-    format: 'txt' as ImportFormat, optimize: false, directory: '', after: '', next: '', claimAfter: '', claimNext: '', selected: [] as string[], proof: undefined as InboxReview | undefined,
+    format: 'txt' as ImportFormat, preferences: useImportPreferences(), directory: '', after: '', next: '', claimAfter: '', claimNext: '', selected: [] as string[], proof: undefined as InboxReview | undefined,
   }),
   watch: { 'queue.revision'() { this.scan(); } },
   mounted() { this.scan(); },
@@ -63,7 +64,7 @@ export default defineComponent({
       <label>{{ $t('imports.format') }}<select :value="format" :disabled="task.busy" @change="changeFormat(($event.target as HTMLSelectElement).value as ImportFormat)"><option value="txt">TXT</option><option value="epub">EPUB</option></select></label>
     </div>
     <div v-if="format === 'epub'">
-      <label class="import-selection"><input v-model="optimize" type="checkbox" aria-describedby="inbox-image-hint">{{ $t('imports.epub.optimize') }}</label>
+      <label class="import-selection"><input v-model="preferences.optimizeEPUBImages" type="checkbox" aria-describedby="inbox-image-hint">{{ $t('imports.epub.optimize') }}</label>
       <p id="inbox-image-hint" class="import-note">{{ $t('imports.epub.optimizeHint') }}</p>
     </div>
     <p class="import-note">{{ $t('imports.inboxHint') }}</p>
@@ -85,7 +86,7 @@ export default defineComponent({
           </li>
         </ul>
         <div v-if="entries.length" class="app-actions app-actions--end import-actions">
-          <AppButton :disabled="!selected.length || task.busy" @click="queue.enqueue(selected, optimize ? 'optimized' : 'original'); selected = []">{{ $t('imports.acquireSelected', { count: selected.length }) }}</AppButton>
+          <AppButton :disabled="!selected.length || task.busy" @click="queue.enqueue(selected, preferences.optimizeEPUBImages ? 'optimized' : 'original'); selected = []">{{ $t('imports.acquireSelected', { count: selected.length }) }}</AppButton>
         </div>
         <div v-if="after || next" class="app-actions import-actions">
           <AppButton variant="quiet" :disabled="!after || task.busy" @click="after = ''; selected = []; scan()">{{ $t('imports.first') }}</AppButton>

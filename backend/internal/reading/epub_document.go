@@ -12,6 +12,22 @@ import (
 // owned, revision-qualified resource issuer. This projection never parses archives.
 // Only opaque section-local image keys reach that issuer, never archive paths.
 func epubContent(ctx context.Context, revision int64, title string, section epub.PreparedSection, imageHref func(string) string) (Content, error) {
+	document, err := epubDocument(ctx, title, section, imageHref, func(target epub.SectionTarget) *ReadingTarget {
+		return &ReadingTarget{ChapterIndex: target.Section, ContentRevision: revision, Anchor: target.Anchor}
+	})
+	if err != nil {
+		return Content{}, err
+	}
+	return Content{ContentRevision: revision, Version: StructuredDocumentVersion, Document: document}, nil
+}
+
+// EPUBPreviewDocument shares safe presentation, not publication identity. Internal
+// prose links remain visibly unavailable; import contents own preview navigation.
+func EPUBPreviewDocument(ctx context.Context, title string, section epub.PreparedSection, imageHref func(string) string) (Document, error) {
+	return epubDocument(ctx, title, section, imageHref, nil)
+}
+
+func epubDocument(ctx context.Context, title string, section epub.PreparedSection, imageHref func(string) string, target func(epub.SectionTarget) *ReadingTarget) (Document, error) {
 	var project func(epub.Node) (Block, error)
 	project = func(source epub.Node) (Block, error) {
 		if err := ctx.Err(); err != nil {
@@ -41,7 +57,11 @@ func epubContent(ctx context.Context, revision int64, title string, section epub
 		case "link":
 			out.URL, out.Unavailable = source.URL, source.Unavailable
 			if source.Target != nil {
-				out.Target = &ReadingTarget{ChapterIndex: source.Target.Section, ContentRevision: revision, Anchor: source.Target.Anchor}
+				if target == nil {
+					out.Unavailable = true
+				} else {
+					out.Target = target(*source.Target)
+				}
 			}
 		case "image":
 			image, exists := section.Images[source.Image]
@@ -67,10 +87,10 @@ func epubContent(ctx context.Context, revision int64, title string, section epub
 	}
 	root, err := project(section.Root)
 	if err != nil {
-		return Content{}, err
+		return Document{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return Content{}, err
+		return Document{}, err
 	}
-	return Content{ContentRevision: revision, Version: StructuredDocumentVersion, Document: Document{Kind: "prose", Title: title, Blocks: []Block{root}, CoverPlaceholder: section.CoverPlaceholder}}, nil
+	return Document{Kind: "prose", Title: title, Blocks: []Block{root}, CoverPlaceholder: section.CoverPlaceholder}, nil
 }

@@ -6,10 +6,11 @@ import AppButton from '../../ui/components/AppButton.vue';
 import { useImportQueue, type ImportTransfer } from './import-queue';
 import { analysisErrorKey, importedTitle, importErrorKey, encoderNoticeKey } from './import-feedback';
 import { receiptState } from './import-format';
+import { useImportPreferences } from './import-preferences';
 export default defineComponent({
   components: { RouterLink, AppButton, ImportPreferenceControl },
   emits: ['review'],
-  data: () => ({ queue: useImportQueue(), offset: 0, optimizeImages: false }),
+  data: () => ({ queue: useImportQueue(), offset: 0, preferences: useImportPreferences() }),
   computed: {
     visible() { return this.queue.entries.slice(this.offset, this.offset + 25); },
     added(): number { return this.queue.entries.filter(item => item.state === 'added').length; },
@@ -23,7 +24,7 @@ export default defineComponent({
     importedTitle, importErrorKey, analysisErrorKey, encoderNoticeKey, receiptState,
     choose(event: Event) {
       const input = event.target as HTMLInputElement;
-      this.queue.enqueue(Array.from(input.files || []), this.optimizeImages ? 'optimized' : 'original'); input.value = '';
+      this.queue.enqueue(Array.from(input.files || []), this.preferences.optimizeEPUBImages ? 'optimized' : 'original'); input.value = '';
     },
     status(item: ImportTransfer): string {
       if (item.state === 'attention') return 'imports.flow.check';
@@ -40,7 +41,7 @@ export default defineComponent({
       <div class="import-upload-copy"><h2>{{ $t('imports.flow.title') }}</h2><p>{{ $t('imports.flow.hint') }}</p></div>
       <label class="app-button app-button--primary import-picker">{{ $t('imports.flow.choose') }}<input type="file" accept=".txt,text/plain,.epub,application/epub+zip" multiple :aria-label="$t('imports.flow.choose')" @change="choose"></label>
       <ImportPreferenceControl />
-      <label class="import-preference"><input v-model="optimizeImages" type="checkbox"><span><strong>{{ $t('imports.epub.optimize') }}</strong><small>{{ $t('imports.epub.optimizeHint') }}</small></span></label>
+      <label class="import-preference"><input v-model="preferences.optimizeEPUBImages" type="checkbox"><span><strong>{{ $t('imports.epub.optimize') }}</strong><small>{{ $t('imports.epub.optimizeHint') }}</small></span></label>
     </div>
     <template v-if="queue.entries.length">
       <div class="import-progress-summary">

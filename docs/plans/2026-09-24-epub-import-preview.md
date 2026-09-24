@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 updated: 2026-09-24
 ---
 
@@ -60,9 +60,9 @@ Each increment should be a complete, working commit. Adjust ordering to actual d
 
 ## Current State
 
-Approach accepted; implementation has not started. The root-cause reproduction and original review evidence remain canonical in [U2 and preview diagnosis](../notes/2026-09-21-import-user-testing-and-branch-review.md#u2--epub-preview-shows-no-titles-chapter-contents-or-images).
+Completed: authenticated navigation/section/resource preview routes, shared bounded storage reads and prose projection/parser, a review-owned section preview component, and the shared device-local image preference. No stored-data/schema change, reimport or published-reader authorization change. Current usage and architecture docs are updated; U3/U4 and R1–R3 remain separate. The root-cause reproduction and original review evidence remain canonical in [U2 and preview diagnosis](../notes/2026-09-21-import-user-testing-and-branch-review.md#u2--epub-preview-shows-no-titles-chapter-contents-or-images).
 
-Code inspection confirms these reuse points and constraints:
+The implementation retains these ownership boundaries:
 - `backend/internal/epubstore/{review,prepared_read,catalog,resource_read}.go`: ready-generation reads exist; published resource/section reads currently require a library binding.
 - `backend/internal/reading/{epub_document,epub_catalog}.go`: safe projections exist but emit published revision-qualified envelopes/targets.
 - `backend/internal/api/{epub_receipts,epub_preview_response,epub_resources}.go`: current summary and published resource boundaries.
@@ -70,27 +70,27 @@ Code inspection confirms these reuse points and constraints:
 - `frontend/src/features/reader/{ProseRenderer.vue,TocNavigationList.vue}`: renderer has no progress owner; contents presentation has a button mode, but its target type still assumes reading identity.
 - `frontend/src/features/imports/{EPUBReviewView.vue,import-format.ts}`: review owns preview state; automatic/bulk addition also consumes the summary endpoint.
 
-These are inspection findings, not proof that the proposed integration works.
+`epubstore/preview.go` owns ready-generation access; `api/epub_review_content.go` owns HTTP DTOs/resources. `epub-review.ts` validates preview identity and uses the shared prose-document parser without a publication revision. `EPUBSectionPreview.vue` owns only transient preview state. The original summary endpoint and automatic-admission caller are unchanged.
 
 ## Next Action
 
-Inspect the direct boundary tests and settle the concrete preview DTO/target shape without aliasing generation to content revision. Start the backend increment with one synthetic regression for empty XHTML titles, authored navigation, image-only cover and ordinary prose. Reuse existing fixtures and authorization test setup. Then implement the smallest shared projection/read extraction needed by the new caller.
+No remaining implementation in this workstream. Any expanded internal-link navigation or receipt-filter work requires its own scoped decision. Preview uses a generation-qualified envelope with section/anchor navigation targets; prose documents contain no published targets. A native contents selector preserves hierarchy through indented entries, with Previous/Next for sections omitted from contents; no generic navigation component was introduced.
 
 ## Verification
 
-Completed: root-cause diagnosis and direct source inspection only; see the issue note for the intentionally failing local diagnostic. No implementation tests or new browser proof exist yet. The diagnostic's expectation of nonempty legacy section titles/text is not the accepted new preview contract and must not drive production special cases.
+Completed: root-cause diagnosis and direct source inspection; the new synthetic API regression failed on the absent route before implementation and now passes. `go test ./internal/epubstore ./internal/reading ./internal/api -count=1` and the same three packages with `-race` pass. Frontend typecheck, production Vite build, and 59 tests across imports, EPUB review wire parsing, structured prose and ProseRenderer pass. Local dependency launchers lack execute permissions, so tools were invoked through Node; tests additionally use `NODE_OPTIONS=--no-experimental-webstorage` because Node 25 native storage conflicts with jsdom. Existing ImportWorkspace missing `/explore` test-route warnings remain unrelated. An isolated Chromium journey with the ignored private EPUB verified browser upload/preparation, cover-image delivery, populated authored contents, selected prose, Previous/Next, ready-receipt reopening without reimport, and image-preference persistence across reload. Network checks found no preview admission/progress/bookmark writes and the library remained empty. Desktop (1280×900) and mobile (390×844) inspection confirmed the final layout without page overflow. Screenshots remain under ignored `reference/epub-preview-diagnosis/`; no private content is tracked. The diagnostic's expectation of nonempty legacy section titles/text is not the accepted new preview contract and must not drive production special cases.
 
-Planned, proportional checks:
-- One minimal synthetic publication through the real preparation/preview boundary: retained authored labels, image-only cover, selectable prose and anchor target. Include section-list fallback only as a focused case, not a second fixture corpus.
-- Focused integration coverage for the new authorization boundary: wrong reader, stale generation and access after discard; preserve existing published resource checks. Use normal/race runs for the affected storage/API packages where shared lifecycle work changes.
-- Focused frontend checks for selection/late-response ownership and unchanged admission-summary behavior; preference persistence and queue snapshot behavior. No duplicated tests for every provider, image format or hypothetical timing.
-- Typecheck and production frontend build; one browser journey using the ignored private EPUB to inspect contents, cover, prose and selection, and confirm preview does not publish or save reading progress.
+Coverage and limits:
+- `epub_review_content_test.go` covers a synthetic publication through real preparation/authenticated preview: empty XHTML titles, authored labels/anchor targets, an image-only cover, prose, safe internal-link handling and no private archive paths.
+- Integration checks cover anonymous/wrong-reader requests, stale generation and access after discard. Existing published-reading and automatic-admission tests still pass.
+- Frontend tests cover selection, fallback labels, literal prose rendering, late-response cancellation on receipt replacement, wire generation/target validation, shared preference controls, persistence and unchanged queued image modes. Existing automatic/bulk-admission coverage remains intact.
+- Exact local frontend commands: `node node_modules/vue-tsc/bin/vue-tsc.js --noEmit`; `NODE_OPTIONS=--no-experimental-webstorage node node_modules/vitest/vitest.mjs run src/features/imports src/api/epub-review.test.ts src/api/structured-prose.test.ts src/features/reader/ProseRenderer.test.ts --reporter=dot`; `node node_modules/vite/bin/vite.js build --logLevel warn`. UI mechanical detection reported no findings.
 - Keep real EPUBs, extracted content and raw diagnostic artifacts ignored. Default tests use synthetic fixtures and require no private books or live sites.
 
-No full-repository suite, stress campaign, quota simulation or performance claims by default. Broaden only when a concrete shared-boundary risk or failure warrants it.
+No deployment, full-repository suite, broad private-book compatibility campaign, stress testing or performance claim. Browser verification used original images; optimized-image reading retains shared existing storage coverage. Fresh temporary reader storage was used; existing reader data was untouched.
 
 ## Compatibility and Rollback
 
 Preserve the current summary endpoint and published-reading semantics; new import preview operations must not relax them. Reuse existing prepared data without conversion, so rollback should require only reverting application changes, not restoring or downgrading reader homes. The device preference is additive browser-local state; verify existing saved preferences retain their meaning. No deployment, live-data reset or existing-home migration is authorized by this plan.
 
-On completion, update `README.md` import-preview usage and relevant architecture sections, mark this plan completed, and update U1/U2 and `PLAN.md`. Completed EPUB milestone plans remain frozen history.
+`README.md`, current import/reading architecture, U1/U2 and `PLAN.md` reflect completion. The earlier completed EPUB milestone plan remains frozen history.

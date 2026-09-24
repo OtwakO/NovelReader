@@ -94,11 +94,23 @@ func (s *Store) ReadSection(ctx context.Context, id string, revision int64, inde
 	if p.revision != revision {
 		return SectionContent{}, library.ErrStateChanged
 	}
-	info, err := s.sectionInfo(ctx, id, p.generation, index)
+	content, err := s.readPreparedSection(ctx, id, p.generation, index)
 	if err != nil {
 		return SectionContent{}, err
 	}
-	section, err := s.PreparedSection(ctx, id, p.generation, index)
+	if err = s.currentPublication(ctx, id, p); err != nil {
+		return SectionContent{}, err
+	}
+	return content, nil
+}
+
+// The caller owns publication or import-generation authorization.
+func (s *Store) readPreparedSection(ctx context.Context, id string, generation int64, index int) (SectionContent, error) {
+	info, err := s.sectionInfo(ctx, id, generation, index)
+	if err != nil {
+		return SectionContent{}, err
+	}
+	section, err := s.PreparedSection(ctx, id, generation, index)
 	if err != nil {
 		return SectionContent{}, err
 	}
@@ -106,7 +118,7 @@ func (s *Store) ReadSection(ctx context.Context, id string, revision int64, inde
 	for key, image := range section.Images {
 		var resource PreparedResource
 		resource.Image.Reference = image.Reference
-		err = s.db.QueryRowContext(ctx, `SELECT id,derivative_id,media_type,width,height FROM epub_resources WHERE file_id=? AND generation=? AND source_path=?`, id, p.generation, image.Reference.Path).Scan(&resource.ID, &resource.Image.DerivativeID, &resource.Image.Info.MediaType, &resource.Image.Info.Width, &resource.Image.Info.Height)
+		err = s.db.QueryRowContext(ctx, `SELECT id,derivative_id,media_type,width,height FROM epub_resources WHERE file_id=? AND generation=? AND source_path=?`, id, generation, image.Reference.Path).Scan(&resource.ID, &resource.Image.DerivativeID, &resource.Image.Info.MediaType, &resource.Image.Info.Width, &resource.Image.Info.Height)
 		if err != nil {
 			return SectionContent{}, err
 		}
@@ -114,9 +126,6 @@ func (s *Store) ReadSection(ctx context.Context, id string, revision int64, inde
 			return SectionContent{}, errIncompletePreparation
 		}
 		resources[key] = resource.ID
-	}
-	if err = s.currentPublication(ctx, id, p); err != nil {
-		return SectionContent{}, err
 	}
 	return SectionContent{Title: info.Title, Section: section, Resources: resources}, nil
 }

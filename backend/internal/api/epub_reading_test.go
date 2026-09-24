@@ -21,7 +21,7 @@ import (
 	"github.com/otwako/novelreader/internal/reading"
 )
 
-func readingEPUBBytes(t *testing.T) []byte {
+func readingEPUBBytes(t *testing.T, replacements ...[2]string) []byte {
 	t.Helper()
 	var archive, picture bytes.Buffer
 	if err := png.Encode(&picture, image.NewRGBA(image.Rect(0, 0, 3, 2))); err != nil {
@@ -36,6 +36,13 @@ func readingEPUBBytes(t *testing.T) []byte {
 		{"notes.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Notes</title></head><body><aside id="note" epub:type="footnote"><p>Auxiliary note</p><a href="main.xhtml#start">Back</a></aside></body></html>`},
 		{"nav.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="main.xhtml#start">Authored start</a></li><li><a href="notes.xhtml#note">Notes</a></li></ol></nav></body></html>`},
 		{"private/pic.png", picture.String()},
+	}
+	for _, replacement := range replacements {
+		for i := range entries {
+			if entries[i][0] == replacement[0] {
+				entries[i] = replacement
+			}
+		}
 	}
 	for _, entry := range entries {
 		h := &zip.FileHeader{Name: entry[0], Method: zip.Deflate}

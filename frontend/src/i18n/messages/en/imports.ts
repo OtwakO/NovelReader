@@ -1,13 +1,16 @@
 export default {
   format: 'Format',
   epub: {
+    previewTitle: 'Book preview', nextSection: 'Next',
+    contents: 'Contents', chooseSection: 'Choose from contents', untitledEntry: 'Untitled entry', sectionNumber: 'Section {number}', sectionPosition: 'Section {number} of {count}',
+    previewHint: 'Preview only — reading progress is not saved. Use contents or Previous / Next; internal chapter links are inactive.', loadingPreview: 'Loading preview…', illustration: 'Book illustration', imageUnavailable: 'Image unavailable',
     optimize: 'Optimize EPUB images', optimizeHint: 'For EPUBs selected next: WebP quality 92, longest edge up to 2048 px. Off keeps original images. The original EPUB is always retained.',
     originalImages: 'Images: originals, unchanged.', optimizedImages: 'Images: optimized for reading. The original EPUB is retained.',
     portableEncoder: 'Native image encoding is unavailable for this import; the portable encoder is used and preparation may be slower.', processingNotice: 'The server reported an image-processing notice. Check the import details.',
     preparing: 'Preparing EPUB…', preparationFailed: 'Preparation failed', retry: 'Retry preparation', unprepared: 'The original is saved, but preparation has not started. Retry when the server is available.',
     retainedWarning: 'The original remains on the server. Refresh this import’s status before retrying.', acquisitionFailed: 'The upload did not complete. Discard this incomplete receipt before uploading again.',
-    reviewHint: 'Some publication content could not be preserved. Check the notes and sample before adding this book.', contentChanged: 'Some content or navigation was simplified or omitted. Check this book before adding it.',
-    sectionCount: 'Reading sections: {count}', sections: 'Reading sections', auxiliary: 'supplementary section', noTextSample: 'This section has no text sample; it may contain an illustration.', waitToDiscard: 'Wait for preparation to finish before discarding this import.',
+    reviewHint: 'Some publication content could not be preserved. Check the notes and preview before adding this book.', contentChanged: 'Some content or navigation was simplified or omitted. Check this book before adding it.',
+    sectionCount: 'Reading sections: {count}', sections: 'Reading sections', waitToDiscard: 'Wait for preparation to finish before discarding this import.',
     discardConfirm: 'Discard {name} and delete its managed original and prepared files? Published books are not affected.',
     errors: { unsupported: 'This publication is unsupported. Encrypted and fixed-layout EPUBs cannot be imported.', invalid: 'The EPUB package is invalid or incomplete. Check the original file before importing again.', limit: 'This EPUB exceeds preparation limits. Retrying the same file will not reduce its size or complexity.', interrupted: 'Preparation was interrupted. The original is retained; retry when the server is available.', failed: 'EPUB preparation failed. Check the file and server status before retrying.' },
     diagnostics: { unsupported_content: 'Unsupported content was omitted; available fallback text was kept.', image_unavailable: 'An image is unavailable.', image_unsupported: 'An image format is unsupported.', image_invalid: 'An image could not be decoded.', cover_image_unavailable: 'The declared cover is unavailable; default artwork will be shown.', cover_image_ambiguous: 'The cover declaration is ambiguous; default artwork will be shown.', link_unavailable: 'Some links have no usable target.', navigation_target_unavailable: 'Some table-of-contents targets are unavailable.', spine_fallback_used: 'A declared fallback document was used for part of the reading order.' },

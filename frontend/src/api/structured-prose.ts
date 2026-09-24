@@ -50,7 +50,12 @@ export function parseStructuredChapterContent(input: unknown): StructuredChapter
   const data = object(input);
   if (data.version !== 2) throw new Error('Unsupported structured prose version');
   const revision = integer(data.contentRevision, 0);
-  const doc = object(data.document);
+  return { version: 2, contentRevision: revision, offlineCopy: Boolean(data.offlineCopy), document: parseStructuredProseDocument(data.document, revision) };
+}
+
+/** Without a publication revision, internal targets are forbidden (import preview). */
+export function parseStructuredProseDocument(input: unknown, revision?: number): StructuredProseDocument {
+  const doc = object(input);
   if (doc.kind !== 'prose' || !Array.isArray(doc.blocks)) throw new Error('Invalid structured prose document');
   // Match preparation's XML tree bounds. This HTTP boundary must not recursively
   // mount arbitrarily deep or large JSON even if a server response is malformed.
@@ -85,6 +90,7 @@ export function parseStructuredChapterContent(input: unknown): StructuredChapter
         const unavailable = value.unavailable === true;
         let target: ReadingTarget | undefined;
         if (value.target !== undefined) {
+          if (revision === undefined) throw new Error('Unexpected published target in preview');
           target = parseReadingTarget(value.target, revision);
         }
         const url = value.url !== undefined ? externalURL(value.url) : undefined;
@@ -95,7 +101,7 @@ export function parseStructuredChapterContent(input: unknown): StructuredChapter
     }
   };
   if (doc.coverPlaceholder !== undefined && typeof doc.coverPlaceholder !== 'boolean') throw new Error('Invalid cover placeholder');
-  return { version: 2, contentRevision: revision, offlineCopy: Boolean(data.offlineCopy), document: { kind: 'prose', structureVersion: 2, title: text(doc.title), ...(doc.coverPlaceholder ? { coverPlaceholder: true } : {}), blocks: doc.blocks.map(node => parse(node, 1)) } };
+  return { kind: 'prose', structureVersion: 2, title: text(doc.title), ...(doc.coverPlaceholder ? { coverPlaceholder: true } : {}), blocks: doc.blocks.map(node => parse(node, 1)) };
 }
 
 /** Traverse only displayed text; identifiers, resources and actions stay intact. */

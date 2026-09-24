@@ -10,15 +10,15 @@ const receipt = (changes: Partial<api.EPUBReceipt> = {}): api.EPUBReceipt => ({ 
 const preview = (changes: Partial<api.EPUBPreview> = {}): api.EPUBPreview => ({ generation: 1, title: 'From metadata', authors: ['Example author'], totalSections: 1, headings: [{ index: 0, title: 'Chapter', auxiliary: false }], hasMore: false, sample: '<script>Literal prose</script>', sampleTruncated: true, needsReview: true, diagnostics: ['image_unavailable'], images: { mode: 'original', derivativeCount: 0, derivativeBytes: 0 }, ...changes });
 let view: VueWrapper;
 afterEach(() => { view?.unmount(); vi.restoreAllMocks(); });
-const options = () => ({ plugins: [createPinia()], mocks: { $t: (key: string) => key, $te: () => true }, stubs: { RouterLink: true } });
+const options = () => ({ plugins: [createPinia()], mocks: { $t: (key: string) => key, $te: () => true }, stubs: { RouterLink: true, EPUBSectionPreview: true } });
 function button(key: string) { return view.findAll('button').find(item => item.text() === key)!; }
 
-it('shows EPUB content warnings and literal samples, then reconciles an uncertain acceptance instead of replaying it', async () => {
+it('shows EPUB content warnings and selected-section preview, then reconciles an uncertain acceptance instead of replaying it', async () => {
   const status = vi.spyOn(api, 'getEPUBReceipt').mockResolvedValue(receipt());
   vi.spyOn(api, 'previewEPUB').mockResolvedValue(preview());
   const accept = vi.spyOn(api, 'acceptEPUB').mockRejectedValue(new Error('Lost response'));
   view = mount(EPUBReviewView, { props: { receiptId: 'epub' }, global: options() }); await flushPromises();
-  expect(view.get('pre').text()).toBe('<script>Literal prose</script>'); expect(view.find('script').exists()).toBe(false);
+  expect(view.findComponent({ name: 'EPUBSectionPreview' }).props()).toMatchObject({ receiptId: 'epub', generation: 1, totalSections: 1 });
   expect(view.text()).toContain('imports.epub.diagnostics.image_unavailable');
   expect(view.findComponent({ name: 'TXTInterpretationOptions' }).exists()).toBe(false);
   await view.get('form').trigger('submit'); await flushPromises();

@@ -1,13 +1,16 @@
 export default {
   format: '格式',
   epub: {
+    previewTitle: '書籍預覽', nextSection: '下一節',
+    contents: '目錄', chooseSection: '從目錄選擇', untitledEntry: '未命名項目', sectionNumber: '第 {number} 節', sectionPosition: '第 {number} / {count} 節',
+    previewHint: '僅供預覽，不會儲存閱讀進度。請使用目錄或上一節／下一節切換；正文內的章節連結暫不可用。', loadingPreview: '正在載入預覽…', illustration: '書籍插圖', imageUnavailable: '圖片無法使用',
     optimize: '最佳化 EPUB 圖片', optimizeHint: '僅影響之後選取的 EPUB：WebP 品質 92，最長邊不超過 2048 像素。關閉時使用原始圖片；兩種模式都保留原始 EPUB。',
     originalImages: '圖片：保持原樣。', optimizedImages: '圖片：已針對閱讀最佳化，原始 EPUB 仍保留。',
     portableEncoder: '此次匯入無法使用原生圖片編碼器，已改用可攜式編碼器，準備過程可能較慢。', processingNotice: '伺服器回報了圖片處理提示，請查看匯入詳情。',
     preparing: '正在準備 EPUB…', preparationFailed: '準備失敗', retry: '重試準備', unprepared: '原始檔已儲存，但準備尚未開始。伺服器可用後可重試。',
     retainedWarning: '原始檔仍在伺服器上，請先重新整理匯入狀態再重試。', acquisitionFailed: '上傳未完成。重新上傳前，請先捨棄這筆未完成的紀錄。',
-    reviewHint: '部分出版物內容無法保留。新增前請檢查下列說明及範例。', contentChanged: '部分內容或導覽已簡化或省略，請檢查後再新增。',
-    sectionCount: '共 {count} 個閱讀章節', sections: '閱讀章節', auxiliary: '附加章節', noTextSample: '此章節沒有文字範例，可能只包含插圖。', waitToDiscard: '請等待準備完成後再捨棄此次匯入。',
+    reviewHint: '部分出版物內容無法保留。新增前請檢查下列說明及預覽。', contentChanged: '部分內容或導覽已簡化或省略，請檢查後再新增。',
+    sectionCount: '共 {count} 個閱讀章節', sections: '閱讀章節', waitToDiscard: '請等待準備完成後再捨棄此次匯入。',
     discardConfirm: '捨棄 {name} 並刪除受管理的原始檔及準備結果？已加入書架的書籍不受影響。',
     errors: { unsupported: '不支援此出版物。加密或固定版面 EPUB 無法匯入。', invalid: 'EPUB 封裝無效或不完整，請檢查原始檔後再匯入。', limit: '此 EPUB 超過準備限制。重試同一檔案不會減少其大小或複雜度。', interrupted: '準備已中斷，原始檔仍保留。伺服器可用後可重試。', failed: 'EPUB 準備失敗，請先檢查檔案及伺服器狀態再重試。' },
     diagnostics: { unsupported_content: '不支援的內容已省略，可用的替代文字已保留。', image_unavailable: '部分圖片無法使用。', image_unsupported: '部分圖片格式不受支援。', image_invalid: '部分圖片無法解碼。', cover_image_unavailable: '宣告的封面無法使用，將顯示預設封面。', cover_image_ambiguous: '封面宣告不明確，將顯示預設封面。', link_unavailable: '部分連結沒有可用目標。', navigation_target_unavailable: '部分目錄目標無法使用。', spine_fallback_used: '部分閱讀順序使用了出版物宣告的替代文件。' },
