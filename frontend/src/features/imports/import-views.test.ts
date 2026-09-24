@@ -250,3 +250,50 @@ it('defaults history to All and keeps shared filters while resetting pagination 
   await view.findAll('button').find(item => item.text() === 'imports.flow.checkBook')!.trigger('click');
   expect(view.emitted('review')?.[0]).toEqual(['warning', 'epub']);
 });
+
+it('coalesces inbox refreshes that arrive during an active scan', async () => {
+  let finish!: (page: Awaited<ReturnType<typeof inbox.scanInbox>>) => void;
+  const scan = vi.spyOn(inbox, 'scanInbox')
+    .mockReturnValueOnce(new Promise(resolve => { finish = resolve; }))
+    .mockResolvedValue({ directory: 'inbox/reader', items: [] });
+  vi.spyOn(inbox, 'listInboxClaims').mockResolvedValue({ items: [] });
+  const pinia = createPinia();
+  const queue = useImportQueue(pinia);
+  const view = mount(ImportInboxPanel, { global: { plugins: [pinia], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  queue.updateReceipt(receipt()); await flushPromises();
+  queue.updateReceipt(receipt()); await flushPromises();
+  expect(scan).toHaveBeenCalledTimes(1);
+  finish({ directory: 'inbox/reader', items: [{ name: 'stale.txt', size: 5, modifiedAt: 0 }] });
+  await flushPromises();
+  expect(scan).toHaveBeenCalledTimes(2);
+  expect(view.text()).not.toContain('stale.txt');
+});
+
+it('defers inbox refresh until explicit review finishes without consuming its proof', async () => {
+  const scan = vi.spyOn(inbox, 'scanInbox').mockResolvedValue({ directory: 'inbox/reader', items: [] });
+  vi.spyOn(inbox, 'listInboxClaims').mockResolvedValue({ items: [{ name: 'leftover.txt', receiptId: 'sample' }] });
+  let finish!: (proof: inbox.InboxReview) => void;
+  vi.spyOn(inbox, 'reviewInbox').mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const cancel = vi.spyOn(inbox, 'cancelInboxReview').mockResolvedValue();
+  const pinia = createPinia();
+  const view = mount(ImportInboxPanel, { global: { plugins: [pinia], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  await flushPromises();
+  await button(view, 'imports.reviewLeftover').trigger('click');
+  useImportQueue(pinia).updateReceipt(receipt()); await flushPromises();
+  expect(scan).toHaveBeenCalledTimes(1);
+  finish({ token: 'proof', expiresAt: '', name: 'leftover.txt', receiptId: 'sample', inputPresent: true, canRemove: true });
+  await flushPromises();
+  expect(scan).toHaveBeenCalledTimes(2);
+  expect(view.find('.import-confirmation').exists()).toBe(true);
+  expect(cancel).not.toHaveBeenCalled();
+
+  let fail!: (reason: unknown) => void;
+  vi.spyOn(inbox, 'resolveInbox').mockReturnValue(new Promise((_resolve, reject) => { fail = reject; }));
+  await button(view, 'imports.releaseClaim').trigger('click');
+  useImportQueue(pinia).updateReceipt(receipt()); await flushPromises();
+  fail(new ApiError(409, { code: 'txt_inbox_changed' })); await flushPromises();
+  expect(scan).toHaveBeenCalledTimes(2);
+  expect(view.get('[role="alert"]').text()).toBe('imports.errors.proof');
+  await button(view, 'imports.scan').trigger('click'); await flushPromises();
+  expect(scan).toHaveBeenCalledTimes(3);
+});

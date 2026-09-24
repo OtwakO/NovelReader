@@ -51,11 +51,13 @@ After reviewing the disposable import-preview prototypes (preserved in Git histo
 
 ## Review findings
 
-### R1 — Inbox refresh notification can be dropped while busy (medium)
+### R1 — Inbox refresh notification can be dropped while busy (resolved)
 
 `ImportInboxPanel.vue` watches `queue.revision` and requests a scan; `import-task.ts` refuses a task while busy. There is no retained pending refresh. Completion during a scan/review can leave the inbox stale until manual refresh. `ImportReceiptsPanel.vue` already handles revision changes during its load loop.
 
-Evidence level: code-traced race, not a new executable reproduction. Small proposed direction, not accepted implementation: coalesce a refresh after the active operation without interrupting explicit review/resolution.
+Reproduced with deferred scan and review responses, then fixed with one panel-owned pending refresh. A subsequent load consumes the pending notification; notifications during that load request another pass. Explicit review/resolution is never interrupted, proof remains intact, and failed actions retain their error until an explicit retry rather than being hidden by automatic refresh. The shared task guard is unchanged.
+
+Verification: 23 tests in `import-views.test.ts` and `import-image-preference.test.ts`, plus frontend typecheck, passed. Regression coverage includes coalescing during a scan, refresh after review, and preserving resolution errors.
 
 ### R2 — Shared reader orchestration is unnecessarily compressed (medium)
 
@@ -95,4 +97,4 @@ With that environment variable set, the diagnostic intentionally fails assertion
 
 ## Next action
 
-U1–U4 are complete within the verification limits of the linked preview and history/filter plans. Preview-consistency follow-up is implemented within the completed B plan's verification limits above. R1–R3 remain separate; confirm the next scope before implementing them. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.
+U1–U4 are complete within the verification limits of the linked preview and history/filter plans. Preview-consistency follow-up is implemented within the completed B plan's verification limits above. The remaining review fixes are authorized. R1 is resolved; continue with behavior-preserving R2 readability and R3 fixture-warning cleanup as separate commits. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.

@@ -10,15 +10,25 @@ import { useImportPreferences } from './import-preferences';
 export default defineComponent({
   components: { AppButton },
   data: () => ({
-    queue: useImportQueue(), task: createImportTask(), entries: [] as InboxEntry[], claims: [] as InboxClaim[],
+    queue: useImportQueue(), task: createImportTask(), refreshPending: false, entries: [] as InboxEntry[], claims: [] as InboxClaim[],
     format: 'txt' as ImportFormat, preferences: useImportPreferences(), directory: '', after: '', next: '', claimAfter: '', claimNext: '', selected: [] as string[], proof: undefined as InboxReview | undefined,
   }),
-  watch: { 'queue.revision'() { this.scan(); } },
+  watch: {
+    'queue.revision'() {
+      this.refreshPending = true;
+      if (!this.task.error) this.scan();
+    },
+    'task.busy'(busy: boolean) {
+      // Coalesce notifications without interrupting actions or clearing their errors.
+      if (!busy && this.refreshPending && !this.task.error) this.scan();
+    },
+  },
   mounted() { this.scan(); },
   beforeUnmount() { this.task.cancel(); },
   methods: {
     importErrorKey,
     async load(signal: AbortSignal) {
+      this.refreshPending = false;
       const [scan, pending] = await Promise.all([scanInbox(this.format, this.after, signal), listInboxClaims(this.format, this.claimAfter, signal)]);
       signal.throwIfAborted();
       this.entries = scan.items; this.directory = scan.directory; this.next = scan.nextCursor || '';
@@ -33,7 +43,10 @@ export default defineComponent({
         await this.load(signal);
       });
     },
-    scan() { void this.task.run(this.load); },
+    scan() {
+      this.refreshPending = true;
+      if (!this.task.busy) void this.task.run(this.load);
+    },
     async abandon(signal: AbortSignal) {
       const token = this.proof?.token; this.proof = undefined;
       if (token) {
