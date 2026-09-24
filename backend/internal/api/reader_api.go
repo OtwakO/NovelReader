@@ -60,6 +60,7 @@ func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 	}
 	a.registerRoutes()
 	if a.txtStore != nil && services.fileImports != nil {
+		a.mux.HandleFunc("GET /api/imports/receipts", importControlHandler(a.handleImportHistory))
 		a.registerTXTReceiptRoutes()
 		a.registerEPUBImportRoutes()
 		if services.fileInbox != nil {

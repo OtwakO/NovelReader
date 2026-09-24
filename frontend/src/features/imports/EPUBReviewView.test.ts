@@ -2,7 +2,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia } from 'pinia';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as api from '../../api/epub-imports';
-import * as txt from '../../api/txt-imports';
+import * as history from '../../api/import-history';
 import EPUBReviewView from './EPUBReviewView.vue';
 import ImportReceiptsPanel from './ImportReceiptsPanel.vue';
 
@@ -46,19 +46,18 @@ it('retries only the observed failed generation and waits for active preparation
   expect(discard).toHaveBeenCalledOnce(); expect(view.emitted('removed')).toEqual([['epub']]);
 });
 
-it('pages EPUB history independently and refuses bulk addition when its saved preview has content warnings', async () => {
-  vi.spyOn(txt, 'listTXTReceipts').mockResolvedValue({ items: [] });
-  const list = vi.spyOn(api, 'listEPUBReceipts').mockResolvedValue({ items: [receipt()], nextCursor: 'epub' });
+it('pages filtered EPUB history and rechecks content warnings before bulk addition', async () => {
+  const list = vi.spyOn(history, 'listImportHistory').mockResolvedValue({ items: [{ format: 'epub', status: 'ready', receipt: receipt() }], nextCursor: 'next-page' });
   vi.spyOn(api, 'previewEPUB').mockResolvedValue(preview({ notices: ['epub_portable_encoder'] }));
   const accept = vi.spyOn(api, 'acceptEPUB');
   view = mount(ImportReceiptsPanel, { global: options() }); await flushPromises();
-  await view.get('select').setValue('epub'); await flushPromises();
-  expect(list).toHaveBeenCalledWith('', expect.any(AbortSignal));
+  await view.findAll('select')[0]!.setValue('epub'); await flushPromises();
+  expect(list).toHaveBeenCalledWith('epub', '', '', expect.any(AbortSignal));
   await view.get('input[type="checkbox"]').setValue(true);
   await button('imports.addSelected').trigger('click'); await flushPromises();
   expect(accept).not.toHaveBeenCalled(); expect(view.text()).toContain('imports.errors.reviewRequired');
   expect(view.text()).toContain('imports.epub.portableEncoder');
   await button('imports.next').trigger('click'); await flushPromises();
-  expect(list).toHaveBeenLastCalledWith('epub', expect.any(AbortSignal));
+  expect(list).toHaveBeenLastCalledWith('epub', '', 'next-page', expect.any(AbortSignal));
   await button('imports.flow.checkBook').trigger('click'); expect(view.emitted('review')?.at(-1)).toEqual(['epub', 'epub']);
 });

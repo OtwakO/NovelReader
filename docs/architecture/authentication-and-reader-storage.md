@@ -276,6 +276,26 @@ receipt discard, but are stripped from portable copies and rejected if retained.
 The inbox UI switches format with separate scan/claim pages and abandons the old proof
 before switching. Selected EPUB names enter the existing queue with a captured image policy.
 
+### Mixed-format import history HTTP
+
+`GET /api/imports/receipts?format=<txt|epub>&status=<status>&before=<cursor>&limit=<1..100>`
+is an authenticated, read-only listing; omitted format/status includes all. Status groups are
+`processing`, `ready`, `needs_review`, `failed`, `added`, `removing`. Existing provider list routes
+retain their earlier ID cursors and exact-state semantics for compatibility.
+
+`importhistory.Query` defines one cursor: creation time descending, format ascending, ID descending.
+Each provider's `History` operation applies that cursor and status before its SQL limit. The API
+merges at most `limit+1` rows per provider and issues the cursor of the last returned row; it never
+skips a provider's unread rows by forwarding independent page cursors. Responses wrap the unchanged
+provider receipt with `format` and grouped `status`. Queries remain confined to the authenticated
+reader home; this is a live list, not a frozen snapshot across requests. New imports appear on the
+first page; preparation/publication timestamps do not reorder existing rows.
+
+The stores own their respective lifecycle mappings. EPUB history checks the saved preparation JSON's
+`Diagnostics` array, matching the review-required gate, without reading section/resource files or
+returning metadata. Encoder notices do not require review. Ready and Needs review are disjoint, and
+published/removing states take precedence. No new persisted status, schema change or reimport is needed.
+
 ### Shared file-import frontend ownership
 
 `frontend/src/features/imports/ImportWorkspace.vue` belongs to the dedicated Local Import page:
@@ -292,8 +312,9 @@ review/retry/discard interactions; its `EPUBSectionPreview` owns on-demand conte
 loading, cancellation and scoped anchor positioning. It reuses the prose renderer/parser, not the
 Reading Session. It has no progress/bookmark writes, publication identity or persistent content cache.
 A native selector displays authored hierarchy; Previous/Next also reaches sections absent from contents.
-TXT interpretation controls remain separate. History selects a
-format to preserve independent bounded cursors and keeps TXT state filters. Bulk EPUB addition
+TXT interpretation controls remain separate. History defaults to All formats and uses the shared
+newest-first listing and status filters above. Changing format/status resets the cursor and bulk
+selection while retaining the other filter. Rows show their format and specific status. Bulk EPUB addition
 checks its exact saved preview and sends content warnings to individual review. Encoder notices
 remain visible independently of review policy. Image mode defaults to original; `import-preferences.ts`
 persists one device-local choice shared by browser/inbox controls. The queue captures it per selection,

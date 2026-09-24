@@ -9,7 +9,6 @@ export interface TXTReceipt extends TXTOptions {
   id: string; originalName: string; state: TXTState; size: number; createdAt: number; updatedAt: number;
   libraryId?: string; analysisVersion: number; hasError: boolean; errorCode?: string;
 }
-export interface TXTPage<T> { items: T[]; nextCursor?: string }
 export interface TXTWarnings { warnings?: string[] }
 export interface TXTAcquisition extends TXTWarnings { receipt: TXTReceipt }
 export interface TXTPreview {
@@ -21,7 +20,6 @@ export interface TXTPreview {
 const base = '/imports/txt';
 const idPath = (id: string) => `${base}/receipts/${encodeURIComponent(id)}`;
 export const getTXTReceipt = (id: string, signal: AbortSignal) => control<TXTReceipt>(idPath(id), signal);
-export const listTXTReceipts = (after: string, state: string, signal: AbortSignal) => control<TXTPage<TXTReceipt>>(`${base}/receipts?${new URLSearchParams({ after, state, limit: '25' })}`, signal);
 export const previewTXT = (id: string, version: number, start: number, signal: AbortSignal) => control<TXTPreview>(`${idPath(id)}/preview?analysisVersion=${version}&start=${start}&limit=25`, signal);
 export const analyzeTXT = (id: string, analysisVersion: number, options: TXTOptions, signal: AbortSignal) => control<TXTWarnings>(`${idPath(id)}/analysis`, signal, 'POST', { analysisVersion, ...options });
 export const acceptTXT = (id: string, analysisVersion: number, name: string, author: string, signal: AbortSignal) => control<{ libraryId: string }>(`${idPath(id)}/accept`, signal, 'POST', { analysisVersion, name, author });

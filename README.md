@@ -163,9 +163,14 @@ remain above/below the preview. Retry uses the observed failed preparation; wait
 preparation to finish before discarding it. No EPUB reparse/image-mode change is offered after
 acquisition. The server-folder section uses a **Format** selector for TXT or EPUB.
 
-Earlier imports uses a **Format** selector and shows persisted records, including transfers still visible in this tab. It is paginated
-by ID, not newest-first. It is not a second copy of book content: published originals/indexes remain
-needed for reading. Pending/failed imports retain their files until discarded; there is no automatic
+Earlier imports defaults to **All** formats; choose **TXT** or **EPUB** to narrow it. It shows persisted
+records, including this tab’s transfers, newest imports first. Preparation and publication do not move
+records to the top. The shared **Status** filter offers Processing, Ready, Needs review, Failed, Added
+and Removing. **Needs review** means TXT interpretation warnings or EPUB content/navigation warnings;
+it is independent of the device’s review-before-adding setting. Ready excludes these warning cases.
+Format/status changes return to the first page and clear bulk selection.
+
+This list is not a second copy of book content: published originals/indexes remain needed for reading. Pending/failed imports retain their files until discarded; there is no automatic
 expiry. Removing a book or discarding a pending import deletes its record after file cleanup succeeds.
 **Clear finished** only clears this tab's progress list, not books or persisted imports.
 

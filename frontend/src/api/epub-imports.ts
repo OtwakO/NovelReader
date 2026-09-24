@@ -18,7 +18,6 @@ export interface EPUBAcquisition { receipt: EPUBReceipt; warnings?: string[] }
 const base = '/imports/epub';
 const receiptPath = (id: string) => `${base}/receipts/${encodeURIComponent(id)}`;
 export const getEPUBReceipt = (id: string, signal: AbortSignal) => importControl<EPUBReceipt>(receiptPath(id), signal);
-export const listEPUBReceipts = (after: string, signal: AbortSignal) => importControl<{ items: EPUBReceipt[]; nextCursor?: string }>(`${base}/receipts?${new URLSearchParams({ after, limit: '25' })}`, signal);
 export const previewEPUB = (id: string, generation: number, start: number, signal: AbortSignal) => importControl<EPUBPreview>(`${receiptPath(id)}/preview?generation=${generation}&start=${start}&limit=25`, signal);
 export const retryEPUB = (id: string, generation: number, signal: AbortSignal) => importControl<EPUBAcquisition>(`${receiptPath(id)}/retry`, signal, 'POST', { generation });
 export const acceptEPUB = (id: string, generation: number, name: string, author: string, signal: AbortSignal) => importControl<{ libraryId: string }>(`${receiptPath(id)}/accept`, signal, 'POST', { generation, name, author });

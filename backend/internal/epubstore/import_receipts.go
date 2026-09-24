@@ -14,12 +14,14 @@ type ImportReceipt struct {
 	PreparationError string
 }
 
-const importReceiptQuery = `SELECT f.id,f.original_name,f.state,f.size,f.preparation_generation,f.image_mode,f.error,f.created_at,MAX(f.updated_at,COALESCE(p.updated_at,0)),COALESCE(f.library_id,''),COALESCE(p.state,''),COALESCE(p.error,'')
- FROM epub_files f LEFT JOIN epub_preparations p ON p.file_id=f.id AND p.generation=f.preparation_generation`
+const importReceiptColumns = `f.id,f.original_name,f.state,f.size,f.preparation_generation,f.image_mode,f.error,f.created_at,MAX(f.updated_at,COALESCE(p.updated_at,0)),COALESCE(f.library_id,''),COALESCE(p.state,''),COALESCE(p.error,'')`
+const importReceiptFrom = ` FROM epub_files f LEFT JOIN epub_preparations p ON p.file_id=f.id AND p.generation=f.preparation_generation`
+const importReceiptQuery = `SELECT ` + importReceiptColumns + importReceiptFrom
 
-func scanImportReceipt(row interface{ Scan(...any) error }) (ImportReceipt, error) {
+func scanImportReceipt(row interface{ Scan(...any) error }, extra ...any) (ImportReceipt, error) {
 	var r ImportReceipt
-	err := row.Scan(&r.ID, &r.OriginalName, &r.State, &r.Size, &r.PreparationGeneration, &r.ImageMode, &r.Error, &r.CreatedAt, &r.UpdatedAt, &r.LibraryID, &r.PreparationState, &r.PreparationError)
+	columns := []any{&r.ID, &r.OriginalName, &r.State, &r.Size, &r.PreparationGeneration, &r.ImageMode, &r.Error, &r.CreatedAt, &r.UpdatedAt, &r.LibraryID, &r.PreparationState, &r.PreparationError}
+	err := row.Scan(append(columns, extra...)...)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = ErrNotFound
 	}

@@ -4,6 +4,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as api from '../../api/txt-imports';
 import * as inbox from '../../api/file-imports';
+import * as history from '../../api/import-history';
 import * as books from '../../api/books';
 import { ApiError } from '../../api/transport';
 import ImportReviewView from './ImportReviewView.vue';
@@ -13,6 +14,7 @@ import { useImportQueue } from './import-queue';
 const wrappers: VueWrapper[] = [];
 afterEach(() => { wrappers.splice(0).forEach(view => view.unmount()); vi.restoreAllMocks(); });
 const receipt = (changes: Partial<api.TXTReceipt> = {}): api.TXTReceipt => ({ id: 'sample', originalName: 'sample.txt', state: 'needs_review', size: 100, createdAt: 0, updatedAt: 0, analysisVersion: 1, encoding: '', preset: '', hasError: false, ...changes });
+const historyItem = (item: api.TXTReceipt): history.ImportHistoryItem => ({ format: 'txt', status: item.state === 'published' ? 'added' : item.state === 'needs_review' ? 'needs_review' : 'ready', receipt: item });
 const preview = (version = 1): api.TXTPreview => ({ analysisVersion: version, encoding: 'utf-8', preset: 'generated-sections', parserVersion: 1, reviewReasons: ['no-headings'], totalSections: 1, headings: [{ index: 0, title: 'Section 1', generated: true }], hasMore: false, sample: '<script>literal prose</script>', sampleTruncated: true });
 async function routerFor(path: string) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/imports/:id?', component: { template: '<div />' } }, { path: '/books/:bookId/read', name: 'reader', component: { template: '<div />' } }, { path: '/books/:bookId', name: 'book-detail', component: { template: '<div />' } }] });
@@ -82,12 +84,12 @@ it('consumes inbox approval on failure and requires a fresh explicit review befo
 });
 
 it('bulk admission retains selected versions and reports partial success', async () => {
-  const list = vi.spyOn(api, 'listTXTReceipts').mockResolvedValue({ items: [receipt({ id: 'a', state: 'ready' }), receipt({ id: 'b', state: 'ready' }), receipt({ id: 'uncertain' })] });
+  const list = vi.spyOn(history, 'listImportHistory').mockResolvedValue({ items: [receipt({ id: 'a', state: 'ready' }), receipt({ id: 'b', state: 'ready' }), receipt({ id: 'uncertain' })].map(historyItem) });
   const accept = vi.spyOn(api, 'acceptTXT').mockResolvedValueOnce({ libraryId: 'a' }).mockRejectedValueOnce(new ApiError(409, { code: 'txt_state_changed' }));
   const view = mount(ImportReceiptsPanel, { global: { plugins: [createPinia(), await routerFor('/imports')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
   await flushPromises(); const inputs = view.findAll('input'); await inputs[0]!.setValue(true); await inputs[1]!.setValue(true);
   expect(inputs[2]!.attributes('disabled')).toBeDefined();
-  list.mockResolvedValue({ items: [receipt({ id: 'a', state: 'ready', analysisVersion: 9 }), receipt({ id: 'b', state: 'ready' })] });
+  list.mockResolvedValue({ items: [receipt({ id: 'a', state: 'ready', analysisVersion: 9 }), receipt({ id: 'b', state: 'ready' })].map(historyItem) });
   await button(view, 'imports.refresh').trigger('click'); await flushPromises();
   await button(view, 'imports.addSelected').trigger('click'); await flushPromises();
   expect(accept.mock.calls.map(call => call.slice(0, 2))).toEqual([['a', 1], ['b', 1]]);
@@ -172,7 +174,7 @@ it('keeps refresh for failed review loading, then removes the routine ready stat
 
 it('shows persisted imports even while their completed transfer remains in this tab', async () => {
   const item = receipt({ state: 'published', libraryId: 'sample' });
-  vi.spyOn(api, 'listTXTReceipts').mockResolvedValue({ items: [item] });
+  vi.spyOn(history, 'listImportHistory').mockResolvedValue({ items: [historyItem(item)] });
   const pinia = createPinia();
   useImportQueue(pinia).entries.push({ key: 1, format: 'txt', imageMode: 'original', name: item.originalName, receiptId: item.id, receipt: item, libraryId: item.libraryId, state: 'added' });
   const view = mount(ImportReceiptsPanel, { global: { plugins: [pinia, await routerFor('/imports')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
@@ -183,13 +185,13 @@ it('shows persisted imports even while their completed transfer remains in this 
 });
 
 it('reloads history when an import finishes during an in-flight history request', async () => {
-  let resolve!: (page: Awaited<ReturnType<typeof api.listTXTReceipts>>) => void;
-  const list = vi.spyOn(api, 'listTXTReceipts').mockReturnValueOnce(new Promise(done => { resolve = done; })).mockResolvedValue({ items: [receipt({ state: 'published', libraryId: 'sample' })] });
+  let resolve!: (page: Awaited<ReturnType<typeof history.listImportHistory>>) => void;
+  const list = vi.spyOn(history, 'listImportHistory').mockReturnValueOnce(new Promise(done => { resolve = done; })).mockResolvedValue({ items: [historyItem(receipt({ state: 'published', libraryId: 'sample' }))] });
   const pinia = createPinia();
   const view = mount(ImportReceiptsPanel, { global: { plugins: [pinia, await routerFor('/imports')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
   useImportQueue(pinia).updateReceipt(receipt({ state: 'published', libraryId: 'sample' }));
   await flushPromises();
-  resolve({ items: [receipt({ state: 'ready' })] }); await flushPromises();
+  resolve({ items: [historyItem(receipt({ state: 'ready' }))] }); await flushPromises();
   expect(list).toHaveBeenCalledTimes(2);
   expect(view.get('.import-list a').attributes('href')).toBe('/books/sample');
   expect(view.get('.import-list a').text()).toBe('bookDetail.title');
@@ -214,4 +216,34 @@ it('switches inbox format only after cancelling its proof and snapshots the EPUB
   await view.get('.import-inbox-list input[type="checkbox"]').setValue(true);
   await button(view, 'imports.acquireSelected').trigger('click');
   expect(enqueue).toHaveBeenCalledWith(['New.epub'], 'optimized');
+});
+
+
+it('defaults history to All and keeps shared filters while resetting pagination and selection', async () => {
+  const warning: history.ImportHistoryItem = { format: 'epub', status: 'needs_review', receipt: {
+    id: 'warning', originalName: 'Warning.epub', state: 'acquired', preparationState: 'ready', generation: 1,
+    imageMode: 'original', size: 20, createdAt: 2, updatedAt: 2, hasError: false,
+  } };
+  const list = vi.spyOn(history, 'listImportHistory').mockResolvedValue({ items: [historyItem(receipt({ state: 'ready' })), warning], nextCursor: 'next-page' });
+  const view = mount(ImportReceiptsPanel, { global: { plugins: [createPinia(), await routerFor('/imports')], mocks: { $t: (key: string) => key } } }); wrappers.push(view);
+  await flushPromises();
+  expect(list).toHaveBeenLastCalledWith('', '', '', expect.any(AbortSignal));
+  expect(view.findAll('select')).toHaveLength(2);
+  expect(view.text()).toContain('EPUB · imports.historyStatus.needs_review');
+  expect(view.findAll('input')[1]!.attributes('disabled')).toBeDefined();
+  await view.findAll('input')[0]!.setValue(true);
+  await button(view, 'imports.next').trigger('click'); await flushPromises();
+  expect(list).toHaveBeenLastCalledWith('', '', 'next-page', expect.any(AbortSignal));
+  expect(view.findAll<HTMLInputElement>('input')[0]!.element.checked).toBe(false);
+  await view.findAll('select')[1]!.setValue('needs_review'); await flushPromises();
+  expect(list).toHaveBeenLastCalledWith('', 'needs_review', '', expect.any(AbortSignal));
+  await button(view, 'imports.next').trigger('click'); await flushPromises();
+  const calls = list.mock.calls.length;
+  list.mockResolvedValue({ items: [warning] });
+  await view.findAll('select')[0]!.setValue('epub'); await flushPromises();
+  expect(list).toHaveBeenCalledTimes(calls + 1);
+  expect(list).toHaveBeenLastCalledWith('epub', 'needs_review', '', expect.any(AbortSignal));
+  expect(view.findAll('select')).toHaveLength(2);
+  await view.findAll('button').find(item => item.text() === 'imports.flow.checkBook')!.trigger('click');
+  expect(view.emitted('review')?.[0]).toEqual(['warning', 'epub']);
 });

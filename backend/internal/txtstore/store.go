@@ -62,9 +62,10 @@ func (s *Store) Get(ctx context.Context, id string) (Receipt, error) {
 	return scanReceipt(s.db.QueryRowContext(ctx, `SELECT `+receiptColumns+` FROM txt_receipts WHERE id=?`, id))
 }
 
-func scanReceipt(row interface{ Scan(...any) error }) (Receipt, error) {
+func scanReceipt(row interface{ Scan(...any) error }, extra ...any) (Receipt, error) {
 	var value Receipt
-	err := row.Scan(&value.ID, &value.OriginalName, &value.Path, &value.State, &value.Size, &value.Error, &value.CreatedAt, &value.UpdatedAt, &value.LibraryID, &value.AnalysisVersion, &value.Options.Encoding, &value.Options.Preset, &value.Options.Pattern)
+	columns := []any{&value.ID, &value.OriginalName, &value.Path, &value.State, &value.Size, &value.Error, &value.CreatedAt, &value.UpdatedAt, &value.LibraryID, &value.AnalysisVersion, &value.Options.Encoding, &value.Options.Preset, &value.Options.Pattern}
+	err := row.Scan(append(columns, extra...)...)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Receipt{}, ErrNotFound
 	}

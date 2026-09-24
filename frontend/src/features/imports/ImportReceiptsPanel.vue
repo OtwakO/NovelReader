@@ -2,8 +2,7 @@
 import { defineComponent } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppButton from '../../ui/components/AppButton.vue';
-import { listTXTReceipts } from '../../api/txt-imports';
-import { listEPUBReceipts } from '../../api/epub-imports';
+import { listImportHistory, historyStatuses, type ImportHistoryItem, type HistoryStatus } from '../../api/import-history';
 import type { ImportFormat } from '../../api/file-imports';
 import { ApiError } from '../../api/transport';
 import { acceptImport, additionDetails, receiptFormat, receiptState, type ImportReceipt } from './import-format';
@@ -14,34 +13,43 @@ export default defineComponent({
   components: { RouterLink, AppButton },
   emits: ['review'],
   data: () => ({
-    queue: useImportQueue(), task: createImportTask(), records: [] as ImportReceipt[], format: 'txt' as ImportFormat, notices: {} as Record<string, string[]>, next: '',
-    selected: [] as ImportReceipt[], after: '', filter: '', added: undefined as number | undefined,
+    queue: useImportQueue(), task: createImportTask(), records: [] as ImportHistoryItem[], format: '' as ImportFormat | '', notices: {} as Record<string, string[]>, next: '',
+    selected: [] as ImportReceipt[], after: '', filter: '' as HistoryStatus | '', added: undefined as number | undefined,
     failures: [] as { id: string; name: string; cause: unknown }[], timer: undefined as ReturnType<typeof setInterval> | undefined,
-    states: ['needs_review', 'analysis_failed', 'ready', 'published'],
+    states: historyStatuses,
   }),
-  watch: { format() { this.after = ''; this.filter = ''; this.changePage(); }, after() { this.changePage(); }, filter() { this.changePage(); }, 'queue.revision'() { this.refresh(); } },
+  computed: {
+    listingKey(): string { return `${this.format}:${this.filter}:${this.after}`; },
+  },
+  watch: { listingKey() { this.changePage(); }, 'queue.revision'() { this.refresh(); } },
   mounted() {
     this.refresh();
     this.timer = setInterval(() => {
-      if (document.visibilityState === 'visible' && (this.queue.running || this.records.some(item => ['receiving', 'received', 'analyzing'].includes(receiptState(item))))) this.refresh();
+      if (document.visibilityState === 'visible' && (this.queue.running || this.records.some(item => item.status === 'processing'))) this.refresh();
     }, 5000);
   },
   beforeUnmount() { clearInterval(this.timer); this.task.cancel(); },
   methods: {
-    importErrorKey, encoderNoticeKey, receiptFormat, receiptState,
+    importErrorKey, encoderNoticeKey, receiptFormat,
     statusKey(item: ImportReceipt): string { const state = receiptState(item); return receiptFormat(item) === 'epub' && ['received', 'analyzing', 'analysis_failed'].includes(state) ? `imports.epub.${state === 'analysis_failed' ? 'preparationFailed' : 'preparing'}` : `imports.state.${state}`; },
     async load(signal: AbortSignal) {
       // Completion can arrive while the task is busy; don't lose that refresh.
       let revision: number;
       do {
         revision = this.queue.revision;
-        const page = this.format === 'epub' ? await listEPUBReceipts(this.after, signal) : await listTXTReceipts(this.after, this.filter, signal);
+        const page = await listImportHistory(this.format, this.filter, this.after, signal);
         signal.throwIfAborted(); this.records = page.items; this.next = page.nextCursor || '';
       } while (revision !== this.queue.revision);
     },
     refresh() { void this.task.run(this.load); },
-    changePage() { this.task.cancel(); this.selected = []; this.notices = {}; this.refresh(); },
-    page(cursor: string, state?: string) { this.after = cursor; if (state !== undefined) this.filter = state; },
+    changePage() {
+      this.task.cancel();
+      this.records = []; this.next = ''; this.selected = []; this.notices = {};
+      this.refresh();
+    },
+    page(cursor: string) { this.after = cursor; },
+    setFormat(format: ImportFormat | '') { this.after = ''; this.format = format; },
+    setFilter(status: HistoryStatus | '') { this.after = ''; this.filter = status; },
     toggle(item: ImportReceipt, checked: boolean) {
       this.selected = this.selected.filter(value => value.id !== item.id);
       if (checked) this.selected.push({ ...item }); // Retain the selected version, never silently approve a newer one.
@@ -73,8 +81,8 @@ export default defineComponent({
     <h2 id="receipts-title">{{ $t('imports.results') }}</h2>
     <p>{{ $t('imports.resultsHint') }}</p>
     <div class="app-actions import-toolbar">
-      <label>{{ $t('imports.format') }} <select v-model="format" :disabled="task.busy"><component :is="'button'" type="button"><selectedcontent /></component><option value="txt">TXT</option><option value="epub">EPUB</option></select></label>
-      <label v-if="format === 'txt'">{{ $t('imports.filter') }} <select :value="filter" :disabled="task.busy" @change="page('', ($event.target as HTMLSelectElement).value)"><component :is="'button'" type="button"><selectedcontent /></component><option value="">{{ $t('imports.all') }}</option><option v-for="state in states" :key="state" :value="state">{{ $t(`imports.state.${state}`) }}</option></select></label>
+      <label>{{ $t('imports.format') }} <select :value="format" :disabled="task.busy" @change="setFormat(($event.target as HTMLSelectElement).value as ImportFormat | '')"><component :is="'button'" type="button"><selectedcontent /></component><option value="">{{ $t('imports.all') }}</option><option value="txt">TXT</option><option value="epub">EPUB</option></select></label>
+      <label>{{ $t('imports.filter') }} <select :value="filter" :disabled="task.busy" @change="setFilter(($event.target as HTMLSelectElement).value as HistoryStatus | '')"><component :is="'button'" type="button"><selectedcontent /></component><option value="">{{ $t('imports.all') }}</option><option v-for="state in states" :key="state" :value="state">{{ $t(`imports.historyStatus.${state}`) }}</option></select></label>
       <AppButton variant="secondary" :busy="task.busy" @click="refresh">{{ $t('imports.refresh') }}</AppButton>
       <AppButton :disabled="!selected.length || task.busy" @click="acceptSelection">{{ $t('imports.addSelected', { count: selected.length }) }}</AppButton>
     </div>
@@ -83,9 +91,9 @@ export default defineComponent({
     <p v-for="failure in failures" :key="failure.id" class="import-error">{{ failure.name }}: {{ $t(importErrorKey(failure.cause)) }}</p>
     <p v-if="!records.length && !task.busy">{{ $t('imports.noResults') }}</p>
     <ul class="import-list">
-      <li v-for="item in records" :key="item.id">
-        <label class="import-selection"><input type="checkbox" :aria-label="$t('imports.selectFile', { name: item.originalName })" :checked="selected.some(value => value.id === item.id)" :disabled="receiptState(item) !== 'ready' || task.busy" @change="toggle(item, ($event.target as HTMLInputElement).checked)"></label>
-        <div class="import-copy"><strong>{{ item.originalName }}</strong><span>{{ $t(statusKey(item)) }}</span><p v-for="notice in notices[item.id] || []" :key="notice" class="import-note">{{ $t(encoderNoticeKey(notice)) }}</p></div>
+      <li v-for="{ receipt: item, status, format: itemFormat } in records" :key="`${itemFormat}:${item.id}`">
+        <label class="import-selection"><input type="checkbox" :aria-label="$t('imports.selectFile', { name: item.originalName })" :checked="selected.some(value => value.id === item.id)" :disabled="status !== 'ready' || task.busy" @change="toggle(item, ($event.target as HTMLInputElement).checked)"></label>
+        <div class="import-copy"><strong>{{ item.originalName }}</strong><span>{{ itemFormat.toUpperCase() }} · {{ $t(status === 'needs_review' ? 'imports.historyStatus.needs_review' : statusKey(item)) }}</span><p v-for="notice in notices[item.id] || []" :key="notice" class="import-note">{{ $t(encoderNoticeKey(notice)) }}</p></div>
         <RouterLink v-if="item.libraryId && item.state !== 'removing'" class="app-button app-button--secondary import-read" :to="{ name: 'book-detail', params: { bookId: item.libraryId } }">{{ $t('bookDetail.title') }}</RouterLink>
         <AppButton v-else variant="secondary" @click="$emit('review', item.id, receiptFormat(item))">{{ $t('imports.flow.checkBook') }}</AppButton>
       </li>

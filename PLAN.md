@@ -129,13 +129,15 @@ The [reader-first presentation pass](docs/plans/2026-09-16-reader-first-presenta
 
 [EPUB import preview and image preference](docs/plans/2026-09-24-epub-import-preview.md) — completed selected-section preview with authored contents, prose/images and explicit import authorization; both intake controls share one saved device-local image preference. Scoped backend normal/race tests, 59 frontend tests, typecheck/build and isolated desktop/mobile Chromium verification pass. No schema change, second reader or deployment.
 
+[Mixed-format import history and status filters](docs/plans/2026-09-24-import-history-filters.md) — completed U3/U4: default All, newest-first pagination and shared lifecycle filters, including Needs review for both formats. Verified with affected backend packages, import UI tests, typecheck/build and an isolated synthetic browser journey. No schema change; existing provider endpoints remain compatible.
+
 ## Active Work
 
 [Continue Reading layout prototypes](frontend/prototypes/continue-reading/README.md) and [bookshelf-card layout prototypes](frontend/prototypes/bookshelf-cards/README.md) — disposable synthetic comparisons, not production UI changes. No layout selection or implementation is recorded.
 
 [Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted application-managed cache direction and immediate navigation feedback; documentation only, implementation pending authorization and narrow identity/freshness contract checks. TTL and recent-book retention values remain undecided.
 
-[Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) retains the original reports and reproduced preview causes. U1/U2 are resolved by the completed preview work above; mixed-format receipt filters, inbox refresh and scoped maintainability findings remain open and separate.
+[Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) retains the original reports and reproduced preview causes. U1–U4 are resolved by the completed preview and history/filter work above; inbox refresh and scoped maintainability findings remain open and separate.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 

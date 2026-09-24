@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-Follow-up is authorized in small, focused increments. After root-cause diagnosis and code-based approach analysis, the user accepted a selected-section EPUB preview and one shared device-local image-optimization preference. U1/U2 are implemented and verified within the limits recorded in the [completed EPUB import preview plan](../plans/2026-09-24-epub-import-preview.md). Mixed-format history/filter contracts remain unsettled. No schema change is approved. No subagents were used.
+Follow-up is authorized in small, focused increments. After root-cause diagnosis and code-based approach analysis, the user accepted a selected-section EPUB preview and one shared device-local image-optimization preference. U1/U2 are implemented and verified within the limits recorded in the [completed EPUB import preview plan](../plans/2026-09-24-epub-import-preview.md). U3/U4 are implemented and verified in the [completed mixed-format history/filter plan](../plans/2026-09-24-import-history-filters.md). No schema change is approved. No subagents were used.
 
 Branch reviewed: `feat/multi-provider-library`, HEAD `e68fbb0`; comparison with `main` merge-base `070246995b92a9dc597e6a56383a8f30479aebc1`. The quick review sampled shared library/reading, TXT/EPUB intake, lifecycle coordination, persistence, backup/restore and frontend state across a 496-file branch diff. It was not an exhaustive audit. The completed [EPUB milestone](../plans/2026-09-17-epub-support.md) remains historical verification, not proof that subsequent real-user cases work.
 
@@ -30,16 +30,16 @@ Branch reviewed: `feat/multi-provider-library`, HEAD `e68fbb0`; comparison with 
 ### U3 — Received-files format selector needs All
 
 - Request: **已接收檔案 → 格式** should offer **All / 全部**, in addition to TXT and EPUB.
-- Code evidence: `frontend/src/features/imports/ImportReceiptsPanel.vue` has separate TXT/EPUB choices and calls their separate paginated receipt-list endpoints.
+- Original code evidence: `frontend/src/features/imports/ImportReceiptsPanel.vue` had separate TXT/EPUB choices and called their separate paginated receipt-list endpoints.
 - Assessment: a reasonable mixed-import UX improvement, not evidence that storage formats should merge. Future implementation must define coherent ordering, pagination and filtering across formats; merely concatenating two independently paginated pages would not establish those semantics.
-- Status: requested improvement recorded; no approach selected or implemented.
+- Implemented: All formats by default, newest imports first with coherent pagination; verification in the [history/filter plan](../plans/2026-09-24-import-history-filters.md).
 
 ### U4 — EPUB received-files view lacks a status filter
 
 - Request/question: EPUB should have a **狀態** filter like TXT unless its absence is intentionally necessary.
-- Code evidence: `ImportReceiptsPanel.vue` displays the status selector only for TXT (`v-if="format === 'txt'"`); EPUB listing currently receives a cursor without a status filter. `import-format.ts` already projects EPUB acquisition/preparation/publication into shared UI states.
-- Assessment: EPUB has meaningful pending, ready, failed, published and removing conditions. There is no demonstrated domain reason it cannot benefit from a status filter. Current absence is an implementation asymmetry, not a verified intentional requirement. Do not assume all TXT labels or the TXT `needs_review` state map directly to stored EPUB states.
-- Status: desired consistency recorded; state choices, All-format behavior and filtering/pagination contract remain to be settled before implementation.
+- Original code evidence: `ImportReceiptsPanel.vue` displayed the status selector only for TXT (`v-if="format === 'txt'"`); EPUB listing received a cursor without a status filter. `import-format.ts` already projects EPUB acquisition/preparation/publication into shared UI states.
+- Assessment: EPUB has meaningful pending, ready, failed, published and removing conditions. There is no demonstrated domain reason it cannot benefit from a status filter. The original absence was an implementation asymmetry, not a verified intentional requirement. Do not assume all TXT labels or the TXT `needs_review` state map directly to stored EPUB states.
+- Implemented: shared lifecycle filters, including plain “Needs review” for both formats under existing content-review rules; verification in the completed history/filter plan above.
 
 ## Review findings
 
@@ -87,4 +87,4 @@ With that environment variable set, the diagnostic intentionally fails assertion
 
 ## Next action
 
-U1/U2 are complete; see the [outcome and verification](../plans/2026-09-24-epub-import-preview.md#verification). Resolve mixed-history/filter contracts before U3/U4 implementation; keep reader readability cleanup separate unless a functional correction requires it. This note retains original reports and diagnosis evidence; no U3/U4 or R1–R3 implementation is included in the preview change.
+U1–U4 are complete within the verification limits of the linked preview and history/filter plans. R1–R3 remain separate; confirm the next scope before implementing them. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.
