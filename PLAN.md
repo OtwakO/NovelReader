@@ -133,9 +133,9 @@ The [reader-first presentation pass](docs/plans/2026-09-16-reader-first-presenta
 
 [Unified import preview](docs/plans/2026-09-25-unified-import-preview.md) — implemented B: visible 250px desktop contents, persistent title/author and arrow navigation. TXT import/re-analysis show whole selected chapters; EPUB retains its loaders and all prose images are centered in preview/reader. Focused backend/frontend and isolated desktop/mobile checks passed; no schema or deployment change.
 
-## Active Work
+Continue Reading's narrow-screen reflow (`947a2b8`) and the bookshelf cover-gallery layout (`aed9220`) are implemented in `ShelfView.vue`. Their disposable prototypes, along with the completed import-preview prototypes, have been removed; Git history retains the experiments.
 
-[Continue Reading layout prototypes](frontend/prototypes/continue-reading/README.md) and [bookshelf-card layout prototypes](frontend/prototypes/bookshelf-cards/README.md) — disposable synthetic comparisons, not production UI changes. No layout selection or implementation is recorded.
+## Active Work
 
 [Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted application-managed cache direction and immediate navigation feedback; documentation only, implementation pending authorization and narrow identity/freshness contract checks. TTL and recent-book retention values remain undecided.
 

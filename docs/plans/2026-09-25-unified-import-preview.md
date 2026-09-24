@@ -21,7 +21,7 @@ No schema migration, reset, reimport, deployment, progress writes from preview, 
 
 ## Accepted Approach
 
-The user selected [prototype B](../../frontend/prototypes/import-preview/README.md), refined through commits `e2ad256` and `9136395`:
+The user selected prototype B, refined through commits `e2ad256` and `9136395` (the disposable files are preserved in Git history):
 
 - Desktop contents column: 250px, with a bounded scrollable list.
 - Mobile: contents above the reading area, not a horizontally squeezed sidebar.
@@ -32,7 +32,7 @@ The user selected [prototype B](../../frontend/prototypes/import-preview/README.
 - Preserve lightweight admission summaries. Add the smallest TXT section-read boundary needed rather than making every summary fetch return full chapters.
 - Re-analysis preview selection is not resume selection. Its explicit resume/apply controls and concurrency checks remain separate.
 
-The prototype is visual evidence, not production code to copy verbatim. A/C remain comparison artifacts; B is the selected direction.
+The prototype served as visual evidence, not production code to copy verbatim. The A/B/C comparison artifacts were removed after implementation; B remains the selected direction.
 
 ## Current State
 

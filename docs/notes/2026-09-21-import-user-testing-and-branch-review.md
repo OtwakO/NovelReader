@@ -47,7 +47,7 @@ The user reports that the implemented EPUB preview works in rudimentary manual t
 
 Accepted intent: center **all** displayed images for manual evaluation; add whole-selected-chapter TXT previews for import and re-analysis where the existing shared preview owner makes reuse practical. Keep preview selection separate from re-analysis resume selection/apply, and preserve format-owned loading and authorization. The old TXT summary returned a 4 KiB sample; whole-section preview now uses a separate saved-generation read, leaving the summary compatible. No new preparation pipeline or generic reader framework is requested.
 
-After reviewing the [import-preview prototypes](../../frontend/prototypes/import-preview/README.md), the user selected refined B. The completed [unified import-preview plan](../plans/2026-09-25-unified-import-preview.md) records implementation and scoped verification. TXT import/re-analysis share B's presentation with EPUB, metadata stays visible, and ordinary/inline images are centered in preview and reader. Focused tests and isolated synthetic desktop/mobile checks passed; broader manual real-book feedback remains useful.
+After reviewing the disposable import-preview prototypes (preserved in Git history at `9136395`), the user selected refined B. The prototypes were removed after implementation. The completed [unified import-preview plan](../plans/2026-09-25-unified-import-preview.md) records implementation and scoped verification. TXT import/re-analysis share B's presentation with EPUB, metadata stays visible, and ordinary/inline images are centered in preview and reader. Focused tests and isolated synthetic desktop/mobile checks passed; broader manual real-book feedback remains useful.
 
 ## Review findings
 
