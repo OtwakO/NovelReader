@@ -13,6 +13,14 @@ Make opening/reopening books and adjacent chapter navigation responsive, without
 
 This update authorizes **documentation only**. Application implementation, deployment, data reset and schema migration are not authorized. The design is accepted at the architectural level; the concrete engineering gates below remain unfinished.
 
+## Fresh-session entry
+
+1. Read repository [instructions](../../AGENTS.md), the [project router](../../PLAN.md), then this plan. Check `git status` and recent history; do not assume the last session's branch or working tree is unchanged.
+2. Read **Current State**, **Next Action** and **Verification** before treating any accepted behavior as implemented. The source observations below were established against implementation checkpoint `009c21b`; verify the affected code if the checkout has advanced.
+3. Follow only the relevant source/test entries in Current State. For wider invariants, use [discovery and reading](../architecture/discovery-and-reading.md) or [reader storage and backup](../architecture/authentication-and-reader-storage.md), not completed plans as live specifications.
+4. When implementation is authorized, resolve the engineering gates below first. Record the chosen concrete contracts in this plan before dependent code; do not restart product discovery or silently choose a schema change. If a simpler design changes behavior, obtain approval rather than relabeling it an implementation detail.
+5. Continue through the tracked increments without deferring required behaviors. Update this plan's Current State, Next Action/checklist and actual Verification before handing unfinished work to another session. Do not create a second plan for the same workstream.
+
 ## Scope and settled policy
 
 | Concern | Accepted behavior |
@@ -70,6 +78,8 @@ Separate three concepts:
 Validate authenticated current book identity/resume and a matching catalog before local reuse on reader entry. Do not optimistically display disk content before that check. IndexedDB improves retained chapter reuse; it does not eliminate entry validation or promise offline opening.
 
 Existing content revisions cover source switches and TXT reparse. Switching sources must make old-source copies ineligible, retrieve content under the newly selected binding and prepare its forward window. Never fall back to old-source content or admit late old-binding responses. Reparse likewise cannot reuse old ordinals merely because titles/indices match.
+
+The chapter lookup identity is not an immutable document-instance identity: an upstream Refresh may produce a different document under the same interpretation revision. The resource design must distinguish those instances without treating every refresh as a catalog replacement or remapping progress/bookmarks. Home generation, interpretation revision, document-instance identity and client request/invalidation generations have different jobs; do not substitute one for another.
 
 Add one durable **reader-home generation** for creation/replacement. Preserve it across ordinary restarts/runtime eviction; do not derive it from Reader ID or the Legado device identity, and do not import the old value from a portable archive. Establish the new generation in the staged replacement and publish it with that home; rollback retains the prior home's generation. Carry/validate it at the reader interface so separate entry requests and later content/state operations cannot accidentally combine pre-/post-restore data with repeating book IDs/revisions. Exact storage and wire compatibility are a pre-implementation gate, not an assumed schema bump.
 
@@ -165,6 +175,14 @@ Preserve validation, quiescence, staged atomic replacement, uncertain-outcome re
 
 ## Decisions and simpler alternatives
 
+Design patterns describe existing needs, not mandatory new abstractions:
+
+- **Read-through loading:** one operation owns lookup, miss retrieval and population; callers do not orchestrate cache levels themselves.
+- **Shared in-flight work (single-flight):** matching callers share retrieval; this is separate from ordering different requests against a mutable source session.
+- **Immutable identity plus generation-checked publication:** results belong to a specific lifetime; reject stale results at admission instead of repairing contamination afterward.
+- **Requested versus committed state:** navigation is a proposal until display succeeds; reuse the existing EPUB proposal/rollback model.
+- **Feature-owned portable projection:** each storage owner strips its disposable state from a staged copy; backup orchestration stays independent of source/provider internals.
+
 - Memory/IndexedDB/backend storage each removes a different cost. Do not defer persistence or active renewal merely to reduce implementation scope; implementation increments are not feature cuts.
 - HTTP caching is useful generally but cannot enforce this selected per-book window and precise application-owned deletion. Use one persistent chapter-cache owner; keep static/image HTTP policies separate.
 - Reuse the loader, converter, reader revisions, backend timestamp/recency fields and portable-preparation hooks. A small IndexedDB helper may be considered if it reduces real boilerplate; no dependency/framework is mandated.
@@ -225,7 +243,7 @@ Update Current State, this checklist/Next Action and Verification at meaningful 
 
 ## Verification
 
-**Performed:** original-plan/conversation cross-check and targeted source inspection; documentation whitespace checks pass and all 41 relative links in this plan and `PLAN.md` resolve. Markdown has no authoritative LSP diagnostics here. No application tests, browser journeys or timing measurements were run; this documentation update is not implementation verification.
+**Performed:** original-plan/conversation cross-check, fresh-session handoff review and targeted source inspection; documentation whitespace checks pass and relative links in this plan and `PLAN.md` resolve. Markdown has no authoritative LSP diagnostics here. No application tests, browser journeys or timing measurements were run; this documentation update is not implementation verification.
 
 Use existing synthetic fixtures and the fewest tests that establish these contracts:
 
@@ -240,6 +258,13 @@ Use existing synthetic fixtures and the fewest tests that establish these contra
 - Portable export/import omit disposable cache data without mutating the live cache; compatible archives with cache rows are sanitized; durable catalogs, imported content and recovery data remain coherent/readable. Preserve atomic replacement and failure recovery.
 
 Combine related cases instead of multiplying every provider/timing/storage combination. Use targeted backend/frontend tests first, race/integration checks for actual shared or replacement boundaries, frontend typecheck/build, and focused browser journeys covering reopen/Refresh, ±2 navigation and recovery (including conversion and EPUB notes). Inspect visible/request behavior before claiming snappiness. No live private sources, repo-wide stress campaign, generic benchmark framework or exhaustive quota simulation by default.
+
+Starting commands below are **not executed verification**. Select only the affected boundary and narrow further with the test runner when useful; add the new tests beside existing ones:
+
+- Reader loader/navigation: `cd frontend && npm test -- src/features/reader/chapter-loader.test.ts src/features/reader/ReaderView.navigation.test.ts`.
+- Backend reading/cache: `cd backend && go test ./internal/reading ./internal/book`.
+- Portable lifecycle: `cd backend && go test ./internal/readerstore ./internal/backup`.
+- After frontend implementation: `cd frontend && npm run build` (includes TypeScript checking). Extend to converter, request/reset, sourceexec and provider tests only as the changed contracts require.
 
 ## Compatibility and rollback
 
