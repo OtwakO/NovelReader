@@ -59,11 +59,11 @@ Reproduced with deferred scan and review responses, then fixed with one panel-ow
 
 Verification: 23 tests in `import-views.test.ts` and `import-image-preference.test.ts`, plus frontend typecheck, passed. Regression coverage includes coalescing during a scan, refresh after review, and preserving resolution errors.
 
-### R2 — Shared reader orchestration is unnecessarily compressed (medium)
+### R2 — Shared reader orchestration is unnecessarily compressed (resolved)
 
 `frontend/src/features/reader/ReaderView.vue`, especially mounting/loading, conversion and content-commit methods, packs asynchronous operations and state changes into dense lines. The ordering of navigation, displayed content, scroll and progress is hard to review safely.
 
-Assessment: readability/maintainability concern, not a confirmed behavior defect. Prefer normal statement/block formatting first; extract only genuinely cohesive operations if needed. No new reader framework or generic state machine recommended.
+Resolved by expanding the script's compressed statements, state fields and blocks using normal formatting. No extraction, ownership change or new abstraction was needed. The TypeScript AST was compared before/after (ignoring redundant parentheses); template and styles are unchanged. Frontend typecheck and 76 tests across reader features plus `ImportWorkspace.test.ts` passed. The existing fixture warnings remain for R3; no new reader behavior is claimed.
 
 ### R3 — Passing frontend tests emit avoidable warnings (low)
 
@@ -97,4 +97,4 @@ With that environment variable set, the diagnostic intentionally fails assertion
 
 ## Next action
 
-U1–U4 are complete within the verification limits of the linked preview and history/filter plans. Preview-consistency follow-up is implemented within the completed B plan's verification limits above. The remaining review fixes are authorized. R1 is resolved; continue with behavior-preserving R2 readability and R3 fixture-warning cleanup as separate commits. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.
+U1–U4 are complete within the verification limits of the linked preview and history/filter plans. Preview-consistency follow-up is implemented within the completed B plan's verification limits above. The remaining review fixes are authorized. R1 and R2 are resolved; continue with R3 fixture-warning cleanup as a separate commit. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.
