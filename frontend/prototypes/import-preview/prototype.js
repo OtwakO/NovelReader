@@ -21,7 +21,11 @@ const paragraphs = [
 ];
 function chapters() { return format.value === 'EPUB' ? ['Cover', ...titles] : titles; }
 function button(text, action, disabled = false, primary = false) {
-  return `<button type="button" class="app-button app-button--${primary ? 'primary' : 'secondary'}" data-action="${action}" ${disabled ? 'disabled' : ''}>${text}</button>`;
+  const arrow = variants[variant].key === 'B' && (action === 'previous' || action === 'next');
+  const content = arrow
+    ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${action === 'previous' ? 'M19 12H5m7-7-7 7 7 7' : 'M5 12h14m-7-7 7 7-7 7'}"/></svg>`
+    : text;
+  return `<button type="button" class="app-button app-button--${primary ? 'primary' : 'secondary'}${arrow ? ' icon-button' : ''}" data-action="${action}" ${arrow ? `aria-label="${text}" title="${text}"` : ''} ${disabled ? 'disabled' : ''}>${content}</button>`;
 }
 function pager() {
   return `<div class="pager">${button('Previous', 'previous', chapter === 0)}<span>${chapter + 1} / ${chapters().length}</span>${button('Next', 'next', chapter === chapters().length - 1)}</div>`;
@@ -51,8 +55,8 @@ function render() {
   app.innerHTML = `<header class="app-shell"><strong>NovelReader</strong><span>Local import</span></header>
     <div class="workspace"><div class="page-heading"><h1>${reparse ? 'Re-analyze TXT' : 'Local import'}</h1><span class="muted">${reparse ? 'Back to book details' : 'Back to shelf'}</span></div>
     <details class="context"><summary>${reparse ? 'Current reading settings · UTF-8 · English chapter headings' : 'From this device · 1 file prepared for review'}</summary><p>Simplified surrounding context. Upload and preparation controls are not part of this mock.</p></details>
-    <section class="review ${v.key}"><header class="review-heading"><div><h2>The Lantern Keeper</h2><p>${reparse ? 'Prepared interpretation · current book stays unchanged' : 'Check the contents before adding this book.'}</p></div><span class="format-tag">${format.value}</span></header>
-    <div class="review-tools">${format.value === 'TXT' ? '<details><summary>Adjust chapters</summary><p>Encoding and chapter detection stay in the existing workflow; no mock preparation is performed.</p></details>' : ''}<details><summary>${reparse ? 'Interpretation details' : 'Book details'}</summary><p>Title: The Lantern Keeper<br>Author: Synthetic example</p></details></div>
+    <section class="review ${v.key}"><header class="review-heading"><div><h2>The Lantern Keeper</h2>${v.key === 'B' ? '<p>Author: Synthetic example</p>' : ''}<p>${reparse ? 'Prepared interpretation · current book stays unchanged' : 'Check the contents before adding this book.'}</p></div><span class="format-tag">${format.value}</span></header>
+    <div class="review-tools">${format.value === 'TXT' ? '<details><summary>Adjust chapters</summary><p>Encoding and chapter detection stay in the existing workflow; no mock preparation is performed.</p></details>' : ''}${v.key === 'B' ? '' : `<details><summary>${reparse ? 'Interpretation details' : 'Book details'}</summary><p>Title: The Lantern Keeper<br>Author: Synthetic example</p></details>`}</div>
     <section class="preview"><div class="preview-heading"><h3>Book preview</h3><span>${chapters().length} sections</span></div>${preview}<p class="preview-note">Preview only — ${reparse ? 'browsing does not choose your resume location or apply changes.' : 'no reading progress is saved.'}</p></section>
     ${reparse ? `<section class="resume"><h3>Resume after applying</h3><p>${resume ? `Chosen: ${resume}` : 'Keep the saved reading location.'}</p>${button('Use previewed chapter', 'resume')}</section>` : ''}
     <footer class="review-footer"><div class="actions">${button(reparse ? 'Review and apply changes' : 'Add book', 'mock', false, true)}${button(reparse ? 'Discard preview' : 'Discard import', 'mock')}</div><p>Prototype actions do not modify data.</p></footer><p id="feedback" role="status"></p></section></div>`;
