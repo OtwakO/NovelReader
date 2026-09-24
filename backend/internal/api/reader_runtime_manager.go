@@ -20,20 +20,22 @@ var (
 )
 
 type readerRuntimeManager struct {
-	services *readerServices
-	readers  *readerstore.Manager
-	searcher *book.Searcher
-	jsVM     *analyzer.JSVM
-	browser  sourceinteraction.Browser
-	limits   book.SearcherLimits
-	capacity int
-	idleTTL  time.Duration
-	now      func() time.Time
-	mu       sync.Mutex
-	changed  chan struct{}
-	runtimes map[readerstore.UserID]*readerRuntime
-	deleting map[readerstore.UserID]bool
-	closed   bool
+	services   *readerServices
+	readers    *readerstore.Manager
+	searcher   *book.Searcher
+	jsVM       *analyzer.JSVM
+	browser    sourceinteraction.Browser
+	limits     book.SearcherLimits
+	capacity   int
+	idleTTL    time.Duration
+	now        func() time.Time
+	mu         sync.Mutex
+	changed    chan struct{}
+	runtimes   map[readerstore.UserID]*readerRuntime
+	deleting   map[readerstore.UserID]bool
+	closed     bool
+	opening    map[readerstore.UserID]chan struct{}
+	initialize func(context.Context, readerstore.UserID) (*readerRuntime, error)
 }
 
 func newReaderRuntimeManager(readers *readerstore.Manager, searcher *book.Searcher, jsVM *analyzer.JSVM, browser sourceinteraction.Browser, limits book.SearcherLimits, capacity int, idleTTL time.Duration, services *readerServices) *readerRuntimeManager {
@@ -44,9 +46,11 @@ func newReaderRuntimeManager(readers *readerstore.Manager, searcher *book.Search
 		idleTTL = 30 * time.Minute
 	}
 	limits.MaxSessions = max(1, limits.MaxSessions/capacity)
-	return &readerRuntimeManager{services: services, readers: readers, searcher: searcher, jsVM: jsVM, browser: browser, limits: limits,
+	manager := &readerRuntimeManager{services: services, readers: readers, searcher: searcher, jsVM: jsVM, browser: browser, limits: limits,
 		capacity: capacity, idleTTL: idleTTL, now: time.Now, changed: make(chan struct{}),
-		runtimes: make(map[readerstore.UserID]*readerRuntime), deleting: make(map[readerstore.UserID]bool)}
+		runtimes: make(map[readerstore.UserID]*readerRuntime), deleting: make(map[readerstore.UserID]bool), opening: make(map[readerstore.UserID]chan struct{})}
+	manager.initialize = manager.openRuntime
+	return manager
 }
 
 func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.UserID) (*readerRuntime, func(), error) {
@@ -63,6 +67,15 @@ func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.U
 			m.mu.Unlock()
 			return nil, nil, err
 		}
+		if opening := m.opening[userID]; opening != nil {
+			m.mu.Unlock()
+			select {
+			case <-opening:
+				continue
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			}
+		}
 		now := m.now()
 		for id, runtime := range m.runtimes {
 			if runtime.closing == nil && runtime.references == 0 && now.Sub(runtime.lastUsed) >= m.idleTTL {
@@ -75,8 +88,8 @@ func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.U
 			m.mu.Unlock()
 			return runtime, func() { m.release(userID, runtime) }, nil
 		}
-		if m.runtimes[userID] != nil || len(m.runtimes) >= m.capacity {
-			waiting := false
+		if m.runtimes[userID] != nil || len(m.runtimes)+len(m.opening) >= m.capacity {
+			waiting := len(m.opening) > 0
 			var oldestID readerstore.UserID
 			var oldest *readerRuntime
 			for id, runtime := range m.runtimes {
@@ -104,17 +117,25 @@ func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.U
 				return nil, nil, ctx.Err()
 			}
 		}
+		m.opening[userID] = make(chan struct{})
 		m.mu.Unlock()
 
-		runtime, err := m.openRuntime(ctx, userID)
+		runtime, err := m.initialize(ctx, userID)
 		if err != nil {
+			m.mu.Lock()
+			m.finishOpeningLocked(userID)
+			m.mu.Unlock()
 			return nil, nil, err
 		}
 		m.mu.Lock()
-		// Another acquisition or quiesce may have won while storage was opening.
-		if m.closed || m.deleting[userID] || m.runtimes[userID] != nil || len(m.runtimes) >= m.capacity || ctx.Err() != nil {
+		// Keep the reservation until rejected initialization has fully drained.
+		if m.closed || m.deleting[userID] || ctx.Err() != nil {
 			m.mu.Unlock()
-			if err := runtime.close(); err != nil {
+			err := runtime.close()
+			m.mu.Lock()
+			m.finishOpeningLocked(userID)
+			m.mu.Unlock()
+			if err != nil {
 				return nil, nil, err
 			}
 			continue
@@ -122,6 +143,7 @@ func (m *readerRuntimeManager) acquire(ctx context.Context, userID readerstore.U
 		runtime.references = 1
 		runtime.lastUsed = m.now()
 		m.runtimes[userID] = runtime
+		m.finishOpeningLocked(userID)
 		m.mu.Unlock()
 		return runtime, func() { m.release(userID, runtime) }, nil
 	}
@@ -168,6 +190,15 @@ func (m *readerRuntimeManager) quiesce(ctx context.Context, userID readerstore.U
 		}
 		m.mu.Lock()
 		m.deleting[userID] = true
+		if opening := m.opening[userID]; opening != nil {
+			m.mu.Unlock()
+			select {
+			case <-opening:
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
 		runtime := m.runtimes[userID]
 		if runtime == nil {
 			m.mu.Unlock()
@@ -210,6 +241,10 @@ func (m *readerRuntimeManager) signalLocked() {
 func (m *readerRuntimeManager) Close() error {
 	m.mu.Lock()
 	m.closed = true
+	openings := make([]chan struct{}, 0, len(m.opening))
+	for _, done := range m.opening {
+		openings = append(openings, done)
+	}
 	runtimes := make([]*readerRuntime, 0, len(m.runtimes))
 	for userID, runtime := range m.runtimes {
 		m.beginCloseLocked(userID, runtime)
@@ -217,9 +252,18 @@ func (m *readerRuntimeManager) Close() error {
 	}
 	m.mu.Unlock()
 	var closeErr error
+	for _, done := range openings {
+		<-done
+	}
 	for _, runtime := range runtimes {
 		<-runtime.closing
 		closeErr = errors.Join(closeErr, runtime.closeErr)
 	}
 	return closeErr
+}
+
+func (m *readerRuntimeManager) finishOpeningLocked(userID readerstore.UserID) {
+	close(m.opening[userID])
+	delete(m.opening, userID)
+	m.signalLocked()
 }

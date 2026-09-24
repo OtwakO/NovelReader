@@ -3,12 +3,18 @@ package book
 import (
 	"database/sql"
 	"testing"
+
+	"github.com/otwako/novelreader/internal/library"
 )
 
 func initializeBookTestSchema(t *testing.T, db *sql.DB) {
 	t.Helper()
 	tx, err := db.Begin()
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := library.ReaderSchema().Initialize(tx); err != nil {
+		_ = tx.Rollback()
 		t.Fatal(err)
 	}
 	if err := ReaderSchema().Initialize(tx); err != nil {

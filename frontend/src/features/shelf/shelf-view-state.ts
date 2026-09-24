@@ -1,4 +1,4 @@
-import type { Book } from '../../api/models';
+import type { LibraryBook } from '../../api/models';
 
 export type ShelfSort = 'recent' | 'title' | 'author' | 'progress';
 export interface ShelfViewState { query: string; sort: ShelfSort; scrollY: number }
@@ -25,7 +25,7 @@ export function saveShelfViewState(state: ShelfViewState): void {
   try { storage()?.setItem(key, JSON.stringify(state)); } catch { /* tab-local restoration is optional */ }
 }
 
-export function visibleShelfBooks(books: Book[], query: string, sort: ShelfSort): Book[] {
+export function visibleShelfBooks(books: LibraryBook[], query: string, sort: ShelfSort): LibraryBook[] {
   const normalized = query.trim().toLocaleLowerCase();
   const filtered = normalized ? books.filter(book => `${book.name}\n${book.author}`.toLocaleLowerCase().includes(normalized)) : books;
   return [...filtered].sort((left, right) => {
@@ -36,6 +36,8 @@ export function visibleShelfBooks(books: Book[], query: string, sort: ShelfSort)
       const rightProgress = right.totalChapterNum > 0 ? right.durChapterIndex / right.totalChapterNum : 0;
       return rightProgress - leftProgress || left.name.localeCompare(right.name);
     }
-    return (right.updatedAt ?? 0) - (left.updatedAt ?? 0) || left.name.localeCompare(right.name);
+    return (right.lastReadAt ?? 0) - (left.lastReadAt ?? 0)
+      || (right.createdAt ?? 0) - (left.createdAt ?? 0)
+      || left.name.localeCompare(right.name);
   });
 }

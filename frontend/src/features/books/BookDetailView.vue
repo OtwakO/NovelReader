@@ -4,11 +4,15 @@ import {
   clearBookSources,
   deleteBook,
   getBook,
+  getBookSource,
   mergeBookSources,
   type Book,
+  type LibraryBook,
 } from "../../api/books";
+import type { CatalogNavigation } from '../../api/catalog-navigation';
 import type { AltSource, Chapter } from "../../api/models";
 import { switchBookSource, waitForCatalog } from "../../api/reader";
+import AppIcon from '../../ui/components/AppIcon.vue';
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
 import SourceRecoveryPanel from "../source-recovery/SourceRecoveryPanel.vue";
@@ -16,12 +20,14 @@ import BookCover from "./BookCover.vue";
 import BookDetailSection from "./BookDetailSection.vue";
 import BookDetailToc from "./BookDetailToc.vue";
 import { clearCandidateCommittedBook } from "../candidates/candidate-operation";
+import { loadReaderSnapshot, readerResumeLocation } from '../reader/reader-session';
 import { readableChapterLabel } from "./book-display";
 
 export default defineComponent({
   name: "BookDetailView",
   components: {
     AppButton,
+    AppIcon,
     BookCover,
     BookDetailSection,
     BookDetailToc,
@@ -30,8 +36,11 @@ export default defineComponent({
   },
   data() {
     return {
-      book: null as Book | null,
+      book: null as LibraryBook | null,
+      nativeBook: null as Book | null,
       chapters: [] as Chapter[],
+      catalogNavigation: undefined as CatalogNavigation | undefined,
+      catalogRevision: 0,
       loading: true,
       bookError: "",
       tocError: "",
@@ -43,6 +52,8 @@ export default defineComponent({
       switching: false,
       removing: false,
       confirmingRemove: false,
+      removedBookId: "",
+      cleanupPending: false,
       persistence: Promise.resolve() as Promise<void>,
     };
   },
@@ -68,7 +79,11 @@ export default defineComponent({
   watch: {
     bookId() {
       this.book = null;
+      this.nativeBook = null;
       this.chapters = [];
+      this.catalogNavigation = undefined;
+      this.removedBookId = "";
+      this.cleanupPending = false;
       void this.load();
     },
   },
@@ -76,6 +91,7 @@ export default defineComponent({
     await this.load();
   },
   methods: {
+    readerResumeLocation,
     async load() {
       const request = ++this.loadGeneration;
       this.loading = true;
@@ -85,6 +101,9 @@ export default defineComponent({
         const book = await getBook(this.bookId);
         if (request !== this.loadGeneration) return;
         this.book = book;
+        const nativeBook = book.provider === 'booksource' ? await getBookSource(this.bookId) : null;
+        if (request !== this.loadGeneration) return;
+        this.nativeBook = nativeBook;
         this.loading = false;
         await this.loadCatalog(false, request);
       } catch (cause) {
@@ -102,11 +121,19 @@ export default defineComponent({
       this.catalogRetrying = retry;
       this.tocError = "";
       try {
-        const chapters = await waitForCatalog(this.bookId, {
+        let catalog = await waitForCatalog(this.bookId, {
           retry,
           isCurrent: () => request === this.loadGeneration,
         });
-        if (request === this.loadGeneration) this.chapters = chapters;
+        if (request !== this.loadGeneration) return;
+        if (this.book?.contentRevision !== catalog.contentRevision) {
+          const snapshot = await loadReaderSnapshot(this.bookId, { isCurrent: () => request === this.loadGeneration });
+          if (request !== this.loadGeneration) return;
+          this.book = snapshot.book; catalog = snapshot.catalog;
+        }
+        this.catalogRevision = catalog.contentRevision;
+        this.chapters = catalog.chapters;
+        this.catalogNavigation = catalog.navigation;
       } catch (cause) {
         if (request !== this.loadGeneration) return;
         this.tocError =
@@ -125,7 +152,7 @@ export default defineComponent({
       this.persistence = this.persistence
         .then(async () => {
           if (this.book)
-            this.book = await mergeBookSources(this.book.id, sources);
+            this.book = this.nativeBook = await mergeBookSources(this.book.id, sources);
         })
         .catch((cause) => {
           this.sourceError =
@@ -138,7 +165,7 @@ export default defineComponent({
       try {
         await this.persistence;
         if (!this.book) throw new Error(this.$t("bookDetail.notFound"));
-        this.book = await clearBookSources(this.book.id);
+        this.book = this.nativeBook = await clearBookSources(this.book.id);
         this.sourceMessage = this.$t("sourceRecovery.cleared");
         this.sourceError = "";
       } catch (cause) {
@@ -155,16 +182,17 @@ export default defineComponent({
       this.sourceError = "";
       this.sourceMessage = "";
       try {
-        this.book = await mergeBookSources(this.book.id, [source]);
+        this.book = this.nativeBook = await mergeBookSources(this.book.id, [source]);
         const result = await switchBookSource(
           this.book.id,
           source.sourceId,
           source.sourceUrl,
           source.bookUrl,
         );
-        this.book = result.book;
+        this.book = this.nativeBook = result.book;
         this.loadGeneration += 1;
         this.chapters = [];
+        this.catalogNavigation = undefined;
         this.tocError = "";
         this.sourceMessage =
           result.mapping === "title"
@@ -181,13 +209,26 @@ export default defineComponent({
       }
     },
     async removeBook() {
-      if (!this.book || this.removing) return;
+      const bookId = this.book?.id || this.removedBookId;
+      if (!bookId || this.removing) return;
       this.removing = true;
+      this.bookError = "";
       try {
-        const bookId = this.book.id;
-        await deleteBook(bookId);
+        const result = await deleteBook(bookId);
         clearCandidateCommittedBook(bookId);
-        await this.$router.replace("/shelf");
+        if (bookId !== this.bookId) return;
+        ++this.loadGeneration;
+        this.book = null;
+        this.nativeBook = null;
+        this.chapters = [];
+        this.catalogNavigation = undefined;
+        this.removedBookId = bookId;
+        this.cleanupPending = Boolean(result.warnings?.some(warning => warning === 'txt_cleanup_pending' || warning === 'epub_cleanup_pending'));
+        if (!this.cleanupPending) await this.$router.replace("/shelf");
+        else {
+          await this.$nextTick();
+          (this.$refs.removalStatus as HTMLElement | undefined)?.focus();
+        }
       } catch (cause) {
         this.bookError =
           cause instanceof Error
@@ -208,6 +249,15 @@ export default defineComponent({
     :description="$t('bookDetail.description')"
   >
     <p v-if="loading" aria-busy="true">{{ $t("bookDetail.loading") }}</p>
+    <section v-else-if="removedBookId" class="state" aria-live="polite">
+      <h2 ref="removalStatus" tabindex="-1">{{ $t('bookDetail.removed') }}</h2>
+      <p v-if="cleanupPending" role="alert">{{ $t('bookDetail.cleanupPending') }}</p>
+      <p v-if="bookError" class="banner-error" role="alert">{{ bookError }}</p>
+      <div class="app-actions cleanup-actions">
+        <AppButton v-if="cleanupPending" variant="secondary" :busy="removing" @click="removeBook">{{ $t('bookDetail.retryCleanup') }}</AppButton>
+        <RouterLink to="/shelf">{{ $t('bookDetail.back') }}</RouterLink>
+      </div>
+    </section>
     <section v-else-if="!book" class="state">
       <p role="alert">{{ bookError || $t("bookDetail.notFound") }}</p>
       <RouterLink to="/shelf">{{ $t("bookDetail.back") }}</RouterLink>
@@ -231,20 +281,20 @@ export default defineComponent({
           <p v-if="displayLastChapter" class="latest">
             {{ $t("bookDetail.latest", { chapter: displayLastChapter }) }}
           </p>
-          <p class="source">
+          <p v-if="nativeBook || book.originLabel" class="source">
             {{
               $t("bookDetail.currentSource", {
-                source: book.origin || book.sourceUrl,
+                source: nativeBook?.origin || book.originLabel,
               })
             }}
           </p>
-          <div class="actions">
+          <div class="app-actions actions">
             <RouterLink
-              class="primary-link"
-              :to="`/books/${encodeURIComponent(book.id)}/read/${book.durChapterIndex}`"
+              class="app-button app-button--primary"
+              :to="readerResumeLocation(book)"
               >
-{{ $t("bookDetail.continue") }}
-</RouterLink><AppButton variant="danger" @click="confirmingRemove = true">
+<AppIcon name="book" />{{ $t("bookDetail.continue") }}
+</RouterLink><AppButton variant="quiet" @click="confirmingRemove = true">
 {{
               $t("bookDetail.remove")
             }}
@@ -260,7 +310,7 @@ export default defineComponent({
       >
         <strong>{{ $t("bookDetail.confirmRemoveTitle") }}</strong>
         <p>
-          {{ $t("bookDetail.confirmRemoveDescription", { name: book.name }) }}
+          {{ $t(book.provider === 'epub' ? 'bookDetail.confirmRemoveEPUB' : book.provider === 'txt' ? 'bookDetail.confirmRemoveTXT' : 'bookDetail.confirmRemoveDescription', { name: book.name }) }}
         </p>
         <div>
           <AppButton variant="secondary" @click="confirmingRemove = false">
@@ -291,11 +341,19 @@ export default defineComponent({
       <BookDetailToc
         :book-id="book.id"
         :chapters="chapters"
+        :navigation="catalogNavigation"
+        :interactive="!catalogSyncing && !tocError"
+        :content-revision="catalogRevision"
         :current-index="book.durChapterIndex"
         :error="tocError"
-      />
+      >
+        <template v-if="book.provider === 'txt'" #actions>
+          <RouterLink class="app-button app-button--secondary" :to="{ name: 'txt-reparse', params: { bookId: book.id } }"><AppIcon name="refresh" />{{ $t('imports.reparse.title') }}</RouterLink>
+        </template>
+      </BookDetailToc>
       <SourceRecoveryPanel
-        :book="book"
+        v-if="nativeBook"
+        :book="nativeBook"
         :switching="switching"
         :action-error="sourceError"
         :action-message="sourceMessage"
@@ -347,14 +405,14 @@ export default defineComponent({
 .eyebrow {
   margin: 0;
   color: var(--color-warm);
-  font-size: 0.72rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 .identity h2 {
   margin: 0.25rem 0;
-  font: 700 clamp(1.7rem, 4vw, 2.7rem)/1.12 var(--font-literary);
+  font: var(--weight-strong) var(--text-section)/1.12 var(--font-literary);
 }
 .author,
 .latest,
@@ -374,18 +432,7 @@ export default defineComponent({
   padding: 0.3rem 0.55rem;
   border-radius: 999px;
   background: var(--color-paper-muted);
-  font-size: 0.76rem;
-}
-.primary-link {
-  min-height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--radius-md);
-  padding: 0.65rem 1rem;
-  background: var(--color-accent);
-  color: white;
-  text-decoration: none;
-  font-weight: 700;
+  font-size: var(--text-caption);
 }
 .intro {
   width: 100%;

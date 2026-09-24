@@ -42,11 +42,20 @@ RUN --mount=type=cache,target=/go/pkg/mod \
        ./internal/chineseconv ./internal/api \
     && go build -tags=opencc_native -trimpath \
        -ldflags="-s -w -X github.com/otwako/novelreader/internal/chineseconv.EngineVersion=${OPENCC_VERSION}" \
-       -o /out/novelreader ./cmd/server
+       -o /out/novelreader ./cmd/server \
+    && go test -c -trimpath -o /out/imageproc.test ./internal/imageproc
 
 FROM alpine:latest
-RUN apk add --no-cache ca-certificates libstdc++ su-exec tzdata \
+# The dynamic WebP binding requests unversioned library names. Runtime packages
+# provide the versioned sonames; do not install codec headers/compiler here.
+RUN apk add --no-cache ca-certificates libstdc++ su-exec tzdata libwebp libwebpdemux \
+    && ln -s libwebp.so.7 /usr/lib/libwebp.so \
+    && ln -s libwebpdemux.so.2 /usr/lib/libwebpdemux.so \
     && mkdir -p /app/frontend/dist /data
+# Exercise the actual optimizer against final-stage libraries, not builder ones.
+# The test executable is mounted for the check and is not shipped in the image.
+RUN --mount=type=bind,from=backend-build,source=/out/imageproc.test,target=/tmp/imageproc.test \
+    NOVELREADER_TEST_REQUIRE_NATIVE_WEBP=1 /tmp/imageproc.test
 WORKDIR /app
 COPY --from=backend-build /out/novelreader ./novelreader
 COPY --from=opencc-build /opt/opencc/lib/libopencc.so* /opt/opencc/lib/

@@ -17,3 +17,4 @@ webview-worker/__pycache__
 **/*.pyc
 OLD_AGENTS.md
 test-booksources/
+test-epubs/

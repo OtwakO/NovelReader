@@ -10,8 +10,10 @@ require (
 	github.com/bogdanfinn/tls-client v1.15.2-0.20260702071810-b790a311273f
 	github.com/dlclark/regexp2/v2 v2.2.1
 	github.com/dop251/goja v0.0.0-20260701091749-b07b74453ea9
+	github.com/gen2brain/webp v0.6.4
 	github.com/longbridge/opencc v0.3.14-0.20241210034039-839f616e7a29
 	golang.org/x/crypto v0.53.0
+	golang.org/x/image v0.42.0
 	golang.org/x/net v0.56.0
 	golang.org/x/sys v0.46.0
 	golang.org/x/text v0.38.0
@@ -29,6 +31,7 @@ require (
 	github.com/bogdanfinn/utls v1.7.7-barnius // indirect
 	github.com/bogdanfinn/websocket v1.5.5-barnius // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect

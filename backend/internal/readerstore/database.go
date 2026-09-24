@@ -1,26 +1,35 @@
 package readerstore
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 )
 
 const (
 	// CurrentReaderSchemaVersion is one epoch for the complete current reader schema.
 	// Versions 1-4 belonged to the removed development migration history.
-	CurrentReaderSchemaVersion      = 9
+	CurrentReaderSchemaVersion      = 16
 	CurrentCredentialsSchemaVersion = 2
 )
 
 var ErrReaderSchemaMismatch = errors.New("readerstore: reader database schema mismatch")
 
-// ReaderSchema contributes one feature's authoritative current DDL.
+// ReaderSchema contributes a feature's current DDL and portable-file checks.
 type ReaderSchema struct {
 	Initialize            func(*sql.Tx) error
 	InitializeCredentials func(*sql.Tx) error
+	// PreparePortable removes installation-local operational authority from a
+	// copied database, never the live home. The caller owns the transaction.
+	PreparePortable func(context.Context, *sql.Tx) error
+	// ValidatePortableFiles checks feature-owned references in a copied home.
+	// The caller owns the read-only transaction and confined files root. This
+	// callback does not run on ordinary home opens and must not mutate either.
+	ValidatePortableFiles func(context.Context, *sql.Tx, *os.Root) error
 }
 
 func initializeCredentialsDatabase(path string, schemas []ReaderSchema) (err error) {
@@ -91,6 +100,7 @@ func openHomeDatabase(path string) (*sql.DB, error) {
 	query.Add("_pragma", "journal_mode(WAL)")
 	query.Add("_pragma", "busy_timeout(5000)")
 	query.Add("_pragma", "cache_size(-8000)")
+	query.Add("_pragma", "foreign_keys(ON)")
 	dsn := sqliteFileURI(path) + "?" + query.Encode()
 
 	db, err := sql.Open("sqlite", dsn)

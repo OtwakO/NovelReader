@@ -434,9 +434,9 @@ export default defineComponent({
             $t("sources.stats.webview", { count: webViewCount })
           }}</span>
         </div>
-        <div class="toolbar-actions">
+        <div class="app-actions toolbar-actions">
           <AppButton @click="openCollectionDialog()">{{ $t("sources.collections.add") }}</AppButton>
-          <label class="import-button"><span>{{ $t("sources.import.openStandalone") }}</span><input
+          <label class="import-button app-button app-button--primary"><span>{{ $t("sources.import.openStandalone") }}</span><input
               type="file"
               accept=".json,application/json"
               @change="chooseFile"
@@ -455,7 +455,7 @@ export default defineComponent({
           <strong>{{ $t('sources.collections.standalone') }}</strong>
         </button>
       </section>
-      <section v-if="selectedCollectionId !== 'all' && selectedCollectionId !== 'standalone'" class="collection-actions">
+      <section v-if="selectedCollectionId !== 'all' && selectedCollectionId !== 'standalone'" class="app-actions collection-actions">
         <template v-for="collection in collections" :key="collection.id">
           <template v-if="collection.id === selectedCollectionId">
             <div class="collection-details">
@@ -489,12 +489,12 @@ export default defineComponent({
             v-model="query"
             type="search"
             :placeholder="$t('sources.searchPlaceholder')"
-></label><label class="select-filter"><span>{{ $t("sources.group") }}</span><select v-model="group">
+></label><label class="select-filter"><span>{{ $t("sources.group") }}</span><select v-model="group"><component :is="'button'" type="button"><selectedcontent /></component>
             <option value="">{{ $t("sources.allGroups") }}</option>
             <option v-for="value in groups" :key="value" :value="value">
               {{ value }}
             </option>
-          </select></label><label class="select-filter"><span>{{ $t("sources.enabledFilter.label") }}</span><select v-model="enabledFilter">
+          </select></label><label class="select-filter"><span>{{ $t("sources.enabledFilter.label") }}</span><select v-model="enabledFilter"><component :is="'button'" type="button"><selectedcontent /></component>
             <option value="all">{{ $t("sources.enabledFilter.all") }}</option>
             <option value="enabled">{{ $t("sources.enabledFilter.enabled") }}</option>
             <option value="disabled">{{ $t("sources.enabledFilter.disabled") }}</option>
@@ -552,7 +552,7 @@ export default defineComponent({
                 @change="toggle(source, 'enabledExplore')"
               ><span>{{ $t("sources.exploreEnabled") }}</span></label>
           </div>
-          <div class="actions">
+          <div class="app-actions actions">
              <AppButton
                variant="secondary"
                :disabled="busyUrl === source.sourceId"
@@ -696,20 +696,9 @@ export default defineComponent({
   border-radius: 999px;
   padding: 0.35rem 0.65rem;
   background: var(--color-paper-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
 }
-.import-button {
-  min-height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--radius-md);
-  padding: 0.65rem 1rem;
-  background: var(--color-accent);
-  color: white;
-  font-weight: 700;
-  cursor: pointer;
-}
-.toolbar-actions { display:flex; flex-wrap:wrap; gap:.5rem; }
+.import-button:focus-within { outline: 3px solid var(--color-accent); outline-offset: 2px; }
 .import-button input,
 .hidden-input {
   position: absolute;
@@ -750,15 +739,12 @@ export default defineComponent({
 }
 .collection-actions small {
   color: var(--color-ink-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-caption);
   overflow-wrap: anywhere;
 }
 
 .collection-actions {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 1.5rem;
   padding: 1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -780,8 +766,8 @@ export default defineComponent({
   padding: 0.18rem 0.45rem;
   background: var(--color-paper-muted);
   color: var(--color-ink-muted);
-  font-size: 0.7rem;
-  font-weight: 500;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
   font-variant-numeric: tabular-nums;
 }
 .collection-address {
@@ -827,7 +813,7 @@ export default defineComponent({
 }
 .collection-actions p { margin: 0; }
 .collection-badges .availability-badge { background: #f8e4df; color: var(--color-danger); }
-.collection-error { color:var(--color-danger); font-size:.8rem; }
+.collection-error { color:var(--color-danger); font-size:var(--text-caption); }
 .filters {
   padding: 1rem;
   border: 1px solid var(--color-border);
@@ -845,8 +831,8 @@ export default defineComponent({
 }
 .filters span {
   color: var(--color-ink-muted);
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
 }
 .filters input,
 .filters select {
@@ -881,7 +867,7 @@ export default defineComponent({
   text-align: center;
 }
 .empty h2 {
-  font: 700 1.2rem var(--font-literary);
+  font: var(--weight-strong) var(--text-section) var(--font-literary);
 }
 .empty p {
   color: var(--color-ink-muted);
@@ -914,7 +900,7 @@ export default defineComponent({
 .pagination span {
   margin: 0;
   color: var(--color-ink-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-small);
   font-variant-numeric: tabular-nums;
 }
 .pagination div {
@@ -941,7 +927,7 @@ export default defineComponent({
   padding: 0.18rem 0.42rem;
   background: var(--color-paper-muted);
   color: var(--color-ink-muted);
-  font-size: 0.7rem;
+  font-size: var(--text-caption);
 }
 .identity small,
 .identity p {
@@ -961,7 +947,7 @@ export default defineComponent({
   padding: 0.18rem 0.42rem;
   background: var(--color-accent-soft);
   color: var(--color-accent-strong);
-  font-size: 0.68rem;
+  font-size: var(--text-caption);
   font-style: normal;
 }
 .switches {
@@ -979,10 +965,7 @@ export default defineComponent({
   height: 1.15rem;
 }
 .actions {
-  display: flex;
-  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.4rem;
 }
 .overlay {
   position: fixed;
@@ -1000,7 +983,7 @@ export default defineComponent({
   background: var(--color-paper-raised);
 }
 .confirmation h2 {
-  font: 700 1.2rem var(--font-literary);
+  font: var(--weight-strong) var(--text-section) var(--font-literary);
 }
 .confirmation small {
   display: block;

@@ -2,11 +2,14 @@
 package book
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
 	"strings"
 	"time"
+
+	"github.com/otwako/novelreader/internal/library"
 	"unicode"
 )
 
@@ -64,38 +67,42 @@ func normalizeChapterTitle(title string) string {
 	}, strings.ToLower(title))
 }
 
-// SwitchSource atomically replaces active crawl state after the caller validates the target TOC.
-func (s *Store) SwitchSource(bookID string, expectedVersion int64, target Book, chapters []Chapter, chapterIndex int, position float64) error {
+// SwitchSource commits a provider-resolved interpretation and reading mapping together.
+func (s *Store) SwitchSource(bookID string, expected library.Revision, target Book, chapters []Chapter, chapterIndex int, position float64) error {
 	if target.SourceID == "" || target.SourceURL == "" || target.BookURL == "" || chapterIndex < 0 || math.IsNaN(position) || math.IsInf(position, 0) || position < 0 || position > 1 {
 		return ErrInvalidSourceSwitch
 	}
-	readableProgress := false
+	readable := false
 	for _, chapter := range chapters {
 		if chapter.Index == chapterIndex && !chapter.IsVolume {
-			readableProgress = true
+			readable = true
 			break
 		}
 	}
-	if !readableProgress {
+	if !readable {
 		return ErrInvalidSourceSwitch
 	}
-
 	s.mergeMu.Lock()
 	defer s.mergeMu.Unlock()
-
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback() //nolint:errcheck
-	current, err := scanBookFromScanner(tx.QueryRow(`SELECT `+bookColumns+` FROM books WHERE id = ?`, bookID))
+	defer tx.Rollback()
+	ctx := context.Background()
+	if _, err := tx.Exec(`UPDATE books SET source_id=source_id WHERE id=?`, bookID); err != nil {
+		return err
+	}
+	current, err := readBookTx(ctx, tx, bookID)
 	if err != nil {
 		return err
 	}
-	if current.StateVersion != expectedVersion {
+	if current == nil {
+		return ErrBookNotFound
+	}
+	if current.libraryItem().Revision() != expected {
 		return ErrBookStateChanged
 	}
-
 	state, err := bindingStateFromBook(current).promote(target.SourceID, target.BookURL)
 	if err != nil {
 		return err
@@ -104,54 +111,39 @@ func (s *Store) SwitchSource(bookID string, expectedVersion int64, target Book, 
 	if err != nil {
 		return fmt.Errorf("switch source: encode binding state: %w", err)
 	}
-
-	if _, err := tx.Exec(`UPDATE books SET source_id = ?, source_url = ?, book_url = ?, toc_url = ?, origin = ?, variable_map = ?,
-		last_chapter = ?, update_time = ?, word_count = ?, dur_chapter_index = ?, dur_chapter_pos = ?,
-		total_chapter_num = ?, state_version = state_version + 1, alternate_sources = ?, updated_at = ? WHERE id = ?`,
-		target.SourceID, target.SourceURL, target.BookURL, target.TocURL, target.Origin, target.VariableMap,
-		target.LastChapter, target.UpdateTime, target.WordCount, chapterIndex, position,
-		len(chapters), bindingJSON, time.Now().UnixMilli(), bookID); err != nil {
+	if _, err := tx.Exec(`UPDATE books SET source_id=?, source_url=?, book_url=?, toc_url=?, origin=?, variable_map=?, alternate_sources=? WHERE id=?`,
+		target.SourceID, target.SourceURL, target.BookURL, target.TocURL, target.Origin, target.VariableMap, bindingJSON, bookID); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`DELETE FROM chapters WHERE book_id = ?`, bookID); err != nil {
+	item := current.libraryItem()
+	item.LastChapter, item.UpdateTime, item.WordCount = target.LastChapter, target.UpdateTime, target.WordCount
+	item.UpdatedAt = time.Now().UnixMilli()
+	if err := library.UpdateMetadataTx(ctx, tx, item); err != nil {
 		return err
 	}
-	for _, chapter := range chapters {
-		chapter.BookID = bookID
+	if err := library.ReplaceInterpretationTx(ctx, tx, bookID, expected, len(chapters), library.Location{ChapterIndex: chapterIndex, Position: position, ChapterTitle: chapterTitleAt(chapters, chapterIndex)}); err != nil {
+		return err
+	}
+	// Source promotion deliberately assigns IDs from the new catalog's indexes.
+	replacement := make([]Chapter, len(chapters))
+	for i, chapter := range chapters {
 		chapter.ID = fmt.Sprintf("%s_%d", bookID, chapter.Index)
-		if _, err := tx.Exec(`INSERT INTO chapters (id, book_id, idx, title, url, is_vip, is_volume, is_pay, base_url, tag, word_count, cached) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-			chapter.ID, chapter.BookID, chapter.Index, chapter.Title, chapter.URL, boolToInt(chapter.IsVip), boolToInt(chapter.IsVolume), boolToInt(chapter.IsPay), chapter.BaseURL, chapter.Tag, chapter.WordCount, boolToInt(chapter.Cached)); err != nil {
-			return err
-		}
+		replacement[i] = chapter
 	}
-	marks, err := tx.Query(`SELECT id, chapter_title FROM bookmarks WHERE book_id = ?`, bookID)
+	if err := replaceChaptersTx(tx, bookID, replacement, false); err != nil {
+		return err
+	}
+	marks, err := library.BookmarksTx(ctx, tx, bookID)
 	if err != nil {
 		return err
 	}
-	type bookmarkTitle struct{ id, title string }
-	bookmarkTitles := make([]bookmarkTitle, 0)
-	for marks.Next() {
-		var mark bookmarkTitle
-		if err := marks.Scan(&mark.id, &mark.title); err != nil {
-			marks.Close()
-			return err
-		}
-		bookmarkTitles = append(bookmarkTitles, mark)
-	}
-	if err := marks.Err(); err != nil {
-		marks.Close()
-		return err
-	}
-	if err := marks.Close(); err != nil {
-		return err
-	}
-	for _, mark := range bookmarkTitles {
-		chapter, matched := matchChapterTitle(chapters, normalizeChapterTitle(mark.title))
+	for _, mark := range marks {
+		chapter, matched := matchChapterTitle(chapters, normalizeChapterTitle(mark.ChapterTitle))
+		mark.Orphaned = !matched
 		if matched {
-			if _, err := tx.Exec(`UPDATE bookmarks SET chapter_index = ?, chapter_title = ?, orphaned = 0 WHERE id = ?`, chapter.Index, chapter.Title, mark.id); err != nil {
-				return err
-			}
-		} else if _, err := tx.Exec(`UPDATE bookmarks SET orphaned = 1 WHERE id = ?`, mark.id); err != nil {
+			mark.ChapterIndex, mark.ChapterTitle, mark.ContentRevision = chapter.Index, chapter.Title, expected.Content+1
+		}
+		if err := library.MapBookmarkTx(ctx, tx, mark); err != nil {
 			return err
 		}
 	}

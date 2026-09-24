@@ -78,15 +78,15 @@ export default defineComponent({
 
 <style scoped>
 .candidate-progress-details { display: grid; gap: .6rem; }
-.counts { margin: 0; color: var(--color-ink-muted); font-size: .78rem; }
+.counts { margin: 0; color: var(--color-ink-muted); font-size: var(--text-caption); }
 .attempt-list { display: grid; gap: .4rem; margin: 0; padding: 0; list-style: none; }
-.attempt-list li { min-width: 0; display: grid; grid-template-columns: .65rem minmax(0, 1fr) auto; align-items: center; gap: .55rem; color: var(--color-ink-muted); font-size: .8rem; }
+.attempt-list li { min-width: 0; display: grid; grid-template-columns: .65rem minmax(0, 1fr) auto; align-items: center; gap: .55rem; color: var(--color-ink-muted); font-size: var(--text-caption); }
 .attempt-list strong { min-width: 0; overflow: hidden; color: var(--color-ink); text-overflow: ellipsis; white-space: nowrap; }
 .state-mark { width: .55rem; height: .55rem; border: 2px solid currentColor; border-radius: 50%; }
 .active { color: var(--color-accent); }.active .state-mark { border-top-color: transparent; animation: spin .8s linear infinite; }
 .failed { color: var(--color-danger); }.failed .state-mark,.verified .state-mark,.ready .state-mark { background: currentColor; }
 .verified { color: var(--color-success); }.ready { color: var(--color-accent-strong); }
-.summaries { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: var(--color-ink-muted); font-size: .78rem; }
+.summaries { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: var(--color-ink-muted); font-size: var(--text-caption); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .active .state-mark { animation: none; } }
 @media (max-width: 35rem) {

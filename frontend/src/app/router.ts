@@ -2,6 +2,7 @@ import type { Pinia } from 'pinia';
 import { createRouter, createWebHashHistory, type RouteLocationNormalized } from 'vue-router';
 import { pinia } from './pinia';
 import { useSessionStore } from '../stores/session';
+import { pendingRestore } from '../features/backups/restore-session';
 import LoadingView from './views/LoadingView.vue';
 import StartupErrorView from './views/StartupErrorView.vue';
 import NotFoundView from './views/NotFoundView.vue';
@@ -23,6 +24,8 @@ const ExploreView = () => import('../features/explore/ExploreView.vue');
 const SourceManagementView = () => import('../features/sources/SourceManagementView.vue');
 const SettingsView = () => import('../features/settings/SettingsView.vue');
 const AccountView = () => import('../features/account/AccountView.vue');
+const ImportsView = () => import('../features/imports/ImportsView.vue');
+const TXTReparseView = () => import('../features/imports/TXTReparseView.vue');
 const BackupRestoreView = () => import('../features/backups/BackupRestoreView.vue');
 const ReaderAdministrationView = () => import('../features/account/ReaderAdministrationView.vue');
 
@@ -57,10 +60,13 @@ export function createAppRouter(appPinia: Pinia = pinia) {
           { path: 'search', name: 'search', component: SearchView },
           { path: 'books/candidate', name: 'candidate-book-detail', component: CandidateBookDetailView },
           { path: 'books/:bookId', name: 'book-detail', component: BookDetailView },
+          { path: 'books/:bookId/txt/reparse', name: 'txt-reparse', component: TXTReparseView },
           { path: 'books/:bookId/read/:chapterIndex?', name: 'reader', component: ReaderView },
           { path: 'sources', name: 'sources', component: SourceManagementView },
           { path: 'settings', name: 'settings', component: SettingsView },
           { path: 'account', name: 'account', component: AccountView },
+          { path: 'imports', name: 'imports', component: ImportsView },
+          { path: 'imports/:id', name: 'import-review', redirect: to => ({ path: '/imports', query: { review: String(to.params.id) } }) },
           { path: 'backups', name: 'backups', component: BackupRestoreView },
           { path: 'account/readers', name: 'reader-admin', component: ReaderAdministrationView, meta: { administrator: true } },
         ],
@@ -78,6 +84,7 @@ export function createAppRouter(appPinia: Pinia = pinia) {
     if (session.phase === 'setup-unavailable' && to.name !== 'setup-unavailable') return { name: 'setup-unavailable' };
 
     if (session.isAuthenticated) {
+      if (session.account && pendingRestore(session.account.id) && to.name !== 'backups') return { name: 'backups' };
       if (to.meta.administrator && !session.isAdministrator) return { name: 'shelf' };
       if (publicNames.has(String(to.name))) return session.returnTo || '/shelf';
       if (to.path === '/') return { name: 'shelf' };

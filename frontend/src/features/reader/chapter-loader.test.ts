@@ -3,7 +3,7 @@ import { getChapterContent, type ChapterContent } from '../../api/reader';
 import { createChapterLoader } from './chapter-loader';
 
 vi.mock('../../api/reader', () => ({ getChapterContent: vi.fn() }));
-const content: ChapterContent = { version: 1, offlineCopy: false, document: { kind: 'prose', title: 'Chapter', blocks: [] } };
+const content: ChapterContent = { version: 1, contentRevision: 7, offlineCopy: false, document: { kind: 'prose', title: 'Chapter', blocks: [] } };
 function deferred() {
   let resolve!: (value: ChapterContent) => void;
   const promise = new Promise<ChapterContent>(done => { resolve = done; });
@@ -14,7 +14,7 @@ beforeEach(() => { vi.mocked(getChapterContent).mockReset().mockResolvedValue(co
 
 describe('reading-session chapter loader', () => {
   it('shares prefetch with navigation, reuses recent content, and bounds retention', async () => {
-    const loader = createChapterLoader('book');
+    const loader = createChapterLoader('book', 7);
     loader.prefetch(1);
     await loader.load(1);
     await loader.load(1);
@@ -27,7 +27,7 @@ describe('reading-session chapter loader', () => {
   it('serializes chapter execution and limits speculative work to one request', async () => {
     const first = deferred();
     vi.mocked(getChapterContent).mockReturnValueOnce(first.promise);
-    const loader = createChapterLoader('book');
+    const loader = createChapterLoader('book', 7);
     loader.prefetch(1);
     loader.prefetch(2);
     const foreground = loader.load(3);
@@ -41,7 +41,7 @@ describe('reading-session chapter loader', () => {
   it('drains a replaced source binding and rejects late results without contaminating its replacement', async () => {
     const first = deferred();
     vi.mocked(getChapterContent).mockReturnValueOnce(first.promise);
-    const old = createChapterLoader('book');
+    const old = createChapterLoader('book', 7);
     const pending = old.load(1);
     const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
     await Promise.resolve();
@@ -49,19 +49,27 @@ describe('reading-session chapter loader', () => {
     first.resolve(content);
     await drained;
     await rejected;
-    const replacement = createChapterLoader('book');
+    const replacement = createChapterLoader('book', 7);
     await replacement.load(1);
+    expect(getChapterContent).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a different interpretation without admitting it to the cache', async () => {
+    const loader = createChapterLoader('book', 7);
+    vi.mocked(getChapterContent).mockResolvedValueOnce({ ...content, contentRevision: 8 });
+    await expect(loader.load(1)).rejects.toThrow('Reading state changed');
+    await expect(loader.load(1)).resolves.toEqual(content);
     expect(getChapterContent).toHaveBeenCalledTimes(2);
   });
 
   it('does not retain failures or outage fallback, and aborts on unmount', async () => {
     vi.mocked(getChapterContent).mockRejectedValueOnce(new Error('unavailable')).mockResolvedValueOnce({ ...content, offlineCopy: true });
-    const loader = createChapterLoader('book');
+    const loader = createChapterLoader('book', 7);
     await expect(loader.load(1)).rejects.toThrow('unavailable');
     await loader.load(1);
     await loader.load(1);
     expect(getChapterContent).toHaveBeenCalledTimes(3);
     await loader.dispose(true);
-    expect(vi.mocked(getChapterContent).mock.calls[0]![2]!.aborted).toBe(true);
+    expect(vi.mocked(getChapterContent).mock.calls[0]![3]!.aborted).toBe(true);
   });
 });

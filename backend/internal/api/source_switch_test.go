@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/otwako/novelreader/internal/book"
+	"github.com/otwako/novelreader/internal/library"
 )
 
 func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
@@ -58,14 +59,14 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	if response := waitForCatalogRoute(t, server, "book-1"); response.Code != http.StatusOK {
 		t.Fatalf("primary toc status=%d body=%s", response.Code, response.Body.String())
 	}
-	progressBody, _ := json.Marshal(map[string]interface{}{"sourceId": sourceID(primary.URL), "stateVersion": 0, "chapterIndex": 1, "position": 0.65})
+	progressBody, _ := json.Marshal(map[string]interface{}{"contentRevision": 1, "stateVersion": 0, "chapterIndex": 1, "position": 0.65})
 	if response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/progress", progressBody); response.Code != http.StatusOK {
 		t.Fatalf("progress status=%d body=%s", response.Code, response.Body.String())
 	}
 
 	for _, mark := range []map[string]interface{}{
-		{"id": "matching", "sourceId": sourceID(primary.URL), "stateVersion": 1, "chapterIndex": 1, "position": 0.3, "note": "matched note"},
-		{"id": "orphan", "sourceId": sourceID(primary.URL), "stateVersion": 1, "chapterIndex": 2, "position": 0.8, "note": "orphan note"},
+		{"id": "matching", "contentRevision": 1, "stateVersion": 1, "chapterIndex": 1, "position": 0.3, "note": "matched note"},
+		{"id": "orphan", "contentRevision": 1, "stateVersion": 2, "chapterIndex": 2, "position": 0.8, "note": "orphan note"},
 	} {
 		body, _ := json.Marshal(mark)
 		if response := performAPIRequest(server, http.MethodPost, "/api/books/book-1/bookmarks", body); response.Code != http.StatusCreated {
@@ -77,7 +78,7 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	if response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/source", badRequest); response.Code != http.StatusBadGateway {
 		t.Fatalf("bad target status=%d body=%s", response.Code, response.Body.String())
 	}
-	assertStoredSource(t, server, primary.URL, 1, 0.65, 1, 3)
+	assertStoredSource(t, server, primary.URL, 1, 0.65, 3, 3)
 
 	targetRequest, _ := json.Marshal(map[string]string{"sourceId": sourceID(target.URL), "sourceUrl": target.URL, "bookUrl": target.URL + "/book"})
 	response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/source", targetRequest)
@@ -94,21 +95,21 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	if result.Book.VariableMap != `{"binding":"Target"}` {
 		t.Fatalf("target variables were not retained: %q", result.Book.VariableMap)
 	}
-	assertStoredSource(t, server, target.URL, 1, 0.65, 2, 3)
+	assertStoredSource(t, server, target.URL, 1, 0.65, 4, 3)
 	bookmarkResponse := performAPIRequest(server, http.MethodGet, "/api/books/book-1/bookmarks", nil)
-	var bookmarks []book.Bookmark
+	var bookmarks []library.Bookmark
 	if err := json.Unmarshal(bookmarkResponse.Body.Bytes(), &bookmarks); err != nil || len(bookmarks) != 2 {
 		t.Fatalf("bookmarks=%+v err=%v body=%s", bookmarks, err, bookmarkResponse.Body.String())
 	}
-	byID := map[string]book.Bookmark{bookmarks[0].ID: bookmarks[0], bookmarks[1].ID: bookmarks[1]}
+	byID := map[string]library.Bookmark{bookmarks[0].ID: bookmarks[0], bookmarks[1].ID: bookmarks[1]}
 	if byID["matching"].Orphaned || byID["matching"].ChapterIndex != 1 || !byID["orphan"].Orphaned {
 		t.Fatalf("migrated bookmarks=%+v", byID)
 	}
-	staleProgress, _ := json.Marshal(map[string]interface{}{"sourceId": sourceID(primary.URL), "stateVersion": 1, "chapterIndex": 0, "position": 0.1})
+	staleProgress, _ := json.Marshal(map[string]interface{}{"contentRevision": 1, "stateVersion": 1, "chapterIndex": 0, "position": 0.1})
 	if response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/progress", staleProgress); response.Code != http.StatusConflict {
 		t.Fatalf("stale progress status=%d body=%s", response.Code, response.Body.String())
 	}
-	assertStoredSource(t, server, target.URL, 1, 0.65, 2, 3)
+	assertStoredSource(t, server, target.URL, 1, 0.65, 4, 3)
 	if result.Book.ActiveSource == nil || result.Book.ActiveSource.DiscoveryQuery != "Fixture@target" || result.Book.ActiveSource.SourceGroup != "Target type" || len(result.Book.ActiveSource.Capabilities) != 1 {
 		t.Fatalf("active target metadata was not preserved: %+v", result.Book.ActiveSource)
 	}
@@ -119,7 +120,7 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	if response := performAPIRequest(server, http.MethodPut, "/api/books/book-1/source", primaryRequest); response.Code != http.StatusOK {
 		t.Fatalf("switch back status=%d body=%s", response.Code, response.Body.String())
 	}
-	assertStoredSource(t, server, primary.URL, 1, 0.65, 3, 3)
+	assertStoredSource(t, server, primary.URL, 1, 0.65, 5, 3)
 	restored, err := server.standalone.bookStore.GetBook("book-1")
 	if err != nil || restored.ActiveSource == nil || restored.ActiveSource.DiscoveryQuery != "Fixture@primary" || len(restored.AlternateSources) != 2 || restored.AlternateSources[0].DiscoveryQuery != "Fixture@target" {
 		t.Fatalf("A-B-A binding metadata was not preserved: book=%+v err=%v", restored, err)
@@ -128,7 +129,7 @@ func TestSourceSwitchValidatesTargetAndMigratesCanonicalProgress(t *testing.T) {
 	if err := json.Unmarshal(bookmarkResponse.Body.Bytes(), &bookmarks); err != nil {
 		t.Fatal(err)
 	}
-	byID = map[string]book.Bookmark{bookmarks[0].ID: bookmarks[0], bookmarks[1].ID: bookmarks[1]}
+	byID = map[string]library.Bookmark{bookmarks[0].ID: bookmarks[0], bookmarks[1].ID: bookmarks[1]}
 	if byID["orphan"].Orphaned || byID["orphan"].ChapterIndex != 2 {
 		t.Fatalf("restored bookmark=%+v", byID["orphan"])
 	}

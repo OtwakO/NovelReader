@@ -6,6 +6,7 @@ import (
 
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
@@ -27,9 +28,9 @@ func initializeAPITestSchema(t *testing.T, db *sql.DB, schemas ...readerstore.Re
 }
 
 func initializeBookAPITestSchema(t *testing.T, db *sql.DB) {
-	initializeAPITestSchema(t, db, book.ReaderSchema())
+	initializeAPITestSchema(t, db, library.ReaderSchema(), book.ReaderSchema())
 }
 
 func initializeBookAndSourceAPITestSchema(t *testing.T, db *sql.DB) {
-	initializeAPITestSchema(t, db, booksource.ReaderSchema(), book.ReaderSchema())
+	initializeAPITestSchema(t, db, booksource.ReaderSchema(), library.ReaderSchema(), book.ReaderSchema())
 }

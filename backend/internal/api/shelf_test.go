@@ -25,7 +25,14 @@ func TestListBooksIncludesStoredCurrentChapterTitle(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := server.standalone.bookStore.UpdateProgress(stored.ID, stored.SourceID, 0, 1, 0.4); err != nil {
+	stored, err := server.standalone.bookStore.GetBook(stored.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.LastReadAt != 0 {
+		t.Fatal("admission or catalog sync counted as reading")
+	}
+	if _, err := server.standalone.bookStore.UpdateProgress(stored.ID, stored.ContentRevision, 0, 1, 0.4); err != nil {
 		t.Fatal(err)
 	}
 
@@ -37,7 +44,7 @@ func TestListBooksIncludesStoredCurrentChapterTitle(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &books); err != nil {
 		t.Fatal(err)
 	}
-	if len(books) != 1 || books[0].CurrentChapterTitle != "Chapter Two" {
+	if len(books) != 1 || books[0].CurrentChapterTitle != "Chapter Two" || books[0].LastReadAt <= 0 {
 		t.Fatalf("books=%+v", books)
 	}
 }

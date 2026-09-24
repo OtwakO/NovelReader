@@ -32,8 +32,9 @@ export interface SearchResult {
   alternateSources?: AltSource[];
 }
 
-export interface Book {
-  variableMap?: string;
+export interface LibraryBook {
+  provider: string;
+  originLabel?: string;
   id: string;
   name: string;
   author: string;
@@ -41,31 +42,38 @@ export interface Book {
   coverDisplayUrl?: string;
   intro: string;
   kind: string;
+  lastChapter: string;
+  updateTime?: string;
+  wordCount?: string;
+  durChapterIndex: number;
+  durChapterPos: number;
+  totalChapterNum: number;
+  contentRevision: number;
+  stateVersion: number;
+  currentChapterTitle?: string;
+  createdAt?: number;
+  updatedAt?: number;
+  /** Server UTC Unix milliseconds of reading activity; zero means never read. */
+  lastReadAt?: number;
+}
+
+// BookSource acquisition/recovery context; common shelf and reading fields are shared.
+export interface Book extends LibraryBook {
+  variableMap?: string;
   sourceId: string;
   sourceUrl: string;
   bookUrl: string;
   origin?: string;
-  lastChapter: string;
-  updateTime?: string;
-  wordCount?: string;
   tocUrl?: string;
   downloadUrls?: string[];
-  durChapterIndex: number;
-  durChapterPos: number;
-  totalChapterNum: number;
-  stateVersion: number;
-  currentChapterTitle?: string;
   activeSource?: AltSource;
   alternateSources?: AltSource[];
-  createdAt?: number;
-  updatedAt?: number;
 }
 
 export interface Chapter {
-  id: string;
-  bookId: string;
   index: number;
   title: string;
-  url: string;
   isVolume: boolean;
+  /** Readable/bookmarkable, but excluded from main progression and prefetch. */
+  auxiliary?: boolean;
 }

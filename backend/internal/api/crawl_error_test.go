@@ -14,6 +14,8 @@ import (
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/database"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/reading"
 )
 
 func TestHandleGetChaptersExposesTypedPaginationFailure(t *testing.T) {
@@ -75,9 +77,9 @@ func TestHandleGetChaptersStartsAndReturnsSynchronizedCatalog(t *testing.T) {
 		t.Fatalf("start status=%d headers=%v body=%s", started.Code, started.Header(), started.Body.String())
 	}
 	ready := waitForCatalogResponse(t, server, "book-1", http.StatusOK)
-	var chapters []book.Chapter
-	if err := json.Unmarshal(ready.Body.Bytes(), &chapters); err != nil || len(chapters) != 1 || chapters[0].Title != "第一章" {
-		t.Fatalf("chapters=%+v error=%v", chapters, err)
+	var catalog reading.Catalog
+	if err := json.Unmarshal(ready.Body.Bytes(), &catalog); err != nil || len(catalog.Chapters) != 1 || catalog.Chapters[0].Title != "第一章" || catalog.ContentRevision != 1 {
+		t.Fatalf("catalog=%+v error=%v", catalog, err)
 	}
 }
 
@@ -136,7 +138,11 @@ func TestHandleGetChapterContentExposesTypedPaginationFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	response := invokeBookRoute(server.standalone.handleGetChapterContent, "book-1", "0")
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/?contentRevision=1", nil)
+	request.SetPathValue("id", "book-1")
+	request.SetPathValue("idx", "0")
+	server.standalone.handleGetChapterContent(response, request)
 	var payload crawlErrorResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
@@ -155,15 +161,13 @@ func TestHandlersDistinguishNotFoundFromStorageFailure(t *testing.T) {
 	initializeBookAPITestSchema(t, db)
 	sourceStore := booksource.NewStore(db)
 	searcher := book.NewSearcher(fetcher.NewInsecure(time.Second), analyzer.NewJSVM(), nil, sourceStore, bookStore)
-	server := newReaderTestServer(&readerRuntime{bookStore: bookStore, sourceStore: sourceStore, searcher: searcher})
-	server.standalone.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
+	server := NewServer(sourceStore, bookStore, searcher, nil, nil, nil, nil, processor.Config{}, t.TempDir(), db)
 	defer server.standalone.catalogs.Close()
 
 	missing := invokeBookRoute(server.standalone.handleGetChapters, "missing", "")
-	if missing.Code != http.StatusAccepted {
-		t.Fatalf("missing book start status=%d, want 202", missing.Code)
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing book status=%d, want 404", missing.Code)
 	}
-	missing = waitForCatalogResponse(t, server, "missing", http.StatusNotFound)
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -188,8 +192,7 @@ func newCrawlAPIServer(t *testing.T) (*Server, crawlStores, func()) {
 	bookStore := book.NewStore(db)
 	initializeBookAndSourceAPITestSchema(t, db)
 	searcher := book.NewSearcher(fetcher.NewInsecure(2*time.Second), analyzer.NewJSVM(), nil, sourceStore, bookStore)
-	server := newReaderTestServer(&readerRuntime{sourceStore: sourceStore, bookStore: bookStore, searcher: searcher})
-	server.standalone.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
+	server := NewServer(sourceStore, bookStore, searcher, nil, nil, nil, nil, processor.Config{}, t.TempDir(), db)
 	return server, crawlStores{sourceStore, bookStore}, func() { server.standalone.catalogs.Close(); _ = db.Close() }
 }
 

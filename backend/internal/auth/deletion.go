@@ -29,12 +29,13 @@ type DeletionService struct {
 	store    *Store
 	readers  *readerstore.Manager
 	quiesce  func(context.Context, readerstore.UserID) error
+	forget   func(readerstore.UserID) error
 	randomID func() (string, error)
 	mutex    sync.Mutex
 }
 
-func NewDeletionService(store *Store, readers *readerstore.Manager, quiesce func(context.Context, readerstore.UserID) error) *DeletionService {
-	return &DeletionService{store: store, readers: readers, quiesce: quiesce, randomID: randomDeletionID}
+func NewDeletionService(store *Store, readers *readerstore.Manager, quiesce func(context.Context, readerstore.UserID) error, forget func(readerstore.UserID) error) *DeletionService {
+	return &DeletionService{store: store, readers: readers, quiesce: quiesce, forget: forget, randomID: randomDeletionID}
 }
 
 // Delete starts or resumes deletion and returns only after the durable job is complete.
@@ -144,6 +145,13 @@ func (s *DeletionService) advanceJob(ctx context.Context, job DeletionJob, now i
 	}
 	if err := s.readers.Remove(ctx, job.UserID); err != nil {
 		return fmt.Errorf("auth: remove reader home: %w", err)
+	}
+	// Keep paused worker barriers on failure. Only successful removal permits
+	// retiring them; deletion retries may safely repeat this callback.
+	if s.forget != nil {
+		if err := s.forget(job.UserID); err != nil {
+			return fmt.Errorf("auth: retire reader workers: %w", err)
+		}
 	}
 	if err := s.updateJob(ctx, job.ID, "removing_account", "", now); err != nil {
 		return err

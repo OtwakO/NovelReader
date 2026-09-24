@@ -12,6 +12,16 @@ import (
 // Cleanup retries committed file retirements. Missing files mean cleanup already
 // succeeded before an interruption; the record can safely be removed.
 func (s *Store) Cleanup(ctx context.Context) error {
+	unlock, err := s.files.LockMutation(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return s.cleanup(ctx)
+}
+
+// cleanup runs with the reader-home file mutation gate already held.
+func (s *Store) cleanup(ctx context.Context) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

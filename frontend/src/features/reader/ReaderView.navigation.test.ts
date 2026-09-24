@@ -1,36 +1,40 @@
 import { flushPromises, shallowMount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReaderView from './ReaderView.vue';
-import { getBook, mergeBookSources } from '../../api/books';
+import { getBook, getBookSource, mergeBookSources } from '../../api/books';
 import { getChapterContent, saveProgress, switchBookSource, waitForCatalog, type ChapterContent } from '../../api/reader';
+import { ApiError } from '../../api/transport';
 import { resetProgressWriter, waitForProgressWrites } from './progress-writer';
 
-vi.mock('../../api/books', () => ({ getBook:vi.fn(), mergeBookSources:vi.fn(), clearBookSources:vi.fn() }));
+vi.mock('../../api/books', () => ({ getBook:vi.fn(), getBookSource:vi.fn(), mergeBookSources:vi.fn(), clearBookSources:vi.fn() }));
 vi.mock('../../api/reader', () => ({ getChapterContent:vi.fn(), saveProgress:vi.fn(), switchBookSource:vi.fn(), waitForCatalog:vi.fn(), listFonts:vi.fn(), getFontUrl:vi.fn() }));
 vi.mock('../../api/system', () => ({ getChineseConversionCapability:vi.fn(async()=>({available:false,modes:[]})) }));
-const initialBook = { id:'book', name:'Novel', author:'Author', coverUrl:'', intro:'', kind:'', sourceId:'old', sourceUrl:'old', bookUrl:'/book', origin:'Source', lastChapter:'', durChapterIndex:0, durChapterPos:0, totalChapterNum:3, stateVersion:0, alternateSources:[] };
-const chapter = (title:string):ChapterContent => ({version:1, offlineCopy:false, document:{kind:'prose',title,blocks:[]}});
+const initialBook = { id:'book', name:'Novel', author:'Author', coverUrl:'', intro:'', kind:'', sourceId:'old', sourceUrl:'old', bookUrl:'/book', origin:'Source', lastChapter:'', durChapterIndex:0, durChapterPos:0, totalChapterNum:3, provider:'booksource',contentRevision:7,stateVersion:0, alternateSources:[] };
+const chapter = (title:string):ChapterContent => ({version:1, contentRevision:7, offlineCopy:false, document:{kind:'prose',title,blocks:[]}});
 const source = {sourceId:'new',sourceUrl:'new',bookUrl:'/new',sourceName:'New',name:'New',author:'Author'};
 let wrapper:ReturnType<typeof shallowMount<typeof ReaderView>>;
 
 beforeEach(()=>{
   vi.clearAllMocks();resetProgressWriter();localStorage.clear();
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callback(0); return 0; });
   localStorage.setItem('novelreader.reader.preferences.v1',JSON.stringify({prefetchNextChapter:false}));
   vi.mocked(getBook).mockResolvedValue({...initialBook});
+  vi.mocked(getBookSource).mockResolvedValue({...initialBook});
   vi.mocked(mergeBookSources).mockResolvedValue({...initialBook});
-  vi.mocked(waitForCatalog).mockResolvedValue([0,1,2].map(index=>({id:String(index),bookId:'book',index,title:String(index),url:'/chapter/'+index,isVolume:false})));
+  vi.mocked(waitForCatalog).mockResolvedValue({contentRevision:7,chapters:[0,1,2].map(index=>({id:String(index),bookId:'book',index,title:String(index),url:'/chapter/'+index,isVolume:false}))});
   vi.mocked(getChapterContent).mockImplementation(async(_book,index)=>chapter('old '+index));
   vi.mocked(saveProgress).mockImplementation(async(_book,_source,stateVersion)=>({status:'saved',stateVersion:stateVersion+1}));
 });
 afterEach(async()=>{wrapper?.unmount();await waitForProgressWrites('book');vi.unstubAllGlobals();});
-async function open() {
-  wrapper=shallowMount(ReaderView,{global:{mocks:{$t:(key:string)=>key,$route:{params:{bookId:'book',chapterIndex:'0'},query:{}},$router:{push:vi.fn(),replace:vi.fn()}},stubs:{RouterLink:true}}});
+async function open(query: Record<string,string> = {}, chapterIndex = '0') {
+  wrapper=shallowMount(ReaderView,{global:{mocks:{$t:(key:string)=>key,$route:{params:{bookId:'book',chapterIndex},query},$router:{push:vi.fn(),replace:vi.fn()}},stubs:{RouterLink:true,ProseRenderer:false}}});
   await flushPromises();return wrapper.vm;
 }
 
 describe('reader navigation lifecycle',()=>{
   it('renders and reuses chapters without waiting for ordered progress acknowledgements',async()=>{
     const vm=await open();
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith('book',7,0,0,0);
     let release!:(value:{status:string;stateVersion:number})=>void;
     vi.mocked(saveProgress).mockReturnValueOnce(new Promise(resolve=>{release=resolve;}));
     await vm.navigate(1);
@@ -38,9 +42,9 @@ describe('reader navigation lifecycle',()=>{
     await vm.navigate(0);
     expect(vm.displayContent?.document.title).toBe('old 0');
     expect(getChapterContent).toHaveBeenCalledTimes(2);
-    release({status:'saved',stateVersion:1});
+    release({status:'saved',stateVersion:2});
     await waitForProgressWrites('book');
-    expect(vi.mocked(saveProgress).mock.calls.map(call=>call[3])).toEqual([0,1,1,0]);
+    expect(vi.mocked(saveProgress).mock.calls.map(call=>call[3])).toEqual([0,0,1,1,0]);
   });
 
   it('drains prefetch before source switching and never displays its late document',async()=>{
@@ -79,6 +83,18 @@ describe('reader navigation lifecycle',()=>{
     expect(vm.displayContent?.document.title).toBe('converted 1');
   });
 
+  it('captures one revision-qualified bookmark location before awaiting progress',async()=>{
+    const vm=await open();
+    expect(saveProgress).toHaveBeenCalledExactlyOnceWith('book',7,0,0,0);
+    let release!:(value:{status:string;stateVersion:number})=>void;
+    vi.mocked(saveProgress).mockReturnValueOnce(new Promise(resolve=>{release=resolve;}));
+    const capture=vm.captureBookmark();
+    await flushPromises();
+    vm.currentIndex=1;vm.catalogRevision=8;vm.lastPosition=.9;
+    release({status:'saved',stateVersion:2});
+    await expect(capture).resolves.toEqual({contentRevision:7,chapterIndex:0,position:0});
+  });
+
   it('manual refetch bypasses cached documents while keeping position and recoverable display',async()=>{
     const vm=await open();
     vm.lastPosition=.4;
@@ -93,4 +109,249 @@ describe('reader navigation lifecycle',()=>{
     expect(vm.error).toBe('');
     expect(getChapterContent).toHaveBeenCalledTimes(3);
   });
+});
+
+it('reads TXT through the existing reader without source context or recovery', async () => {
+  vi.mocked(getBook).mockResolvedValue({id:'book',provider:'txt',name:'Imported novel',author:'Author',coverUrl:'',intro:'',kind:'',lastChapter:'',durChapterIndex:0,durChapterPos:0,totalChapterNum:3,contentRevision:7,stateVersion:0});
+  vi.mocked(waitForCatalog).mockResolvedValue({contentRevision:7,chapters:[0,1,2].map(index=>({index,title:String(index),isVolume:false}))});
+  const vm=await open();
+  expect(getBookSource).not.toHaveBeenCalled();
+  expect(vm.displayContent?.document.title).toBe('old 0');
+  expect(wrapper.find('reader-source-sheet-stub').exists()).toBe(false);
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new Error('Managed file unavailable'));
+  await vm.navigate(1);
+  expect(vm.error).toBe('Managed file unavailable');
+  expect(vm.activeSheet).not.toBe('sources');
+  await vm.navigate(1);
+  expect(vm.displayContent?.document.title).toBe('old 1');
+  await expect(vm.captureBookmark()).resolves.toEqual({contentRevision:7,chapterIndex:1,position:0});
+  expect(saveProgress).toHaveBeenLastCalledWith('book',7,expect.any(Number),1,0);
+});
+
+
+it('blocks stale links before fetching content and explicitly reopens without the old location', async () => {
+  const vm = await open({contentRevision:'6',position:'.8'});
+  expect(vm.revisionConflict).toBe(true);
+  expect(getChapterContent).not.toHaveBeenCalled();
+  expect(saveProgress).not.toHaveBeenCalled();
+  await vm.reopenCurrent();
+  expect(vm.$router.replace).toHaveBeenCalledWith({name:'reader',params:{bookId:'book'}});
+});
+
+it('qualifies legacy navigation and stops a session when speculative content detects replacement', async () => {
+  const vm = await open();
+  expect(vm.$router.replace).toHaveBeenCalledWith({name:'reader',params:{bookId:'book',chapterIndex:0},query:{contentRevision:'7',position:'0'}});
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new ApiError(409,{code:'state_changed'}));
+  vm.preferences.prefetchNextChapter=true;
+  await flushPromises();
+  expect(vm.revisionConflict).toBe(true);
+  expect(vm.chapterLoader).toBeNull();
+  expect(vm.displayContent?.document.title).toBe('old 0');
+  await vm.persistProgress(); await vm.navigate(1);
+  expect(saveProgress).toHaveBeenCalledExactlyOnceWith('book',7,0,0,0);
+  expect(getChapterContent).toHaveBeenCalledTimes(2);
+});
+
+it('passes bookmark revision to navigation instead of attaching its ordinal to the visible catalog', async () => {
+  const vm=await open();
+  vm.activeSheet='bookmarks'; await flushPromises();
+  wrapper.findComponent({name:'ReaderBookmarksSheet'}).vm.$emit('open',1,.4,6);
+  expect(vm.revisionConflict).toBe(true);
+  expect(getChapterContent).toHaveBeenCalledTimes(1);
+});
+
+it('does not mark a failed chapter load as reading', async () => {
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new Error('Unavailable'));
+  const vm = await open();
+  expect(vm.content).toBeNull();
+  expect(saveProgress).not.toHaveBeenCalled();
+});
+
+it('prefetches without recording the speculative chapter as reading', async () => {
+  const vm = await open();
+  vm.preferences.prefetchNextChapter = true;
+  await flushPromises();
+  expect(getChapterContent).toHaveBeenCalledTimes(2);
+  expect(saveProgress).toHaveBeenCalledExactlyOnceWith('book',7,0,0,0);
+});
+
+it('skips auxiliary prefetch and preserves main resume while viewing and bookmarking auxiliary content', async () => {
+  vi.mocked(waitForCatalog).mockResolvedValue({ contentRevision: 7, chapters: [
+    { index: 0, title: 'Main', isVolume: false },
+    { index: 1, title: 'Notes', isVolume: false, auxiliary: true },
+    { index: 2, title: 'Next', isVolume: false },
+  ] });
+  const vm = await open();
+  vm.preferences.prefetchNextChapter = true;
+  await flushPromises();
+  expect(vi.mocked(getChapterContent).mock.calls.map(call => call[1])).toEqual([0, 2]);
+  await vm.navigate(1, .4);
+  await waitForProgressWrites('book');
+  vi.mocked(saveProgress).mockClear();
+  expect(vm.currentIndex).toBe(1);
+  expect(vm.book?.durChapterIndex).toBe(0);
+  expect(vm.previousIndex).toBeNull();
+  expect(vm.nextIndex).toBeNull();
+  await vm.persistProgress();
+  await expect(vm.captureBookmark()).resolves.toMatchObject({ contentRevision: 7, chapterIndex: 1 });
+  wrapper.unmount();
+  await waitForProgressWrites('book');
+  expect(saveProgress).not.toHaveBeenCalled();
+});
+
+it('commits nested note visits with content, keeps refresh write-free, and returns one location at a time', async () => {
+  const vm = await open();
+  await waitForProgressWrites('book');
+  vm.lastPosition = .3;
+  await vm.followTarget({ chapterIndex: 0, contentRevision: 7 }, true);
+  await waitForProgressWrites('book');
+  expect(vm.navigation?.returns).toHaveLength(1);
+  expect(vm.previousIndex).toBeNull();
+  expect(vm.nextIndex).toBeNull();
+  vi.mocked(saveProgress).mockClear();
+  vm.lastPosition = .7;
+  await vm.followTarget({ chapterIndex: 1, contentRevision: 7 }, true);
+  await vm.refetchChapter();
+  await vm.persistProgress();
+  expect(saveProgress).not.toHaveBeenCalled();
+  expect(vm.book?.durChapterPos).toBe(0);
+  await vm.returnFromNote();
+  expect(vm.currentIndex).toBe(0);
+  expect(vm.lastPosition).toBe(.7);
+  expect(vm.navigation?.current.note).toBe(true);
+  expect(saveProgress).not.toHaveBeenCalled();
+  await vm.returnFromNote();
+  await waitForProgressWrites('book');
+  expect(vm.lastPosition).toBe(.3);
+  expect(vm.navigation?.returns).toHaveLength(0);
+  expect(saveProgress).toHaveBeenCalledWith('book', 7, expect.any(Number), 0, .3);
+});
+
+it('retains the displayed note trail after a failed target and ignores superseded note proposals', async () => {
+  const vm = await open();
+  await vm.followTarget({ chapterIndex: 1, contentRevision: 7 }, true);
+  const trail = vm.navigation;
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new Error('offline'));
+  await vm.followTarget({ chapterIndex: 2, contentRevision: 7 }, true);
+  expect(vm.navigation).toBe(trail);
+  expect(vm.currentIndex).toBe(1);
+  let release!: (content: ChapterContent) => void;
+  vi.mocked(getChapterContent).mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+  const pending = vm.followTarget({ chapterIndex: 2, contentRevision: 7 }, true);
+  await flushPromises();
+  await vm.navigate(0, .6);
+  release(chapter('late note'));
+  await pending;
+  expect(vm.currentIndex).toBe(0);
+  expect(vm.navigation?.returns).toHaveLength(0);
+  expect(vm.lastPosition).toBe(.6);
+});
+
+it('restores scoped anchors and rolls back an unavailable anchor without consuming return state', async () => {
+  const vm = await open();
+  const host = wrapper.get('.reader-scroll').element as HTMLElement;
+  Object.defineProperties(host, { scrollHeight: { value: 1000 }, clientHeight: { value: 200 } });
+  const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function(this: HTMLElement) {
+    return { top: this.dataset.proseAnchor === 'note' ? 400 : 0 } as DOMRect;
+  });
+  vi.mocked(getChapterContent).mockResolvedValueOnce({ version: 2, contentRevision: 7, offlineCopy: false, document: {
+    kind: 'prose', structureVersion: 2, title: 'Notes', blocks: [{ kind: 'paragraph', id: 'note', children: [{ kind: 'text', text: 'Note text', children: [] }] }],
+  } });
+  try {
+    vm.lastPosition = .3;
+    await vm.followTarget({ chapterIndex: 1, contentRevision: 7, anchor: 'note' }, true);
+    expect(vm.lastPosition).toBe(.5);
+    const trail = vm.navigation;
+    await vm.followTarget({ chapterIndex: 1, contentRevision: 7, anchor: 'missing' }, true);
+    expect(vm.error).toBe('reader.anchorUnavailable');
+    expect(vm.navigation).toBe(trail);
+    expect(vm.lastPosition).toBe(.5);
+    await vm.returnFromNote();
+    expect(vm.lastPosition).toBe(.3);
+    expect(vm.currentIndex).toBe(0);
+  } finally { rect.mockRestore(); }
+});
+
+it('keeps a directly opened note write-free and carries note intent in qualified links', async () => {
+  const vm = await open({ contentRevision: '7', note: '1' });
+  await waitForProgressWrites('book');
+  expect(vm.readingNote).toBe(true);
+  expect(vm.navigation?.returns).toHaveLength(0);
+  expect(saveProgress).not.toHaveBeenCalled();
+  expect(vm.previousIndex).toBeNull();
+  await vm.navigate(0, .2);
+  await waitForProgressWrites('book');
+  expect(vm.readingNote).toBe(false);
+  expect(vm.$router.push).toHaveBeenCalledWith({ name: 'reader', params: { bookId: 'book', chapterIndex: 0 }, query: { contentRevision: '7', position: '0.2' } });
+});
+
+it('routes TOC anchors through the existing note lifecycle without changing main progress', async () => {
+  const target = { chapterIndex: 1, contentRevision: 7, anchor: 'note' };
+  vi.mocked(waitForCatalog).mockResolvedValue({ contentRevision: 7, chapters: [
+    { index: 0, title: 'Main', isVolume: false },
+    { index: 1, title: 'Notes', isVolume: false, auxiliary: true },
+  ], navigation: { source: 'publication', entries: [{ label: 'Authored note heading', target, unavailable: false, children: [] }] } });
+  const vm = await open();
+  await waitForProgressWrites('book');
+  vi.mocked(saveProgress).mockClear();
+  vi.mocked(getChapterContent).mockResolvedValueOnce({ version: 2, contentRevision: 7, offlineCopy: false, document: {
+    kind: 'prose', structureVersion: 2, title: 'Note', blocks: [{ kind: 'paragraph', id: 'note', children: [{ kind: 'text', text: 'Note body', children: [] }] }],
+  } });
+  vm.activeSheet = 'toc';
+  await flushPromises();
+  const sheet = wrapper.getComponent({ name: 'ReaderTocSheet' });
+  expect(sheet.props('navigation')).toEqual(vm.catalogNavigation);
+  sheet.vm.$emit('openTarget', target);
+  await flushPromises();
+  expect(vm.navigation).toMatchObject({ contentRevision: 7, current: { chapterIndex: 1, anchor: 'note', note: true } });
+  expect(vm.navigation?.returns).toHaveLength(1);
+  expect(vm.activeSheet).toBe('');
+  // Leaving the main section may flush its position; the note itself cannot write progress.
+  expect(vi.mocked(saveProgress).mock.calls.every(call => call[3] === 0)).toBe(true);
+  vi.mocked(saveProgress).mockClear();
+  await vm.persistProgress();
+  expect(saveProgress).not.toHaveBeenCalled();
+  await vm.returnFromNote();
+  expect(vm.currentIndex).toBe(0);
+});
+
+it('reopens an auxiliary bookmark through the sheet and a fresh qualified route without replacing main resume', async () => {
+  vi.mocked(getBook).mockResolvedValue({ ...initialBook, durChapterPos: .25, lastReadAt: 1234 });
+  vi.mocked(waitForCatalog).mockResolvedValue({ contentRevision: 7, chapters: [
+    { index: 0, title: 'Main', isVolume: false },
+    { index: 1, title: 'Notes', isVolume: false, auxiliary: true },
+    { index: 2, title: 'Next', isVolume: false },
+  ] });
+  const vm = await open();
+  vm.activeSheet = 'bookmarks';
+  await flushPromises();
+  wrapper.getComponent({ name: 'ReaderBookmarksSheet' }).vm.$emit('open', 1, .4, 7);
+  await flushPromises();
+  await waitForProgressWrites('book');
+  expect(vm.$router.push).toHaveBeenLastCalledWith({ name: 'reader', params: { bookId: 'book', chapterIndex: 1 }, query: { contentRevision: '7', position: '0.4' } });
+  expect(vm.currentIndex).toBe(1);
+  expect(vm.lastPosition).toBe(.4);
+  expect(vi.mocked(saveProgress).mock.calls.every(call => call[3] === 0)).toBe(true);
+  wrapper.unmount();
+  await waitForProgressWrites('book');
+  vi.mocked(saveProgress).mockClear();
+  vi.mocked(getChapterContent).mockClear();
+
+  const reopened = await open({ contentRevision: '7', position: '0.4' }, '1');
+  reopened.preferences.prefetchNextChapter = true;
+  await flushPromises();
+  expect(reopened.currentIndex).toBe(1);
+  expect(reopened.lastPosition).toBe(.4);
+  expect(reopened.navigation?.returns).toHaveLength(0);
+  expect(reopened.book).toMatchObject({ durChapterIndex: 0, durChapterPos: .25, lastReadAt: 1234 });
+  expect(vi.mocked(getChapterContent).mock.calls.map(call => call[1])).toEqual([1]);
+  const host = wrapper.get('.reader-scroll').element as HTMLElement;
+  Object.defineProperties(host, { scrollHeight: { value: 1000 }, clientHeight: { value: 200 } });
+  await reopened.refetchChapter();
+  expect(host.scrollTop).toBe(320);
+  await expect(reopened.captureBookmark()).resolves.toEqual({ contentRevision: 7, chapterIndex: 1, position: .4 });
+  await reopened.persistProgress();
+  wrapper.unmount();
+  await waitForProgressWrites('book');
+  expect(saveProgress).not.toHaveBeenCalled();
 });

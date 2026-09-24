@@ -5,9 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
 	"github.com/otwako/novelreader/internal/auth"
@@ -17,7 +19,9 @@ import (
 	"github.com/otwako/novelreader/internal/candidate"
 	"github.com/otwako/novelreader/internal/chineseconv"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/fontstore"
+	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
 	"github.com/otwako/novelreader/internal/sourceinteraction"
@@ -34,6 +38,8 @@ type Server struct {
 	health              interface{ PingContext(context.Context) error }
 	collectionScheduler *sourceCollectionScheduler
 	backups             *backupservice.Service
+	fileImports         *fileimport.Pool
+	fileAdmission       *fileimport.Admission
 }
 
 func (s *Server) Mux() *http.ServeMux { return s.mux }
@@ -48,23 +54,29 @@ func (s *Server) Close() error {
 	if s.standalone != nil && s.standalone.catalogs != nil {
 		s.standalone.catalogs.Close()
 	}
+	var closeErr error
 	if s.backups != nil {
-		if err := s.backups.Close(); err != nil {
-			return err
-		}
+		closeErr = errors.Join(closeErr, s.backups.Close())
 	}
 	if s.collectionScheduler != nil {
 		s.collectionScheduler.Close()
 	}
+	if s.fileAdmission != nil {
+		s.fileAdmission.Close()
+	}
+	if s.fileImports != nil {
+		s.fileImports.Close()
+	}
 	if s.services != nil && s.services.chineseConversion != nil {
-		if err := s.services.chineseConversion.Close(); err != nil {
-			return err
-		}
+		closeErr = errors.Join(closeErr, s.services.chineseConversion.Close())
 	}
-	if s.runtimes == nil {
-		return nil
+	if s.runtimes != nil {
+		closeErr = errors.Join(closeErr, s.runtimes.Close())
 	}
-	return s.runtimes.Close()
+	if s.services != nil && s.services.fileInbox != nil {
+		s.services.fileInbox.clear()
+	}
+	return closeErr
 }
 
 // NewServer binds one standalone reader. The signature is retained for existing
@@ -73,7 +85,7 @@ func NewServer(sourceStore *booksource.Store, bookStore *book.Store, searcher *b
 	services := &readerServices{fetcher: fetcher, processorCfg: processorCfg,
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
-	runtime := &readerRuntime{db: db, sourceStore: sourceStore, bookStore: bookStore, searcher: searcher, fontStore: fontStore}
+	runtime := &readerRuntime{db: db, sourceStore: sourceStore, bookStore: bookStore, libraryStore: library.NewStore(db), searcher: searcher, fontStore: fontStore}
 	if bookStore != nil && sourceStore != nil && searcher != nil {
 		runtime.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
 	}
@@ -99,26 +111,37 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // NewAuthenticatedServer creates the production Reader Data boundary.
 func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, dataRoot string, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, browser sourceinteraction.Browser, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) (*Server, error) {
 	services := &readerServices{fetcher: rootSearcher.SharedFetcher(), processorCfg: processorCfg, auth: authHandler,
-		webViewProbe: webViewProbe, chineseConversion: conversion,
+		webViewProbe: webViewProbe, chineseConversion: conversion, fileInbox: newInboxControls(),
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
-	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services}
-	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, 32, limits.SessionTTL, services)
+	s := &Server{mux: http.NewServeMux(), auth: authHandler, health: health, services: services, fileAdmission: fileimport.NewAdmission()}
+	s.runtimes = newReaderRuntimeManager(readers, rootSearcher, jsVM, browser, limits, readerRuntimeCapacity, limits.SessionTTL, services)
 	services.runtimes = s.runtimes
-	backups, err := backupservice.NewService(readers, dataRoot, s.runtimes.quiesce, s.runtimes.resume)
+	// Startup is the admission gate: recover before routes or schedulers run.
+	startupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	ids, err := authHandler.ListReaderHomeIDs(startupCtx)
+	if err == nil {
+		s.fileImports, err = fileimport.Start(startupCtx, readers, ids)
+	}
 	if err != nil {
-		_ = s.runtimes.Close()
-		return nil, fmt.Errorf("initialize backup service: %w", err)
+		return nil, errors.Join(fmt.Errorf("initialize file imports: %w", err), s.Close())
+	}
+	backups, err := backupservice.NewService(readers, dataRoot, s.quiesceReader, s.resumeReader, s.recoverRestoredImports)
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("initialize backup service: %w", err), s.Close())
 	}
 	s.backups = backups
+	services.fileImports, services.fileAdmission = s.fileImports, s.fileAdmission
 	s.collectionScheduler = newSourceCollectionScheduler(s.runtimes, services.collectionLoader, authHandler.ListActiveReaderIDs)
 	s.collectionScheduler.Start()
-	authHandler.ConfigureDeletionQuiescer(readers, s.runtimes.quiesce)
+	authHandler.ConfigureDeletionLifecycle(readers, s.quiesceReader, s.forgetReader)
 	s.registerAuthenticatedRoutes()
 	return s, nil
 }
 
 func (s *Server) registerAuthenticatedRoutes() {
+	s.registerFileIntakeRoutes()
 	s.mux.HandleFunc("GET /api/healthz", s.handleHealth)
 	s.mux.Handle("GET /api/backups/export", s.auth.RequireBackupScope(auth.BackupExport, http.HandlerFunc(s.handleBackupExport)))
 	s.mux.Handle("POST /api/backups/restores", s.auth.RequireBackupScope(auth.BackupRestore, http.HandlerFunc(s.handlePrepareBackupRestore)))

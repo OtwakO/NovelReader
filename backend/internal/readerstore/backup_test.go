@@ -218,6 +218,6 @@ func copyHomeForRecovery(source, destination string) error {
 		if entry.IsDir() {
 			return os.MkdirAll(target, 0o700)
 		}
-		return copyRegularFile(path, target, 0o600)
+		return copyRegularFile(context.Background(), path, target, 0o600)
 	})
 }

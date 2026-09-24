@@ -47,11 +47,6 @@ func TestStorePersistsChapterContext(t *testing.T) {
 		} else if next != nil {
 			t.Fatalf("last chapter has successor: %+v", next)
 		}
-		readable, err := store.HasReadableChapter(t.Context(), "book-1", expected.Index)
-		wantReadable := !expected.IsVolume
-		if err != nil || readable != wantReadable {
-			t.Fatalf("readability=%v err=%v", readable, err)
-		}
 	}
 	for _, missing := range []struct {
 		bookID string
@@ -60,10 +55,6 @@ func TestStorePersistsChapterContext(t *testing.T) {
 		chapter, next, err := store.GetChapterWithNext(t.Context(), missing.bookID, missing.index)
 		if err != nil || chapter != nil || next != nil {
 			t.Fatalf("missing chapter resolved: %+v %+v %v", chapter, next, err)
-		}
-		readable, err := store.HasReadableChapter(t.Context(), missing.bookID, missing.index)
-		if err != nil || readable {
-			t.Fatalf("missing chapter readable=%v err=%v", readable, err)
 		}
 	}
 }

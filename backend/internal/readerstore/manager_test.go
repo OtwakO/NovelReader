@@ -154,6 +154,18 @@ func TestManagerInitializesCurrentReaderSchema(t *testing.T) {
 	if version != CurrentReaderSchemaVersion {
 		t.Fatalf("reader database version = %d", version)
 	}
+	// Hold both leases so this checks two distinct pooled SQLite connections.
+	for range 2 {
+		connection, err := home.DB().Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer connection.Close()
+		var enabled int
+		if err := connection.QueryRowContext(t.Context(), `PRAGMA foreign_keys`).Scan(&enabled); err != nil || enabled != 1 {
+			t.Fatalf("foreign_keys=%d error=%v", enabled, err)
+		}
+	}
 	for _, table := range []string{"schema_sources", "schema_books"} {
 		var count int
 		if err := home.DB().QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&count); err != nil || count != 1 {

@@ -327,10 +327,10 @@ export default defineComponent({
 <style scoped>
 .candidate-action { display: contents; }
 .candidate-action > :deep(.app-button),.progress-toggle,.completed-status { grid-column: 2; grid-row: 2; width: 100%; align-self: start; }
-.progress-toggle,.failure-summary { min-height: 2.75rem; display: grid; grid-template-columns: minmax(0, 1fr) 1rem; align-items: center; gap: .45rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .55rem .7rem; background: var(--color-paper); color: var(--color-ink); font: inherit; font-size: .78rem; font-weight: 700; text-align: left; cursor: pointer; }
+.progress-toggle,.failure-summary { min-height: 2.75rem; display: grid; grid-template-columns: minmax(0, 1fr) 1rem; align-items: center; gap: .45rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .55rem .7rem; background: var(--color-paper); color: var(--color-ink); font: inherit; font-size: var(--text-caption); font-weight: var(--weight-strong); text-align: left; cursor: pointer; }
 .progress-toggle:hover,.failure-summary:hover { border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border)); }
 .failure-summary { grid-column: 1 / -1; grid-row: 3; color: var(--color-danger); }
-.completed-status { min-height: 2.75rem; display: flex; align-items: center; justify-content: center; gap: .45rem; border: 1px solid color-mix(in srgb, var(--color-success) 45%, var(--color-border)); border-radius: var(--radius-md); padding: .55rem .7rem; background: color-mix(in srgb, var(--color-success) 8%, var(--color-paper)); color: var(--color-success); font-size: .8rem; font-weight: 700; }
+.completed-status { min-height: 2.75rem; display: flex; align-items: center; justify-content: center; gap: .45rem; border: 1px solid color-mix(in srgb, var(--color-success) 45%, var(--color-border)); border-radius: var(--radius-md); padding: .55rem .7rem; background: color-mix(in srgb, var(--color-success) 8%, var(--color-paper)); color: var(--color-success); font-size: var(--text-caption); font-weight: var(--weight-strong); }
 .completed-status svg { width: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
 .progress-toggle:focus-visible,.failure-summary:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .progress-toggle svg,.failure-summary svg { width: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; transition: transform .18s ease; }
@@ -340,10 +340,10 @@ export default defineComponent({
 .progress-detail header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .progress-detail header div { min-width: 0; display: grid; gap: .15rem; }
 .progress-detail header strong { font-family: var(--font-literary); }
-.progress-detail header span { color: var(--color-ink-muted); font-size: .78rem; }
+.progress-detail header span { color: var(--color-ink-muted); font-size: var(--text-caption); }
 .progress-detail header :deep(.app-button) { min-height: 2.5rem; flex: 0 0 auto; padding-block: .45rem; }
-.failure { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--color-danger); font-size: .78rem; line-height: 1.35; }
-.compact-error,.notice { grid-column: 1 / -1; grid-row: 3; margin: 0; font-size: .78rem; }.compact-error.after-failure { grid-row: 4; }.notice { color: var(--color-ink-muted); }
+.failure { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--color-danger); font-size: var(--text-caption); line-height: 1.35; }
+.compact-error,.notice { grid-column: 1 / -1; grid-row: 3; margin: 0; font-size: var(--text-caption); }.compact-error.after-failure { grid-row: 4; }.notice { color: var(--color-ink-muted); }
 @media (prefers-reduced-motion: reduce) { .progress-toggle svg,.failure-summary svg { transition: none; } }
 @media (max-width: 35rem) { .candidate-action > :deep(.app-button),.progress-toggle,.completed-status { grid-column: 1; grid-row: 3; }.failure-summary { grid-row: 4; }.progress-detail,.compact-error,.notice { grid-row: 4; }.progress-detail.after-failure,.compact-error.after-failure { grid-row: 5; }.progress-detail header { align-items: stretch; flex-direction: column; }.progress-detail header :deep(.app-button) { width: 100%; } }
 </style>

@@ -1,0 +1,35 @@
+<script lang="ts">
+import { defineComponent, type PropType } from 'vue';
+
+export type AppIconName = 'previous' | 'next' | 'toc' | 'source' | 'bookmark' | 'refresh' | 'settings' | 'book' | 'check' | 'shelf' | 'explore' | 'search' | 'upload' | 'account' | 'backup' | 'readers' | 'sign-out';
+
+export default defineComponent({
+  name: 'AppIcon',
+  props: { name: { type: String as PropType<AppIconName>, required: true } },
+});
+</script>
+
+<template>
+  <span class="icon" :class="`icon-${name}`" aria-hidden="true">
+    <svg v-if="name === 'previous' || name === 'next'" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /><path d="M9 12h10" /></svg>
+    <svg v-else-if="name === 'book'" viewBox="0 0 24 24"><path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Zm0 0v14" /></svg>
+    <svg v-else-if="name === 'shelf'" viewBox="0 0 24 24"><path d="M3 20h18M4 4h4v13H4zM9 4h4v13H9zM16 4l4-1 3 13-4 1z" /></svg>
+    <svg v-else-if="name === 'explore'" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="m16 8-2 6-6 2 2-6 6-2Z" /></svg>
+    <svg v-else-if="name === 'search'" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg>
+    <svg v-else-if="name === 'upload'" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6" /></svg>
+    <svg v-else-if="name === 'account'" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg>
+    <svg v-else-if="name === 'backup'" viewBox="0 0 24 24"><path d="M4 4h16v4H4zM5 8v12h14V8M9 12h6" /></svg>
+    <svg v-else-if="name === 'readers'" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3" /><path d="M2 21v-3a7 7 0 0 1 14 0v3M16 5a3 3 0 0 1 0 6m3 3a6 6 0 0 1 3 5v2" /></svg>
+    <svg v-else-if="name === 'sign-out'" viewBox="0 0 24 24"><path d="M9 4H4v16h5M9 12h12m-4-4 4 4-4 4" /></svg>
+    <svg v-else-if="name === 'check'" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg>
+    <svg v-else-if="name === 'toc'" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="5" cy="6" r="1" /><circle cx="5" cy="12" r="1" /><circle cx="5" cy="18" r="1" /></svg>
+    <svg v-else-if="name === 'source'" viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3" /><path d="m18 7-3 3M6 17l3-3" /></svg>
+    <svg v-else-if="name === 'bookmark'" viewBox="0 0 24 24"><path d="M7 4h10v16l-5-3-5 3V4Z" /></svg>
+    <svg v-else-if="name === 'refresh'" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" /></svg>
+    <svg v-else-if="name === 'settings'" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></svg>
+  </span>
+</template>
+
+<style scoped>
+.icon{width:1.45rem;height:1.45rem;display:grid;place-items:center;flex:0 0 1.45rem}.icon svg{width:1.2rem;height:1.2rem;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}.icon-bookmark svg{width:1.35rem;height:1.35rem;stroke-width:1.8}.icon circle[r="1"]{fill:currentColor;stroke:none}.icon-next{transform:rotate(180deg)}
+</style>

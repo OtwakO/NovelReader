@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as authApi from '../api/auth';
 import { ApiError } from '../api/transport';
 import { createAppRouter } from './router';
+import { rememberRestore, forgetRestore } from '../features/backups/restore-session';
 
 vi.mock('../api/auth', async () => {
   const actual = await vi.importActual<typeof import('../api/auth')>('../api/auth');
@@ -16,6 +17,19 @@ vi.mock('../api/transport', async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   location.hash = '';
+});
+
+it('routes a reloaded reader with unresolved restore intent to recovery', async () => {
+  vi.mocked(authApi.getSetupStatus).mockResolvedValue({ status: 'closed', available: false });
+  vi.mocked(authApi.getRegistrationPolicy).mockResolvedValue({ enabled: false, inviteRequired: false });
+  vi.mocked(authApi.getCurrentAccount).mockResolvedValue({ id: 'alice', username: 'Alice', role: 'reader' });
+  rememberRestore('alice', 'restore');
+  try {
+    const router = createAppRouter(createPinia());
+    await router.push('/imports');
+    await router.isReady();
+    expect(router.currentRoute.value.name).toBe('backups');
+  } finally { forgetRestore(); }
 });
 
 describe('router access policy', () => {

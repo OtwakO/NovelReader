@@ -5,6 +5,16 @@ layout is not migrated into the current per-reader architecture. A legacy-root o
 error is not permission to delete valuable data: stop, preserve a complete cold copy, then choose
 whether to use a compatible version or explicitly start fresh.
 
+Reader schema epochs are exact-version contracts, including for portable archives. An archive
+from an older epoch is not an upgrade/migration path into a new one. Keep the matching application
+revision with any cold copy needed for rollback; returning to that revision also requires its
+compatible data. Do not edit schema markers or replace only a reader database to bypass validation.
+
+The current epoch is **16** (EPUB inbox claims, with shared inbox controls and portable cleanup-authority stripping).
+Epoch-15 or older homes and archives are not accepted as an in-place upgrade. Preserve that full
+data tree with its matching application
+if you need to return to it; the reset procedure below is only for explicitly disposable data.
+
 ## Reset old development data
 
 1. Stop NovelReader and any WebView worker or test process using its files.

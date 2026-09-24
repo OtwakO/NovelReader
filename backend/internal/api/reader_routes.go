@@ -1,6 +1,7 @@
 package api
 
 func (s *readerAPI) registerRoutes() {
+	s.mux.HandleFunc("GET /api/books/{id}/epub-resources/{resource}", s.handleEPUBResource)
 	// Book sources — URLs with slashes can't go in path segments, use query param
 	s.mux.HandleFunc("GET /api/sources", s.handleListSources)
 	s.mux.HandleFunc("POST /api/sources", s.handleImportSources)
@@ -31,6 +32,7 @@ func (s *readerAPI) registerRoutes() {
 	// Books
 	s.mux.HandleFunc("GET /api/books", s.handleListBooks)
 	s.mux.HandleFunc("GET /api/books/{id}", s.handleGetBook)
+	s.mux.HandleFunc("GET /api/books/{id}/booksource", s.handleGetBookSource)
 	s.mux.HandleFunc("GET /api/books/{id}/cover", s.handleGetBookCover)
 	s.mux.HandleFunc("GET /api/covers/{reference}", s.handleGetCoverDisplay)
 	s.mux.HandleFunc("POST /api/candidate-resolutions", s.handleStartCandidateResolution)

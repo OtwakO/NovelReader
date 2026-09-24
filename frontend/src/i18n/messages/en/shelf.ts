@@ -6,7 +6,7 @@ export default {
   failed: "Shelf could not be loaded.",
   emptyTitle: "Your shelf is empty",
   emptyDescription:
-    "Start with Explore or Search, then add a book to your shelf.",
+    "Find a book through Explore or Search, or import your TXT files.",
   explore: "Browse sources",
   search: "Search books",
   booksLabel: "Your library",

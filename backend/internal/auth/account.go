@@ -106,11 +106,15 @@ func (s *AccountService) createAccount(ctx context.Context, userID readerstore.U
 	}, nil
 }
 
-// ListReaderAccounts returns ordinary accounts in stable username order without credential material.
+// ListActiveReaderIDs returns identities eligible for scheduled remote refresh.
 func (s *AccountService) ListActiveReaderIDs(ctx context.Context) ([]readerstore.UserID, error) {
-	rows, err := s.store.db.QueryContext(ctx, `SELECT id FROM users WHERE status = ? ORDER BY id`, string(StatusActive))
+	return s.listReaderIDs(ctx, false)
+}
+
+func (s *AccountService) listReaderIDs(ctx context.Context, includeDisabled bool) ([]readerstore.UserID, error) {
+	rows, err := s.store.db.QueryContext(ctx, `SELECT id FROM users WHERE status = ? OR (? AND status = ?) ORDER BY id`, string(StatusActive), includeDisabled, string(StatusDisabled))
 	if err != nil {
-		return nil, fmt.Errorf("auth: list active readers: %w", err)
+		return nil, fmt.Errorf("auth: list reader identities: %w", err)
 	}
 	defer rows.Close()
 	var ids []readerstore.UserID

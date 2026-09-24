@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
@@ -12,7 +13,7 @@ import (
 func BenchmarkChapterLookup(b *testing.B) {
 	for _, count := range []int{100, 1000, 10000} {
 		b.Run(fmt.Sprint(count), func(b *testing.B) {
-			manager, err := readerstore.NewManager(b.TempDir(), 1, ReaderSchema())
+			manager, err := readerstore.NewManager(b.TempDir(), 1, library.ReaderSchema(), ReaderSchema())
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -56,12 +57,12 @@ func BenchmarkChapterLookup(b *testing.B) {
 					}
 				}
 			})
-			b.Run("readable_chapter", func(b *testing.B) {
+			b.Run("publication_snapshot", func(b *testing.B) {
 				b.ReportAllocs()
 				for b.Loop() {
-					readable, err := store.HasReadableChapter(b.Context(), "fixture", target)
-					if err != nil || !readable {
-						b.Fatalf("readability: %v %v", readable, err)
+					item, chapter, _, err := store.GetChapterSnapshot(b.Context(), "fixture", target)
+					if err != nil || item == nil || chapter == nil || chapter.Index != target || chapter.IsVolume {
+						b.Fatalf("publication snapshot: %+v %+v %v", item, chapter, err)
 					}
 				}
 			})

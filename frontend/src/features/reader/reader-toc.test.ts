@@ -3,9 +3,9 @@ import type { Chapter } from '../../api/models';
 import { readableChapterCount, visibleTocChapters } from './reader-toc';
 
 const chapters: Chapter[] = [
-  { id: 'v', bookId: 'book', index: 0, title: '第一卷 人界篇', url: '', isVolume: true },
-  { id: '1', bookId: 'book', index: 1, title: '第一章 山边小村', url: '/1', isVolume: false },
-  { id: '2', bookId: 'book', index: 2, title: '第二章 青牛镇', url: '/2', isVolume: false },
+  { index: 0, title: '第一卷 人界篇', isVolume: true },
+  { index: 1, title: '第一章 山边小村', isVolume: false },
+  { index: 2, title: '第二章 青牛镇', isVolume: false },
 ];
 
 describe('Reader TOC tools', () => {

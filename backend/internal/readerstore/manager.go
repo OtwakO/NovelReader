@@ -38,6 +38,7 @@ type homeEntry struct {
 	path          string
 	readerDB      *sql.DB
 	credentialsDB *sql.DB
+	fileMutation  chan struct{}
 	references    int
 }
 
@@ -330,6 +331,8 @@ func (h *Home) Files() FileStore {
 	return FileStore{
 		dataRoot: h.manager.root,
 		root:     filepath.Join(h.entry.path, FilesDirectory),
+		mutation: h.entry.fileMutation,
+		readerID: h.entry.id,
 	}
 }
 func (h *Home) Close() error {
@@ -355,7 +358,7 @@ func (m *Manager) openEntry(userID UserID) (*homeEntry, error) {
 		_ = readerDB.Close()
 		return nil, err
 	}
-	return &homeEntry{id: userID, path: homePath, readerDB: readerDB, credentialsDB: credentialsDB, references: 1}, nil
+	return &homeEntry{id: userID, path: homePath, readerDB: readerDB, credentialsDB: credentialsDB, fileMutation: make(chan struct{}, 1), references: 1}, nil
 }
 
 func (m *Manager) release(entry *homeEntry) error {

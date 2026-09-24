@@ -8,9 +8,13 @@ import (
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/candidate"
 	"github.com/otwako/novelreader/internal/chineseconv"
+	"github.com/otwako/novelreader/internal/epubstore"
 	"github.com/otwako/novelreader/internal/fetcher"
+	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/readerstore"
+	"github.com/otwako/novelreader/internal/reading"
+	"github.com/otwako/novelreader/internal/txtstore"
 )
 
 // readerServices are assembled once by Server and borrowed by reader handlers.
@@ -25,6 +29,9 @@ type readerServices struct {
 	candidateOperations *candidate.Manager
 	coverReferenceKey   []byte
 	collectionLoader    *booksource.RemoteLoader
+	fileImports         *fileimport.Pool
+	fileAdmission       *fileimport.Admission
+	fileInbox           *fileInboxControls
 }
 
 // readerAPI is bound to one runtime for its entire lifetime. Requests never
@@ -34,14 +41,33 @@ type readerAPI struct {
 	*readerServices
 	mux             *http.ServeMux
 	coverCacheScope string
+	reading         *reading.Service
+	txtStore        *txtstore.Store
+	epubStore       *epubstore.Store
 }
 
 func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 	a := &readerAPI{readerRuntime: runtime, readerServices: services, mux: http.NewServeMux(), coverCacheScope: "standalone"}
 	if runtime.home != nil {
 		a.coverCacheScope = readerstore.DeviceID(runtime.home.ID())
+		a.txtStore = txtstore.NewStore(runtime.db, runtime.home.Files())
+		a.epubStore = epubstore.NewStore(runtime.db, runtime.home.Files())
+	}
+	a.reading = &reading.Service{Library: runtime.libraryStore, TXT: a.txtStore, EPUB: a.epubStore, EPUBResourceHref: a.epubResourceHref,
+		BookSource: &reading.BookSource{Store: runtime.bookStore, Sources: runtime.sourceStore,
+			Catalogs: runtime.catalogs, Searcher: runtime.searcher, ProcessorConfig: services.processorCfg,
+			ImageHref: chapterImageHref},
 	}
 	a.registerRoutes()
+	if a.txtStore != nil && services.fileImports != nil {
+		a.mux.HandleFunc("GET /api/imports/receipts", importControlHandler(a.handleImportHistory))
+		a.registerTXTReceiptRoutes()
+		a.registerEPUBImportRoutes()
+		if services.fileInbox != nil {
+			a.registerTXTInboxRoutes()
+			a.registerEPUBInboxRoutes()
+		}
+	}
 	return a
 }
 

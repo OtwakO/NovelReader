@@ -1,0 +1,21 @@
+{
+  "chapters": [
+    {"index":0,"title":"First","isVolume":false},
+    {"index":1,"title":"","isVolume":false,"auxiliary":true},
+    {"index":2,"title":"Last","isVolume":false}
+  ],
+  "contentRevision":9,
+  "navigation": {
+    "source":"publication",
+    "entries":[
+      {"label":"Part","children":[
+        {"label":"Later first","target":{"chapterIndex":2,"contentRevision":9}},
+        {"label":"Opening","target":{"chapterIndex":0,"contentRevision":9,"anchor":"a1"}},
+        {"label":"Another heading","target":{"chapterIndex":0,"contentRevision":9,"anchor":"a2"}},
+        {"label":"Unavailable parent","unavailable":true,"children":[
+          {"label":"Notes","target":{"chapterIndex":1,"contentRevision":9,"anchor":"a3"}}
+        ]}
+      ]}
+    ]
+  }
+}

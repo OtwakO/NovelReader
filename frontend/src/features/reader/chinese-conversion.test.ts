@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { parseStructuredChapterContent, structuredTextValues } from '../../api/structured-prose';
+import { structuredProseFixture } from '../../api/structured-prose.fixture';
 import type { ChapterContent } from '../../api/reader';
 import type { Chapter } from '../../api/models';
 import { convertChineseTexts } from '../../api/system';
@@ -6,9 +8,9 @@ import { convertReaderDisplay, createReaderDisplayConverter } from './chinese-co
 
 vi.mock('../../api/system', () => ({ convertChineseTexts: vi.fn() }));
 
-const chapters: Chapter[] = [{ id: 'chapter-1', bookId: 'book-1', index: 0, title: '软件后台', url: '/1', isVolume: false }];
+const chapters: Chapter[] = [{ index: 0, title: '软件后台', isVolume: false }];
 const content: ChapterContent = {
-  version: 1,
+  version: 1, contentRevision: 7,
   document: {
     kind: 'prose',
     title: '这里的软件',
@@ -59,16 +61,45 @@ describe('reader Chinese conversion', () => {
 it('reuses catalog conversion and recent documents, with mode and catalog identity isolation', async () => {
   vi.mocked(convertChineseTexts).mockReset().mockImplementation(async (_mode, texts) => [...texts]);
   const convert = createReaderDisplayConverter();
-  const first = { version: 1 as const, offlineCopy: false, document: { kind: 'prose' as const, title: 'First', blocks: [] } };
-  const second = { ...first, document: { ...first.document, title: 'Second' } };
+  const first = { version: 1 as const, contentRevision: 7, offlineCopy: false, document: { kind: 'prose' as const, title: 'First', blocks: [] } };
+  const second = parseStructuredChapterContent(structuredProseFixture());
   const chapters = [{ id: 'chapter', bookId: 'book', index: 0, title: 'Catalog title', url: '/chapter', isVolume: false }];
   await convert(chapters, first, 'traditional');
   await convert(chapters, second, 'traditional');
   await convert(chapters, first, 'traditional');
+  await convert(chapters, second, 'traditional');
   expect(convertChineseTexts).toHaveBeenCalledTimes(3);
   expect(vi.mocked(convertChineseTexts).mock.calls.filter(call => call[1].includes('Catalog title'))).toHaveLength(1);
   await convert(chapters, first, 'simplified');
   expect(convertChineseTexts).toHaveBeenCalledTimes(5);
   await convert([...chapters], first, 'traditional');
   expect(convertChineseTexts).toHaveBeenCalledTimes(6);
+});
+
+it('converts structured text through the same service without changing canonical targets or resources', async () => {
+  const content = parseStructuredChapterContent(structuredProseFixture());
+  const canonical = JSON.stringify(content);
+  vi.mocked(convertChineseTexts).mockImplementation(async (_mode, texts) => texts.map(text => `converted:${text}`));
+  const result = await convertReaderDisplay([], content, 'traditional');
+  expect(convertChineseTexts).toHaveBeenCalledWith('traditional', structuredTextValues(content.document));
+  expect(JSON.stringify(content)).toBe(canonical);
+  expect(JSON.stringify(result.content)).toContain('https://example.invalid/软件');
+  expect(JSON.stringify(result.content)).toContain('"contentRevision":9');
+  expect(result.content?.document.title).toBe('converted:软件正文');
+});
+
+it('converts nested TOC labels once per catalog/mode while preserving targets and canonical text', async () => {
+  const navigation = { source: 'publication' as const, entries: [{ label: '分组', unavailable: false, children: [
+    { label: '注释', unavailable: false, children: [], target: { chapterIndex: 1, contentRevision: 7, anchor: 'opaque-anchor' } },
+  ] }] };
+  const original = JSON.stringify(navigation);
+  vi.mocked(convertChineseTexts).mockImplementation(async (_mode, texts) => texts.map(text => `converted:${text}`));
+  const convert = createReaderDisplayConverter();
+  const first = await convert(chapters, content, 'traditional', navigation);
+  const next = await convert(chapters, { ...content }, 'traditional', navigation);
+  expect(first.navigation?.entries[0]?.children[0]).toMatchObject({ label: 'converted:注释', target: { chapterIndex: 1, contentRevision: 7, anchor: 'opaque-anchor' } });
+  expect(next.navigation).toBe(first.navigation);
+  expect(JSON.stringify(navigation)).toBe(original);
+  expect((await convert(chapters, content, 'original', navigation)).navigation).toBe(navigation);
+  expect(vi.mocked(convertChineseTexts).mock.calls.filter(([, texts]) => texts.includes('分组'))).toHaveLength(1);
 });

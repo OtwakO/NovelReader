@@ -1,10 +1,10 @@
 <script lang="ts">
 import { defineComponent, nextTick } from 'vue';
-import ReaderControlIcon from './ReaderControlIcon.vue';
+import AppIcon from '../../ui/components/AppIcon.vue';
 
 export default defineComponent({
   name: 'ReaderActionsMenu',
-  components: { ReaderControlIcon },
+  components: { AppIcon },
   props: { refreshDisabled: Boolean, refreshing: Boolean },
   emits: ['bookmarks', 'refetch'],
   data: () => ({ open: false, menuId: '' }),
@@ -35,8 +35,8 @@ export default defineComponent({
       <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
     </button>
     <div v-if="open" :id="menuId" class="actions-panel" role="menu" :aria-label="$t('reader.actions.title')">
-      <button type="button" role="menuitem" @click="choose('bookmarks')"><ReaderControlIcon name="bookmark" />{{ $t('reader.bookmarks.title') }}</button>
-      <button type="button" role="menuitem" :disabled="refreshDisabled || refreshing" @click="choose('refetch')"><ReaderControlIcon name="refresh" />{{ $t(refreshing ? 'reader.actions.refetching' : 'reader.actions.refetch') }}</button>
+      <button type="button" role="menuitem" @click="choose('bookmarks')"><AppIcon name="bookmark" />{{ $t('reader.bookmarks.title') }}</button>
+      <button type="button" role="menuitem" :disabled="refreshDisabled || refreshing" @click="choose('refetch')"><AppIcon name="refresh" />{{ $t(refreshing ? 'reader.actions.refetching' : 'reader.actions.refetch') }}</button>
     </div>
   </div>
 </template>

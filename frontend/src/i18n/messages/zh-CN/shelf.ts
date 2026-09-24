@@ -4,7 +4,7 @@ export default {
   loading: "正在读取书架…",
   failed: "无法读取书架。",
   emptyTitle: "书架还是空的",
-  emptyDescription: "从发现或搜索开始，找到一本书后加入书架。",
+  emptyDescription: "通过发现或搜索寻找书籍，也可以导入自己的 TXT 文件。",
   explore: "浏览书源",
   search: "搜索书籍",
   booksLabel: "我的藏书",

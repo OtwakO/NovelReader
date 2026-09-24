@@ -4,7 +4,8 @@ import { chunkBudgets } from './build/chunk-budgets.js';
 import { pwaShell } from './build/pwa-shell.js';
 
 export default defineConfig({
-  plugins: [vue(), pwaShell(), chunkBudgets()],
+  // Native select markup; src/ui/README.md records the Vue nesting-validator workaround.
+  plugins: [vue({ template: { compilerOptions: { isCustomElement: tag => tag === 'selectedcontent' } } }), pwaShell(), chunkBudgets()],
   build: {
     chunkSizeWarningLimit: 1120,
     rollupOptions: {

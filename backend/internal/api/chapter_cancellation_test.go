@@ -40,7 +40,7 @@ func TestChapterRequestCancellationStopsUpstream(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		server.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/books/book/chapters/0/content", nil).WithContext(ctx))
+		server.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/books/book/chapters/0/content?contentRevision=1", nil).WithContext(ctx))
 	}()
 	select {
 	case <-started:

@@ -1,6 +1,8 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import ProseRenderer from './ProseRenderer.vue';
+import { parseStructuredChapterContent } from '../../api/structured-prose';
+import { structuredProseFixture } from '../../api/structured-prose.fixture';
 
 const document = {
   kind: 'prose' as const,
@@ -42,4 +44,46 @@ describe('ProseRenderer', () => {
     expect(wrapper.text()).toContain('Before the map.');
     expect(wrapper.text()).not.toContain('Map of the northern road');
   });
+});
+
+it('renders structured semantics safely and emits qualified navigation without reader tap propagation', async () => {
+  const content = parseStructuredChapterContent(structuredProseFixture());
+  const wrapper = mount(ProseRenderer, { props: { document: content.document, showImages: true, fallbackImageAlt: 'Illustration', imageUnavailable: 'Unavailable', targetHref: target => `/proof/${target.chapterIndex}?contentRevision=${target.contentRevision}` } });
+  expect(wrapper.find('script').exists()).toBe(false);
+  expect(wrapper.text()).toContain('<script>literal</script>');
+  expect(wrapper.find('h1').exists()).toBe(false);
+  expect(wrapper.find('h2').text()).toBe('章节');
+  expect(wrapper.find('ol').attributes('start')).toBe('0');
+  expect(wrapper.find('rt').text()).toBe('じ');
+  expect(wrapper.find('td').attributes('colspan')).toBe('2');
+  expect(wrapper.find('img').attributes('width')).toBe('640');
+  expect(wrapper.find('img').attributes('height')).toBe('480');
+  expect(wrapper.find('[aria-disabled="true"]').text()).toBe('Unavailable');
+  expect(wrapper.find('a[target="_blank"]').attributes('rel')).toBe('noopener noreferrer');
+  expect(wrapper.vm.findAnchor('a1')).toBe(wrapper.find('[data-prose-anchor="a1"]').element);
+  expect(wrapper.vm.findAnchor('a1"] body')).toBeUndefined();
+  let bubbled = false;
+  wrapper.element.addEventListener('click', () => { bubbled = true; });
+  await wrapper.find('a').trigger('click', { button: 0 });
+  expect(bubbled).toBe(false);
+  expect(wrapper.emitted('navigate')).toEqual([[{ target: { chapterIndex: 1, contentRevision: 9, anchor: 'a1' }, note: true }]]);
+  await wrapper.find('img').trigger('error');
+  expect(wrapper.find('[role="status"]').text()).toBe('地图 — Unavailable');
+  await wrapper.setProps({ showImages: false });
+  expect(wrapper.find('img').exists()).toBe(false);
+  expect(wrapper.find('figcaption').text()).toBe('图片说明');
+});
+
+it('shows labeled default cover artwork without changing book text or anchors and respects hidden images', async () => {
+  const raw = { version: 2, contentRevision: 9, document: { kind: 'prose', title: 'Cover', coverPlaceholder: true, blocks: [{ kind: 'group', id: 'a1' }] } };
+  const content = parseStructuredChapterContent(raw);
+  const wrapper = mount(ProseRenderer, { props: { document: content.document, showImages: true, fallbackImageAlt: 'Image', imageUnavailable: 'Unavailable', coverUnavailable: 'Original cover unavailable' } });
+  expect(wrapper.find('img').attributes('src')).toContain('default-book-cover.webp');
+  expect(wrapper.find('figcaption').text()).toBe('Original cover unavailable');
+  expect(wrapper.vm.findAnchor('a1')).toBeDefined();
+  expect(content.document.blocks[0]!.children).toEqual([]);
+  await wrapper.setProps({ showImages: false });
+  expect(wrapper.find('img').exists()).toBe(false);
+  expect(wrapper.text()).toContain('Original cover unavailable');
+  expect(() => parseStructuredChapterContent({ ...raw, document: { ...raw.document, coverPlaceholder: 'yes' } })).toThrow('Invalid cover placeholder');
 });

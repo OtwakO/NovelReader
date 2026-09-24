@@ -108,16 +108,6 @@ func (s *readerAPI) addStoredCoverDisplayURL(stored *book.Book) {
 	stored.CoverDisplayURL = storedCoverDisplayURL(stored, s.coverCacheRevision(stored.SourceID), s.coverCacheScope)
 }
 
-func (s *readerAPI) addStoredCoverDisplayURLs(books []book.Book) {
-	revisions := s.coverCacheRevisions()
-	for index := range books {
-		stored := &books[index]
-		if strings.TrimSpace(stored.CoverURL) != "" {
-			stored.CoverDisplayURL = storedCoverDisplayURL(stored, revisions[stored.SourceID], s.coverCacheScope)
-		}
-	}
-}
-
 func storedCoverDisplayURL(stored *book.Book, revision coverCacheRevision, cacheScope string) string {
 	if stored == nil || strings.TrimSpace(stored.ID) == "" {
 		return ""

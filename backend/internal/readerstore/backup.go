@@ -37,19 +37,32 @@ func (m *Manager) SnapshotHome(ctx context.Context, userID UserID, destination s
 		return cleanup(err)
 	}
 	defer home.Close()
-	if err := writeHomeManifest(destination); err != nil {
+	// Protect the coherent copy, not validation of its independent files. Keep
+	// the home lease until return so deletion/replacement remains coordinated.
+	err = func() error {
+		unlock, err := home.Files().LockMutation(ctx)
+		if err != nil {
+			return err
+		}
+		defer unlock()
+		if err := writeHomeManifest(destination); err != nil {
+			return err
+		}
+		if err := backupDatabase(ctx, home.DB(), filepath.Join(destination, ReaderDatabaseName)); err != nil {
+			return fmt.Errorf("readerstore: snapshot reader database: %w", err)
+		}
+		if err := preparePortableDatabase(ctx, filepath.Join(destination, ReaderDatabaseName), m.schemas); err != nil {
+			return err
+		}
+		if err := initializeCredentialsDatabase(filepath.Join(destination, CredentialsDatabaseName), m.schemas); err != nil {
+			return fmt.Errorf("readerstore: initialize snapshot credentials: %w", err)
+		}
+		return copyDurableFiles(ctx, home.Files().root, filepath.Join(destination, FilesDirectory))
+	}()
+	if err != nil {
 		return cleanup(err)
 	}
-	if err := backupDatabase(ctx, home.DB(), filepath.Join(destination, ReaderDatabaseName)); err != nil {
-		return cleanup(fmt.Errorf("readerstore: snapshot reader database: %w", err))
-	}
-	if err := initializeCredentialsDatabase(filepath.Join(destination, CredentialsDatabaseName), m.schemas); err != nil {
-		return cleanup(fmt.Errorf("readerstore: initialize snapshot credentials: %w", err))
-	}
-	if err := copyDurableFiles(home.Files().root, filepath.Join(destination, FilesDirectory)); err != nil {
-		return cleanup(err)
-	}
-	if err := validateHome(destination, m.schemas); err != nil {
+	if err := validatePortableHome(ctx, destination, m.schemas); err != nil {
 		return cleanup(err)
 	}
 	return nil
@@ -93,20 +106,26 @@ func (m *Manager) PrepareReplacement(ctx context.Context, userID UserID, readerD
 	if err := writeHomeManifest(stagingPath); err != nil {
 		return cleanup(err)
 	}
-	if err := copyRegularFile(readerDatabase, filepath.Join(stagingPath, ReaderDatabaseName), 0o600); err != nil {
+	if err := copyRegularFile(ctx, readerDatabase, filepath.Join(stagingPath, ReaderDatabaseName), 0o600); err != nil {
 		return cleanup(fmt.Errorf("readerstore: stage reader database: %w", err))
+	}
+	if err := preparePortableDatabase(ctx, filepath.Join(stagingPath, ReaderDatabaseName), m.schemas); err != nil {
+		return cleanup(err)
 	}
 	if err := initializeCredentialsDatabase(filepath.Join(stagingPath, CredentialsDatabaseName), m.schemas); err != nil {
 		return cleanup(fmt.Errorf("readerstore: stage credentials database: %w", err))
 	}
-	if err := copyDurableFiles(filesRoot, filepath.Join(stagingPath, FilesDirectory)); err != nil {
+	if err := copyDurableFiles(ctx, filesRoot, filepath.Join(stagingPath, FilesDirectory)); err != nil {
 		return cleanup(err)
 	}
-	if err := validateHome(stagingPath, m.schemas); err != nil {
+	if err := validatePortableHome(ctx, stagingPath, m.schemas); err != nil {
 		return cleanup(err)
 	}
 	return stagingPath, nil
 }
+
+// ErrReplacementCleanupPending means replacement committed, but old-home cleanup failed.
+var ErrReplacementCleanupPending = errors.New("readerstore: replacement cleanup pending")
 
 // PublishReplacement atomically replaces one reader home and restores the previous
 // home if the replacement cannot be validated or opened. The caller must first drain
@@ -145,7 +164,7 @@ func (m *Manager) PublishReplacement(ctx context.Context, userID UserID, staging
 			return fmt.Errorf("readerstore: close reader home before replacement: %w", err)
 		}
 	}
-	if err := validateHome(stagingPath, m.schemas); err != nil {
+	if err := validatePortableHome(ctx, stagingPath, m.schemas); err != nil {
 		return err
 	}
 	rollbackPath := homePath + backupRollbackSuffix
@@ -175,10 +194,10 @@ func (m *Manager) PublishReplacement(ctx context.Context, userID UserID, staging
 	entry.references = 0
 	m.entries[userID] = entry
 	published = true
-	if err := os.RemoveAll(rollbackPath); err != nil {
-		return fmt.Errorf("readerstore: remove replacement rollback: %w", err)
-	}
 	m.signalLocked()
+	if err := os.RemoveAll(rollbackPath); err != nil {
+		return fmt.Errorf("%w: %v", ErrReplacementCleanupPending, err)
+	}
 	return nil
 }
 
@@ -190,7 +209,7 @@ func backupDatabase(ctx context.Context, source *sql.DB, destination string) err
 	return err
 }
 
-func copyDurableFiles(source, destination string) error {
+func copyDurableFiles(ctx context.Context, source, destination string) error {
 	if err := os.MkdirAll(destination, 0o700); err != nil {
 		return fmt.Errorf("readerstore: create replacement files: %w", err)
 	}
@@ -204,12 +223,21 @@ func copyDurableFiles(source, destination string) error {
 		return nil
 	}
 	return filepath.WalkDir(source, func(path string, entry os.DirEntry, walkErr error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if walkErr != nil {
 			return walkErr
 		}
 		relative, err := filepath.Rel(source, path)
 		if err != nil || relative == "." {
 			return err
+		}
+		if relative == WorkDirectory {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if entry.Type()&os.ModeSymlink != 0 {
 			return ErrInvalidFilePath
@@ -222,11 +250,14 @@ func copyDurableFiles(source, destination string) error {
 		if err != nil || !info.Mode().IsRegular() {
 			return ErrInvalidFilePath
 		}
-		return copyRegularFile(path, target, 0o600)
+		return copyRegularFile(ctx, path, target, 0o600)
 	})
 }
 
-func copyRegularFile(source, destination string, perm os.FileMode) error {
+func copyRegularFile(ctx context.Context, source, destination string, perm os.FileMode) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	input, err := os.Open(source)
 	if err != nil {
 		return err
@@ -240,7 +271,7 @@ func copyRegularFile(source, destination string, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	_, copyErr := io.Copy(output, input)
+	_, copyErr := io.Copy(output, contextReader{ctx: ctx, reader: input})
 	closeErr := output.Close()
 	return errors.Join(copyErr, closeErr)
 }
@@ -313,4 +344,18 @@ func reconcileReplacementArtifacts(root string, schemas []ReaderSchema) error {
 		}
 	}
 	return nil
+}
+
+// contextReader checks cancellation between bounded copy reads without owning
+// the input file. Filesystem syscalls themselves remain subject to OS behavior.
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r contextReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(p)
 }

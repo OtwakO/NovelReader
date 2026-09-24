@@ -5,13 +5,20 @@ export const API_BASE = '/api';
 type AuthenticationLossListener = () => void;
 let authenticationLossListener: AuthenticationLossListener | undefined;
 let readerRequests = new AbortController();
+let controlRequests = new AbortController();
 
 export function readerRequestSignal(): AbortSignal { return readerRequests.signal; }
 
 export function resetReaderRequests(): void {
   readerRequests.abort();
+  controlRequests.abort();
   readerRequests = new AbortController();
+  controlRequests = new AbortController();
 }
+
+// Replacement retires the old request lifetime. Only identity/restore controls
+// remain usable until the outcome is reconciled and fresh reader state is opened.
+export function suspendReaderRequests(): void { readerRequests.abort(); }
 
 export interface ApiErrorBody {
   code?: string;
@@ -24,6 +31,7 @@ export interface ApiErrorBody {
   nextPage?: number;
   workflow?: string;
   attempts?: unknown;
+  receiptId?: string;
 }
 
 export type ExploreErrorBody = ApiErrorBody;
@@ -55,8 +63,10 @@ export class NetworkError extends Error {
   }
 }
 
-async function fetchRequest(input: RequestInfo | URL, init?: RequestInit) {
-  const signal = init?.signal ? AbortSignal.any([readerRequests.signal, init.signal]) : readerRequests.signal;
+async function fetchRequest(input: RequestInfo | URL, init?: RequestInit, control = false) {
+  const owner = control ? controlRequests.signal : readerRequests.signal;
+  const signal = init?.signal ? AbortSignal.any([owner, init.signal]) : owner;
+  signal.throwIfAborted();
   try {
     const response = await fetch(input, { ...init, signal });
     signal.throwIfAborted();
@@ -110,6 +120,15 @@ export async function request<T>(path: string, options?: RequestInit, errorKind:
     ...options,
   });
   return readJSON<T>(response, signal, errorKind);
+}
+
+// Controls are still canceled on identity/reset transitions, but not by a
+// reader-home maintenance barrier. Keep this limited to auth and restore status.
+export async function requestControl<T>(path: string, options?: RequestInit): Promise<T> {
+  const { response, signal } = await fetchRequest(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json', ...options?.headers }, ...options,
+  }, true);
+  return readJSON<T>(response, signal);
 }
 
 export async function requestForm<T>(path: string, form: FormData): Promise<T> {

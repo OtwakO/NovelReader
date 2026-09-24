@@ -1,5 +1,8 @@
 /test-booksources/
+/test-epubs/
 .pi/
+# Local Impeccable tooling state (product/design documents remain tracked)
+/.impeccable/
 data/
 *.db
 *.db-journal
@@ -15,3 +18,11 @@ backend/server
 backend/novelreader
 .playwright-cli/
 OLD_AGENTS.md
+
+# Syncthing internals
+.stfolder
+.stversions/
+.stignore
+*.tmp
+~syncthing~*
+.syncthing.*.tmp

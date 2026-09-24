@@ -1,7 +1,10 @@
 <script lang="ts">
 import { defineComponent, nextTick } from "vue";
+import { useImportQueue } from '../imports/import-queue';
+import { readerResumeLocation } from '../reader/reader-session';
 import { listBooks } from "../../api/books";
-import type { Book } from "../../api/models";
+import type { LibraryBook } from "../../api/models";
+import AppIcon from '../../ui/components/AppIcon.vue';
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
 import BookCover from "../books/BookCover.vue";
@@ -11,18 +14,19 @@ import { loadShelfViewState, saveShelfViewState, visibleShelfBooks, type ShelfSo
 
 export default defineComponent({
   name: "ShelfView",
-  components: { AppButton, BookCover, FeatureScaffold },
+  components: { AppIcon, AppButton, BookCover, FeatureScaffold },
   data() {
     const view = loadShelfViewState();
-    return { books: [] as Book[], loading: true, error: "", query: view.query, sort: view.sort as ShelfSort, restoreScrollY: view.scrollY };
+    return { imports: useImportQueue(), loadGeneration: 0, books: [] as LibraryBook[], loading: true, error: "", query: view.query, sort: view.sort as ShelfSort, restoreScrollY: view.scrollY };
   },
   computed: {
-    continueBook(): Book | null {
-      return visibleShelfBooks(this.books, '', 'recent')[0] ?? null;
+    continueBook(): LibraryBook | null {
+      return visibleShelfBooks(this.books.filter(book => (book.lastReadAt ?? 0) > 0), '', 'recent')[0] ?? null;
     },
-    visibleBooks(): Book[] { return visibleShelfBooks(this.books, this.query, this.sort); },
+    visibleBooks(): LibraryBook[] { return visibleShelfBooks(this.books, this.query, this.sort); },
   },
   watch: {
+    'imports.libraryRevision'() { void this.load(true); },
     query() { this.saveView(); },
     sort() { this.saveView(); },
   },
@@ -32,37 +36,42 @@ export default defineComponent({
     await nextTick();
     window.scrollTo({ top: this.restoreScrollY });
   },
-  beforeUnmount() { this.captureScroll(); window.removeEventListener('scroll', this.captureScroll); },
+  beforeUnmount() { this.loadGeneration++; this.captureScroll(); window.removeEventListener('scroll', this.captureScroll); },
   methods: {
+    readerResumeLocation,
     saveView(scrollY = window.scrollY) { saveShelfViewState({ query: this.query, sort: this.sort, scrollY }); },
     captureScroll() { this.saveView(); },
     clearQuery() { this.query = ''; },
-    async load() {
-      this.loading = true;
+    async load(quiet = false) {
+      const generation = ++this.loadGeneration;
+      if (!quiet) this.loading = true;
       this.error = "";
       try {
-        this.books = await listBooks();
+        const books = await listBooks();
+        if (generation !== this.loadGeneration) return;
+        this.books = books;
       } catch (cause) {
+        if (generation !== this.loadGeneration) return;
         this.error =
           cause instanceof Error ? cause.message : this.$t("shelf.failed");
       } finally {
-        this.loading = false;
+        if (generation === this.loadGeneration) this.loading = false;
       }
     },
-    progress(book: Book) {
+    progress(book: LibraryBook) {
       return shelfProgressPercent(book);
     },
-    chapter(book: Book) {
+    chapter(book: LibraryBook) {
       return currentChapterNumber(book);
     },
-    latestChapter(book: Book) { return readableChapterLabel(book.lastChapter); },
-    currentChapter(book: Book) {
+    latestChapter(book: LibraryBook) { return readableChapterLabel(book.lastChapter); },
+    currentChapter(book: LibraryBook) {
       return (
         book.currentChapterTitle ||
         this.$t("shelf.chapter", { chapter: this.chapter(book) })
       );
     },
-    coverURL(book: Book) { return book.coverDisplayUrl || ''; },
+    coverURL(book: LibraryBook) { return book.coverDisplayUrl || ''; },
   },
 });
 </script>
@@ -72,18 +81,20 @@ export default defineComponent({
     :title="$t('shelf.title')"
     :description="$t('shelf.description')"
   >
+    <template #actions><RouterLink class="app-button app-button--secondary" to="/imports">{{ $t('imports.title') }}</RouterLink></template>
+    <p v-if="error && books.length" role="alert">{{ error }} <AppButton variant="quiet" @click="load(true)">{{ $t('app.common.retry') }}</AppButton></p>
     <p v-if="loading" aria-busy="true">{{ $t("shelf.loading") }}</p>
-    <section v-else-if="error" class="state">
+    <section v-else-if="error && !books.length" class="state">
       <p role="alert">{{ error }}</p>
-      <AppButton variant="secondary" @click="load">
+      <AppButton variant="secondary" @click="load()">
         {{ $t("app.common.retry") }}
       </AppButton>
     </section>
     <section v-else-if="books.length === 0" class="state">
       <h2>{{ $t("shelf.emptyTitle") }}</h2>
       <p>{{ $t("shelf.emptyDescription") }}</p>
-      <div>
-        <RouterLink to="/explore">{{ $t("shelf.explore") }}</RouterLink><RouterLink to="/search">{{ $t("shelf.search") }}</RouterLink>
+      <div class="app-actions">
+        <RouterLink class="app-button app-button--secondary" to="/explore">{{ $t("shelf.explore") }}</RouterLink><RouterLink class="app-button app-button--secondary" to="/search">{{ $t("shelf.search") }}</RouterLink>
       </div>
     </section>
     <div v-else class="library">
@@ -125,6 +136,8 @@ export default defineComponent({
                 })
               }}</span>
             </div>
+          </div>
+          <div class="continue-reading">
             <p class="current-chapter">
               <span>{{ $t("shelf.current") }}</span><strong>{{ currentChapter(continueBook) }}</strong>
             </p>
@@ -142,21 +155,14 @@ export default defineComponent({
                 }"
               />
             </div>
-            <div class="continue-actions">
+            <div class="app-actions continue-actions">
               <RouterLink
-                class="continue-action"
-                :to="{
-                  name: 'reader',
-                  params: {
-                    bookId: continueBook.id,
-                    chapterIndex: Math.max(0, continueBook.durChapterIndex),
-                  },
-                }"
+                class="app-button app-button--primary"
+                :to="readerResumeLocation(continueBook)"
               >
-                {{ $t("shelf.continue")
-                }}<span aria-hidden="true">→</span>
+                <AppIcon name="book" />{{ $t("shelf.continue") }}
 </RouterLink><RouterLink
-                class="detail-action"
+                class="app-button app-button--secondary"
                 :to="`/books/${encodeURIComponent(continueBook.id)}`"
               >
                 {{ $t("shelf.details") }}
@@ -176,7 +182,7 @@ export default defineComponent({
         </header>
         <div class="shelf-tools">
           <label><span>{{ $t('shelf.filterLabel') }}</span><input v-model="query" type="search" :placeholder="$t('shelf.filterPlaceholder')"></label>
-          <label><span>{{ $t('shelf.sortLabel') }}</span><select v-model="sort"><option value="recent">{{ $t('shelf.sortRecent') }}</option><option value="title">{{ $t('shelf.sortTitle') }}</option><option value="author">{{ $t('shelf.sortAuthor') }}</option><option value="progress">{{ $t('shelf.sortProgress') }}</option></select></label>
+          <label><span>{{ $t('shelf.sortLabel') }}</span><select v-model="sort"><component :is="'button'" type="button"><selectedcontent /></component><option value="recent">{{ $t('shelf.sortRecent') }}</option><option value="title">{{ $t('shelf.sortTitle') }}</option><option value="author">{{ $t('shelf.sortAuthor') }}</option><option value="progress">{{ $t('shelf.sortProgress') }}</option></select></label>
         </div>
         <section v-if="!visibleBooks.length" class="no-matches"><p>{{ $t('shelf.noMatches') }}</p><AppButton variant="secondary" @click="clearQuery">{{ $t('shelf.clearFilter') }}</AppButton></section>
         <div v-else class="book-grid">
@@ -214,16 +220,10 @@ export default defineComponent({
                 />
               </div>
               <RouterLink
-                class="resume"
-                :to="{
-                  name: 'reader',
-                  params: {
-                    bookId: book.id,
-                    chapterIndex: Math.max(0, book.durChapterIndex),
-                  },
-                }"
+                class="resume app-button app-button--secondary"
+                :to="readerResumeLocation(book)"
               >
-                {{ $t("shelf.resume") }}
+                <AppIcon name="book" />{{ $t("shelf.resume") }}
               </RouterLink>
             </div>
           </article>
@@ -261,23 +261,24 @@ export default defineComponent({
 .continue-section > header h2,
 .shelf-section h2 {
   margin: 0;
-  font: 700 clamp(1.35rem, 3vw, 1.8rem) var(--font-literary);
+  font: var(--weight-strong) var(--text-section) var(--font-literary);
 }
 .continue-section > header > span,
 .shelf-section > header > span {
   color: var(--color-ink-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-small);
   font-variant-numeric: tabular-nums;
 }
 .shelf-section > header p {
   margin: 0.2rem 0 0;
   color: var(--color-ink-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-small);
 }
 .continue-panel {
   display: grid;
   grid-template-columns: 11rem minmax(0, 1fr);
-  gap: clamp(1.25rem, 3vw, 2rem);
+  grid-template-areas: "cover identity" "cover reading";
+  column-gap: clamp(1.25rem, 3vw, 2rem);
   align-items: stretch;
   padding: clamp(1.1rem, 2.5vw, 1.6rem);
   border: 1px solid
@@ -298,6 +299,7 @@ export default defineComponent({
   text-decoration: none;
 }
 .continue-cover {
+  grid-area: cover;
   width: 11rem;
   height: auto;
   aspect-ratio: 3/4;
@@ -311,10 +313,13 @@ export default defineComponent({
   height: 100%;
 }
 .continue-copy {
+  grid-area: identity;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  align-self: end;
+}
+.continue-reading {
+  grid-area: reading;
+  min-width: 0;
 }
 .continue-heading {
   display: flex;
@@ -324,7 +329,7 @@ export default defineComponent({
 }
 .continue-heading h3 {
   margin: 0;
-  font: 700 clamp(1.55rem, 3.4vw, 2.25rem)/1.18 var(--font-literary);
+  font: var(--weight-strong) var(--text-subheading)/1.18 var(--font-literary);
   overflow-wrap: anywhere;
 }
 .continue-heading p {
@@ -335,9 +340,9 @@ export default defineComponent({
   flex: none;
   padding: 0.3rem 0.55rem;
   border-radius: 999px;
-  background: var(--color-paper-raised);
+  background: var(--color-paper-muted);
   color: var(--color-ink-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 .current-chapter {
@@ -348,13 +353,13 @@ export default defineComponent({
 .current-chapter span,
 .book-copy small {
   color: var(--color-warm);
-  font-size: 0.7rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .current-chapter strong {
-  font: 700 clamp(1rem, 2vw, 1.18rem)/1.4 var(--font-literary);
+  font: var(--weight-strong) var(--text-body)/1.4 var(--font-literary);
   overflow-wrap: anywhere;
 }
 .progress-track {
@@ -371,92 +376,36 @@ export default defineComponent({
   background: var(--color-warm);
 }
 .continue-actions {
-  display: flex;
-  gap: 0.55rem;
   margin-top: 1rem;
-}
-.continue-action,
-.detail-action,
-.resume {
-  min-height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-md);
-  font-weight: 800;
-  text-decoration: none;
-}
-.continue-action {
-  min-width: 11rem;
-  gap: 0.55rem;
-  padding: 0.7rem 1.2rem;
-  background: var(--color-accent);
-  color: white;
-}
-.continue-action:hover {
-  background: var(--color-accent-strong);
-}
-.detail-action {
-  padding: 0.7rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 56%, var(--color-border));
-  background: var(--color-paper-raised);
-  color: var(--color-accent-strong);
-  box-shadow: 0 0.2rem 0.5rem rgb(54 39 26 / 0.08);
-  transition: background 0.18s ease-out, border-color 0.18s ease-out, box-shadow 0.18s ease-out;
-}
-.detail-action:hover,
-.detail-action:focus-visible {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent-soft) 55%, var(--color-paper-raised));
-  box-shadow: 0 0.35rem 0.75rem rgb(54 39 26 / 0.12);
 }
 .shelf-tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(11rem, 18rem); gap: 1rem; align-items: end; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-paper-raised); }
 .shelf-tools label { min-width: 0; display: grid; gap: .3rem; }
-.shelf-tools label > span { color: var(--color-ink-muted); font-size: .78rem; font-weight: 700; }
-.shelf-tools input, .shelf-tools select { width: 100%; min-width: 0; max-width: 100%; min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .55rem .7rem; background: white; color: var(--color-ink); font: 400 1rem/1.25 var(--font-ui); }
+.shelf-tools label > span { color: var(--color-ink-muted); font-size: var(--text-caption); font-weight: var(--weight-strong); }
+.shelf-tools input, .shelf-tools select { width: 100%; min-width: 0; max-width: 100%; min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .55rem .7rem; background: white; color: var(--color-ink); font: var(--weight-regular) var(--text-body)/1.25 var(--font-ui); }
 .shelf-tools select { --select-radius: var(--radius-md); align-items: center; }
 .no-matches { display: grid; justify-items: center; gap: .75rem; padding: 2rem 1rem; border: 1px dashed var(--color-border); color: var(--color-ink-muted); text-align: center; }
 .no-matches p { margin: 0; }
 .book-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: clamp(1.25rem, 2.5vw, 2rem);
 }
 .book-card {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 0.55rem 0.55rem 0.7rem;
-  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
-  background: color-mix(in srgb, var(--color-paper-raised) 68%, transparent);
-  box-shadow: 0 0.45rem 1rem rgb(54 39 26 / 0.07);
-  transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out, transform 0.2s ease-out;
-}
-.book-card:hover,
-.book-card:focus-within {
-  border-color: color-mix(in srgb, var(--color-warm) 38%, var(--color-border));
-  box-shadow: 0 0.75rem 1.5rem rgb(54 39 26 / 0.12);
-  transform: translateY(-0.15rem);
 }
 .shelf-cover {
   width: 100%;
   aspect-ratio: 3/4;
   border-radius: 0;
-  box-shadow: inset 0.22rem 0 rgb(255 255 255 / 0.12), inset -0.08rem 0 rgb(0 0 0 / 0.12), 0 0.5rem 1rem rgb(54 39 26/0.14);
-  transition:
-    transform 0.2s ease-out,
-    box-shadow 0.2s ease-out;
-}
-.book-card:hover .shelf-cover,
-.book-card:focus-within .shelf-cover {
-  transform: translateY(-0.12rem);
-  box-shadow: inset 0.22rem 0 rgb(255 255 255 / 0.14), inset -0.08rem 0 rgb(0 0 0 / 0.14), 0 0.75rem 1.35rem rgb(54 39 26/0.18);
+  box-shadow: 0 0.4rem 0.9rem rgb(54 39 26 / 0.11);
 }
 .book-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 0.85rem 0.1rem 0.7rem;
+  padding: 0.75rem 0;
 }
 .book-copy > a {
   color: var(--color-ink);
@@ -465,14 +414,18 @@ export default defineComponent({
 .book-copy strong {
   display: -webkit-box;
   overflow: hidden;
-  font: 700 1.08rem/1.35 var(--font-literary);
+  font: var(--weight-strong) var(--text-subheading)/1.35 var(--font-literary);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 .book-copy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   margin-top: 0.2rem;
   color: var(--color-ink-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-small);
 }
 .book-copy p {
   display: grid;
@@ -482,13 +435,16 @@ export default defineComponent({
 }
 .book-copy p b,
 .book-copy p > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+  font-size: var(--text-small);
+  line-height: var(--line-ui);
 }
 .book-copy p b {
-  font-weight: 700;
+  font-weight: var(--weight-regular);
 }
 .book-copy .latest {
   margin-top: 0.5rem;
@@ -496,34 +452,28 @@ export default defineComponent({
 }
 .book-footer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.55rem 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.55rem;
   margin-top: auto;
 }
 .book-footer > div:first-child {
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
   color: var(--color-ink-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 .book-footer > div:first-child strong {
   color: var(--color-ink);
 }
-.book-footer > .progress-track {
-  grid-column: 1;
-}
 .resume {
-  grid-column: 2;
-  grid-row: 1/3;
-  align-self: end;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border);
-  color: var(--color-accent);
+  width: 100%;
+  margin-top: 0.2rem;
+  padding-inline: .75rem;
 }
-.book-copy > a:hover,
-.resume:hover {
+.book-copy > a:hover {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
@@ -534,19 +484,38 @@ export default defineComponent({
   .continue-cover {
     width: 8rem;
   }
+}
+@media (max-width: 56.25rem) {
   .book-grid {
-    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
-    gap: 1.25rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+}
+@media (max-width: 37.5rem) {
+  .book-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .book-copy .latest {
+    display: none;
   }
 }
 @media (max-width: 34rem) {
   .shelf-tools { grid-template-columns: 1fr; }
   .continue-panel {
-    grid-template-columns: 6.25rem minmax(0, 1fr);
+    grid-template-columns: clamp(4.5rem, 20vw, 6rem) minmax(0, 1fr);
+    grid-template-areas: "cover identity" "reading reading";
     gap: 1rem;
   }
   .continue-cover {
-    width: 6.25rem;
+    width: 100%;
+    align-self: start;
+  }
+  .continue-copy {
+    align-self: start;
+  }
+  .current-chapter {
+    margin-top: 0;
   }
   .continue-heading {
     display: block;
@@ -555,28 +524,8 @@ export default defineComponent({
     display: inline-flex;
     margin-top: 0.65rem;
   }
-  .continue-actions {
-    grid-column: 1/-1;
-    flex-direction: column;
-  }
-  .continue-action,
-  .detail-action {
-    width: 100%;
-  }
-  .book-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-  }
-  .book-footer {
-    grid-template-columns: 1fr;
-  }
-  .resume {
-    grid-column: 1;
-    grid-row: auto;
-    width: 100%;
-  }
-  .book-footer > .progress-track {
-    grid-column: 1;
+  .continue-actions .app-button--primary {
+    flex: 1 1 10rem;
   }
   .shelf-section > header {
     align-items: start;
@@ -586,8 +535,8 @@ export default defineComponent({
   }
 }
 @media (max-width: 22rem) {
-  .book-grid {
-    grid-template-columns: 1fr;
+  .book-copy strong {
+    font-size: var(--text-body);
   }
 }
 </style>

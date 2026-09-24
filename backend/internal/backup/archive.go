@@ -16,14 +16,14 @@ import (
 	"github.com/otwako/novelreader/internal/readerstore"
 )
 
-const (
-	maximumCompressedBytes = 2 << 30
-	maximumExpandedBytes   = 8 << 30
-	maximumArchiveEntries  = 100_000
-)
-
 func writeArchive(ctx context.Context, output io.Writer, homePath string, manifest Manifest, createdAt time.Time) error {
-	gzipWriter, err := gzip.NewWriterLevel(output, gzip.DefaultCompression)
+	return writeArchiveWithLimits(ctx, output, homePath, manifest, createdAt, portableArchiveLimits())
+}
+
+func writeArchiveWithLimits(ctx context.Context, output io.Writer, homePath string, manifest Manifest, createdAt time.Time, limits archiveLimits) error {
+	budget := archiveBudget{limits: limits}
+	bounded := &archiveLimitWriter{output: output, remaining: limits.compressed}
+	gzipWriter, err := gzip.NewWriterLevel(bounded, gzip.DefaultCompression)
 	if err != nil {
 		return err
 	}
@@ -34,11 +34,24 @@ func writeArchive(ctx context.Context, output io.Writer, homePath string, manife
 		_ = closeWriters()
 		return err
 	}
-	if err := writeTarBytes(tarWriter, ManifestPath, append(manifestBytes, '\n'), 0o600, createdAt); err != nil {
+	manifestBytes = append(manifestBytes, '\n')
+	if len(manifestBytes) > maximumManifestBytes {
+		_ = closeWriters()
+		return fmt.Errorf("backup: manifest is too large")
+	}
+	if err := budget.add(int64(len(manifestBytes))); err != nil {
+		_ = closeWriters()
+		return err
+	}
+	if err := writeTarBytes(tarWriter, ManifestPath, manifestBytes, 0o600, createdAt); err != nil {
 		_ = closeWriters()
 		return err
 	}
 	help := "Stop NovelReader before manual restore. Copy the contents of reader-home/ into the target reader directory.\nThe target account credentials and API tokens remain outside this payload.\n"
+	if err := budget.add(int64(len(help))); err != nil {
+		_ = closeWriters()
+		return err
+	}
 	if err := writeTarBytes(tarWriter, RestoreHelp, []byte(help), 0o600, createdAt); err != nil {
 		_ = closeWriters()
 		return err
@@ -64,6 +77,9 @@ func writeArchive(ctx context.Context, output io.Writer, homePath string, manife
 		}
 		header, err := tar.FileInfoHeader(info, "")
 		if err != nil {
+			return err
+		}
+		if err := budget.add(header.Size); err != nil {
 			return err
 		}
 		header.Name = name
@@ -94,7 +110,11 @@ func writeArchive(ctx context.Context, output io.Writer, homePath string, manife
 }
 
 func extractArchive(ctx context.Context, input io.Reader, destination string) (Manifest, string, error) {
-	limited := &io.LimitedReader{R: input, N: maximumCompressedBytes + 1}
+	return extractArchiveWithLimits(ctx, input, destination, portableArchiveLimits())
+}
+
+func extractArchiveWithLimits(ctx context.Context, input io.Reader, destination string, limits archiveLimits) (Manifest, string, error) {
+	limited := &io.LimitedReader{R: input, N: limits.compressed + 1}
 	gzipReader, err := gzip.NewReader(limited)
 	if err != nil {
 		return Manifest{}, "", fmt.Errorf("backup: open gzip: %w", err)
@@ -103,8 +123,7 @@ func extractArchive(ctx context.Context, input io.Reader, destination string) (M
 	tarReader := tar.NewReader(gzipReader)
 	var manifest Manifest
 	manifestSeen := false
-	expanded := int64(0)
-	entries := 0
+	budget := archiveBudget{limits: limits}
 	seen := make(map[string]bool)
 	for {
 		if err := ctx.Err(); err != nil {
@@ -117,11 +136,9 @@ func extractArchive(ctx context.Context, input io.Reader, destination string) (M
 		if err != nil {
 			return Manifest{}, "", fmt.Errorf("backup: read tar: %w", err)
 		}
-		entries++
-		if entries > maximumArchiveEntries || header.Size < 0 || expanded+header.Size > maximumExpandedBytes {
-			return Manifest{}, "", fmt.Errorf("backup: archive limits exceeded")
+		if err := budget.add(header.Size); err != nil {
+			return Manifest{}, "", err
 		}
-		expanded += header.Size
 		name, err := safeArchivePath(header.Name)
 		if err != nil || seen[name] {
 			return Manifest{}, "", fmt.Errorf("backup: unsafe or duplicate archive entry")
@@ -129,7 +146,7 @@ func extractArchive(ctx context.Context, input io.Reader, destination string) (M
 		seen[name] = true
 		switch {
 		case name == ManifestPath && header.Typeflag == tar.TypeReg:
-			if header.Size > 64<<10 {
+			if header.Size > maximumManifestBytes {
 				return Manifest{}, "", fmt.Errorf("backup: manifest is too large")
 			}
 			decoder := json.NewDecoder(io.LimitReader(tarReader, header.Size))

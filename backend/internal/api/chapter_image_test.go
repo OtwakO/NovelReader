@@ -11,6 +11,7 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/processor"
+	"github.com/otwako/novelreader/internal/reading"
 )
 
 func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
@@ -53,25 +54,31 @@ func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	contentResponse := performAPIRequest(server, http.MethodGet, "/api/books/image-book/chapters/0/content", nil)
+	contentResponse := performAPIRequest(server, http.MethodGet, "/api/books/image-book/chapters/0/content?contentRevision=1", nil)
 	if contentResponse.Code != http.StatusOK || bytes.Contains(contentResponse.Body.Bytes(), []byte("image.bin")) {
 		t.Fatalf("content status=%d body=%s", contentResponse.Code, contentResponse.Body.String())
 	}
-	var content chapterContentResponse
-	if err := json.Unmarshal(contentResponse.Body.Bytes(), &content); err != nil || content.Version != proseDocumentVersion || content.Document.Kind != "prose" || len(content.Document.Blocks) != 3 {
+	var content reading.Content
+	if err := json.Unmarshal(contentResponse.Body.Bytes(), &content); err != nil || content.Version != reading.DocumentVersion || content.Document.Kind != "prose" || len(content.Document.Blocks) != 3 {
 		t.Fatalf("content=%+v err=%v body=%s", content, err, contentResponse.Body.String())
 	}
 	imageBlock := content.Document.Blocks[1]
-	if imageBlock.Kind != processor.ProseBlockImage || imageBlock.Resource == nil || imageBlock.Resource.Href != "/api/books/image-book/chapters/0/images/0" || imageBlock.Alt != "Route map" {
+	if imageBlock.Kind != processor.ProseBlockImage || imageBlock.Resource == nil || imageBlock.Resource.Href != "/api/books/image-book/chapters/0/images/0?contentRevision=1" || imageBlock.Alt != "Route map" {
 		t.Fatalf("image block=%+v body=%s", imageBlock, contentResponse.Body.String())
 	}
 
-	response := performAPIRequest(server, http.MethodGet, "/api/books/image-book/chapters/0/images/0?url=http://127.0.0.1/private", nil)
+	response := performAPIRequest(server, http.MethodGet, "/api/books/image-book/chapters/0/images/0?contentRevision=1&url=http://127.0.0.1/private", nil)
 	if response.Code != http.StatusOK || !bytes.Equal(response.Body.Bytes(), []byte("IMAGE")) {
 		t.Fatalf("status=%d body=%v", response.Code, response.Body.Bytes())
 	}
 	if response.Header().Get("X-Content-Type-Options") != "nosniff" || response.Header().Get("Content-Security-Policy") != "sandbox; default-src 'none'" {
 		t.Fatalf("security headers=%v", response.Header())
+	}
+	if err := server.standalone.bookStore.SaveChapters(storedBook.ID, []book.Chapter{{Index: 0, Title: "Chapter", URL: upstream.URL + "/novel/chapter/1"}}); err != nil {
+		t.Fatal(err)
+	}
+	if stale := performAPIRequest(server, http.MethodGet, imageBlock.Resource.Href, nil); stale.Code != http.StatusConflict {
+		t.Fatalf("stale image status=%d body=%s", stale.Code, stale.Body.String())
 	}
 }
 
@@ -94,13 +101,13 @@ func TestStoredChapterImageRejectsAndroidBitmapDecoder(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := server.standalone.bookStore.SaveChapterCache(book.CachedChapter{
-		BookID: storedBook.ID, SourceID: source.ID, ChapterIndex: chapter.Index, ChapterURL: chapter.URL,
+		ContentRevision: 1, BookID: storedBook.ID, SourceID: source.ID, ChapterIndex: chapter.Index, ChapterURL: chapter.URL,
 		Blocks: []processor.ProseBlock{{Kind: processor.ProseBlockImage, Src: "https://source.test/image"}},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	response := performAPIRequest(server, http.MethodGet, "/api/books/bitmap-book/chapters/0/images/0", nil)
+	response := performAPIRequest(server, http.MethodGet, "/api/books/bitmap-book/chapters/0/images/0?contentRevision=1", nil)
 	if response.Code != http.StatusNotImplemented || !bytes.Contains(response.Body.Bytes(), []byte("chapter_image_decoder_unsupported")) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}

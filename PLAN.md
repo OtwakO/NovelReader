@@ -33,7 +33,12 @@ Repository ownership:
 - `backend/internal/booksource/` — lossless BookSource model and persistence.
 - `backend/internal/sourceexec/` — shared request construction, source sessions, and transport routing.
 - `backend/internal/analyzer/` — Legado-compatible rules and JavaScript bridge.
-- `backend/internal/book/` — Search, Explore parsing, Book Info, catalogs, content, shelf, source binding, progress, and bookmarks.
+- `backend/internal/library/` — shared publication metadata, reading state, bookmarks, and revision contracts.
+- `backend/internal/reading/` — common catalogs/prose documents and revision-qualified reading operations over BookSource/TXT/EPUB.
+- `backend/internal/txtstore/` — managed TXT originals/indexes and acquisition/removal/recovery.
+- `backend/internal/fileimport/` — shared bounded TXT/EPUB admission, preparation scheduling and recovery lifecycle.
+- `backend/internal/epubstore/` — EPUB receipts, generation-scoped prepared streams/resources and portable validation.
+- `backend/internal/book/` — BookSource Search, Explore, Book Info, native catalogs/content, bindings, and cache.
 - `backend/internal/candidate/` — bounded metadata-first shelf admission.
 - `backend/internal/sourceinteraction/` — reader-owned source settings, credentials, actions, and browser continuations.
 - `backend/internal/backup/` — portable Reader Data archive and staged restore workflows.
@@ -54,6 +59,10 @@ Accepted future-facing architecture:
 
 ## Current State
 
+The multi-provider branch is integrated into local `main` with a history-preserving merge after [clean-checkout integration checks](docs/notes/2026-09-21-import-user-testing-and-branch-review.md#local-branch-integration). It has not been pushed or deployed; cache/prefetch implementation has not started.
+
+Reader schema is **16**, adding EPUB inbox claims with portable cleanup-authority stripping. Existing epoch-15 and older homes/backups remain preserved, not migrated. [Independent last-read tracking](docs/plans/2026-09-17-last-read-tracking.md), introduced at epoch 13, continues to separate reading from additions/metadata updates.
+
 ### Complete product foundations
 
 - Local Reader Accounts, setup, registration policy, recovery, password management, administration, and durable deletion.
@@ -64,7 +73,8 @@ Accepted future-facing architecture:
 - Batched streaming Search and strict single-source Explore.
 - Metadata-first shelf admission: bounded Book Info selects a source; catalog synchronization is separate, single-flight, cached in SQLite, observable, retryable, and atomically published.
 - Logical-book identity by normalized title/author with exact `(SourceID, BookURL)` source bindings, unified source recovery, and atomic source switching.
-- Reader progress and bookmarks, bounded session chapter reuse, default-on next-chapter prefetch, ordered non-blocking progress saves, Chinese conversion reuse, explicit Refresh, and source-switch invalidation.
+- TXT import, custom-pattern review and explicit published-book reparse with conservative location preservation.
+- Reader progress and bookmarks, revision-coherent navigation, bounded session chapter reuse, default-on next-chapter prefetch, ordered non-blocking progress saves, Chinese conversion reuse, explicit Refresh, and source-switch invalidation.
 - Browser-local typography/image/wake-lock preferences, responsive reader controls, keyboard navigation, TOC filtering/ordering/current positioning, and shelf filtering/restoration.
 - Compact source-management summaries with on-demand lossless editing, plus shared full-cover presentation and reader-scoped seven-day cover caching.
 - Reader-owned source interaction, settings, login state, controlled browser sessions, and bounded `startBrowserAwait` continuation replay.
@@ -79,6 +89,8 @@ Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for un
 
 ### Completed workstream handoffs
 
+[EPUB support](docs/plans/2026-09-17-epub-support.md) — completed bounded reflowable novel-reading milestone at epoch 16. Browser/inbox intake, review, shared reading and image resources, progress/bookmarks, portable lifecycle and removal are integrated without a second reader or scheduler. The final isolated Chromium journey covered inbox import → reading/bookmark → export → removal → restore → restart → reading/resources → removal. Existing data was untouched; deployment, broad real-book compatibility and stress/power-loss testing are not claimed.
+
 [Parallel release builds](docs/plans/parallel-release-builds.md) — concurrent production builds are
 merged and verified. The first release passed in 5m21s with a cached app layer; source-change timing
 and comparison limits are recorded in the plan. All verification and publication gates remain.
@@ -92,19 +104,54 @@ The completed [WebView Runtime Efficiency](docs/plans/2026-09-04-webview-runtime
 
 The completed [Source Authentication and Session Foundation](docs/plans/2026-09-03-source-auth-session-foundation.md) work established reader-owned login/session state, scoped runtime-cookie management, secret-safe diagnostics, and bounded authenticated controlled-browser networking. The completed [Source Collection availability](docs/plans/2026-09-02-source-collection-availability.md) work added a collection-level Search/Explore gate while preserving every member source's individual settings and existing shelf reading. The completed [reading document foundation](docs/plans/2026-09-02-reading-document-foundation.md) established the versioned prose-document, opaque-resource, and focused prose-renderer seams around the current BookSource text/image path.
 
-The completed [architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) workstream corrected lifecycle/isolation defects, upload/font/identity contracts and reader-handler ownership, and implemented measured narrow chapter/progress lookups. Reader schema epoch 9 requires matching/fresh development data. Its plan records scoped verification and the approved local-only integration; hosted CI and deployment verification remain unperformed. Frontend decomposition stays evidence-gated.
+The completed [architecture and code quality improvements](docs/plans/2026-09-05-architecture-code-quality-improvements.md) workstream corrected lifecycle/isolation defects, upload/font/identity contracts and reader-handler ownership, and implemented measured narrow chapter/progress lookups. That checkpoint introduced reader schema epoch 9; subsequent shared-library, TXT interpretation, last-read tracking and EPUB work advance the current epoch to 16. Its plan records scoped verification and the approved local-only integration; hosted CI and deployment verification remain unperformed. Frontend decomposition stays evidence-gated.
+
+The completed [multi-provider library and imported books](docs/plans/2026-09-10-multi-provider-library.md)
+workstream delivers TXT browser/inbox intake, bounded review and explicit admission, shared reading,
+portable lifecycle/cleanup, custom patterns and safe published reparse. The epoch-12 model retains one
+original and active/candidate indexes, with no migration layer. Backend normal/race, scoped frontend
+and fresh real-server checks cover the recorded workflows, including stale-reader protection. Hosted
+CI/deployment and high-load throughput remain unverified.
+
+Post-review [restore outcome recovery and TXT failure guidance](docs/plans/2026-09-15-restore-outcome-and-txt-errors.md)
+are also implemented and verified. The initiating tab retires old work before restoration and recovers
+uncertain outcomes without replay; analysis errors now provide safe, specific guidance.
+
+The [automatic TXT import workflow](docs/plans/2026-09-15-simple-txt-import.md) now lives on a dedicated
+**Local import / 本地匯入** page, reached by one shelf action. The completed
+[frontend presentation consistency pass](docs/plans/2026-09-15-frontend-presentation-consistency.md)
+unifies typography, disclosures and actions across the app while preserving other workflows.
+Shared UI ownership is documented in [frontend/src/ui/README.md](frontend/src/ui/README.md).
+The completed [import layout and selector refinement](docs/plans/2026-09-15-import-layout-and-selectors.md)
+adds distinct review/inbox task panes and fixes shared selector widths, truncation and viewport placement.
+The completed [action-affordance pass](docs/plans/2026-09-16-action-affordances.md) unifies button presentation,
+aligns book-detail/reparse controls, fills the desktop prose preview, and updates locale/brand presentation.
+The [reader-first presentation pass](docs/plans/2026-09-16-reader-first-presentation.md) is complete: clearer typography/navigation, reader-first Settings and task guidance, retaining current fonts and parchment colors.
+[Import history and review](docs/plans/2026-09-16-import-history-and-review.md) fixes hidden/stale persisted imports and adds default-on review before shelf admission, shared with device-local Settings. Retention remains explicit discard/removal; selected-chapter TXT previews are delivered by the unified preview work below.
+
+[EPUB import preview and image preference](docs/plans/2026-09-24-epub-import-preview.md) — completed selected-section preview with authored contents, prose/images and explicit import authorization; both intake controls share one saved device-local image preference. Scoped backend normal/race tests, 59 frontend tests, typecheck/build and isolated desktop/mobile Chromium verification pass. No schema change, second reader or deployment.
+
+[Mixed-format import history and status filters](docs/plans/2026-09-24-import-history-filters.md) — completed U3/U4: default All, newest-first pagination and shared lifecycle filters, including Needs review for both formats. Verified with affected backend packages, import UI tests, typecheck/build and an isolated synthetic browser journey. No schema change; existing provider endpoints remain compatible.
+
+[Unified import preview](docs/plans/2026-09-25-unified-import-preview.md) — implemented B: visible 250px desktop contents, persistent title/author and arrow navigation. TXT import/re-analysis show whole selected chapters; EPUB retains its loaders and all prose images are centered in preview/reader. Focused backend/frontend and isolated desktop/mobile checks passed; no schema or deployment change.
+
+Continue Reading's narrow-screen reflow (`947a2b8`) and the bookshelf cover-gallery layout (`aed9220`) are implemented in `ShelfView.vue`. Their disposable prototypes, along with the completed import-preview prototypes, have been removed; Git history retains the experiments.
+
+[Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) — U1–U4 and R1–R3 are resolved: preview/history improvements, retained inbox refresh notifications, behavior-preserving reader readability, and corrected test fixtures. Final reader/import verification passed 126 tests without warnings, typecheck and production build. The note retains original findings and scoped verification limits.
 
 ## Active Work
+
+[Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted application-managed cache direction and immediate navigation feedback; documentation only, implementation pending authorization and narrow identity/freshness contract checks. TTL and recent-book retention values remain undecided.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
 ## Immediate Priorities
 
-1. The accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), bounded browser-UA provider and [browser lifecycle hardening](docs/plans/browser-worker-lifecycle.md) are implemented. Confirm the next bounded compatibility slice with the user before implementation; retain the recorded verification limits. Do not claim universal compatibility.
-2. Select further compatibility slices from current evidence rather than historical unchecked boxes.
-3. Introduce provider capability interfaces only when a first non-BookSource provider is accepted; introduce image-sequence documents and structured locations only when that modality becomes active work.
-4. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md).
-5. Finish consistent display of source-provided `updateTime` metadata if that presentation improvement is prioritized.
+1. Gather manual usability and real-book compatibility feedback for the completed [EPUB milestone](docs/plans/2026-09-17-epub-support.md). Scope any resulting defects separately; preserve epoch-15 and older data rather than migrating or resetting it implicitly.
+2. Keep future work proportional to its risk: reuse the established storage, reading and lifecycle owners, use focused verification, and avoid speculative frameworks. The completed TXT plan is historical evidence, not an active backlog.
+3. The accepted [BookSource engine corrections](docs/plans/booksource-engine-compatibility-audit.md), bounded browser-UA provider and [browser lifecycle hardening](docs/plans/browser-worker-lifecycle.md) are implemented. Confirm any next compatibility slice with the user before implementation; retain the recorded verification limits. Do not claim universal compatibility.
+4. Select further compatibility slices from current evidence rather than historical unchecked boxes; introduce image-sequence documents and structured locations only when that modality becomes active work.
+5. Consider still-relevant Reader UX opportunities only after explicit approval; see [Reader UX roadmap](docs/roadmaps/reader-ux.md). Finish consistent display of source-provided `updateTime` metadata only if that presentation improvement is prioritized.
 
 ## Durable Decisions
 
@@ -112,10 +159,10 @@ The completed [architecture and code quality improvements](docs/plans/2026-09-05
 - **Frontend seam:** Vue consumes typed domain interfaces and never executes BookSource rules or interprets opaque source payloads.
 - **Reading seam:** providers open Reading Sections as modality-specific Reading Documents; documents use opaque Content Resources and the Reading Session delegates to modality renderers. See [decision 0002](docs/decisions/0002-reading-documents-and-resources.md).
 - **Source identity:** immutable NovelReader Source ID; imported `bookSourceUrl` is source data and may duplicate.
-- **Book identity:** normalized title plus author identifies a logical shelf book; exact source bindings live beneath it.
+- **BookSource book identity:** normalized title plus author identifies a logical BookSource shelf book; exact source bindings live beneath it. Imported publications remain independently identified shelf items by default; cross-provider edition linking requires a separate decision.
 - **Shelf admission:** Book Info metadata is sufficient for admission; catalog availability is a separate observable state.
 - **Explore:** one selected BookSource and its native catalog at a time; Search/Explore eligibility combines saved source preferences with independently persisted collection availability, without affecting shelf reading.
-- **Storage:** `system.db` plus one self-contained reader home per immutable Reader Account ID.
+- **Storage:** `system.db` plus one self-contained reader home per immutable Reader Account ID. File-backed publications use rooted relative paths under that home; portable backup and deletion coordinate database and durable-file generations without provider-specific backup systems or silent orphaned bytes.
 - **Schema policy:** pre-public disposable data may be recreated; do not add migration machinery without a real compatibility requirement.
 - **Source interaction:** reader-owned, source-ID-bound state; removing a source deterministically removes its owned state.
 - **Browser runtime:** private bounded Patchright worker behind a versioned backend-owned interface.

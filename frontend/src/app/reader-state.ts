@@ -1,14 +1,30 @@
 import type { Pinia } from 'pinia';
 import { watch } from 'vue';
-import { resetReaderRequests } from '../api/transport';
+import { resetReaderRequests, suspendReaderRequests } from '../api/transport';
 import { useSessionStore } from '../stores/session';
 import { useSearchStore } from '../features/search/search-store';
+import { useImportQueue } from '../features/imports/import-queue';
 import { useExploreStore } from '../features/explore/explore-store';
 import { clearCandidateOperations } from '../features/candidates/candidate-operation';
 import { clearCandidateSelections } from '../features/search/candidate-selection';
 import { resetProgressWriter } from '../features/reader/progress-writer';
 
+import { pendingRestore } from '../features/backups/restore-session';
+
 const ownerKey = 'novelreader.reader-state-owner';
+
+// Identity changes and home replacement share the same cache/request lifetime.
+export function resetReaderState(pinia: Pinia) {
+  resetReaderRequests();
+  useSearchStore(pinia).resetReaderState();
+  useExploreStore(pinia).resetReaderState();
+  useImportQueue(pinia).resetReaderState();
+  clearCandidateOperations();
+  clearCandidateSelections();
+  resetProgressWriter();
+  const readerId = useSessionStore(pinia).account?.id;
+  if (readerId && pendingRestore(readerId)) suspendReaderRequests();
+}
 
 // The application owns identity transitions; features own their reset semantics.
 // Remembering the owner preserves tab restoration for the same reader on reload.
@@ -20,13 +36,8 @@ export function installReaderStateBoundary(pinia: Pinia) {
     if (reader === previous) return;
     let storedOwner: string | null = null;
     try { storedOwner = sessionStorage.getItem(ownerKey); } catch { /* no restoration when storage is disabled */ }
-    if (!reader || reader !== storedOwner || previous !== undefined) {
-      resetReaderRequests();
-      useSearchStore(pinia).resetReaderState();
-      useExploreStore(pinia).resetReaderState();
-      clearCandidateOperations();
-      clearCandidateSelections();
-      resetProgressWriter();
+    if (!reader || reader !== storedOwner || previous !== undefined || pendingRestore(reader)) {
+      resetReaderState(pinia);
     }
     previous = reader;
     try {

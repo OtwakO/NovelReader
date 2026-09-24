@@ -1,0 +1,100 @@
+package txtstore
+
+import (
+	"context"
+	"errors"
+	"io"
+	"os"
+	"path"
+	"time"
+
+	"github.com/otwako/novelreader/internal/readerstore"
+	"github.com/otwako/novelreader/internal/txt"
+)
+
+var ErrInputTooLarge = errors.New("txtstore: file exceeds the TXT input size limit")
+
+// Receive streams one upload into disposable work, then finalizes its original.
+// Success means durable acquisition, not successful analysis or shelf admission.
+// The caller supplies a server-issued ID (crypto/rand.Text), so an interrupted
+// client can look up its exact receipt without retransmitting the original.
+// On an interrupted finalization the returned receipt remains recoverable.
+func (s *Store) Receive(ctx context.Context, id, name string, input io.Reader) (Receipt, error) {
+	value := Receipt{ID: id, OriginalName: name, State: Receiving, CreatedAt: time.Now().UnixMilli()}
+	var err error
+	value.Path, err = managedPath(name, value.ID)
+	if err != nil {
+		return Receipt{}, err
+	}
+	value.UpdatedAt = value.CreatedAt
+	root, err := s.files.OpenRoot()
+	if err != nil {
+		return Receipt{}, err
+	}
+	defer root.Close()
+	_, err = s.db.ExecContext(ctx, `INSERT INTO txt_files(id,original_name,path,state,created_at,updated_at) VALUES(?,?,?,?,?,?)`, value.ID, name, value.Path, Receiving, value.CreatedAt, value.UpdatedAt)
+	if err != nil {
+		return Receipt{}, err
+	}
+
+	value.Size, err = receiveWork(ctx, root, workPath(value.ID), input)
+	if err != nil {
+		return s.failTransfer(ctx, root, value, err)
+	}
+	unlock, err := s.files.LockMutation(ctx)
+	if err != nil {
+		return s.failTransfer(ctx, root, value, err)
+	}
+	defer unlock()
+	// Once finalization starts, finish the short metadata/file sequence even if
+	// the upload request disconnects. A database failure still leaves durable intent.
+	finalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataTimeout)
+	defer cancel()
+	if err := s.transition(finalCtx, value.ID, Receiving, Receiving, value.Size, ""); err != nil {
+		return value, err
+	}
+	if err := root.MkdirAll(path.Dir(value.Path), 0o700); err != nil {
+		return value, err
+	}
+	if err := root.Rename(workPath(value.ID), value.Path); err != nil {
+		return value, err
+	}
+	if err := s.finalizeAcquisition(finalCtx, value.ID, value.Size); err != nil {
+		return value, err
+	}
+	return s.Get(finalCtx, value.ID)
+}
+
+func receiveWork(ctx context.Context, root *os.Root, destination string, input io.Reader) (int64, error) {
+	size, err := readerstore.WriteWorkFile(ctx, root, destination, input, txt.MaxInputBytes)
+	if errors.Is(err, readerstore.ErrFileTooLarge) {
+		err = errors.Join(ErrInputTooLarge, err)
+	}
+	return size, err
+}
+
+func (s *Store) failTransfer(ctx context.Context, root *os.Root, value Receipt, cause error) (Receipt, error) {
+	value, err := s.recordFailure(ctx, root, value, cause)
+	return value, errors.Join(cause, err)
+}
+
+func (s *Store) recordFailure(ctx context.Context, root *os.Root, value Receipt, cause error) (Receipt, error) {
+	cleanupErr := removeIfPresent(root, workPath(value.ID))
+	cause = errors.Join(cause, cleanupErr)
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metadataTimeout)
+	defer cancel()
+	err := s.transition(cleanupCtx, value.ID, Receiving, Failed, value.Size, cause.Error())
+	if err == nil {
+		value.State = Failed
+		value.Error = cause.Error()
+	}
+	return value, errors.Join(cleanupErr, err)
+}
+
+func removeIfPresent(root *os.Root, name string) error {
+	err := root.Remove(name)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}

@@ -37,7 +37,7 @@ func TestReaderDeletionHTTPRequiresAdministratorExactUsernameAndStrictBody(t *te
 		t.Fatal(err)
 	}
 	handler.now = func() time.Time { return time.Unix(200, 0) }
-	handler.ConfigureDeletionQuiescer(readers, func(context.Context, readerstore.UserID) error { return nil })
+	handler.ConfigureDeletionLifecycle(readers, func(context.Context, readerstore.UserID) error { return nil }, nil)
 
 	for _, test := range []struct {
 		session string
@@ -89,7 +89,7 @@ func TestReaderDeletionHTTPSuccessAndCompletedRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler.now = func() time.Time { return time.Unix(200, 0) }
-	handler.ConfigureDeletionQuiescer(readers, func(context.Context, readerstore.UserID) error { return nil })
+	handler.ConfigureDeletionLifecycle(readers, func(context.Context, readerstore.UserID) error { return nil }, nil)
 	for _, username := range []string{"Bob", "ignored after completion"} {
 		request := httptest.NewRequest(http.MethodDelete, "http://reader.local/api/auth/admin/readers/"+string(secondTestUserID), bytes.NewBufferString(`{"username":"`+username+`"}`))
 		request.Header.Set("Origin", "http://reader.local")

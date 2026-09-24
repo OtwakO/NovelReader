@@ -1,6 +1,6 @@
 import { createPinia } from 'pinia';
 import { afterEach, expect, it, vi } from 'vitest';
-import { installReaderStateBoundary } from './reader-state';
+import { installReaderStateBoundary, resetReaderState } from './reader-state';
 import { useSessionStore } from '../stores/session';
 import { useSearchStore } from '../features/search/search-store';
 import { useExploreStore } from '../features/explore/explore-store';
@@ -72,4 +72,24 @@ it('preserves same-reader tab restoration but resets state on direct account rep
     expect(search.query).toBe('');
     expect(sessionStorage.getItem('novelreader.search-session')).toBeNull();
   } finally { stop(); }
+});
+
+
+it('resets a replaced home without changing the signed-in account', () => {
+  const pinia = createPinia();
+  const session = useSessionStore(pinia);
+  session.authenticated(alice);
+  const search = useSearchStore(pinia);
+  search.query = 'old home'; search.save();
+  const explore = useExploreStore(pinia);
+  explore.sourceId = 'old-source'; explore.save();
+  setProgressVersion('old-book', 9);
+  rememberCandidateCommitted(candidate, 'old-book');
+  resetReaderState(pinia);
+  expect(session.account?.id).toBe(alice.id);
+  expect(search.query).toBe('');
+  expect(explore.sourceId).toBe('');
+  expect(getProgressVersion('old-book')).toBeUndefined();
+  expect(candidateWasCommitted(candidate)).toBe(false);
+  expect(sessionStorage.getItem('novelreader.search-session')).toBeNull();
 });

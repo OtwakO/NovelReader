@@ -1,5 +1,6 @@
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
+import { readerLocation } from './reader-session';
 import type { Chapter } from "../../api/models";
 
 export default defineComponent({
@@ -8,9 +9,11 @@ export default defineComponent({
     chapters: { type: Array as PropType<Chapter[]>, default: () => [] },
     currentIndex: { type: Number, required: true },
     bookId: { type: String, default: "" },
+    contentRevision: { type: Number, default: undefined },
     interactive: { type: Boolean, default: true },
   },
   emits: ["open"],
+  methods: { readerLocation },
 });
 </script>
 
@@ -24,8 +27,8 @@ export default defineComponent({
     >
       <span v-if="chapter.isVolume" class="volume-title">{{ chapter.title }}</span>
       <RouterLink
-        v-else-if="bookId && interactive"
-        :to="`/books/${encodeURIComponent(bookId)}/read/${chapter.index}`"
+        v-else-if="bookId && contentRevision !== undefined && interactive"
+        :to="readerLocation(bookId, chapter.index, contentRevision)"
         :aria-current="chapter.index === currentIndex ? 'location' : undefined"
       >
         <small>{{ chapter.index + 1 }}</small><span class="chapter-title">{{ chapter.title }}</span><svg class="row-arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6" /></svg>
@@ -93,7 +96,7 @@ export default defineComponent({
 }
 .toc-chapter-list small {
   color: var(--color-ink-muted);
-  font-size: 0.72rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
   text-align: right;
@@ -126,11 +129,11 @@ export default defineComponent({
 .current button {
   background: color-mix(in srgb, var(--color-accent-soft) 72%, var(--color-paper-raised));
   color: var(--color-accent-strong);
-  font-weight: 700;
+  font-weight: var(--weight-strong);
 }
 .current small {
   color: var(--color-warm);
-  font-weight: 800;
+  font-weight: var(--weight-strong);
 }
 .current .row-arrow {
   color: inherit;
@@ -146,8 +149,8 @@ export default defineComponent({
   padding: 0.65rem 1rem;
   background: color-mix(in srgb, var(--color-paper-muted) 58%, var(--color-paper-raised));
   color: var(--color-ink-muted);
-  font-size: 0.76rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
   letter-spacing: 0.035em;
 }
 @media (max-width: 32rem) {
