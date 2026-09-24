@@ -72,6 +72,7 @@ it('opts into automatic addition from the dedicated page and offers Read without
 });
 
 it('opens exception review inline and closes it after explicit addition', async () => {
+  vi.spyOn(api, 'getTXTPreviewSection').mockResolvedValue({ generation: 1, index: 0, title: 'Section 1', text: 'Literal prose' });
   const status = vi.spyOn(api, 'getTXTReceipt').mockResolvedValue(receipt('needs_review'));
   vi.spyOn(api, 'previewTXT').mockResolvedValue({ analysisVersion: 1, encoding: 'utf-8', preset: 'generated-sections', parserVersion: 1, reviewReasons: ['no_headings'], totalSections: 1, headings: [{ index: 0, title: 'Section 1', generated: true }], sample: 'Literal prose', sampleTruncated: false, hasMore: false });
   const accept = vi.spyOn(api, 'acceptTXT').mockResolvedValue({ libraryId: 'book' });

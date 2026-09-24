@@ -60,15 +60,26 @@ const reviewSampleBytes = 4096
 // It does not build a full catalog or reparse the original. Callers bound the page
 // size and provide the exact analysis version they are reviewing.
 func (s *Store) Review(ctx context.Context, id string, version int64, start, limit int) (Review, error) {
-	return s.review(ctx, id, version, start, limit, false)
+	return s.review(ctx, id, version, start, limit, false, reviewSampleBytes)
 }
 
 // ReviewReparse samples only the named completed candidate of a live publication.
 func (s *Store) ReviewReparse(ctx context.Context, id string, generation int64, start, limit int) (Review, error) {
-	return s.review(ctx, id, generation, start, limit, true)
+	return s.review(ctx, id, generation, start, limit, true, reviewSampleBytes)
 }
 
-func (s *Store) review(ctx context.Context, id string, version int64, start, limit int, reparse bool) (Review, error) {
+// ReviewSection uses the same saved-interpretation guards as review, but returns
+// a complete single section. Decoding remains bounded by txt.ReadSection.
+func (s *Store) ReviewSection(ctx context.Context, id string, version int64, index int) (Review, error) {
+	return s.review(ctx, id, version, index, 1, false, 0)
+}
+
+func (s *Store) ReviewReparseSection(ctx context.Context, id string, generation int64, index int) (Review, error) {
+	return s.review(ctx, id, generation, index, 1, true, 0)
+}
+
+// sampleBytes == 0 requests the whole indexed section rather than a summary.
+func (s *Store) review(ctx context.Context, id string, version int64, start, limit int, reparse bool, sampleBytes int) (Review, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return Review{}, err
@@ -141,7 +152,10 @@ func (s *Store) review(ctx context.Context, id string, version int64, start, lim
 		if err := errors.Join(err, file.Close()); err != nil {
 			return Review{}, err
 		}
-		end := min(len(text), reviewSampleBytes)
+		end := len(text)
+		if sampleBytes > 0 {
+			end = min(end, sampleBytes)
+		}
 		for !utf8.ValidString(text[:end]) {
 			end--
 		}

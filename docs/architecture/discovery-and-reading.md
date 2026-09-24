@@ -180,6 +180,8 @@ Catalog/chapter display conversion is memoized by original object identity and c
 the Reading Session, without mutating canonical content or introducing a cross-reader cache. The
 three-dot menu contains Bookmarks and Refresh; the settings sheet owns the prefetch toggle. Disabling
 images removes their figures, captions, placeholders, and image requests rather than merely hiding pixels.
+`ProseRenderer` centers all displayed images with block layout and automatic inline margins, including
+authored inline images, consistently in import preview and published reading.
 
 The Vue frontend owns presentation and interaction: shelf filtering/sorting/restoration, TOC filtering/ordering/current positioning, keyboard/tap navigation, wake lock, typography, overlays, responsive behavior, and modality-specific rendering. It never crawls or evaluates source rules and does not reconstruct provider resource locations.
 

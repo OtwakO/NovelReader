@@ -218,6 +218,11 @@ Authenticated reader-owned routes live under `/api/imports/txt`:
 - `GET /receipts` uses bounded ID-cursor pages and optional state filtering. Preview at
   `/receipts/{id}/preview?analysisVersion=<version>` returns a saved heading page plus a bounded
   literal sample (`start` selects its first section). No managed paths or byte offsets are exposed.
+- `GET /receipts/{id}/sections/{index}?generation=<analysisVersion>` returns one full saved section
+  as `{generation,index,title,text}` without a publication revision. Re-analysis has the corresponding
+  `/api/books/{id}/txt/reparse/sections/{index}?generation=<candidateGeneration>` route. Both share
+  review's before/after role and generation checks; apply/discard invalidates a candidate read.
+  Decoding retains `txt.ReadSection` bounds, responses are `no-store`, and summary behavior is unchanged.
 - `POST /receipts/{id}/analysis` queues version-guarded encoding/preset changes; `preset: "custom"`
   requires a `pattern` string, rejected with other presets. Go/RE2 syntax, the 2 KiB UTF-8 bound and
   non-empty-match rule are checked before replacing a candidate. Invalid patterns return HTTP 400
@@ -311,7 +316,12 @@ when ready to check diagnostics and metadata, not on each poll. `EPUBReviewView`
 review/retry/discard interactions; its `EPUBSectionPreview` owns on-demand contents, selected-section
 loading, cancellation and scoped anchor positioning. It reuses the prose renderer/parser, not the
 Reading Session. It has no progress/bookmark writes, publication identity or persistent content cache.
-A native selector displays authored hierarchy; Previous/Next also reaches sections absent from contents.
+`BookPreview.vue` owns the shared visible contents list, 250px desktop sidebar, mobile stacking,
+arrow controls and bounded reading area. `EPUBSectionPreview` preserves authored hierarchy and anchors;
+Previous/Next also reaches sections absent from contents. `TXTPreview` owns full selected-section reads
+and bounded heading pagination for import/re-analysis, cancelling superseded requests. Re-analysis's
+explicit resume action is below the selected preview and remains separate from browsing and apply.
+Import metadata fields stay visible above preview; re-analysis status includes saved name/author.
 TXT interpretation controls remain separate. History defaults to All formats and uses the shared
 newest-first listing and status filters above. Changing format/status resets the cursor and bulk
 selection while retaining the other filter. Rows show their format and specific status. Bulk EPUB addition

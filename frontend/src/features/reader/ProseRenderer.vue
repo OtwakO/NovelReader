@@ -106,6 +106,8 @@ export default defineComponent({
 .structured-prose :is(ul, ol) { padding-inline-start: 1.6em; margin-block: .85em; }
 .structured-prose blockquote { margin: 1em 1.5em; }
 .structured-prose pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* All displayed images, including authored inline images, are centered. */
+.prose-document img { display: block; margin-inline: auto; }
 .structured-prose img { max-width: 100%; height: auto; object-fit: contain; }
 .structured-prose a { color: inherit; text-decoration: underline; text-underline-offset: .18em; }
 .structured-prose [aria-disabled="true"] { text-decoration: underline dotted; }

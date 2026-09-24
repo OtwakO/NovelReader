@@ -20,6 +20,7 @@ func (s *readerAPI) registerTXTReceiptRoutes() {
 	register("GET /api/imports/txt/receipts", s.handleListTXTReceipts)
 	register("GET /api/imports/txt/receipts/{id}", s.handleGetTXTReceipt)
 	register("GET /api/imports/txt/receipts/{id}/preview", s.handlePreviewTXTReceipt)
+	register("GET /api/imports/txt/receipts/{id}/sections/{section}", s.handleTXTReviewSection)
 	register("POST /api/imports/txt/receipts/{id}/analysis", s.handleAnalyzeTXTReceipt)
 	register("POST /api/imports/txt/receipts/{id}/accept", s.handleAcceptTXTReceipt)
 	register("DELETE /api/imports/txt/receipts/{id}", s.handleDiscardTXTReceipt)

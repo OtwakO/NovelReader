@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 updated: 2026-09-25
 ---
 
@@ -36,31 +36,28 @@ The prototype is visual evidence, not production code to copy verbatim. A/C rema
 
 ## Current State
 
-Design selected; production implementation has not started. Existing owners inspected:
+Implemented and verified within the scope below. Current usage and architecture documents are updated. Owners:
 
-- `frontend/src/features/imports/TXTPreview.vue` currently displays paged headings and a truncated text sample. Both `ImportReviewView.vue` and `TXTReparseView.vue` use it; re-analysis supplies a separate heading-action slot.
-- `EPUBSectionPreview.vue` owns on-demand navigation/section loading and anchor scrolling. Preserve those behaviors while replacing its selector with B's visible contents.
-- `ImportReviewView.vue` and `EPUBReviewView.vue` currently hide editable title/author fields in disclosures below preview. Move their persistent presentation above preview without changing acceptance semantics.
-- `backend/internal/txtstore/review.go` already enforces interpretation role/generation before and after reading saved section bytes, then truncates samples to 4096 bytes. Reuse this ownership logic for whole-section reads rather than introducing a second analysis path.
-- `ProseRenderer.vue` centers figure-contained images but ordinary structured images lack equivalent centering. The production browser baseline still needs confirmation; centering all images is an explicit user preference regardless.
+- `BookPreview.vue` owns B's presentation only. `TXTPreview.vue` loads a complete selected chapter and a bounded 25-heading page; both import and re-analysis use it. The explicit resume action is below the selected preview, not triggered by browsing.
+- `EPUBSectionPreview.vue` retains on-demand navigation/section loading and anchor scrolling while delegating visible contents and reading-area layout to `BookPreview.vue`.
+- Import title/author fields are visible above preview without disclosures. Re-analysis status now includes its saved author as an additive response field.
+- `backend/internal/txtstore/review.go` shares saved role/generation checks between bounded summaries and full-section reads. `txt_review_section.go` exposes additive generation-qualified import/re-analysis section endpoints.
+- `ProseRenderer.vue` centers every image using block display and automatic inline margins, confirmed for ordinary cover and inline images in an isolated browser.
+- The contents list keeps the selected entry visible when navigation crosses a page or moves beyond the list viewport, without scrolling the surrounding page.
 
 ## Next Action
 
-1. Inspect existing TXT API handlers and focused tests; add a narrow full-section read for import and re-analysis using the current saved-generation authorization rules.
-2. Implement the shared B presentation and connect format-owned loaders. Keep ordinary navigation independent of mutation/resume controls.
-3. Make metadata persistent and center images through the existing prose renderer; update relevant translations.
-4. Run focused backend/frontend checks and an isolated desktop/mobile browser journey. Update usage/architecture only for implemented behavior, then commit the cohesive feature.
+Gather manual feedback on the implemented B layout and all-image centering. No implementation remains pending in this scope. Keep unrelated R1–R3 cleanup separate.
 
 ## Verification
 
-Prototype-only checks already passed: JavaScript syntax, desktop/mobile navigation, disabled Previous at section zero, persistent B author, no stage horizontal overflow and separate mock resume selection. These are not production verification.
+- `go test ./internal/txtstore ./internal/api -count=1` passed. The new API test verifies a full synthetic chapter longer than 4 KiB, unchanged bounded summary, authentication, cross-reader isolation and stale-generation rejection.
+- `go test -race ./internal/api -run 'TestTXT(SelectedSectionPreview|ReparseHTTPReviewApplyAndDiscard|ReadingThroughCommonHTTPRoutes)$' -count=1` passed after final test changes, including applied/discarded candidate invalidation and published-reading compatibility.
+- Direct-Node `vue-tsc --noEmit`, 56 focused Vitest tests across imports and `ProseRenderer.test.ts`, and Vite production build passed. Vitest used `NODE_OPTIONS=--no-experimental-webstorage` for the existing Node 25 localStorage conflict; existing `/explore` fixture-route warnings remain outside scope.
+- Isolated Chromium with synthetic TXT/EPUB: whole TXT chapter, contents-page crossing, 250px desktop sidebar, visible editable metadata, EPUB authored navigation and cover/inline image centering, mobile bounds, and separate re-analysis resume choice passed. Published-reader inline image centering also passed. The final rebuilt UI kept the selected contents entry visible on mobile after crossing back to the preceding page.
+- Selected desktop/mobile screenshots were visually inspected; ignored evidence is under `reference/unified-preview/`. Test books were added only to a fresh temporary reader home; no existing data, schema or deployment changed.
 
-Production checks still required:
-
-- Synthetic TXT chapter longer than 4 KiB is returned in full; stale/discarded or applied candidate cannot be previewed under its old ownership, and reader isolation remains enforced.
-- TXT/EPUB section navigation, stale-request cancellation and re-analysis resume separation.
-- Frontend typecheck, affected tests and production build; existing published-reader/EPUB checks where touched.
-- Browser check of desktop/mobile layout and centered ordinary/inline images in preview and reader, using isolated data. No live reader-home mutation.
+Limits: no broad real-book compatibility audit, full repository frontend suite, hosted CI or deployment verification. Prototype mock coverage is not counted as production proof.
 
 ## Compatibility and rollback
 

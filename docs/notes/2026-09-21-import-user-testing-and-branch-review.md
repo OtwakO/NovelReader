@@ -45,9 +45,9 @@ Branch reviewed: `feat/multi-provider-library`, HEAD `e68fbb0`; comparison with 
 
 The user reports that the implemented EPUB preview works in rudimentary manual testing, but images appear uncentered in preview/reader and preview boundaries/separators need improvement. This is follow-up feedback, not a reversal of U1–U4 completion.
 
-Accepted intent: center **all** displayed images for manual evaluation; add whole-selected-chapter TXT previews for import and re-analysis where the existing shared preview owner makes reuse practical. Keep preview selection separate from re-analysis resume selection/apply, and preserve format-owned loading and authorization. TXT currently returns a 4 KiB sample; whole-section preview requires a limited backend extension. No new preparation pipeline or generic reader framework is requested.
+Accepted intent: center **all** displayed images for manual evaluation; add whole-selected-chapter TXT previews for import and re-analysis where the existing shared preview owner makes reuse practical. Keep preview selection separate from re-analysis resume selection/apply, and preserve format-owned loading and authorization. The old TXT summary returned a 4 KiB sample; whole-section preview now uses a separate saved-generation read, leaving the summary compatible. No new preparation pipeline or generic reader framework is requested.
 
-After reviewing the [import-preview prototypes](../../frontend/prototypes/import-preview/README.md), the user selected refined B. The [unified import-preview plan](../plans/2026-09-25-unified-import-preview.md) owns the accepted layout and implementation handoff. Browser diagnosis of production centering and production implementation remain pending.
+After reviewing the [import-preview prototypes](../../frontend/prototypes/import-preview/README.md), the user selected refined B. The completed [unified import-preview plan](../plans/2026-09-25-unified-import-preview.md) records implementation and scoped verification. TXT import/re-analysis share B's presentation with EPUB, metadata stays visible, and ordinary/inline images are centered in preview and reader. Focused tests and isolated synthetic desktop/mobile checks passed; broader manual real-book feedback remains useful.
 
 ## Review findings
 
@@ -95,4 +95,4 @@ With that environment variable set, the diagnostic intentionally fails assertion
 
 ## Next action
 
-U1–U4 are complete within the verification limits of the linked preview and history/filter plans. Preview-consistency follow-up has an accepted B layout and an active implementation plan above. R1–R3 remain separate; confirm the next scope before implementing them. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.
+U1–U4 are complete within the verification limits of the linked preview and history/filter plans. Preview-consistency follow-up is implemented within the completed B plan's verification limits above. R1–R3 remain separate; confirm the next scope before implementing them. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.

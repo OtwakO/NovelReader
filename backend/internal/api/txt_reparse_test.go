@@ -36,6 +36,10 @@ func TestTXTReparseHTTPReviewApplyAndDiscard(t *testing.T) {
 	if response.Code != 200 || !strings.Contains(response.Body.String(), "Literal") || strings.Contains(response.Body.String(), "startByte") {
 		t.Fatalf("preview: %d %s", response.Code, response.Body.String())
 	}
+	sectionPath := fmt.Sprintf("%s/sections/0?generation=%d", resource, queued.Generation)
+	if response = f.request("GET", sectionPath, ""); response.Code != 200 || !strings.Contains(response.Body.String(), "Literal") {
+		t.Fatalf("candidate section: %d %s", response.Code, response.Body.String())
+	}
 	response = f.request("GET", fmt.Sprintf("%s/impact?generation=%d", resource, queued.Generation), "")
 	var impact struct {
 		ContentRevision, StateVersion int64
@@ -76,15 +80,28 @@ func TestTXTReparseHTTPReviewApplyAndDiscard(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil || status.Candidate != nil || status.ActiveGeneration != queued.Generation {
 		t.Fatalf("applied status: %+v %v", status, err)
 	}
+	if response = f.request("GET", sectionPath, ""); response.Code != 409 {
+		t.Fatalf("applied candidate still previewable: %d", response.Code)
+	}
 	// Discarding later preparation cannot remove active text or the managed original.
 	request = fmt.Sprintf(`{"contentRevision":%d,"generation":0}`, status.ContentRevision)
 	response = f.request("POST", resource, request)
 	if err := json.Unmarshal(response.Body.Bytes(), &queued); err != nil || response.Code != 202 {
 		t.Fatalf("prepare again: %d %s", response.Code, response.Body.String())
 	}
+	if worked, err := f.store.AnalyzePending(t.Context(), txtstore.PendingAnalysis{ReceiptID: f.item.ID, Generation: queued.Generation}); !worked || err != nil {
+		t.Fatalf("second analysis: %v %v", worked, err)
+	}
+	sectionPath = fmt.Sprintf("%s/sections/0?generation=%d", resource, queued.Generation)
+	if response = f.request("GET", sectionPath, ""); response.Code != 200 {
+		t.Fatalf("second candidate section: %d", response.Code)
+	}
 	response = f.request("DELETE", resource, fmt.Sprintf(`{"contentRevision":%d,"generation":%d}`, status.ContentRevision, queued.Generation))
 	if response.Code != 200 {
 		t.Fatalf("discard: %d %s", response.Code, response.Body.String())
+	}
+	if response = f.request("GET", sectionPath, ""); response.Code != 409 {
+		t.Fatalf("discarded candidate still previewable: %d", response.Code)
 	}
 	if response = f.request("GET", fmt.Sprintf("%s/chapters/0/content?contentRevision=%d", base, status.ContentRevision), ""); response.Code != 200 {
 		t.Fatalf("active damaged: %d %s", response.Code, response.Body.String())

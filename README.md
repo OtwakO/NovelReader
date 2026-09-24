@@ -155,11 +155,13 @@ queued or acquired. Optimization uses server-prepared WebP quality 92, with prop
 a maximum 2048-pixel longest edge. Both modes retain the unchanged EPUB. If native encoding is
 unavailable, an explicit portable-encoder performance notice appears; this alone does not force review.
 
-EPUB **Book preview** shows the saved authored contents (or a reading-section list) and one selected
-section with text and illustrations, including an opening cover. Use the contents selector or
-**Previous / Next**; internal chapter links are inactive in preview. This does not add the book or save
-reading progress. Existing ready imports need no reimport. Content-loss notes and editable metadata
-remain above/below the preview. Retry uses the observed failed preparation; wait for running
+TXT and EPUB **Book preview** share a visible contents list beside the reading area (above it on
+mobile), with left/right arrow navigation. Title and author fields stay visible above the preview.
+TXT shows the whole selected chapter, with bounded pages of chapter headings. EPUB uses saved authored
+contents (or a reading-section list), with text and illustrations including an opening cover; internal
+chapter links remain inactive. All displayed images, including authored inline images, are centered in
+both preview and the reader. Browsing a preview does not add the book or save reading progress.
+Existing ready imports need no reimport. EPUB content-loss notes remain visible above the preview. Retry uses the observed failed preparation; wait for running
 preparation to finish before discarding it. No EPUB reparse/image-mode change is offered after
 acquisition. The server-folder section uses a **Format** selector for TXT or EPUB.
 
@@ -192,7 +194,7 @@ patterns leave the previous interpretation intact. If no headings match, generat
 require review. The exact requested pattern is retained even with that fallback.
 
 To change an existing TXT book, open **Book details → Re-analyze TXT**. Prepare an interpretation,
-inspect its headings/sample and reading-state impact, then explicitly confirm **Apply reviewed
+inspect its contents, full selected chapters and reading-state impact, then explicitly confirm **Apply reviewed
 interpretation**. The current book remains readable while preparation runs. Only proven section
 matches preserve positions; otherwise choose a resume section or **Start at the beginning**.
 Unresolved bookmarks keep their notes and old locations but cannot navigate into the new interpretation.

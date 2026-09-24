@@ -12,10 +12,11 @@ const preview: api.TXTPreview = { analysisVersion: 2, encoding: 'utf-8', preset:
 function button(key:string) { return view.findAll('button').find(item=>item.text()===`imports.reparse.${key}`)!; }
 async function refresh() { await view.get('.reparse-recovery button').trigger('click'); await flushPromises(); }
 beforeEach(() => {
- status={name:'Sample novel',activeGeneration:1,contentRevision:1,stateVersion:4,activeOptions:{encoding:'',preset:''},candidate:{generation:2,state:'needs_review',options:{encoding:'',preset:'generated-sections'},baseContentRevision:1,hasError:false}};
+ status={name:'Sample novel',author:'Sample author',activeGeneration:1,contentRevision:1,stateVersion:4,activeOptions:{encoding:'',preset:''},candidate:{generation:2,state:'needs_review',options:{encoding:'',preset:'generated-sections'},baseContentRevision:1,hasError:false}};
  impact={generation:2,activeGeneration:1,contentRevision:1,stateVersion:4,totalSections:1,resume:null,preservedBookmarks:1,unresolvedBookmarks:1};
  vi.spyOn(api,'getTXTReparse').mockImplementation(async()=>structuredClone(status));
  vi.spyOn(api,'previewTXTReparse').mockResolvedValue(preview);
+ vi.spyOn(api,'getTXTReparseSection').mockImplementation(async (_id, generation, index) => ({ generation, index, title: 'Merged section', text: preview.sample }));
  vi.spyOn(api,'impactTXTReparse').mockImplementation(async()=>structuredClone(impact));
 });
 afterEach(()=>{view?.unmount();vi.restoreAllMocks();});
@@ -77,7 +78,7 @@ it('uses shared failure guidance for a failed reparse without suggesting encodin
   expect(view.find('pre').exists()).toBe(false);
 });
 
-it('presents reading as navigation and resume as a selected row action', async () => {
+it('keeps preview browsing separate from the explicit resume action', async () => {
   await open();
   expect(view.find('.reparse-recovery').exists()).toBe(false);
   expect(view.text()).not.toContain('imports.refresh');
@@ -90,7 +91,10 @@ it('presents reading as navigation and resume as a selected row action', async (
   const read = links[0]!;
   expect(read.classes()).toContain('app-button--secondary');
   expect(read.attributes('href')).toBe('/books/sample/read');
-  const resume = view.get('.import-heading-row button');
+  expect(view.text()).toContain('Sample author');
+  await view.get('.preview-entries button').trigger('click'); await flushPromises();
+  expect(button('apply').attributes('disabled')).toBeDefined();
+  const resume = view.get('.preview-resume button');
   expect(resume.attributes('aria-pressed')).toBe('false');
   await resume.trigger('click');
   expect(resume.attributes('aria-pressed')).toBe('true');

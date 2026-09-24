@@ -16,7 +16,7 @@ export default defineComponent({
   emits: ['updated', 'removed', 'close'],
   data: () => ({
     task: createImportTask(), receipt: undefined as TXTReceipt | undefined, preview: undefined as Preview | undefined,
-    name: '', author: '', encoding: '' as TXTEncoding, preset: '' as TXTPreset, pattern: '', start: 0, warnings: [] as string[],
+    name: '', author: '', encoding: '' as TXTEncoding, preset: '' as TXTPreset, pattern: '', warnings: [] as string[],
     confirmDiscard: false, removed: false, cleanupPending: false, timer: undefined as ReturnType<typeof setInterval> | undefined,
   }),
   computed: {
@@ -28,7 +28,7 @@ export default defineComponent({
     canAccept(): boolean { return !!this.receipt && ['ready', 'needs_review'].includes(this.receipt.state) && this.preview?.analysisVersion === this.receipt.analysisVersion && !this.optionsChanged && !!this.name.trim(); },
   },
   watch: { id: { immediate: true, handler() {
-    this.task.cancel(); this.receipt = undefined; this.preview = undefined; this.name = ''; this.author = ''; this.start = 0;
+    this.task.cancel(); this.receipt = undefined; this.preview = undefined; this.name = ''; this.author = '';
     this.warnings = []; this.confirmDiscard = false; this.removed = false; this.cleanupPending = false; this.refresh();
   } } },
   mounted() {
@@ -47,16 +47,12 @@ export default defineComponent({
       const previousVersion = this.receipt?.analysisVersion; this.receipt = value;
       if (value.state === 'removing') { this.removed = true; this.cleanupPending = true; }
       if (['ready', 'needs_review', 'published'].includes(value.state)) {
-        if (previousVersion !== value.analysisVersion) { this.start = 0; this.preview = undefined; }
-        if (!this.preview) { const preview = await previewTXT(value.id, value.analysisVersion, this.start, signal); signal.throwIfAborted(); this.preview = preview; }
+        if (previousVersion !== value.analysisVersion) { this.preview = undefined; }
+        if (!this.preview) { const preview = await previewTXT(value.id, value.analysisVersion, 0, signal); signal.throwIfAborted(); this.preview = preview; }
       } else this.preview = undefined;
       this.$emit('updated', value);
     },
     refresh() { void this.task.run(this.load); },
-    previewPage(offset: number) { void this.task.run(async signal => {
-      const value = await previewTXT(this.id, this.receipt!.analysisVersion, offset, signal);
-      signal.throwIfAborted(); this.start = offset; this.preview = value;
-    }); },
     analyze() { void this.task.run(async signal => {
       const result = await analyzeTXT(this.id, this.receipt!.analysisVersion, { encoding: this.encoding, preset: this.preset, pattern: this.requestedPattern }, signal);
       signal.throwIfAborted(); this.preview = undefined; this.warnings = result.warnings || []; await this.load(signal);
@@ -99,20 +95,17 @@ export default defineComponent({
       <p v-if="receipt?.state === 'failed'">{{ $t('imports.failedHint') }}</p>
       <p v-if="receipt?.state === 'analysis_failed'">{{ $t(analysisErrorKey(receipt.errorCode)) }}</p>
       <p v-if="receipt?.state === 'needs_review'" class="import-review-guidance">{{ $t('imports.flow.reviewHint') }}</p>
+      <form v-if="receipt && ['ready', 'needs_review'].includes(receipt.state)" id="import-add-form" class="import-fields" @submit.prevent="accept">
+        <label>{{ $t('imports.bookTitle') }}<input v-model="name" required maxlength="256" :disabled="task.busy"></label>
+        <label>{{ $t('imports.author') }}<input v-model="author" maxlength="128" :disabled="task.busy"></label>
+      </form>
       <AppDisclosure v-if="canAnalyze" class="import-options" :open="receipt?.state === 'analysis_failed'">
         <template #summary>{{ $t('imports.flow.adjustChapters') }}</template>
         <TXTInterpretationOptions v-model:encoding="encoding" v-model:preset="preset" v-model:pattern="pattern" :busy="task.busy" :pattern-error="patternError" @update:pattern="clearPatternError" />
         <div class="app-actions import-actions"><AppButton variant="secondary" :busy="task.busy" :disabled="preset === 'custom' && !pattern" @click="analyze">{{ $t('imports.analyze') }}</AppButton></div>
         <p v-if="optionsChanged">{{ $t('imports.unappliedOptions') }}</p>
       </AppDisclosure>
-      <TXTPreview v-if="preview" compact :preview="preview" :start="start" :pattern="receipt?.pattern" :busy="task.busy" @page="previewPage" />
-      <form v-if="receipt && ['ready', 'needs_review'].includes(receipt.state)" id="import-add-form" class="import-section" @submit.prevent="accept">
-        <AppDisclosure class="import-options">
-          <template #summary>{{ $t('imports.flow.bookDetails') }}</template>
-        <label>{{ $t('imports.bookTitle') }}<input v-model="name" required maxlength="256" :disabled="task.busy"></label>
-        <label>{{ $t('imports.author') }}<input v-model="author" maxlength="128" :disabled="task.busy"></label>
-        </AppDisclosure>
-      </form>
+      <TXTPreview v-if="preview" compact :source-id="id" :preview="preview" :pattern="receipt?.pattern" :busy="task.busy" />
       <section v-if="receipt && !receipt.libraryId" class="import-section">
         <div class="app-actions">
           <AppButton v-if="['ready', 'needs_review'].includes(receipt.state)" type="submit" form="import-add-form" :busy="task.busy" :disabled="!canAccept">{{ $t('imports.confirmAdd') }}</AppButton>

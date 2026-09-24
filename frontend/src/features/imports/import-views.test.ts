@@ -1,7 +1,7 @@
 import { createPinia } from 'pinia';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as api from '../../api/txt-imports';
 import * as inbox from '../../api/file-imports';
 import * as history from '../../api/import-history';
@@ -12,6 +12,9 @@ import ImportInboxPanel from './ImportInboxPanel.vue';
 import ImportReceiptsPanel from './ImportReceiptsPanel.vue';
 import { useImportQueue } from './import-queue';
 const wrappers: VueWrapper[] = [];
+beforeEach(() => {
+  vi.spyOn(api, 'getTXTPreviewSection').mockImplementation(async (_id, generation, index) => ({ generation, index, title: 'Section 1', text: '<script>literal prose</script>' }));
+});
 afterEach(() => { wrappers.splice(0).forEach(view => view.unmount()); vi.restoreAllMocks(); });
 const receipt = (changes: Partial<api.TXTReceipt> = {}): api.TXTReceipt => ({ id: 'sample', originalName: 'sample.txt', state: 'needs_review', size: 100, createdAt: 0, updatedAt: 0, analysisVersion: 1, encoding: '', preset: '', hasError: false, ...changes });
 const historyItem = (item: api.TXTReceipt): history.ImportHistoryItem => ({ format: 'txt', status: item.state === 'published' ? 'added' : item.state === 'needs_review' ? 'needs_review' : 'ready', receipt: item });
@@ -22,7 +25,7 @@ async function routerFor(path: string) {
 }
 function button(view: VueWrapper, key: string) { return view.findAll('button').find(item => item.text() === key)!; }
 
-it('renders literal bounded preview and only admits the explicitly reviewed version', async () => {
+it('renders literal selected-section preview and only admits the explicitly reviewed version', async () => {
   const get = vi.spyOn(api, 'getTXTReceipt').mockResolvedValue(receipt());
   const sample = vi.spyOn(api, 'previewTXT').mockResolvedValue(preview());
   const analyze = vi.spyOn(api, 'analyzeTXT').mockResolvedValue({});

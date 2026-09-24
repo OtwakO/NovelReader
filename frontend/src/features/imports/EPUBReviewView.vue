@@ -2,7 +2,6 @@
 import { defineComponent } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppButton from '../../ui/components/AppButton.vue';
-import AppDisclosure from '../../ui/components/AppDisclosure.vue';
 import { acceptEPUB, discardEPUB, getEPUBReceipt, previewEPUB, retryEPUB, type EPUBReceipt, type EPUBPreview } from '../../api/epub-imports';
 import { deleteBook } from '../../api/books';
 import { analysisErrorKey, encoderNoticeKey, importedTitle, importErrorKey } from './import-feedback';
@@ -12,7 +11,7 @@ import EPUBSectionPreview from './EPUBSectionPreview.vue';
 import './imports.css';
 
 export default defineComponent({
-  components: { RouterLink, AppButton, AppDisclosure, EPUBSectionPreview },
+  components: { RouterLink, AppButton, EPUBSectionPreview },
   props: { receiptId: { type: String, required: true } },
   emits: ['updated', 'removed', 'close'],
   data: () => ({
@@ -92,6 +91,10 @@ export default defineComponent({
       <p v-if="receipt?.state === 'acquired' && receipt.generation === 0">{{ $t('imports.epub.unprepared') }}</p>
       <AppButton v-if="canRetry" variant="secondary" :busy="task.busy" :disabled="!!task.error" @click="retry">{{ $t('imports.epub.retry') }}</AppButton>
       <p v-if="receipt" class="import-note">{{ $t(receipt.imageMode === 'optimized' ? 'imports.epub.optimizedImages' : 'imports.epub.originalImages') }}</p>
+      <form v-if="preview && !receipt?.libraryId" id="epub-add-form" class="import-fields" @submit.prevent="accept">
+        <label>{{ $t('imports.bookTitle') }}<input v-model="name" required maxlength="256" :disabled="task.busy"></label>
+        <label>{{ $t('imports.author') }}<input v-model="author" maxlength="128" :disabled="task.busy"></label>
+      </form>
       <section v-if="preview" class="import-section" aria-labelledby="epub-preview-title">
         <h3 id="epub-preview-title">{{ $t('imports.epub.previewTitle') }}</h3>
         <p>{{ $t('imports.epub.sectionCount', { count: preview.totalSections }) }}</p>
@@ -99,12 +102,6 @@ export default defineComponent({
         <ul v-if="preview.diagnostics.length"><li v-for="code in preview.diagnostics" :key="code">{{ $t(diagnosticKey(code)) }}</li></ul>
         <EPUBSectionPreview :receipt-id="receiptId" :generation="preview.generation" :total-sections="preview.totalSections" />
       </section>
-      <form v-if="preview && !receipt?.libraryId" id="epub-add-form" class="import-section" @submit.prevent="accept">
-        <AppDisclosure class="import-options">
-<template #summary>{{ $t('imports.flow.bookDetails') }}</template>
-          <label>{{ $t('imports.bookTitle') }}<input v-model="name" required maxlength="256" :disabled="task.busy"></label><label>{{ $t('imports.author') }}<input v-model="author" maxlength="128" :disabled="task.busy"></label>
-        </AppDisclosure>
-      </form>
       <section v-if="receipt && !receipt.libraryId" class="import-section">
         <div class="app-actions"><AppButton v-if="preview" type="submit" form="epub-add-form" :busy="task.busy" :disabled="!canAccept">{{ $t('imports.confirmAdd') }}</AppButton><AppButton variant="quiet" :disabled="task.busy || !canDiscard || !!task.error" @click="confirmDiscard = true">{{ $t('imports.discard') }}</AppButton></div>
         <p v-if="!canDiscard" class="import-note">{{ $t('imports.epub.waitToDiscard') }}</p>

@@ -2,13 +2,14 @@
 import { defineComponent } from 'vue';
 import AppButton from '../../ui/components/AppButton.vue';
 import ProseRenderer from '../reader/ProseRenderer.vue';
+import BookPreview from './BookPreview.vue';
 import { getEPUBPreviewNavigation, getEPUBPreviewSection, type EPUBPreviewEntry, type EPUBPreviewNavigation, type EPUBPreviewTarget } from '../../api/epub-review';
 import type { StructuredProseDocument } from '../../api/structured-prose';
 import { createImportTask } from './import-task';
 import { importErrorKey } from './import-feedback';
 
 export default defineComponent({
-  components: { AppButton, ProseRenderer },
+  components: { AppButton, ProseRenderer, BookPreview },
   props: {
     receiptId: { type: String, required: true },
     generation: { type: Number, required: true },
@@ -21,12 +22,13 @@ export default defineComponent({
   }),
   computed: {
     identity(): string { return `${this.receiptId}:${this.generation}`; },
-    entries(): { label: string; target?: EPUBPreviewTarget }[] {
-      const result: { label: string; target?: EPUBPreviewTarget }[] = [];
+    activeEntry(): string { return this.selectedEntry || this.entries.find(entry => entry.target?.section === this.target.section && (entry.target.anchor || '') === (this.target.anchor || ''))?.key || ''; },
+    entries(): { key: string; label: string; depth: number; disabled: boolean; target?: EPUBPreviewTarget }[] {
+      const result: { key: string; label: string; depth: number; disabled: boolean; target?: EPUBPreviewTarget }[] = [];
       const visit = (entries: EPUBPreviewEntry[], depth: number) => {
         for (const entry of entries) {
           const label = entry.label.trim() || (entry.target ? this.$t('imports.epub.sectionNumber', { number: entry.target.section + 1 }) : this.$t('imports.epub.untitledEntry'));
-          result.push({ label: `${'　'.repeat(Math.min(depth, 6))}${label}`, target: entry.unavailable ? undefined : entry.target });
+          result.push({ key: String(result.length), label, depth, disabled: entry.unavailable || !entry.target, target: entry.unavailable ? undefined : entry.target });
           visit(entry.children, depth + 1);
         }
       };
@@ -51,17 +53,16 @@ export default defineComponent({
         const document = await getEPUBPreviewSection(this.receiptId, this.generation, this.target.section, signal);
         signal.throwIfAborted(); this.document = document;
         await this.$nextTick(); signal.throwIfAborted();
-        const panel = this.$refs.content as HTMLElement;
+        const panel = this.$refs.preview as InstanceType<typeof BookPreview>;
         const renderer = this.$refs.renderer as InstanceType<typeof ProseRenderer>;
         const anchor = this.target.anchor ? renderer.findAnchor(this.target.anchor) : undefined;
-        panel.scrollTop = anchor ? panel.scrollTop + anchor.getBoundingClientRect().top - panel.getBoundingClientRect().top : 0;
+        panel.resetScroll(anchor);
       });
     },
     open(target: EPUBPreviewTarget, entry = '') {
       this.task.cancel(); this.document = undefined; this.target = target; this.selectedEntry = entry; this.load();
     },
-    choose(event: Event) {
-      const index = (event.target as HTMLSelectElement).value;
+    choose(index: string) {
       const target = this.entries[Number(index)]?.target;
       if (index !== '' && target) this.open(target, index);
     },
@@ -71,37 +72,14 @@ export default defineComponent({
 
 <template>
   <div class="epub-section-preview">
-    <label v-if="navigation" class="epub-contents">
-      {{ $t(navigation.source === 'publication' ? 'imports.epub.contents' : 'imports.epub.sections') }}
-      <select :value="selectedEntry" @change="choose">
-        <option value="" disabled>{{ $t('imports.epub.chooseSection') }}</option>
-        <option v-for="(entry, index) in entries" :key="index" :value="String(index)" :disabled="!entry.target">{{ entry.label }}</option>
-      </select>
-    </label>
-    <div v-if="totalSections" class="epub-preview-navigation import-actions">
-      <AppButton variant="secondary" :disabled="target.section === 0" @click="open({ section: target.section - 1 })">{{ $t('imports.previous') }}</AppButton>
-      <span role="status">{{ $t('imports.epub.sectionPosition', { number: target.section + 1, count: totalSections }) }}</span>
-      <AppButton variant="secondary" :disabled="target.section + 1 >= totalSections" @click="open({ section: target.section + 1 })">{{ $t('imports.epub.nextSection') }}</AppButton>
-    </div>
+    <BookPreview ref="preview" :entries="entries" :selected="activeEntry" :section="target.section" :total-sections="totalSections" :contents-label="$t(navigation?.source === 'sections' ? 'imports.epub.sections' : 'imports.sectionPreview.contents')" @select="choose" @previous="open({ section: target.section - 1 })" @next="open({ section: target.section + 1 })">
+      <p v-if="task.busy" role="status">{{ $t('imports.sectionPreview.loading') }}</p>
+      <div v-if="task.error">
+        <p role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
+        <AppButton variant="secondary" @click="load">{{ $t('imports.refresh') }}</AppButton>
+      </div>
+      <ProseRenderer v-if="document" ref="renderer" :document="document" :show-images="true" :fallback-image-alt="$t('imports.epub.illustration')" :image-unavailable="$t('imports.epub.imageUnavailable')" :cover-unavailable="$t('imports.epub.imageUnavailable')" />
+    </BookPreview>
     <p class="import-note">{{ $t('imports.epub.previewHint') }}</p>
-    <p v-if="task.busy" role="status">{{ $t('imports.epub.loadingPreview') }}</p>
-    <div v-if="task.error">
-      <p role="alert" class="import-error">{{ $t(importErrorKey(task.error)) }}</p>
-      <AppButton variant="secondary" @click="load">{{ $t('imports.refresh') }}</AppButton>
-    </div>
-    <div v-if="document" ref="content" class="epub-preview-content" tabindex="0" :aria-label="$t('imports.epub.previewTitle')">
-      <ProseRenderer ref="renderer" :document="document" :show-images="true" :fallback-image-alt="$t('imports.epub.illustration')" :image-unavailable="$t('imports.epub.imageUnavailable')" :cover-unavailable="$t('imports.epub.imageUnavailable')" />
-    </div>
   </div>
 </template>
-
-<style scoped>
-.epub-section-preview { min-width: 0; }
-.epub-contents { max-width: 40rem; }
-.epub-preview-navigation { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); max-width: 40rem; }
-.epub-preview-navigation > span { text-align: center; font-size: var(--text-small); }
-.epub-preview-content { max-height: 32rem; min-height: 12rem; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: var(--space-4); border-block: 1px solid var(--color-border); font: var(--text-body)/1.8 var(--font-literary); overflow-wrap: anywhere; }
-.epub-preview-content :deep(.prose-document) { max-width: 70ch; margin-inline: auto; }
-.epub-preview-content :deep(img) { max-height: min(26rem, 60dvh); width: auto; }
-.epub-preview-content:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-</style>

@@ -22,6 +22,6 @@ The app's existing tokens/button styles and placeholder artwork are referenced, 
 
 The user wants whole selected TXT chapters, not the current 4 KiB sample, in import and re-analysis where they can reuse the same presentation without merging approval workflows. Center every displayed image in preview and reader for manual evaluation. Share preview appearance/interaction while retaining format-owned loading and authorization. Do not build a generic second reader.
 
-The user selected B, including its refined persistent title/author, arrow navigation and 250px desktop contents column. Production work is tracked in the [unified import-preview plan](../../../docs/plans/2026-09-25-unified-import-preview.md). No production centering change, TXT endpoint extension or shared component has been implemented here. Prototype chapter text is synthetic and repeated to exercise scrolling, not a test of real TXT loading.
+The user selected B, including its refined persistent title/author, arrow navigation and 250px desktop contents column. Production implementation is complete; see the [unified import-preview plan](../../../docs/plans/2026-09-25-unified-import-preview.md) for outcome and verification. This directory remains a standalone mock, not the production component. Prototype chapter text is synthetic and repeated to exercise scrolling, not a test of real TXT loading.
 
 Delete this directory to remove the mock. Nothing imports it into production; implement the selected design properly rather than promoting this code verbatim.

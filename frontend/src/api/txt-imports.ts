@@ -36,7 +36,7 @@ export function acquireTXT(id: string, input: File | string, signal: AbortSignal
 }
 
 export interface TXTReparseStatus {
-  name: string;
+  name: string; author: string;
   activeGeneration: number; contentRevision: number; stateVersion: number; activeOptions: TXTOptions;
   candidate?: { generation: number; state: 'queued' | 'analyzing' | 'ready' | 'needs_review' | 'analysis_failed'; options: TXTOptions; baseContentRevision: number; hasError: boolean; errorCode?: string };
 }
@@ -53,3 +53,7 @@ export const discardTXTReparse = (id: string, contentRevision: number, generatio
 export const previewTXTReparse = (id: string, generation: number, start: number, signal: AbortSignal) => control<TXTPreview>(`${reparsePath(id)}/preview?generation=${generation}&start=${start}&limit=25`, signal);
 export const impactTXTReparse = (id: string, generation: number, signal: AbortSignal) => control<TXTReparseImpact>(`${reparsePath(id)}/impact?generation=${generation}`, signal);
 export const applyTXTReparse = (id: string, input: TXTApplyRequest, signal: AbortSignal) => control<{ libraryId: string; contentRevision: number; stateVersion: number; alreadyApplied: boolean }>(`${reparsePath(id)}/apply`, signal, 'POST', input);
+
+export interface TXTPreviewSection { generation: number; index: number; title: string; text: string }
+export const getTXTPreviewSection = (id: string, generation: number, index: number, signal: AbortSignal) => control<TXTPreviewSection>(`${idPath(id)}/sections/${index}?generation=${generation}`, signal);
+export const getTXTReparseSection = (id: string, generation: number, index: number, signal: AbortSignal) => control<TXTPreviewSection>(`${reparsePath(id)}/sections/${index}?generation=${generation}`, signal);

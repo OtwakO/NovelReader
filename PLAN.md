@@ -125,15 +125,15 @@ adds distinct review/inbox task panes and fixes shared selector widths, truncati
 The completed [action-affordance pass](docs/plans/2026-09-16-action-affordances.md) unifies button presentation,
 aligns book-detail/reparse controls, fills the desktop prose preview, and updates locale/brand presentation.
 The [reader-first presentation pass](docs/plans/2026-09-16-reader-first-presentation.md) is complete: clearer typography/navigation, reader-first Settings and task guidance, retaining current fonts and parchment colors.
-[Import history and review](docs/plans/2026-09-16-import-history-and-review.md) fixes hidden/stale persisted imports and adds default-on review before shelf admission, shared with device-local Settings. Retention remains explicit discard/removal; TXT chapter-click previews remain deferred.
+[Import history and review](docs/plans/2026-09-16-import-history-and-review.md) fixes hidden/stale persisted imports and adds default-on review before shelf admission, shared with device-local Settings. Retention remains explicit discard/removal; selected-chapter TXT previews are delivered by the unified preview work below.
 
 [EPUB import preview and image preference](docs/plans/2026-09-24-epub-import-preview.md) — completed selected-section preview with authored contents, prose/images and explicit import authorization; both intake controls share one saved device-local image preference. Scoped backend normal/race tests, 59 frontend tests, typecheck/build and isolated desktop/mobile Chromium verification pass. No schema change, second reader or deployment.
 
 [Mixed-format import history and status filters](docs/plans/2026-09-24-import-history-filters.md) — completed U3/U4: default All, newest-first pagination and shared lifecycle filters, including Needs review for both formats. Verified with affected backend packages, import UI tests, typecheck/build and an isolated synthetic browser journey. No schema change; existing provider endpoints remain compatible.
 
-## Active Work
+[Unified import preview](docs/plans/2026-09-25-unified-import-preview.md) — implemented B: visible 250px desktop contents, persistent title/author and arrow navigation. TXT import/re-analysis show whole selected chapters; EPUB retains its loaders and all prose images are centered in preview/reader. Focused backend/frontend and isolated desktop/mobile checks passed; no schema or deployment change.
 
-[Unified import preview](docs/plans/2026-09-25-unified-import-preview.md) — B selected: visible 250px desktop contents, persistent title/author and arrow navigation. Shared TXT/EPUB presentation, whole selected TXT chapters for import/re-analysis and all-image centering are accepted; production implementation is pending.
+## Active Work
 
 [Continue Reading layout prototypes](frontend/prototypes/continue-reading/README.md) and [bookshelf-card layout prototypes](frontend/prototypes/bookshelf-cards/README.md) — disposable synthetic comparisons, not production UI changes. No layout selection or implementation is recorded.
 

@@ -29,6 +29,7 @@ type txtCandidateResponse struct {
 }
 type txtReparseResponse struct {
 	Name             string                `json:"name"`
+	Author           string                `json:"author"`
 	ActiveGeneration int64                 `json:"activeGeneration"`
 	ContentRevision  int64                 `json:"contentRevision"`
 	StateVersion     int64                 `json:"stateVersion"`
@@ -41,6 +42,7 @@ func (s *readerAPI) registerTXTReparseRoutes() {
 	s.mux.HandleFunc("POST /api/books/{id}/txt/reparse", importControlHandler(s.handlePrepareTXTReparse))
 	s.mux.HandleFunc("DELETE /api/books/{id}/txt/reparse", importControlHandler(s.handleDiscardTXTReparse))
 	s.mux.HandleFunc("GET /api/books/{id}/txt/reparse/preview", importControlHandler(s.handlePreviewTXTReparse))
+	s.mux.HandleFunc("GET /api/books/{id}/txt/reparse/sections/{section}", importControlHandler(s.handleTXTReparseSection))
 	s.mux.HandleFunc("GET /api/books/{id}/txt/reparse/impact", importControlHandler(s.handleTXTReparseImpact))
 	s.mux.HandleFunc("POST /api/books/{id}/txt/reparse/apply", importControlHandler(s.handleApplyTXTReparse))
 }
@@ -50,7 +52,7 @@ func (s *readerAPI) handleTXTReparseStatus(w http.ResponseWriter, r *http.Reques
 		writeTXTError(w, err)
 		return
 	}
-	response := txtReparseResponse{Name: value.Name, ActiveGeneration: value.ActiveGeneration, ContentRevision: value.ContentRevision, StateVersion: value.StateVersion, ActiveOptions: txtOptionsDTO(value.ActiveOptions)}
+	response := txtReparseResponse{Name: value.Name, Author: value.Author, ActiveGeneration: value.ActiveGeneration, ContentRevision: value.ContentRevision, StateVersion: value.StateVersion, ActiveOptions: txtOptionsDTO(value.ActiveOptions)}
 	if candidate := value.Candidate; candidate != nil {
 		response.Candidate = &txtCandidateResponse{candidate.Generation, candidate.State, txtOptionsDTO(candidate.Options), candidate.BaseContentRevision, candidate.Error != "", txtAnalysisErrorCode(candidate.Error)}
 	}

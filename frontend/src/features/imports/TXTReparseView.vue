@@ -18,7 +18,7 @@ export default defineComponent({
   data: () => ({
     task: createImportTask(), status: undefined as TXTReparseStatus | undefined,
     preview: undefined as Preview | undefined, impact: undefined as TXTReparseImpact | undefined,
-    encoding: '' as TXTEncoding, preset: '' as TXTPreset, pattern: '', start: 0,
+    encoding: '' as TXTEncoding, preset: '' as TXTPreset, pattern: '',
     resume: undefined as { index: number; title: string } | undefined,
     mustRefresh: false, confirmApply: false, confirmDiscard: false, warnings: [] as string[],
     applyAttempt: undefined as number | undefined, timer: undefined as ReturnType<typeof setInterval> | undefined,
@@ -41,7 +41,7 @@ export default defineComponent({
   },
   watch: { id: { immediate: true, handler() {
     this.task.cancel(); this.status = undefined; this.preview = undefined; this.impact = undefined; this.resume = undefined;
-    this.mustRefresh = false; this.applyAttempt = undefined; this.confirmApply = false; this.confirmDiscard = false; this.start = 0; this.warnings = [];
+    this.mustRefresh = false; this.applyAttempt = undefined; this.confirmApply = false; this.confirmDiscard = false; this.warnings = [];
     this.refresh();
   } } },
   mounted() { this.timer = setInterval(() => { if (this.processing && !this.mustRefresh && document.visibilityState === 'visible') this.refresh(); }, 5000); },
@@ -62,11 +62,11 @@ export default defineComponent({
       this.status = status;
       if (this.applied) invalidateReadingState(this.id);
       if (first) this.useSavedOptions();
-      if (previous !== status.candidate?.generation) { this.preview = undefined; this.impact = undefined; this.start = 0; this.resume = undefined; }
+      if (previous !== status.candidate?.generation) { this.preview = undefined; this.impact = undefined; this.resume = undefined; }
       const candidate = status.candidate;
       if (candidate && ['ready', 'needs_review'].includes(candidate.state)) {
         const [preview, impact] = await Promise.all([
-          this.preview ? Promise.resolve(this.preview) : previewTXTReparse(this.id, candidate.generation, this.start, signal),
+          this.preview ? Promise.resolve(this.preview) : previewTXTReparse(this.id, candidate.generation, 0, signal),
           impactTXTReparse(this.id, candidate.generation, signal),
         ]);
         signal.throwIfAborted();
@@ -110,14 +110,6 @@ export default defineComponent({
         signal.throwIfAborted(); invalidateReadingState(this.id);
       });
     },
-    page(offset: number) {
-      if (this.mustRefresh || !this.status?.candidate) return;
-      void this.task.run(async signal => {
-        this.mustRefresh = true; this.confirmApply = false;
-        const preview = await previewTXTReparse(this.id, this.status!.candidate!.generation, offset, signal);
-        signal.throwIfAborted(); this.preview = preview; this.start = offset; this.mustRefresh = false;
-      });
-    },
     chooseResume(heading: { index: number; title: string }) { this.resume = heading; this.confirmApply = false; },
   },
 });
@@ -140,7 +132,7 @@ export default defineComponent({
     <p v-if="applied" role="status">{{ $t('imports.reparse.applied') }}</p>
     <p v-if="warnings.length" role="status">{{ $t('imports.reparse.analysisPending') }}</p>
     <template v-if="status">
-      <p class="import-copy"><strong>{{ status.name }}</strong></p>
+      <p class="import-copy"><strong>{{ status.name }}</strong><span v-if="status.author">{{ status.author }}</span></p>
       <section class="reparse-current" aria-labelledby="current-options-title">
         <h2 id="current-options-title">{{ $t('imports.reparse.active') }}</h2>
         <dl>
@@ -157,7 +149,7 @@ export default defineComponent({
         <p v-if="status.candidate?.state === 'analysis_failed'">{{ $t(analysisErrorKey(status.candidate.errorCode)) }}</p>
         <p v-if="status.candidate && optionsChanged">{{ $t('imports.reparse.draft') }}</p>
       </section>
-      <TXTPreview v-if="preview" :preview="preview" :pattern="status.candidate?.options.pattern" :start="start" :busy="task.busy || mustRefresh" @page="page">
+      <TXTPreview v-if="preview" reparse :source-id="id" :preview="preview" :pattern="status.candidate?.options.pattern" :busy="task.busy || mustRefresh">
         <template #heading-action="{ heading }"><AppButton v-if="impact" variant="secondary" :disabled="task.busy || mustRefresh" :aria-pressed="resume?.index === heading.index" @click="chooseResume(heading)"><AppIcon v-if="resume?.index === heading.index" name="check" />{{ $t('imports.reparse.resumeHere') }}</AppButton></template>
       </TXTPreview>
       <section v-if="impact" class="import-section" aria-labelledby="impact-title">
