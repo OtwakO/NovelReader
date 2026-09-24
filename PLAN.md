@@ -34,7 +34,7 @@ Repository ownership:
 - `backend/internal/sourceexec/` — shared request construction, source sessions, and transport routing.
 - `backend/internal/analyzer/` — Legado-compatible rules and JavaScript bridge.
 - `backend/internal/library/` — shared publication metadata, reading state, bookmarks, and revision contracts.
-- `backend/internal/reading/` — common catalogs/prose documents and revision-qualified reading operations over BookSource/TXT.
+- `backend/internal/reading/` — common catalogs/prose documents and revision-qualified reading operations over BookSource/TXT/EPUB.
 - `backend/internal/txtstore/` — managed TXT originals/indexes and acquisition/removal/recovery.
 - `backend/internal/fileimport/` — shared bounded TXT/EPUB admission, preparation scheduling and recovery lifecycle.
 - `backend/internal/epubstore/` — EPUB receipts, generation-scoped prepared streams/resources and portable validation.
@@ -58,6 +58,8 @@ Accepted future-facing architecture:
 - [Reading documents, resources, and modality renderers](docs/decisions/0002-reading-documents-and-resources.md)
 
 ## Current State
+
+The multi-provider branch has passed [clean-checkout integration checks](docs/notes/2026-09-21-import-user-testing-and-branch-review.md#local-branch-integration) and is ready for a local history-preserving merge. Pushing/deployment remain out of scope; cache/prefetch implementation has not started.
 
 Reader schema is **16**, adding EPUB inbox claims with portable cleanup-authority stripping. Existing epoch-15 and older homes/backups remain preserved, not migrated. [Independent last-read tracking](docs/plans/2026-09-17-last-read-tracking.md), introduced at epoch 13, continues to separate reading from additions/metadata updates.
 

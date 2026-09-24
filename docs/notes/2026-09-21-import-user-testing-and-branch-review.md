@@ -100,3 +100,19 @@ With that environment variable set, the diagnostic intentionally fails assertion
 ## Next action
 
 U1–U4 are complete within the verification limits of the linked preview and history/filter plans. Preview-consistency follow-up is implemented within the completed B plan's verification limits above. R1–R3 are resolved. Gather further manual usability feedback; scope any new findings separately. No implementation remains pending from this note. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.
+
+## Local branch integration
+
+Accepted scope: verify `feat/multi-provider-library`, then merge locally into `main` with a merge commit preserving the feature history. No push, deployment, branch deletion, cache/prefetch implementation, live-data reset or migration is authorized.
+
+Baseline: clean feature tip `1155ec4`; fetched `origin/main` and local `main` both at `0702469`, an ancestor of the feature (132 commits ahead, none behind). Run clean-checkout backend/frontend gates in an isolated temporary worktree without private BookSource/EPUB fixtures, review the resulting diff and record verification before merging. Container/native runtime verification remains separate unless needed to resolve a demonstrated blocker.
+
+Verification completed in an isolated worktree without private fixtures:
+- Full `go test ./...` passed; `go build ./cmd/server ./cmd/conformance` passed.
+- Race tests passed for `api`, `book`, `fingerprint`, `sourceexec`, `fileimport`, `txtstore`, `epubstore`, `readerstore`, `backup`, `reading` and `library`.
+- Clean `npm ci`, frontend lint, all 326 tests in 84 files, typecheck and production build passed. The wider run exposed one more missing `sourceRecovery.knownSources` fixture label; `994823a` corrects it. Lint, all frontend tests and typecheck passed again from that committed checkout without test warnings. Backend and production frontend code did not change after their successful checks.
+- Branch diff whitespace checks passed. Dockerfile runtime WebP changes were inspected; changed JSON fixtures are synthetic. CI and WebView worker files are unchanged from the merge baseline.
+
+Limits: npm installation reports the existing transitive `glob@10.5.0` deprecation; no dependency upgrade was attempted. No fresh container/native-OpenCC/worker runtime tests, hosted CI, deployment or exhaustive branch-wide code audit are claimed.
+
+Current state: checks passed, ready for the authorized local `--no-ff` merge. Keep the feature branch for traceability. A local merge does not change reader homes; before any later deployment, preserve incompatible older homes/backups. If a later integration rollback is required, revert the merge with its first parent rather than resetting shared history; code rollback is not a reader-schema downgrade.
