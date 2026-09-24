@@ -41,6 +41,14 @@ Branch reviewed: `feat/multi-provider-library`, HEAD `e68fbb0`; comparison with 
 - Assessment: EPUB has meaningful pending, ready, failed, published and removing conditions. There is no demonstrated domain reason it cannot benefit from a status filter. The original absence was an implementation asymmetry, not a verified intentional requirement. Do not assume all TXT labels or the TXT `needs_review` state map directly to stored EPUB states.
 - Implemented: shared lifecycle filters, including plain “Needs review” for both formats under existing content-review rules; verification in the completed history/filter plan above.
 
+## Subsequent manual feedback — preview consistency and image alignment
+
+The user reports that the implemented EPUB preview works in rudimentary manual testing, but images appear uncentered in preview/reader and preview boundaries/separators need improvement. This is follow-up feedback, not a reversal of U1–U4 completion.
+
+Accepted intent: center **all** displayed images for manual evaluation; add whole-selected-chapter TXT previews for import and re-analysis where the existing shared preview owner makes reuse practical. Keep preview selection separate from re-analysis resume selection/apply, and preserve format-owned loading and authorization. TXT currently returns a 4 KiB sample; whole-section preview requires a limited backend extension. No new preparation pipeline or generic reader framework is requested.
+
+The user requested disposable visual comparisons before choosing the unified UI. See [import-preview prototypes](../../frontend/prototypes/import-preview/README.md). Layout selection, browser diagnosis of production centering and production implementation remain pending.
+
 ## Review findings
 
 ### R1 — Inbox refresh notification can be dropped while busy (medium)
@@ -87,4 +95,4 @@ With that environment variable set, the diagnostic intentionally fails assertion
 
 ## Next action
 
-U1–U4 are complete within the verification limits of the linked preview and history/filter plans. R1–R3 remain separate; confirm the next scope before implementing them. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.
+U1–U4 are complete within the verification limits of the linked preview and history/filter plans. Preview-consistency follow-up is in the prototype stage above. R1–R3 remain separate; confirm the next scope before implementing them. This note retains original reports and diagnosis evidence; the original preview change did not include U3/U4 or R1–R3.

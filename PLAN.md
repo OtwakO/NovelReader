@@ -133,6 +133,8 @@ The [reader-first presentation pass](docs/plans/2026-09-16-reader-first-presenta
 
 ## Active Work
 
+[Unified import-preview prototypes](frontend/prototypes/import-preview/README.md) — disposable A/B/C layout comparisons before selecting a shared TXT/EPUB UI. Whole selected TXT chapters for import/re-analysis and centering all displayed reader/preview images are requested; production implementation has not started.
+
 [Continue Reading layout prototypes](frontend/prototypes/continue-reading/README.md) and [bookshelf-card layout prototypes](frontend/prototypes/bookshelf-cards/README.md) — disposable synthetic comparisons, not production UI changes. No layout selection or implementation is recorded.
 
 [Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted application-managed cache direction and immediate navigation feedback; documentation only, implementation pending authorization and narrow identity/freshness contract checks. TTL and recent-book retention values remain undecided.
