@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-Follow-up is now authorized in small, focused increments. The user accepted one device-local EPUB image-optimization preference shared by browser and server-folder intake, preserving queued choices. EPUB preview work is diagnosis-first: understand the root cause before selecting a remedy or expanding the preview contract. Mixed-format history/filter contracts remain unsettled. No schema change or expanded preview contract has been approved. No subagents were used.
+Follow-up is authorized in small, focused increments. After root-cause diagnosis and code-based approach analysis, the user accepted a selected-section EPUB preview and one shared device-local image-optimization preference. The [EPUB import preview plan](../plans/2026-09-24-epub-import-preview.md) owns U1/U2 implementation direction, progress and verification. Mixed-format history/filter contracts remain unsettled. No schema change is approved. No subagents were used.
 
 Branch reviewed: `feat/multi-provider-library`, HEAD `e68fbb0`; comparison with `main` merge-base `070246995b92a9dc597e6a56383a8f30479aebc1`. The quick review sampled shared library/reading, TXT/EPUB intake, lifecycle coordination, persistence, backup/restore and frontend state across a 496-file branch diff. It was not an exhaustive audit. The completed [EPUB milestone](../plans/2026-09-17-epub-support.md) remains historical verification, not proof that subsequent real-user cases work.
 
@@ -13,7 +13,7 @@ Branch reviewed: `feat/multi-provider-library`, HEAD `e68fbb0`; comparison with 
 - Report: **最佳化 EPUB 圖片** resets across page navigation or refresh, unlike **加入書架前先確認**.
 - Code evidence: `frontend/src/features/imports/ImportQueuePanel.vue` owns local `optimizeImages: false`; `ImportInboxPanel.vue` separately owns local `optimize: false`. These controls are not using the persisted import-preference owner.
 - Desired outcome: retain the user's image-mode preference across navigation and refresh. Browser/inbox consistency should be considered together. Already queued imports must keep their captured image mode rather than change retroactively.
-- Accepted direction: one device-local preference shared by browser and server-folder controls, using the existing import-preference owner and retaining original images as the default. Queued imports keep their captured mode. Implementation and verification remain pending.
+- Accepted direction and implementation status: [EPUB import preview plan](../plans/2026-09-24-epub-import-preview.md#image-preference).
 
 ### U2 — EPUB preview shows no titles, chapter contents or images
 
@@ -24,7 +24,7 @@ Branch reviewed: `feat/multi-provider-library`, HEAD `e68fbb0`; comparison with 
 - **Title cause:** `epub/normalize.go` derives section titles solely from XHTML `head/title`. The inspected source sections have empty title elements; sections 1 and 25 have body headings. All 1,737 saved section titles are empty. Authored NCX navigation labels and targets are separately retained, but `epubstore.Review` returns the section-title inventory, not that navigation. `EPUBReviewView.vue` displays those empty strings without a fallback. There is no evidence of titles being lost in storage or frontend transport.
 - **Sample cause:** `Review` samples only the section at the page's `start` index. Section 0 contains one image and no text; its plain-text projection is therefore empty. Explicit review starting at section 1 returns 301 sample bytes, and section 25 returns 4,094 bytes with truncation. Text preparation is working in those sections; the initial selection does not provide a useful prose sample for this book.
 - **Image absence:** the prepared first section retains its image binding. The review DTO/template supports only a text sample, not image resources; image absence is not evidence of failed image preparation.
-- These findings separate title presentation, sample selection and richer preview scope. A remedy is not yet selected; do not silently reinterpret authored navigation as one title per section, change persisted titles/revisions, or expand preview resource access.
+- These findings separate title presentation, sample selection and richer preview scope. The accepted remedy is the [selected-section preview](../plans/2026-09-24-epub-import-preview.md), using saved authored navigation and structured content with explicit import-authorized resource access. Persisted titles/revisions remain unchanged.
 - No real EPUB needs to be committed for investigation. Keep any supplied private fixture local/ignored.
 
 ### U3 — Received-files format selector needs All
@@ -87,4 +87,4 @@ With that environment variable set, the diagnostic intentionally fails assertion
 
 ## Next action
 
-Present the reproduced preview causes and settle the smallest appropriate preview behavior before implementing it. The shared device-local image preference is already accepted and can be implemented independently. Resolve mixed-history/filter contracts before U3/U4 implementation; keep reader readability cleanup separate unless a functional correction requires it. Update this note as fixes land; create a dedicated plan only if the accepted work warrants one.
+Implement U1/U2 through the [accepted plan](../plans/2026-09-24-epub-import-preview.md#next-action); no implementation has landed yet. Resolve mixed-history/filter contracts before U3/U4 implementation; keep reader readability cleanup separate unless a functional correction requires it. This note retains original reports and diagnosis evidence; the plan owns the active implementation handoff.

@@ -134,7 +134,9 @@ Initial manual import feedback and diagnosis progress are recorded under Active 
 
 [Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted application-managed cache direction and immediate navigation feedback; documentation only, implementation pending authorization and narrow identity/freshness contract checks. TTL and recent-book retention values remain undecided.
 
-[Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) — follow-up authorized; shared device-local EPUB image preference accepted, implementation pending. Preview diagnosis reproduces empty section titles and an image-only initial sample on the private fixture; remedy selection remains pending. Mixed-format receipt filters and scoped maintainability findings remain separately scoped.
+[EPUB import preview and image preference](docs/plans/2026-09-24-epub-import-preview.md) — accepted selected-section preview using saved authored contents, shared prose rendering and import-authorized images, plus one device-local image preference. Documentation complete; implementation pending. No schema change or second reader.
+
+[Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) retains the original reports and reproduced preview causes. U1/U2 now route to the plan above; mixed-format receipt filters, inbox refresh and scoped maintainability findings remain separate.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
