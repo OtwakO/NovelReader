@@ -35,7 +35,7 @@ func (s *Searcher) searchSources(ctx context.Context, query string, candidates [
 		globalSlots = make(chan struct{}, defaultMaxConcurrentGlobalSearch)
 	}
 
-	slog.Info("search: starting fan-out", "query", query, "sources", len(candidates), "concurrent", concurrency)
+	slog.Info("search: starting fan-out", "sources", len(candidates), "concurrent", concurrency)
 
 	var workers sync.WaitGroup
 	for range min(concurrency, len(candidates)) {
@@ -78,10 +78,11 @@ func (s *Searcher) searchSources(ctx context.Context, query string, candidates [
 			errorCount++
 			category := searchErrorCategory(result.err.Error())
 			errCats[category]++
-			slog.Info("search: source failed", "source", result.src.BookSourceName, "cat", category, "err", result.err.Error()[:min(len(result.err.Error()), 120)])
+			// Source errors may embed credentials, URLs or script output. Log only owned identity and a fixed category.
+			slog.Info("search: source failed", "source_id", result.src.ID, "cat", category)
 		} else {
 			successCount++
-			slog.Debug("search: source completed", "source", result.src.BookSourceName, "results", len(result.results))
+			slog.Debug("search: source completed", "source_id", result.src.ID, "results", len(result.results))
 		}
 		onResult(result.src, result.results, result.err)
 	}
@@ -91,7 +92,6 @@ func (s *Searcher) searchSources(ctx context.Context, query string, candidates [
 		parts = append(parts, fmt.Sprintf("%s=%d", category, count))
 	}
 	slog.Info("search: finished",
-		"query", query,
 		"success", successCount,
 		"errors", errorCount,
 		"breakdown", strings.Join(parts, ", "),
@@ -110,7 +110,7 @@ func (s *Searcher) searchSourceJob(ctx context.Context, query string, src bookso
 	defer func() {
 		if rec := recover(); rec != nil {
 			s.capacity.failedSources.Add(1)
-			slog.Error("search: panic in source goroutine", "source", src.BookSourceName, "panic", fmt.Sprintf("%v", rec))
+			slog.Error("search: panic in source goroutine", "source_id", src.ID, "panic_type", fmt.Sprintf("%T", rec))
 			results <- searchJobResult{src, nil, fmt.Errorf("panic: %v", rec)}
 		}
 	}()

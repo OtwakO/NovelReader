@@ -332,8 +332,8 @@ func (c *Client) doRequestWithDNSIP(ctx context.Context, method, rawURL, reqBody
 		if err != nil {
 			lastErr = fmt.Errorf("fetch: %w", err)
 			slog.Debug("fetcher: request failed, retrying",
-				"url", rawURL[:min(len(rawURL), 80)],
-				"attempt", attempt, "retry", retry, "err", err)
+				"method", method,
+				"attempt", attempt, "retry", retry, "error_type", fmt.Sprintf("%T", err))
 			continue
 		}
 
@@ -354,14 +354,14 @@ func (c *Client) doRequestWithDNSIP(ctx context.Context, method, rawURL, reqBody
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 			if attempt < retry {
 				slog.Debug("fetcher: unsuccessful response, retrying",
-					"url", rawURL[:min(len(rawURL), 80)],
+					"method", method,
 					"status", resp.StatusCode, "attempt", attempt, "retry", retry)
 				continue
 			}
 		}
 		if attempt > 0 {
 			slog.Debug("fetcher: retry succeeded",
-				"url", rawURL[:min(len(rawURL), 80)],
+				"method", method,
 				"attempt", attempt)
 		}
 

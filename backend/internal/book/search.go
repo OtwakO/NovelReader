@@ -468,11 +468,7 @@ func (s *Searcher) searchSourceWithLimitAndSession(ctx context.Context, src book
 	// Merge source-level headers first, then URL-option headers overlay.
 	spec.Headers = sourceexec.MergeHeaders(sourceHeaders, spec.Headers)
 
-	slog.Debug("search: fetching source",
-		"source", src.BookSourceName,
-		"method", spec.Method,
-		"url", spec.URL,
-		"charset", spec.Charset)
+	slog.Debug("search: fetching source", "source_id", src.ID)
 
 	if err := s.rateLimitWait(srcCtx, src); err != nil {
 		return nil, fmt.Errorf("rate limit: %w", err)
