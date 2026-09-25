@@ -59,10 +59,10 @@ Accepted future-facing architecture:
 
 ## Current State
 
-[Native ARM64 container releases](docs/plans/2026-09-26-arm64-containers.md) — active on
-`feat/arm64-containers`: native AMD64/ARM64 build-and-test matrix, official Chrome packages and
-multi-platform publication gates are implemented; local AMD64 builds, both browser modes and Compose
-verification pass. Native ARM64 and registry verification await the authorized feature-branch CI run.
+[Native ARM64 container releases](docs/plans/2026-09-26-arm64-containers.md) — implemented and verified
+on pushed branch `feat/arm64-containers`. Native AMD64/ARM64 builds, both browser modes, Compose E2E
+and multi-platform registry checks passed in run 36176447907. Not merged; verification-only staging
+did not change public image aliases.
 
 The multi-provider branch is integrated into local `main` with a history-preserving merge after [clean-checkout integration checks](docs/notes/2026-09-21-import-user-testing-and-branch-review.md#local-branch-integration). That integration has not been pushed or deployed. The cache/prefetch workstream is implemented, locally verified, and merged into local `main`; it has not been pushed or deployed.
 

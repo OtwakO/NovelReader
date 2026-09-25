@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 updated: 2026-09-26
 ---
 
@@ -32,11 +32,11 @@ Rollback: revert the build/workflow changes and use previously verified per-imag
 
 Implemented on `feat/arm64-containers`: the worker installs Google's native Chrome package while retaining Patchright's dependency/font installation; Bake and Compose follow the native architecture; CI builds/tests each architecture and passes verified digests to `build/publish-images.sh` for index validation and promotion. Five synthetic registry tests exercise the publication gates. Manual dispatch defaults to verification-only and stages `ci-*` references without moving release aliases or immutable SHA tags.
 
-Local AMD64 images and runtime checks pass. The app reused existing build layers; the changed worker was rebuilt. Local Docker is AMD64-only with no ARM emulation advertised, so ARM runtime validation remains a hosted gate. Existing unrelated untracked files are left untouched. The user authorized pushing this feature branch and running verification-only hosted CI, not merging or releasing it.
+Local AMD64 images and runtime checks pass. The app reused existing build layers; the changed worker was rebuilt. Local Docker is AMD64-only, so ARM verification ran on GitHub's native ARM runner. Hosted run 36176447907 passed every prerequisite, both native architecture jobs and real-registry index verification. Existing unrelated untracked files are left untouched. The branch is pushed and verified, but not merged or released to public aliases.
 
 ## Next Action
 
-Push the implementation commit and dispatch `publish.yml` on `feat/arm64-containers` with `publish=false`. Inspect both native architecture jobs and the staged manifest indexes; record the result here before recommending a merge. No `main` merge or public-tag promotion is authorized.
+Await authorization to merge `feat/arm64-containers` into `main` and publish. Implementation commit `2cb78ee` passed verification-only run [36176447907](https://github.com/OtwakO/NovelReader/actions/runs/36176447907) with `publish=false`; no implementation work remains scheduled. A merge/push to `main` triggers a new fully gated production release, not reuse of this run's mutable staging tags.
 
 ## Verification
 
@@ -52,6 +52,11 @@ Verified locally after implementation:
 - Exact-image `E2E_SKIP_BUILD=1 bash docker-e2e.sh` passed frontend, readiness, private WebView, synthetic rendered search, graceful stop and persistence checks.
 - Local Docker commands needed an isolated anonymous `DOCKER_CONFIG` and writable temporary `BUILDX_CONFIG` because the sandbox cannot use Docker Desktop's credential helper. No host configuration changed.
 
-Pending:
-- Hosted native ARM64 image builds and runtime gates, plus hosted AMD64 verification.
-- Real registry index platform/digest verification. No ARM64 image size or build-time measurement is claimed.
+Verified on GitHub in run 36176447907 (commit `2cb78ee`):
+- Backend, frontend and locked WebView prerequisite jobs all passed.
+- Native `ubuntu-24.04` / AMD64 and `ubuntu-24.04-arm` / ARM64 jobs built the exact release pair, checked image architecture, passed both browser-mode suites and passed Compose E2E before staging.
+- Real GHCR indexes contained exactly the verified AMD64 and ARM64 child digests. Publication-gate regressions passed again on the publication runner.
+- The final step explicitly reported `Verification only; public tags are unchanged.` No release aliases or immutable SHA tags were created by this run.
+- Staged index references: app `ghcr.io/otwako/novelreader@sha256:08ebdcb28fe2c0b1f7df90d6730945220b58a5696d957a0597564fcf2d4d5c56`; worker `ghcr.io/otwako/novelreader-webview@sha256:e46ea24a25901439b6f7bfddb290f1501095d4ff8dd4d89dc2977e4b5e218ba0`.
+
+Limits: no live-source compatibility audit, production deployment, public-tag promotion or controlled cross-architecture size/build-time comparison was performed. Staging references are verification evidence, not a promised retention policy.
