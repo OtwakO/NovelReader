@@ -59,7 +59,7 @@ Accepted future-facing architecture:
 
 ## Current State
 
-The multi-provider branch is integrated into local `main` with a history-preserving merge after [clean-checkout integration checks](docs/notes/2026-09-21-import-user-testing-and-branch-review.md#local-branch-integration). That integration has not been pushed or deployed. Cache/prefetch foundation work is underway on `docs/reader-cache-prefetch-design`; see Active Work for its verified state.
+The multi-provider branch is integrated into local `main` with a history-preserving merge after [clean-checkout integration checks](docs/notes/2026-09-21-import-user-testing-and-branch-review.md#local-branch-integration). That integration has not been pushed or deployed. The cache/prefetch workstream is implemented and locally verified on `docs/reader-cache-prefetch-design`; it has not been pushed or deployed.
 
 Reader schema is **16**, adding EPUB inbox claims with portable cleanup-authority stripping. Existing epoch-15 and older homes/backups remain preserved, not migrated. [Independent last-read tracking](docs/plans/2026-09-17-last-read-tracking.md), introduced at epoch 13, continues to separate reading from additions/metadata updates.
 
@@ -80,6 +80,8 @@ Reader schema is **16**, adding EPUB inbox claims with portable cleanup-authorit
 - Reader-owned source interaction, settings, login state, controlled browser sessions, and bounded `startBrowserAwait` continuation replay.
 - Installable Vue PWA; production GHCR Compose, checkout-built local Compose with bind-mounted data, and separate deterministic Compose E2E.
 - Worker-wide Chrome headless/headful selection and paired app/worker release publication with exact-image verification.
+
+The completed [reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) workstream adds backend cache-first/Refresh, immutable image resources, persistent client caching, transactional invalidation, two-target conversion preparation/renewal and destination-specific navigation feedback. Focused tests and synthetic browser checks pass; live-source latency remains unmeasured. The plan records verification and compatibility limits.
 
 ### Compatibility position
 
@@ -140,8 +142,6 @@ Continue Reading's narrow-screen reflow (`947a2b8`) and the bookshelf cover-gall
 [Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) — U1–U4 and R1–R3 are resolved: preview/history improvements, retained inbox refresh notifications, behavior-preserving reader readability, and corrected test fixtures. Final reader/import verification passed 126 tests without warnings, typecheck and production build. The note retains original findings and scoped verification limits.
 
 ## Active Work
-
-[Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted end-to-end memory/IndexedDB/backend caching, two-chapter forward preparation/renewal, immediate feedback and portable-cache exclusion. Implementation is underway: portable cache exclusion and reader-home identity across storage/API/client are implemented and tested. Finite backend image-bundle availability and explicit failure/invalidation behavior are accepted, prioritizing lightweight clients without display leases. Shared resource storage, environment settings, server/deletion lifecycle and immutable image delivery are implemented and tested, including captured execution context and explicit figure failures. Whole-chapter session ownership, matching-request sharing, backend cache-first/explicit Refresh and remaining-freshness metadata are implemented and verified. Client memory/IndexedDB caching, source-definition qualification, commit-time retention and transactional cross-tab invalidation are implemented and verified. Navigation feedback and two-target preparation/renewal remain; contracts, configuration defaults and verification limits live in the plan.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 

@@ -17,7 +17,7 @@ beforeEach(() => { resetReaderRequests(); vi.mocked(getChapterContent).mockReset
 describe('reading-session chapter loader', () => {
   it('shares prefetch with navigation, reuses recent content, and bounds retention', async () => {
     const loader = createChapterLoader('book', 7);
-    loader.prefetch(1);
+    loader.prepare([1], async () => undefined);
     await loader.load(1);
     await loader.load(1);
     expect(getChapterContent).toHaveBeenCalledTimes(1);
@@ -30,14 +30,15 @@ describe('reading-session chapter loader', () => {
     const first = deferred();
     vi.mocked(getChapterContent).mockReturnValueOnce(first.promise);
     const loader = createChapterLoader('book', 7);
-    loader.prefetch(1);
-    loader.prefetch(2);
+    loader.prepare([1, 2], async () => undefined);
     const foreground = loader.load(3);
     await flushPromises();
     expect(getChapterContent).toHaveBeenCalledTimes(1);
     first.resolve(content);
     await foreground;
-    expect(vi.mocked(getChapterContent).mock.calls.map(call => call[1])).toEqual([1, 3]);
+    await flushPromises();
+    expect(vi.mocked(getChapterContent).mock.calls.map(call => call[1])).toEqual([1, 3, 2]);
+    await loader.dispose();
   });
 
   it('drains a replaced source binding and rejects late results without contaminating its replacement', async () => {
@@ -155,4 +156,51 @@ it('does not retain an earlier pending copy when Refresh fails', async () => {
   await loader.load(0);
   expect(getChapterContent).toHaveBeenCalledTimes(3);
   await loader.dispose();
+});
+
+it('drops obsolete queued targets, warms only the selected window and keeps failures quiet', async () => {
+  const first = deferred();
+  vi.mocked(getChapterContent).mockReturnValueOnce(first.promise);
+  const loader = createChapterLoader('book', 7);
+  const warm = vi.fn(async () => undefined);
+  loader.prepare([1, 2], warm);
+  await flushPromises();
+  loader.prepare([8, 9], warm);
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new Error('unavailable'));
+  first.resolve(content);
+  await flushPromises();
+  expect(vi.mocked(getChapterContent).mock.calls.map(call => call[1])).toEqual([1, 8, 9]);
+  expect(warm).toHaveBeenCalledTimes(1);
+  await flushPromises();
+  expect(getChapterContent).toHaveBeenCalledTimes(3);
+  await loader.load(8); // Foreground retry is independent of speculative failure.
+  expect(getChapterContent).toHaveBeenCalledTimes(4);
+  await loader.dispose();
+});
+
+it('renews both deadlines with one timer and pauses without scheduling imported content', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
+  const loader = createChapterLoader('book', 7);
+  try {
+    const second = deferred();
+    vi.mocked(getChapterContent).mockImplementation(async (_book, index) => ({ ...content, freshForMs: index === 1 ? 100 : 200 }))
+      .mockResolvedValueOnce({ ...content, freshForMs: 100 }).mockReturnValueOnce(second.promise);
+    loader.prepare([1, 2], async () => undefined);
+    await flushPromises();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(100); // First target expires while the second is still retrieving.
+    second.resolve({ ...content, freshForMs: 200 });
+    await flushPromises();
+    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.mocked(getChapterContent).mock.calls.map(call => call[1])).toEqual([1, 2, 1]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(vi.mocked(getChapterContent).mock.calls.map(call => call[1])).toEqual([1, 2, 1, 1, 2]);
+    loader.prepare([], async () => undefined);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.mocked(getChapterContent).mockResolvedValue(content);
+    loader.prepare([3, 4], async () => undefined);
+    await flushPromises();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { await loader.dispose(); vi.useRealTimers(); }
 });

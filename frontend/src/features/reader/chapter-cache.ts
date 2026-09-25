@@ -152,6 +152,12 @@ export class ChapterCache {
     };
     return {
       peek,
+      remaining(index: number): number | undefined {
+        const receipt = book.entries.get(index);
+        if (retired || !receipt?.entry) return;
+        if (!savedChapterIsFresh(receipt.entry)) return 0;
+        return Math.max(0, Math.min(receipt.monotonic - performance.now(), receipt.entry.expiresAt === null ? Infinity : receipt.entry.expiresAt - Date.now()));
+      },
       async lookup(index: number, bypass = false): Promise<{ content?: ReadingContent; ticket: Ticket }> {
         const ticket: Ticket = { version: book.version };
         current(ticket);

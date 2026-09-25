@@ -11,7 +11,13 @@ export function createChapterLoader(bookId: string, contentRevision: number, onR
   const controller = new AbortController();
   let closed = false;
   let tail = Promise.resolve();
-  let speculative: Promise<void> | null = null;
+  let preparing = false;
+  let preparation = 0;
+  let targets: number[] = [];
+  let warm: (content: ReadingContent) => Promise<unknown> = async () => undefined;
+  let attempted = new Set<number>();
+  let failed = new Set<number>();
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   function checkCurrent() {
     owner.throwIfAborted();
@@ -42,6 +48,7 @@ export function createChapterLoader(bookId: string, contentRevision: number, onR
       throw cause;
     }).finally(() => {
       if (pending.get(index) === operation) { pending.delete(index); refreshing.delete(index); }
+      queueMicrotask(pump);
     });
     pending.set(index, operation);
     if (refresh) refreshing.add(index);
@@ -49,15 +56,47 @@ export function createChapterLoader(bookId: string, contentRevision: number, onR
     return operation;
   }
 
-  function prefetch(index: number): void {
-    if (owner.aborted || closed || speculative || pending.size || cache.peek(index)) return;
-    speculative = load(index).then(() => undefined, () => undefined).finally(() => { speculative = null; });
+  // Only the selected window feeds this pump. Completion never derives more targets.
+  // Foreground requests enter the shared queue before any not-yet-started speculation.
+  function pump(): void {
+    if (owner.aborted || closed || preparing || pending.size) return;
+    clearTimeout(timer);
+    // A target may expire while another fetch/conversion owns the pump.
+    for (const target of targets) if (!failed.has(target) && cache.remaining(target) === 0) attempted.delete(target);
+    const index = targets.find(target => !attempted.has(target));
+    if (index === undefined) {
+      const deadlines = targets.filter(target => !failed.has(target)).map(target => cache.remaining(target)).filter((value): value is number => value !== undefined && Number.isFinite(value) && value > 0);
+      if (deadlines.length) timer = setTimeout(pump, Math.ceil(Math.min(...deadlines)));
+      return;
+    }
+    const generation = preparation;
+    const convert = warm;
+    attempted.add(index);
+    preparing = true;
+    void load(index).then(content => {
+      if (generation === preparation && !closed) return convert(content);
+    }).catch(() => {
+      // A failure stays attempted until a new window/preference/visibility event.
+      if (generation === preparation) failed.add(index);
+    }).finally(() => { preparing = false; pump(); });
+  }
+  function prepare(indices: number[], convert: (content: ReadingContent) => Promise<unknown>): void {
+    preparation++;
+    targets = indices;
+    warm = convert;
+    attempted = new Set();
+    failed = new Set();
+    clearTimeout(timer);
+    pump();
   }
   function dispose(abort = false): Promise<void> {
     closed = true;
+    targets = [];
+    preparation++;
+    clearTimeout(timer);
     cache.dispose();
     if (abort) controller.abort();
     return tail;
   }
-  return { load, refresh: (index: number) => load(index, true), prefetch, dispose, commit: cache.commit, assertCurrent: cache.assertCurrent };
+  return { load, refresh: (index: number) => load(index, true), prepare, dispose, commit: cache.commit, assertCurrent: cache.assertCurrent };
 }

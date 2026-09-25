@@ -35,6 +35,11 @@ export function chapterWindow(chapters: readonly Chapter[], current: number): nu
   return position < 0 ? [] : main.slice(Math.max(0, position - 2), position + 3).map(chapter => chapter.index);
 }
 
+export function forwardChapters(chapters: readonly Chapter[], current: number): number[] {
+  const window = chapterWindow(chapters, current);
+  return window.slice(window.indexOf(current) + 1);
+}
+
 export function savedChapter(identity: ChapterCacheIdentity, index: number, content: ReadingContent, started: { wall: number; monotonic: number }): SavedChapter | undefined {
   if (content.contentRevision !== identity.revision || content.offlineCopy) return;
   if (content.version === 1 && content.document.blocks.some(block => block.kind === 'image' && block.resource.unavailable)) return;

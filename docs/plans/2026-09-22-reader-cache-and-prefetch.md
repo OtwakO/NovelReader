@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: completed
 updated: 2026-09-25
 ---
 
@@ -156,7 +156,7 @@ For the client chapter cache, no per-chapter size cutoff or application byte bud
 
 Backend retention is independent of the client window and cannot use only one device's saved progress. Reuse bounded access-recency pruning at existing storage operations; the current 100-per-book/500-per-reader limits are the starting point, not a reason to add a cleanup service or matching ±2 scheduler. Those limits govern chapter copies, not permission to evict promised image bundles. The new resource store needs its own bounded admission and expired-data cleanup (next section), not server chapter prefetch. Never prune managed TXT/EPUB originals/preparations as caches.
 
-### Document and image-resource identity — accepted design, implementation pending
+### Document and image-resource identity — accepted design
 
 **Owner:** an immutable BookSource image bundle owns a document's ordered private image descriptions and the request context actually needed to resolve them. Retain URLs/options and inline `data:image/` payloads (supported by `book/image.go` up to its existing 10 MiB decoded-image limit); do not fetch remote image bytes during chapter preparation. Prose stays in the existing independently evictable chapter cache, not a second complete snapshot store. A single cohesive backend resource module owns issuance, persistence, authorization, resolution and cleanup; callers do not assemble retention rules.
 
@@ -231,13 +231,13 @@ Intentional changes: one forward target becomes two; the retained ±1 window bec
 
 ## Current State
 
-**Implemented and verified:** portable-cache exclusion, durable reader-home identity, bounded immutable image bundles with captured execution context and explicit figure failures, full chapter workflow ownership, backend cache-first/Refresh and matching-request sharing. These milestones require no reader-schema change. The client now uses a single memory/IndexedDB cache owner with online identity validation, source-definition qualification, original freshness, commit-time retention and cross-tab write protection. Disconnected started backend work still drains under runtime ownership. Navigation feedback, both forward preparation targets, conversion warming and active-reader renewal remain unfinished; no latency improvement has been measured.
+**Implemented and verified:** portable-cache exclusion, durable reader-home identity, bounded immutable image bundles with captured execution context and explicit figure failures, full chapter workflow ownership, backend cache-first/Refresh and matching-request sharing. These milestones require no reader-schema change. The client now uses a single memory/IndexedDB cache owner with online identity validation, source-definition qualification, original freshness, commit-time retention and cross-tab write protection. Disconnected started backend work still drains under runtime ownership. The final reader-experience milestone is implemented: the existing loader now owns a selected-target pump and one renewal timer, and warms the existing converter without another display cache. Requested destinations are separate from committed navigation/progress; failed destination retry preserves its target. Focused reader regression tests, production compilation and a synthetic real-browser reader journey pass. Implementation is complete; live-source latency and deployment remain unverified. No latency improvement has been measured.
 
 | Current fact | Entry points |
 |---|---|
-| One memory/IndexedDB owner retains three committed books and their five-section windows; canonical documents, original freshness and transactional invalidation gates; loader still schedules one speculative request | `frontend/src/features/reader/chapter-cache.ts`, `chapter-cache-policy.ts`, `chapter-cache-storage.ts`, `chapter-loader.ts` and adjacent tests |
+| One memory/IndexedDB owner retains three committed books and their five-section windows; canonical documents, original freshness and transactional invalidation gates; loader prepares two selected targets with one speculative operation and one expiry timer | `frontend/src/features/reader/chapter-cache.ts`, `chapter-cache-policy.ts`, `chapter-cache-storage.ts`, `chapter-loader.ts` and adjacent tests |
 | Entry pairs book/catalog revisions; display commits after conversion/anchor restoration; note rollback and ordered progress already exist | `reader-session.ts`, `ReaderView.vue`, `reader-navigation.ts`, `progress-writer.ts` and reader tests under `frontend/src/features/reader/` |
-| Conversion memoization exists, but first-use conversion POST occurs after canonical content loading; prefetch does not warm it | `frontend/src/features/reader/chinese-conversion.ts`, `frontend/src/api/system.ts` |
+| Forward preparation warms the existing mode-qualified converter; foreground shares its pending/completed work | `frontend/src/features/reader/chinese-conversion.ts`, `frontend/src/api/system.ts` |
 | Backend is cache-first with 24-hour retrieval-based freshness, explicit Refresh and no expired/unqualified fallback; access recency remains separate | `backend/internal/reading/booksource_content.go`, `backend/internal/book/chapter_cache.go` |
 | BookSource responses expose `freshForMs`; client memory uses conservative request-start deadlines. `refresh=true` explicitly bypasses backend chapter reuse | `backend/internal/reading/service.go`, `document.go`, `backend/internal/api/reader_handlers.go`, `frontend/src/api/reader.ts` |
 | Registry leases order shared session workflows through chapter publication; runtime-bound reading flights separately share chapter results and order Refresh | `backend/internal/sourceexec/session_workflow.go`, `session_registry.go`, `backend/internal/book/search.go`, `image.go` |
@@ -251,14 +251,14 @@ The reported unexpected Next-chapter refetch remains **unreproduced**. Failure-f
 
 ## Next Action and implementation tracking
 
-Portable-cache exclusion, reader-home identity, immutable resources, backend cache-first/shared-request/Refresh and client memory/IndexedDB persistence are implemented. Next, implement requested/committed navigation feedback and two-target display preparation/renewal as the next cohesive milestone. Preserve the cache owner's existing retention and invalidation boundaries.
+Implementation is complete. No further caching implementation is scheduled. Optional follow-up is normal real-book user testing and investigation of a reproducible live-source delay; do not claim measured speedups or a diagnosis of the original report. Push/deployment still require authorization.
 
 1. **Completed:** put memory and IndexedDB behind one chapter-cache owner. Apply the accepted identity, three-book/five-chapter window and canonical-document policy; preserve backend remaining freshness rather than restarting TTL on copies.
 2. **Completed:** gate persistent writes and cross-tab invalidation transactionally across logout/account change, removal, restore and interpretation changes. Validate reader entry before reuse; do not treat home generation as a secret or rely only on tab-local request cancellation.
 **Accepted implementation boundary:** expose the existing source-definition fingerprint as optional `sourceIdentity` in BookSource catalog/content responses. Client entry and stored/network documents must agree on it; missing qualification disables BookSource persistence rather than assuming validity. Imports remain revision-qualified. This is additive wire metadata, not a schema migration or a new revision system. Use native IndexedDB with one shared invalidation counter: capture it before retrieval, then compare it in the same transaction as persistence; notifications retire affected memory but are not the write gate. Add pinned `fake-indexeddb` as a development-only dependency for deterministic transaction tests. This client milestone is implemented, enabled and verified. Cache sessions are bound only after online book/catalog validation; commit-time retention follows successful display/anchor restoration. Concurrent same-loader Refresh calls share one operation. Storage failure falls back to memory/network; quota pressure gets one inactive-book eviction retry. The development-only `fake-indexeddb` dependency covers real transaction semantics without adding a production dependency.
 
-3. **Completed:** preserve explicit Refresh bypass and graceful storage failure. Unavailable-image responses have zero reusable freshness and must not produce immediate renewal loops. The header remains optional for older clients; deployments must reload old reader tabs for the new Refresh protocol.
-4. Reproduce one reported Next-chapter delay/miss through the existing interface. Distinguish content retrieval, conversion and lifecycle causes before claiming a fix.
+3. **Completed:** preserve explicit Refresh bypass and graceful storage failure. Unavailable-image responses have zero reusable freshness and must not produce immediate renewal loops. The Refresh query parameter remains optional for older clients; deployments must reload old reader tabs for the new Refresh protocol.
+4. **Verification limit:** controlled delayed retrieval verifies destination feedback and foreground/prefetch sharing. The original live-source Next-chapter report remains unreproduced; distinguish retrieval, conversion and lifecycle causes if it recurs.
 
 TTL, client book count/window and finite resource behavior are settled; do not reopen them as unanswered preferences. Any necessary durable storage/API compatibility change must be explained before activation. Do not assume a fresh-data epoch bump or reset is permitted.
 
@@ -270,13 +270,17 @@ Track complete, verified increments here, adjusting order for actual dependencie
 - [x] Implement image-bundle identity/lifetime and narrow session execution ownership. The same ownership now covers cached-reading publication.
 - [x] Implement backend cache-first freshness and explicit Refresh without expired-copy fallback.
 - [x] Implement client memory/IndexedDB lifecycle, retention, invalidation and storage-failure behavior.
-- [ ] Implement requested/committed navigation feedback while preserving progress and EPUB semantics.
-- [ ] Implement both forward targets, conversion preparation and active-reader renewal using the shared window policy.
-- [ ] Complete focused integration/browser verification and update affected current-truth documentation.
+- [x] Implement requested/committed navigation feedback while preserving progress and EPUB semantics.
+- [x] Implement both forward targets, conversion preparation and active-reader renewal using the shared window policy.
+- [x] Complete focused integration/browser verification and update affected current-truth documentation.
 
 Update Current State, this checklist/Next Action and Verification at meaningful milestones. Accepted design is not evidence of delivery; keep this single workstream plan handoff-ready.
 
 ## Verification
+
+**Final reader-experience milestone:** `npm test -- src/features/reader src/api/reader.test.ts` passed 101 tests across 23 files; direct `vue-tsc --noEmit` and Vite production build passed. Focused cases cover both targets, foreground priority/sharing, dropped obsolete targets, quiet failure, expiry while another target is retrieving, one-timer renewal/pause, imported-content timer exclusion, conversion reuse, destination feedback/retry, and existing note/anchor/progress invariants. Chromium with synthetic authenticated API responses verified pending navigation hiding old prose, foreground joining prefetch, failed-destination retry, and persisted reopen after online validation; desktop loading and mobile error screenshots were inspected. This browser journey used mocked HTTP, not a live source or deployed backend. The mechanical UI detector reported no findings. Backend code was unchanged in this final milestone; its earlier verification is recorded below. No live performance measurement, full deployed restore journey or claim of universal source compatibility.
+
+Earlier paragraphs below report milestone-specific checkpoints, not additional final runs.
 
 **Client persistence milestone:** the full frontend suite passed (88 files, 346 tests), direct `vue-tsc --noEmit` and Vite production build passed. After final Refresh-sharing and transaction-abort handling adjustments, 16 cache/storage/loader tests, TypeScript checking and the production build passed again. `go test ./internal/reading ./internal/api` and `go test -race ./internal/api -run ChapterContentCache -timeout 30s` passed, including source-tag changes without revision changes. Fake IndexedDB tests cover persistence, retention, invalidation/write races and storage failure. An isolated Chromium module-level check with synthetic content verified reuse across two tabs, BroadcastChannel invalidation and non-resurrection after reload; this was not a full authenticated reader journey. No live-source latency measurement or two-target renewal/browser journey is claimed. AFT lacked authoritative diagnostics; compiler/test results are the gate.
 

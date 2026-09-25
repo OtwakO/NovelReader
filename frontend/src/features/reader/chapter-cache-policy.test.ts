@@ -1,13 +1,15 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Chapter } from '../../api/models';
 import type { ChapterContent } from '../../api/reader';
-import { chapterWindow, savedChapter, savedChapterIsFresh, type ChapterCacheIdentity } from './chapter-cache-policy';
+import { chapterWindow, forwardChapters, savedChapter, savedChapterIsFresh, type ChapterCacheIdentity } from './chapter-cache-policy';
 
 afterEach(() => vi.restoreAllMocks());
 it('uses main-section neighbors without filling missing predecessors', () => {
   const chapters = [0, 2, 4, 6, 8, 10, 12].map(index => ({ index, isVolume: index === 2, auxiliary: index === 6 })) as Chapter[];
   expect(chapterWindow(chapters, 8)).toEqual([0, 4, 8, 10, 12]);
   expect(chapterWindow(chapters, 6)).toEqual([]);
+  expect(forwardChapters(chapters, 0)).toEqual([4, 8]);
+  expect(forwardChapters(chapters, 12)).toEqual([]);
 });
 it('qualifies source content and preserves remaining age across sleep and copies', () => {
   const identity: ChapterCacheIdentity = { readerId: 'reader', homeGeneration: 'home', bookId: 'book', revision: 1, provider: 'booksource', sourceIdentity: 'definition' };

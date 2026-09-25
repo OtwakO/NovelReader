@@ -22,6 +22,7 @@ import { readerRequestSignal } from '../../api/transport';
 import AppButton from '../../ui/components/AppButton.vue';
 import { createReaderDisplayConverter } from './chinese-conversion';
 import { createChapterLoader } from './chapter-loader';
+import { forwardChapters } from './chapter-cache-policy';
 import { chapterCache, type CacheValidation } from './chapter-cache';
 import {
   checkReaderLink,
@@ -93,6 +94,7 @@ export default defineComponent({
       requestLifetime: markRaw(readerRequestSignal()),
       convertDisplay: markRaw(createReaderDisplayConverter()),
       navigating: false,
+      requested: null as { index: number; position: number; proposal?: ReaderNavigation } | null,
       refetching: false,
       book: null as LibraryBook | null,
       nativeBook: null as Book | null,
@@ -147,12 +149,12 @@ export default defineComponent({
     previousIndex(): number | null {
       return this.revisionConflict || this.navigation?.current.note
         ? null
-        : adjacentChapterIndex(this.chapters, this.currentIndex, -1);
+        : adjacentChapterIndex(this.chapters, this.requested?.index ?? this.currentIndex, -1);
     },
     nextIndex(): number | null {
       return this.revisionConflict || this.navigation?.current.note
         ? null
-        : adjacentChapterIndex(this.chapters, this.currentIndex, 1);
+        : adjacentChapterIndex(this.chapters, this.requested?.index ?? this.currentIndex, 1);
     },
     routeAnchor(): string | undefined {
       return typeof this.$route.query.anchor === 'string' ? this.$route.query.anchor : undefined;
@@ -176,6 +178,7 @@ export default defineComponent({
       );
     },
     currentTitle(): string {
+      if (this.requested) return (this.displayChapters.length ? this.displayChapters : this.chapters).find(chapter => chapter.index === this.requested!.index)?.title ?? '';
       return (
         this.displayContent?.document.title ||
         this.displayChapters.find((chapter) => chapter.index === this.currentIndex)?.title ||
@@ -217,10 +220,11 @@ export default defineComponent({
       },
     },
     'preferences.chineseConversion'() {
+      this.prefetchNext();
       void this.changeConversion();
     },
-    'preferences.prefetchNextChapter'(enabled: boolean) {
-      if (enabled) this.prefetchNext();
+    'preferences.prefetchNextChapter'() {
+      this.prefetchNext();
     },
     'preferences.keepScreenAwake'() {
       this.wakeLockWarning = '';
@@ -260,6 +264,7 @@ export default defineComponent({
       const request = ++this.generation;
       this.conversionGeneration += 1;
       this.navigation = null;
+      this.requested = null;
       this.catalogNavigation = undefined;
       this.displayNavigation = undefined;
       this.restoring = false;
@@ -364,12 +369,14 @@ export default defineComponent({
       }
     },
     async revalidateVisibleReader() {
+      this.chapterLoader?.prepare([], async () => undefined);
       if (document.hidden || !this.book || this.loading || this.switching || this.refetching) return;
       const request = this.generation;
       try {
         const snapshot = await loadReaderSnapshot(this.bookId, { isCurrent: () => request === this.generation });
         if (request !== this.generation) return;
         if (snapshot.catalog.contentRevision !== this.catalogRevision || snapshot.catalog.sourceIdentity !== this.sourceIdentity || (snapshot.homeGeneration ?? '') !== this.homeGeneration) this.stopStaleSession();
+        else this.prefetchNext();
       } catch (cause) {
         if (request !== this.generation) return;
         this.stopStaleSession();
@@ -471,6 +478,7 @@ export default defineComponent({
       this.conversionError = conversionError;
       this.loading = false;
       this.error = '';
+      this.requested = null;
       try {
         await this.restore(position, request, proposal?.current.anchor);
         if (request !== this.generation) return;
@@ -561,6 +569,7 @@ export default defineComponent({
       if (
         this.revisionConflict ||
         this.loading ||
+        this.requested ||
         this.navigating ||
         this.switching ||
         this.refetching ||
@@ -613,7 +622,7 @@ export default defineComponent({
       });
     },
     onReaderTap(event: MouseEvent) {
-      if (this.loading || !this.content || this.activeSheet) return;
+      if (this.loading || this.requested || !this.content || this.activeSheet) return;
       const host = this.$refs.scrollHost as HTMLElement | undefined;
       if (!host) return;
       const target = event.target as HTMLElement;
@@ -655,6 +664,7 @@ export default defineComponent({
     persistProgress() {
       if (
         this.restoring ||
+        this.requested ||
         this.revisionConflict ||
         !this.content ||
         !this.book ||
@@ -692,6 +702,9 @@ export default defineComponent({
       const request = ++this.generation;
       this.conversionGeneration += 1;
       this.navigating = true;
+      this.requested = { index, position, proposal };
+      this.chapterLoader?.prepare([], async () => undefined);
+      this.chromeVisible = true;
       this.error = '';
       try {
         await this.loadContent(index, position, request, proposal);
@@ -723,9 +736,9 @@ export default defineComponent({
         this.loading = false;
         this.error = cause instanceof Error ? cause.message : this.$t('reader.errors.load');
         this.chromeVisible = true;
-        if (this.nativeBook) this.activeSheet = 'sources';
+        if (proposal) this.requested = null; // Failed anchors/notes restore the committed location.
       } finally {
-        if (request === this.generation) this.navigating = false;
+        if (request === this.generation) { this.navigating = false; this.prefetchNext(); }
       }
     },
     async returnFromNote() {
@@ -759,17 +772,17 @@ export default defineComponent({
       }
     },
     prefetchNext() {
-      if (
-        !this.revisionConflict &&
-        this.preferences.prefetchNextChapter &&
-        this.content &&
-        !this.error &&
-        !this.loading &&
-        !this.switching &&
-        !this.refetching &&
-        this.nextIndex !== null
-      )
-        this.chapterLoader?.prefetch(this.nextIndex);
+      const enabled = !document.hidden && !this.revisionConflict && this.preferences.prefetchNextChapter && this.content && !this.error && !this.loading && !this.navigating && !this.switching && !this.refetching && !this.readingNote;
+      const targets = enabled ? forwardChapters(this.chapters, this.currentIndex) : [];
+      const mode = this.preferences.chineseConversion;
+      const convert = this.convertDisplay;
+      const chapters = this.chapters;
+      const navigation = this.catalogNavigation;
+      this.chapterLoader?.prepare(targets, content => convert(chapters, content, mode, navigation));
+    },
+    retryDestination() {
+      const target = this.requested;
+      return target ? this.navigate(target.index, target.position, target.proposal) : this.load();
     },
     async refetchChapter() {
       if (
@@ -818,6 +831,7 @@ export default defineComponent({
         this.restoring ||
         this.revisionConflict ||
         this.navigating ||
+        this.requested ||
         this.switching ||
         this.refetching ||
         !this.content ||
@@ -902,6 +916,7 @@ export default defineComponent({
     async selectSource(source: AltSource) {
       if (!this.book || this.switching || this.refetching) return;
       this.switching = true;
+      this.requested = null;
       this.navigating = false;
       const request = ++this.generation;
       this.conversionGeneration += 1;
@@ -997,6 +1012,6 @@ export default defineComponent({
 });
 </script>
 
-<template><section class="reader" :style="readerStyle"><header v-show="chromeVisible" class="reader-header"><RouterLink :to="`/books/${encodeURIComponent(bookId)}`" class="back">{{ $t('reader.back') }}</RouterLink><div><strong>{{ book?.name || $t('reader.title') }}</strong><span>{{ currentTitle }}</span></div><div class="app-actions reader-header-actions"><span v-if="content && !revisionConflict" class="chapter-position"><template v-if="readingNote">{{ $t('reader.note') }}</template><template v-else>{{ mainSections.findIndex(chapter=>chapter.index===currentIndex) + 1 }} / {{ mainSections.length }}</template></span><ReaderActionsMenu v-if="!revisionConflict" :refresh-disabled="!content || navigating || switching" :refreshing="refetching" @bookmarks="activeSheet='bookmarks'" @refetch="refetchChapter" /></div></header><main ref="scrollHost" class="reader-scroll" tabindex="0" :aria-label="$t('reader.readingArea')" @scroll.passive="onScroll" @click="onReaderTap"><article class="prose"><p v-if="loading && !content" class="state">{{ $t('reader.loading') }}</p><section v-else-if="error && !content" class="failure"><h1>{{ currentTitle || book?.name || $t('reader.errors.chapter') }}</h1><p role="alert">{{ error }}</p><div class="failure-actions"><AppButton v-if="revisionConflict" @click="reopenCurrent">{{ $t('reader.reopenCurrent') }}</AppButton><AppButton v-else-if="catalogFailed" :busy="catalogRetrying" @click="retryCatalog">{{ $t('reader.retryCatalog') }}</AppButton><AppButton v-else :busy="loading" @click="load()">{{ $t('app.common.retry') }}</AppButton><AppButton v-if="book?.provider==='booksource'" variant="secondary" @click="activeSheet='sources'">{{ $t('reader.recover') }}</AppButton></div></section><template v-else-if="displayContent"><aside v-if="error" class="content-failure" role="alert"><span>{{ error }}</span><AppButton v-if="revisionConflict" @click="reopenCurrent">{{ $t('reader.reopenCurrent') }}</AppButton><AppButton v-if="book?.provider==='booksource'" variant="secondary" @click="activeSheet='sources'">{{ $t('reader.recover') }}</AppButton></aside><p v-if="refetching" class="conversion-warning" role="status">{{ $t('reader.actions.refetching') }}</p><p v-if="conversionError" class="conversion-warning" role="status">{{ conversionError }}</p><p v-if="wakeLockWarning" class="conversion-warning" role="status">{{ wakeLockWarning }}</p><p v-if="displayContent.offlineCopy" class="offline" role="status">{{ $t('reader.offline') }}</p><ProseRenderer ref="proseRenderer" :target-href="targetHref" :document="displayContent.document" :fallback-image-alt="$t('reader.imageAlt',{title:displayContent.document.title})" :image-unavailable="$t('reader.imageUnavailable')" :cover-unavailable="$t('reader.coverUnavailable')" :show-images="preferences.showImages" @navigate="followTarget($event.target,$event.note)" /><p class="chapter-end">{{ $t('reader.chapterEnd') }}</p></template></article></main><p v-if="progressError" class="progress-error" role="status">{{ progressError }}</p><footer v-show="chromeVisible" class="reader-controls"><div class="reader-controls-inner"><button v-if="navigation?.returns.length" :disabled="revisionConflict || navigating || refetching || switching" @click="returnFromNote"><AppIcon name="previous" /><span>{{ $t('reader.returnFromNote') }}</span></button><button v-else :disabled="previousIndex===null" @click="navigate(previousIndex)"><AppIcon name="previous" /><span>{{ $t('reader.previous') }}</span></button><button :disabled="revisionConflict" @click="activeSheet='toc'"><AppIcon name="toc" /><span>{{ $t('reader.toc.title') }}</span></button><button v-if="book?.provider==='booksource'" :class="{attention:recoveryNeeded}" @click="activeSheet='sources'"><AppIcon name="source" /><span>{{ $t('reader.sources.short') }}</span></button><button @click="openSettings"><span class="reader-aa" aria-hidden="true">Aa</span><span>{{ $t('reader.settings.title') }}</span></button><button :disabled="nextIndex===null" @click="navigate(nextIndex)"><AppIcon name="next" /><span>{{ $t('reader.next') }}</span></button></div></footer><ReaderSettingsSheet v-if="activeSheet==='settings'" v-model="preferences" :fonts="fonts" :conversion-capability="conversionCapability" @close="activeSheet=''" /><ReaderTocSheet v-if="activeSheet==='toc'" :navigation="displayNavigation" :current-anchor="navigation?.current.anchor" :chapters="displayChapters" :current-index="currentIndex" @open-target="followTarget($event,false)" @open="navigate" @close="activeSheet=''" /><ReaderBookmarksSheet v-if="activeSheet==='bookmarks'&&book" :key="book.id" :current-revision="catalogRevision" :book-id="book.id" :capture="captureBookmark" @open="openBookmark" @stale="stopStaleSession" @close="activeSheet=''" /><ReaderSourceSheet v-if="activeSheet==='sources'&&nativeBook" :book="nativeBook" :current-source="nativeBook.origin||nativeBook.sourceUrl" :switching="switching" :action-error="sourceError||error" :action-message="sourceMessage" :on-clear-and-rescan="clearAndRescan" @matches="persistMatches" @select="selectSource" @close="activeSheet=''" /></section></template>
+<template><section class="reader" :style="readerStyle"><header v-show="chromeVisible" class="reader-header"><RouterLink :to="`/books/${encodeURIComponent(bookId)}`" class="back">{{ $t('reader.back') }}</RouterLink><div><strong>{{ book?.name || $t('reader.title') }}</strong><span>{{ currentTitle }}</span></div><div class="app-actions reader-header-actions"><span v-if="content && !revisionConflict" class="chapter-position"><template v-if="readingNote">{{ $t('reader.note') }}</template><template v-else>{{ mainSections.findIndex(chapter=>chapter.index===(requested?.index ?? currentIndex)) + 1 }} / {{ mainSections.length }}</template></span><ReaderActionsMenu v-if="!revisionConflict" :refresh-disabled="!content || !!requested || navigating || switching" :refreshing="refetching" @bookmarks="activeSheet='bookmarks'" @refetch="refetchChapter" /></div></header><main ref="scrollHost" class="reader-scroll" tabindex="0" :aria-label="$t('reader.readingArea')" @scroll.passive="onScroll" @click="onReaderTap"><article class="prose"><p v-if="(navigating && requested) || (loading && !content)" class="state" role="status" aria-busy="true">{{ currentTitle }} — {{ $t('reader.loading') }}</p><section v-else-if="error && (!content || requested)" class="failure"><h1>{{ currentTitle || book?.name || $t('reader.errors.chapter') }}</h1><p role="alert">{{ error }}</p><div class="failure-actions"><AppButton v-if="revisionConflict" @click="reopenCurrent">{{ $t('reader.reopenCurrent') }}</AppButton><AppButton v-else-if="catalogFailed" :busy="catalogRetrying" @click="retryCatalog">{{ $t('reader.retryCatalog') }}</AppButton><AppButton v-else :busy="loading" @click="retryDestination">{{ $t('app.common.retry') }}</AppButton><AppButton v-if="book?.provider==='booksource'" variant="secondary" @click="activeSheet='sources'">{{ $t('reader.recover') }}</AppButton></div></section><template v-else-if="displayContent"><aside v-if="error" class="content-failure" role="alert"><span>{{ error }}</span><AppButton v-if="revisionConflict" @click="reopenCurrent">{{ $t('reader.reopenCurrent') }}</AppButton><AppButton v-if="book?.provider==='booksource'" variant="secondary" @click="activeSheet='sources'">{{ $t('reader.recover') }}</AppButton></aside><p v-if="refetching" class="conversion-warning" role="status">{{ $t('reader.actions.refetching') }}</p><p v-if="conversionError" class="conversion-warning" role="status">{{ conversionError }}</p><p v-if="wakeLockWarning" class="conversion-warning" role="status">{{ wakeLockWarning }}</p><p v-if="displayContent.offlineCopy" class="offline" role="status">{{ $t('reader.offline') }}</p><ProseRenderer ref="proseRenderer" :target-href="targetHref" :document="displayContent.document" :fallback-image-alt="$t('reader.imageAlt',{title:displayContent.document.title})" :image-unavailable="$t('reader.imageUnavailable')" :cover-unavailable="$t('reader.coverUnavailable')" :show-images="preferences.showImages" @navigate="followTarget($event.target,$event.note)" /><p class="chapter-end">{{ $t('reader.chapterEnd') }}</p></template></article></main><p v-if="progressError" class="progress-error" role="status">{{ progressError }}</p><footer v-show="chromeVisible" class="reader-controls"><div class="reader-controls-inner"><button v-if="navigation?.returns.length" :disabled="revisionConflict || navigating || refetching || switching" @click="returnFromNote"><AppIcon name="previous" /><span>{{ $t('reader.returnFromNote') }}</span></button><button v-else :disabled="previousIndex===null" @click="navigate(previousIndex)"><AppIcon name="previous" /><span>{{ $t('reader.previous') }}</span></button><button :disabled="revisionConflict" @click="activeSheet='toc'"><AppIcon name="toc" /><span>{{ $t('reader.toc.title') }}</span></button><button v-if="book?.provider==='booksource'" :class="{attention:recoveryNeeded}" @click="activeSheet='sources'"><AppIcon name="source" /><span>{{ $t('reader.sources.short') }}</span></button><button @click="openSettings"><span class="reader-aa" aria-hidden="true">Aa</span><span>{{ $t('reader.settings.title') }}</span></button><button :disabled="nextIndex===null" @click="navigate(nextIndex)"><AppIcon name="next" /><span>{{ $t('reader.next') }}</span></button></div></footer><ReaderSettingsSheet v-if="activeSheet==='settings'" v-model="preferences" :fonts="fonts" :conversion-capability="conversionCapability" @close="activeSheet=''" /><ReaderTocSheet v-if="activeSheet==='toc'" :navigation="displayNavigation" :current-anchor="navigation?.current.anchor" :chapters="displayChapters" :current-index="currentIndex" @open-target="followTarget($event,false)" @open="navigate" @close="activeSheet=''" /><ReaderBookmarksSheet v-if="activeSheet==='bookmarks'&&book" :key="book.id" :current-revision="catalogRevision" :book-id="book.id" :capture="captureBookmark" @open="openBookmark" @stale="stopStaleSession" @close="activeSheet=''" /><ReaderSourceSheet v-if="activeSheet==='sources'&&nativeBook" :book="nativeBook" :current-source="nativeBook.origin||nativeBook.sourceUrl" :switching="switching" :action-error="sourceError||error" :action-message="sourceMessage" :on-clear-and-rescan="clearAndRescan" @matches="persistMatches" @select="selectSource" @close="activeSheet=''" /></section></template>
 
 <style scoped>.reader{position:fixed;z-index:80;inset:0;background:var(--reader-bg);color:var(--reader-text)}.reader-header{position:absolute;z-index:20;inset:0 0 auto;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:1rem;align-items:center;padding:max(.65rem,env(safe-area-inset-top)) max(1rem,env(safe-area-inset-right)) .65rem max(1rem,env(safe-area-inset-left));border-bottom:1px solid color-mix(in srgb,var(--reader-text) 15%,transparent);background:color-mix(in srgb,var(--reader-bg) 94%,transparent);backdrop-filter:blur(12px)}.reader-header div{min-width:0;text-align:center}.reader-header strong,.reader-header span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.reader-header span{font-size:var(--text-caption);opacity:.7}.reader-header button,.back{min-height:2.75rem;display:inline-flex;align-items:center;padding:.5rem;color:inherit;text-decoration:none}.reader-header button{border:0;background:transparent}.back{justify-content:center;border:1px solid color-mix(in srgb,var(--reader-text) 28%,transparent);border-radius:var(--radius-md);padding:.5rem .8rem;background:color-mix(in srgb,var(--reader-bg) 88%,var(--reader-text) 4%);box-shadow:0 .2rem .5rem color-mix(in srgb,var(--reader-text) 8%,transparent);font-weight:var(--weight-strong);transition:background .18s ease-out,border-color .18s ease-out,box-shadow .18s ease-out}.back:hover,.back:focus-visible{border-color:color-mix(in srgb,var(--reader-text) 48%,transparent);background:color-mix(in srgb,var(--reader-bg) 78%,var(--reader-text) 8%);box-shadow:0 .35rem .7rem color-mix(in srgb,var(--reader-text) 12%,transparent)}.reader-header-actions{justify-content:flex-end}.reader-header-actions button{width:2.75rem;min-width:2.75rem;height:2.75rem;justify-content:center;padding:0;border-radius:var(--radius-md)}.reader-header-actions button:hover,.reader-header-actions button:focus-visible{background:color-mix(in srgb,var(--reader-text) 8%,transparent)}.chapter-position{min-width:3.6rem;padding-inline:.35rem;text-align:right;font-size:var(--text-caption);font-variant-numeric:tabular-nums;opacity:.72}.reader-scroll{position:absolute;inset:0;overflow:auto;scroll-behavior:auto;cursor:default;-webkit-tap-highlight-color:transparent}.prose{width:min(var(--reader-width),calc(100% - 2rem));min-height:100%;margin:0 auto;padding:max(clamp(1.6rem,5vw,4rem),calc(4.85rem + env(safe-area-inset-top))) 0 max(7rem,calc(5rem + env(safe-area-inset-bottom)));font:var(--reader-weight) var(--reader-size)/var(--reader-line) var(--reader-font);letter-spacing:.015em}.state,.failure{text-align:center;padding:4rem 1rem}.failure p{text-align:center;color:var(--color-danger)}.content-failure{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:0 0 1.5rem;padding:.75rem;border:1px solid color-mix(in srgb,var(--color-danger) 40%,transparent);border-radius:var(--radius-md);background:color-mix(in srgb,var(--color-danger) 8%,var(--reader-bg));color:var(--color-danger);font:var(--weight-strong) var(--text-small) var(--font-ui)}.offline{padding:.75rem;border:1px solid var(--color-warm);border-radius:var(--radius-md);color:var(--color-warm);font-family:var(--font-ui);font-size:var(--text-small)}.chapter-end{text-align:center!important;opacity:.45;margin-top:3rem!important;font-family:var(--font-ui);font-size:var(--text-caption)}.conversion-warning{padding:.7rem .85rem;border:1px solid color-mix(in srgb,var(--reader-text) 20%,transparent);border-radius:var(--radius-md);background:color-mix(in srgb,var(--reader-bg) 84%,#b37a2d 16%);font:var(--weight-strong) var(--text-small) var(--font-ui);text-align:left!important}.progress-error{position:fixed;z-index:50;left:50%;bottom:5.4rem;translate:-50% 0;margin:0;padding:.5rem .8rem;border-radius:999px;background:var(--color-danger);color:white;font:var(--weight-strong) var(--text-caption) var(--font-ui)}.reader-controls{position:absolute;z-index:20;inset:auto 0 0;padding:.55rem max(.75rem,env(safe-area-inset-right)) max(.55rem,env(safe-area-inset-bottom)) max(.75rem,env(safe-area-inset-left));border-top:1px solid color-mix(in srgb,var(--reader-text) 14%,transparent);background:color-mix(in srgb,var(--reader-bg) 97%,transparent);box-shadow:0 -10px 30px color-mix(in srgb,var(--reader-text) 6%,transparent)}.reader-controls-inner{width:min(100%,45rem);margin:0 auto;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:.25rem}.reader-controls button{min-width:0;min-height:3.45rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.22rem;border:0;border-radius:.55rem;padding:.25rem .1rem;background:transparent;color:inherit;font:var(--weight-strong) var(--text-caption)/1.15 var(--font-ui);letter-spacing:.01em}.reader-controls button:hover,.reader-controls button:focus-visible{background:color-mix(in srgb,var(--color-accent) 10%,transparent)}.reader-controls button>span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.reader-controls button:disabled{opacity:.3}.reader-controls .attention{color:var(--color-danger);background:color-mix(in srgb,var(--color-danger) 9%,transparent)}.reader-aa{width:1.45rem;height:1.45rem;display:grid;place-items:center;font:var(--weight-strong) var(--text-small)/1 var(--font-literary);letter-spacing:-.04em}@media(max-width:36rem){.prose{width:min(var(--reader-width),calc(100% - 2rem));padding-top:max(4.85rem,calc(4.35rem + env(safe-area-inset-top)))}.reader-controls{padding-inline:.35rem}.reader-controls-inner{gap:0}.reader-controls button{min-height:3.3rem;font-size:var(--text-caption)}}@media(max-height:30rem) and (orientation:landscape){.reader-header{padding:.25rem 1rem}.reader-controls{padding-block:.25rem}.reader-controls button{min-height:2.8rem;gap:.05rem}.prose{padding-top:3.7rem}}</style>

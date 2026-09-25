@@ -4,11 +4,12 @@ import ReaderView from './ReaderView.vue';
 import { getBook, getBookSource, mergeBookSources } from '../../api/books';
 import { getChapterContent, saveProgress, switchBookSource, waitForCatalog, type ChapterContent } from '../../api/reader';
 import { ApiError, request, resetReaderRequests } from '../../api/transport';
+import { convertChineseTexts } from '../../api/system';
 import { resetProgressWriter, waitForProgressWrites } from './progress-writer';
 
 vi.mock('../../api/books', () => ({ getBook:vi.fn(), getBookSource:vi.fn(), mergeBookSources:vi.fn(), clearBookSources:vi.fn() }));
 vi.mock('../../api/reader', () => ({ getChapterContent:vi.fn(), saveProgress:vi.fn(), switchBookSource:vi.fn(), waitForCatalog:vi.fn(), listFonts:vi.fn(), getFontUrl:vi.fn() }));
-vi.mock('../../api/system', () => ({ getChineseConversionCapability:vi.fn(async()=>({available:false,modes:[]})) }));
+vi.mock('../../api/system', () => ({ getChineseConversionCapability:vi.fn(async()=>({available:false,modes:[]})), convertChineseTexts:vi.fn(async (_mode, texts: string[]) => texts.map(text => `converted ${text}`)) }));
 const initialBook = { id:'book', name:'Novel', author:'Author', coverUrl:'', intro:'', kind:'', sourceId:'old', sourceUrl:'old', bookUrl:'/book', origin:'Source', lastChapter:'', durChapterIndex:0, durChapterPos:0, totalChapterNum:3, provider:'booksource',contentRevision:7,stateVersion:0, alternateSources:[] };
 const chapter = (title:string):ChapterContent => ({version:1, contentRevision:7, offlineCopy:false, document:{kind:'prose',title,blocks:[]}});
 const source = {sourceId:'new',sourceUrl:'new',bookUrl:'/new',sourceName:'New',name:'New',author:'Author'};
@@ -77,6 +78,9 @@ describe('reader navigation lifecycle',()=>{
     await flushPromises();
     expect(vm.currentIndex).toBe(0);
     expect(vm.content?.document.title).toBe('old 0');
+    expect(vm.currentTitle).toBe('1');
+    expect(wrapper.find('[role="status"]').text()).toContain('reader.loading');
+    expect(wrapper.find('.prose').text()).not.toContain('old 0');
     release({chapters:vm.chapters,content:chapter('converted 1')});
     await navigation;
     expect(vm.currentIndex).toBe(1);
@@ -171,7 +175,7 @@ it('prefetches without recording the speculative chapter as reading', async () =
   const vm = await open();
   vm.preferences.prefetchNextChapter = true;
   await flushPromises();
-  expect(getChapterContent).toHaveBeenCalledTimes(2);
+  expect(getChapterContent).toHaveBeenCalledTimes(3);
   expect(saveProgress).toHaveBeenCalledExactlyOnceWith('book',7,0,0,0);
 });
 
@@ -384,4 +388,31 @@ it('sends explicit Refresh and preserves committed content on failure', async ()
   expect(getChapterContent).toHaveBeenLastCalledWith('book', 0, 7, expect.any(AbortSignal), true);
   expect(vm.displayContent).toBe(displayed);
   expect(vm.error).toBe('upstream unavailable');
+});
+
+it('retries the failed requested destination without recording or showing the previous prose', async () => {
+  const vm = await open();
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new Error('Destination unavailable'));
+  await vm.navigate(2, .4);
+  expect(vm.currentIndex).toBe(0);
+  expect(vm.requested?.index).toBe(2);
+  expect(wrapper.find('.failure').text()).toContain('Destination unavailable');
+  expect(wrapper.find('.prose').text()).not.toContain('old 0');
+  expect(vi.mocked(saveProgress).mock.calls.every(call => call[3] === 0)).toBe(true);
+  await vm.retryDestination();
+  expect(vm.currentIndex).toBe(2);
+  expect(vm.lastPosition).toBe(.4);
+  expect(vm.requested).toBeNull();
+});
+
+it('warms conversion for both targets and reuses it on foreground navigation', async () => {
+  const vm = await open();
+  vm.preferences.chineseConversion = 'traditional';
+  vm.preferences.prefetchNextChapter = true;
+  await flushPromises();
+  for (const index of [1, 2]) expect(vi.mocked(convertChineseTexts).mock.calls.filter(([, texts]) => texts.includes(`old ${index}`))).toHaveLength(1);
+  const conversions = vi.mocked(convertChineseTexts).mock.calls.length;
+  await vm.navigate(1);
+  expect(vm.displayContent?.document.title).toBe('converted old 1');
+  expect(convertChineseTexts).toHaveBeenCalledTimes(conversions);
 });

@@ -172,9 +172,16 @@ qualifies reader/home/revision/provider identity before reuse; BookSource additi
 catalog's opaque source-definition tag. Copies preserve remaining freshness. IndexedDB writes check
 the shared invalidation epoch transactionally; BroadcastChannel retires affected memory. Storage
 failures fall back to memory/network. Retention advances after successful display/anchor restoration,
-not speculative retrieval. Default-on prefetch still requests only the next main readable chapter;
-two-target preparation and renewal remain tracked in the [cache plan](../plans/2026-09-22-reader-cache-and-prefetch.md).
-It does not recurse, load images or save progress; foreground/speculative fetches remain serialized.
+not speculative retrieval. The loader prepares the next two main sections nearest-first, using the
+same window policy and converter as foreground reading. One pump and one expiry timer renew
+BookSource targets while visible/enabled; imports have no expiry timer. Foreground joins matching
+work and outranks not-yet-started speculation. Jumps discard queued old targets; failures stay quiet
+until a new scheduling event or foreground retry. Preparation does not recurse, load images or save
+progress. See the completed [cache plan](../plans/2026-09-22-reader-cache-and-prefetch.md) for verification limits.
+
+Requested destination/title and committed reading state are separate. Pending navigation hides old
+prose and reports destination loading/error; Retry uses that destination. Successful restoration commits
+reading state. Failed anchors/notes restore the prior location; Refresh failure keeps committed prose.
 
 Progress and bookmark mutations share one per-book queue and state-version owner. Progress
 acknowledgements do not block chapter display. Bookmark capture snapshots its revision-qualified
