@@ -17,20 +17,12 @@ func (f workflowTransport) Do(ctx context.Context, spec sourceexec.RequestSpec) 
 	return f(ctx, spec)
 }
 
-func TestContentAndImagesShareWorkflowOwnership(t *testing.T) {
+func TestChapterPublicationAndImagesShareWorkflowOwnership(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		started, finish := make(chan struct{}), make(chan struct{})
 		searcher := NewSearcher(nil, nil, analyzer.NewCacheManager(), nil, nil)
 		searcher.SetTransportFactory(func(_ *fetcher.Client, _ *sourceexec.SourceSession) sourceexec.Transport {
 			return workflowTransport(func(ctx context.Context, spec sourceexec.RequestSpec) (sourceexec.Response, error) {
-				if spec.URL == "https://example.invalid/first" {
-					close(started)
-					select {
-					case <-finish:
-					case <-ctx.Done():
-						return sourceexec.Response{}, ctx.Err()
-					}
-				}
 				return sourceexec.Response{StatusCode: 200, Body: "<body>Readable text</body>", FinalURL: spec.URL}, nil
 			})
 		})
@@ -39,7 +31,19 @@ func TestContentAndImagesShareWorkflowOwnership(t *testing.T) {
 		first := &Chapter{URL: "https://example.invalid/first"}
 		firstDone := make(chan error, 1)
 		go func() {
-			_, _, err := searcher.GetChapterContentForBookContext(t.Context(), source, item, first, nil)
+			err := searcher.WithChapterWorkflow(t.Context(), source, item, first, nil, func(ctx context.Context, retrieve func() (ChapterDocument, error)) error {
+				if _, err := retrieve(); err != nil {
+					return err
+				}
+				// Upstream has finished, but document processing/publication still owns the session.
+				close(started)
+				select {
+				case <-finish:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			})
 			firstDone <- err
 		}()
 		<-started

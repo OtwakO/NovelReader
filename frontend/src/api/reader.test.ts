@@ -114,3 +114,9 @@ it('accepts explicit image unavailability and remaining freshness', async () => 
     document: { blocks: [{ kind: 'image', resource: { href: '', unavailable: true } }] },
   });
 });
+
+it('encodes explicit Refresh in the chapter request', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ version: 1, contentRevision: 7, document: { kind: 'prose', title: 'Fresh', blocks: [] } }), { status: 200 })));
+  await getChapterContent('book', 0, 7, undefined, true);
+  expect(fetch).toHaveBeenCalledWith('/api/books/book/chapters/0/content?contentRevision=7&refresh=true', expect.any(Object));
+});

@@ -951,23 +951,12 @@ func (s *Searcher) GetChapterContentForBookContext(ctx context.Context, src book
 	return result.Content, result.Title, err
 }
 
-func (s *Searcher) getChapterContent(ctx context.Context, src booksource.BookSource, b *Book, current, next *Chapter, result *ChapterDocument) (string, string, error) {
-	ctx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
-	defer cancel()
+func (s *Searcher) getChapterContent(ctx context.Context, src booksource.BookSource, b *Book, current, next *Chapter, result *ChapterDocument, session *sourceexec.SourceSession) (string, string, error) {
 	if current == nil || current.URL == "" {
 		return "", "", fmt.Errorf("content: current chapter is required")
 	}
 	chapterURL := current.URL
 
-	bookURL := ""
-	if b != nil {
-		bookURL = b.BookURL
-	}
-	session, release, err := s.sessions.AcquireWorkflow(ctx, src.ID, bookURL, chapterURL)
-	if err != nil {
-		return "", "", err
-	}
-	defer release()
 	if err := s.prepareSourceSession(ctx, src, session); err != nil {
 		return "", "", fmt.Errorf("content: source profile: %w", err)
 	}

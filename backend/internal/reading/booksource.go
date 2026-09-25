@@ -14,6 +14,7 @@ import (
 // BookSource adapts native catalogs, crawls and processed caches. Resource URLs
 // are issued by the transport, not copied from upstream content into documents.
 type BookSource struct {
+	chapters        chapterFlights
 	Store           *book.Store
 	Sources         *booksource.Store
 	Catalogs        *book.Catalogs

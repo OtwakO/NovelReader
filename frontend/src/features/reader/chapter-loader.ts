@@ -15,26 +15,30 @@ export function createChapterLoader(bookId: string, contentRevision: number, onR
   let tail = Promise.resolve();
   let speculative: Promise<void> | null = null;
 
-  function load(index: number): Promise<ReadingContent> {
+  function load(index: number, refresh = false): Promise<ReadingContent> {
     if (owner.aborted) return Promise.reject(owner.reason);
     if (closed) return Promise.reject(new DOMException('Reader session closed', 'AbortError'));
+    const existing = pending.get(index);
+    if (existing && !refresh) return existing;
     const cached = cache.get(index);
-    if (cached && performance.now() < cached.expiresAt && Date.now() < cached.expiresAtWall) {
+    if (!refresh && cached && performance.now() < cached.expiresAt && Date.now() < cached.expiresAtWall) {
       cache.delete(index);
       cache.set(index, cached);
       return Promise.resolve(cached.content);
     }
     cache.delete(index);
-    const existing = pending.get(index);
-    if (existing) return existing;
 
     // Chapter scripts share source-session state: do not overlap speculative and foreground fetches.
     const operation = tail.then(async () => {
       owner.throwIfAborted();
       if (closed) throw new DOMException('Reader session closed', 'AbortError');
+      // Earlier queued work may have repopulated this entry since Refresh was requested.
+      if (refresh) cache.delete(index);
       const startedAt = performance.now();
       const startedAtWall = Date.now();
-      const content = await getChapterContent(bookId, index, contentRevision, controller.signal);
+      const content = refresh
+        ? await getChapterContent(bookId, index, contentRevision, controller.signal, true)
+        : await getChapterContent(bookId, index, contentRevision, controller.signal);
       owner.throwIfAborted();
       if (closed) throw new DOMException('Reader session closed', 'AbortError');
       if (content.contentRevision !== contentRevision) throw new ReaderRevisionConflict();
@@ -52,7 +56,7 @@ export function createChapterLoader(bookId: string, contentRevision: number, onR
     }).catch(cause => {
       if (!closed && isReaderRevisionConflict(cause)) onRevisionConflict?.();
       throw cause;
-    }).finally(() => { pending.delete(index); });
+    }).finally(() => { if (pending.get(index) === operation) pending.delete(index); });
     pending.set(index, operation);
     tail = operation.then(() => undefined, () => undefined);
     return operation;
@@ -74,5 +78,5 @@ export function createChapterLoader(bookId: string, contentRevision: number, onR
     return tail;
   }
 
-  return { load, prefetch, dispose };
+  return { load, refresh: (index: number) => load(index, true), prefetch, dispose };
 }

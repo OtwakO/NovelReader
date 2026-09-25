@@ -13,6 +13,10 @@ import (
 )
 
 func (p *BookSource) open(ctx context.Context, id string, revision int64, index int) (Content, error) {
+	return p.openChapter(ctx, id, revision, index, false)
+}
+
+func (p *BookSource) openChapter(ctx context.Context, id string, revision int64, index int, refresh bool) (Content, error) {
 	item, ch, next, err := p.Store.GetChapterSnapshot(ctx, id, index)
 	if err != nil {
 		return Content{}, err
@@ -28,39 +32,72 @@ func (p *BookSource) open(ctx context.Context, id string, revision int64, index 
 	}
 	src, err := p.Sources.GetByID(item.SourceID)
 	if err != nil {
-		return p.fallback(ctx, item, ch, err)
+		return Content{}, err
 	}
 	if src == nil {
-		return p.fallback(ctx, item, ch, ErrSourceNotFound)
+		return Content{}, ErrSourceNotFound
 	}
 	identity, err := src.DefinitionIdentity()
 	if err != nil {
 		return Content{}, err
 	}
-	document, err := p.Searcher.GetChapterDocument(ctx, *src, item, ch, next)
-	raw, title := document.Content, document.Title
-	if err == nil && strings.TrimSpace(raw) == "" {
-		err = errors.New("content: empty extraction")
+	if !refresh {
+		if cached := p.freshChapter(item, ch, identity); cached != nil {
+			return p.content(ctx, item, *cached)
+		}
 	}
+	key := chapterKey{bookID: id, sourceID: item.SourceID, definition: identity, bookURL: item.BookURL, chapterURL: ch.URL, revision: revision, index: index, refresh: refresh}
+	content, err := p.chapters.do(ctx, key, func(workCtx context.Context) (chapterResult, error) {
+		var result chapterResult
+		err := p.Searcher.WithChapterWorkflow(workCtx, *src, item, ch, next, func(workCtx context.Context, retrieve func() (book.ChapterDocument, error)) error {
+			if err := p.currentDefinition(workCtx, item, identity); err != nil {
+				return err
+			}
+			// A preceding workflow may have filled the cache while we waited for its session.
+			if !refresh {
+				if cached := p.freshChapter(item, ch, identity); cached != nil {
+					var err error
+					result.content, err = p.content(workCtx, item, *cached)
+					result.freshUntil = time.Unix(0, cached.CachedAt).Add(chapterFreshness)
+					return err
+				}
+			}
+			document, err := retrieve()
+			if err == nil && strings.TrimSpace(document.Content) == "" {
+				err = errors.New("content: empty extraction")
+			}
+			if err != nil {
+				return &CrawlError{Stage: "content", Err: err}
+			}
+			title := document.Title
+			if title == "" {
+				title = ch.Title
+			}
+			processed := processor.New(p.ProcessorConfig).Process(title, document.Content)
+			entry := book.CachedChapter{
+				SourceIdentity: identity, BookContext: document.BookContext, ChapterContext: document.ChapterContext, CachedAt: document.RetrievedAt.UnixNano(),
+				ContentRevision: revision, BookID: id, SourceID: item.SourceID, ChapterIndex: index,
+				ChapterURL: ch.URL, Title: processed.Title, Paragraphs: processed.Paragraphs, Blocks: processed.Blocks,
+			}
+			result.content, err = p.content(workCtx, item, entry)
+			result.freshUntil = document.RetrievedAt.Add(chapterFreshness)
+			if err != nil {
+				return err
+			}
+			if err := p.Store.SaveChapterCache(entry); err != nil {
+				slog.Warn("reading: chapter cache save failed", "book_id", id, "chapter_index", index, "error", err)
+			}
+			return nil
+		})
+		return result, err
+	})
 	if err != nil {
-		return p.fallback(ctx, item, ch, &CrawlError{Stage: "content", Err: err})
+		return Content{}, err
 	}
-	if title == "" {
-		title = ch.Title
-	}
-	result := processor.New(p.ProcessorConfig).Process(title, raw)
 	if err := p.currentDefinition(ctx, item, identity); err != nil {
 		return Content{}, err
 	}
-	entry := book.CachedChapter{
-		SourceIdentity: identity, BookContext: document.BookContext, ChapterContext: document.ChapterContext, CachedAt: document.RetrievedAt.UnixNano(),
-		ContentRevision: revision, BookID: id, SourceID: item.SourceID, ChapterIndex: index,
-		ChapterURL: ch.URL, Title: result.Title, Paragraphs: result.Paragraphs, Blocks: result.Blocks,
-	}
-	if err := p.Store.SaveChapterCache(entry); err != nil {
-		slog.Warn("reading: chapter cache save failed", "book_id", id, "chapter_index", index, "error", err)
-	}
-	return p.content(ctx, item, entry, false)
+	return content, nil
 }
 
 func (p *BookSource) current(ctx context.Context, snapshot *book.Book) error {
@@ -74,38 +111,30 @@ func (p *BookSource) current(ctx context.Context, snapshot *book.Book) error {
 	return nil
 }
 
-func (p *BookSource) fallback(ctx context.Context, item *book.Book, chapter *book.Chapter, cause error) (Content, error) {
-	if err := p.current(ctx, item); err != nil {
-		return Content{}, err
-	}
+// Only qualified, unexpired copies can satisfy a load. Access never renews age.
+func (p *BookSource) freshChapter(item *book.Book, chapter *book.Chapter, identity string) *book.CachedChapter {
 	cached, err := p.Store.GetChapterCache(item.ID, item.SourceID, chapter.Index, chapter.URL, item.ContentRevision)
 	if err != nil {
 		slog.Warn("reading: chapter cache lookup failed", "book_id", item.ID, "chapter_index", chapter.Index, "error", err)
-		return Content{}, cause
+		return nil
 	}
-	if cached == nil {
-		return Content{}, cause
+	if cached == nil || cached.SourceIdentity != identity || time.Since(time.Unix(0, cached.CachedAt)) >= chapterFreshness {
+		return nil
 	}
-	if cached.SourceIdentity == "" || time.Since(time.Unix(0, cached.CachedAt)) >= chapterFreshness {
-		return Content{}, cause
-	}
-	if err := p.currentDefinition(ctx, item, cached.SourceIdentity); err != nil {
-		return Content{}, cause
-	}
-	return p.content(ctx, item, *cached, true)
+	return cached
 }
 
 const chapterFreshness = 24 * time.Hour
 
-func (p *BookSource) content(ctx context.Context, item *book.Book, entry book.CachedChapter, offline bool) (Content, error) {
+func (p *BookSource) content(ctx context.Context, item *book.Book, entry book.CachedChapter) (Content, error) {
 	reference, unavailable := p.prepareImages(ctx, item, entry)
 	if err := p.currentDefinition(ctx, item, entry.SourceIdentity); err != nil {
 		return Content{}, err
 	}
-	return p.document(entry, reference.ID, unavailable, offline)
+	return p.document(entry, reference.ID, unavailable)
 }
 
-func (p *BookSource) document(entry book.CachedChapter, bundleID string, unavailable, offline bool) (Content, error) {
+func (p *BookSource) document(entry book.CachedChapter, bundleID string, unavailable bool) (Content, error) {
 	paragraphs, blocks := entry.Paragraphs, entry.Blocks
 	hasText := false
 	if len(blocks) == 0 {
@@ -143,6 +172,5 @@ func (p *BookSource) document(entry book.CachedChapter, bundleID string, unavail
 		remaining = 0
 	}
 	content.FreshForMS = &remaining
-	content.OfflineCopy = offline
 	return content, nil
 }

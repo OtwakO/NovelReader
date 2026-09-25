@@ -13,9 +13,9 @@ your own NovelReader data folder. Reader appearance and prefetch preferences are
 - **Source Collections** — Install sources from a JSON file or public URL, update them together, and temporarily hide a whole collection from Search and Explore.
 - **Personal shelf** — Save books and keep their selected source binding.
 - **Web reader** — Read prose and inline images with adjustable typography, reading width, Chinese conversion, image visibility, keyboard controls, and wake lock.
-- **Chapter navigation** — Reuse recent chapters and preload the next readable chapter (enabled by default; disable under Typography). The reader's top-right three-dot menu offers Bookmarks and Refresh. Source switching clears session reuse; refetch still shows an explicit offline copy if the source is unavailable.
+- **Chapter navigation** — Reuse recent chapters and preload the next readable chapter (enabled by default; disable under Typography). The reader's top-right three-dot menu offers Bookmarks and Refresh. Source switching clears session reuse. Refresh bypasses client and backend chapter caches; on failure, already-displayed prose stays visible with an error.
 - **Progress and bookmarks** — Save chapter position and annotated bookmarks.
-- **Offline chapter fallback** — Keep bounded cached copies of previously loaded chapters.
+- **Chapter caching** — BookSource reads reuse qualified backend copies for 24 hours from retrieval, without contacting the upstream site. Missing/expired copies fetch upstream; expired copies are never served as outage fallback. TXT/EPUB validity follows the imported book's content revision.
 - **Source recovery** — Switch a saved book to another matching source when needed.
 - **Reader accounts** — Give each reader an isolated library and settings area.
 - **Backup and restore** — Export and restore portable Reader Data archives.
@@ -99,6 +99,8 @@ If a bundle cannot be admitted, useful prose remains readable with an unavailabl
 The store reclaims expired bundles rather than evicting unexpired promises. Lowering limits below existing usage prevents new allocation until usage falls; it does not purge existing bundles. Storage-open failures are logged and leave existing cache files untouched; unrelated reading stays available. Fix the storage problem and restart to reopen the store. Reader deletion remains retryable if its cache cleanup fails.
 
 ## Update
+
+Reload open reader tabs after upgrading so their Refresh action uses the current cache-bypass protocol.
 
 This revision requires reader schema epoch 16 (EPUB server-inbox claims and portable cleanup ownership).
 EPUB browser upload/review HTTP endpoints now use shared file admission and storage-owned acceptance;

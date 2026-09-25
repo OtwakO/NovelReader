@@ -375,3 +375,13 @@ it('retires the displayed session on home replacement before a delayed conversio
   expect(vm.error).toContain('Reload');
   expect(vi.mocked(saveProgress).mock.calls.every(call => call[3] === 0)).toBe(true);
 });
+
+it('sends explicit Refresh and preserves committed content on failure', async () => {
+  const vm = await open();
+  const displayed = vm.displayContent;
+  vi.mocked(getChapterContent).mockRejectedValueOnce(new Error('upstream unavailable'));
+  await vm.refetchChapter();
+  expect(getChapterContent).toHaveBeenLastCalledWith('book', 0, 7, expect.any(AbortSignal), true);
+  expect(vm.displayContent).toBe(displayed);
+  expect(vm.error).toBe('upstream unavailable');
+});

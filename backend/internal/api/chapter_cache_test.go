@@ -1,4 +1,4 @@
-// Chapter-cache API tests verify network-first writes and explicit outage fallback.
+// Chapter-cache API tests cover freshness, explicit Refresh and late-result rejection.
 package api
 
 import (
@@ -8,12 +8,13 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/reading"
 )
 
-func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
+func TestChapterContentCacheFirstRefreshAndExpiry(t *testing.T) {
 	var mode, calls atomic.Int32
 	started, release := make(chan struct{}), make(chan struct{})
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +61,7 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 	for _, test := range []struct {
 		query  string
 		status int
-	}{{"", 400}, {"?contentRevision=-1", 400}, {"?contentRevision=0", 409}} {
+	}{{"", 400}, {"?contentRevision=-1", 400}, {"?contentRevision=0", 409}, {"?contentRevision=1&refresh=garbage", 400}} {
 		response := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content"+test.query, nil)
 		if response.Code != test.status {
 			t.Fatalf("query=%q status=%d body=%s", test.query, response.Code, response.Body.String())
@@ -80,13 +81,50 @@ func TestChapterContentFallsBackToExactCachedCopy(t *testing.T) {
 			t.Fatalf("non-exact chapter %q: status=%d", index, response.Code)
 		}
 	}
+	original, err := server.standalone.bookStore.GetChapterCache("book", sources[0].ID, 0, chapter.URL, 1)
+	if err != nil || original == nil {
+		t.Fatalf("original=%v err=%v", original, err)
+	}
 	var cached reading.Content
 	for _, upstreamMode := range []int32{2, 1} {
 		mode.Store(upstreamMode)
 		response = performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content?contentRevision=1", nil)
-		if err := json.Unmarshal(response.Body.Bytes(), &cached); err != nil || response.Code != http.StatusOK || !cached.OfflineCopy || cached.Version != fresh.Version || cached.Document.Title != fresh.Document.Title || len(cached.Document.Blocks) != len(fresh.Document.Blocks) || cached.Document.Blocks[1].Resource == nil || cached.Document.Blocks[1].Resource.Href != fresh.Document.Blocks[1].Resource.Href {
+		if err := json.Unmarshal(response.Body.Bytes(), &cached); err != nil || response.Code != http.StatusOK || cached.OfflineCopy || cached.Version != fresh.Version || cached.Document.Title != fresh.Document.Title || len(cached.Document.Blocks) != len(fresh.Document.Blocks) || cached.Document.Blocks[1].Resource == nil || cached.Document.Blocks[1].Resource.Href != fresh.Document.Blocks[1].Resource.Href {
 			t.Fatalf("mode=%d cached status=%d result=%+v err=%v body=%s", upstreamMode, response.Code, cached, err, response.Body.String())
 		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("fresh cache reached upstream: %d calls", calls.Load())
+	}
+	saved, err := server.standalone.bookStore.GetChapterCache("book", sources[0].ID, 0, chapter.URL, 1)
+	if err != nil || saved == nil || saved.CachedAt != original.CachedAt {
+		t.Fatalf("saved=%v err=%v", saved, err)
+	}
+	// Refresh must report upstream failure rather than return even a fresh copy.
+	if response := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content?contentRevision=1&refresh=true", nil); response.Code != http.StatusBadGateway {
+		t.Fatalf("refresh: %s", response.Body.String())
+	}
+	saved.CachedAt = time.Now().Add(-25 * time.Hour).UnixNano()
+	if err := server.standalone.bookStore.SaveChapterCache(*saved); err != nil {
+		t.Fatal(err)
+	}
+	if response := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content?contentRevision=1", nil); response.Code != http.StatusBadGateway {
+		t.Fatalf("expired fallback: %s", response.Body.String())
+	}
+	// Renew successfully, without advancing the interpretation revision.
+	mode.Store(0)
+	response = performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content?contentRevision=1&refresh=true", nil)
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Body.String())
+	}
+	renewed, err := server.standalone.bookStore.GetChapterCache("book", sources[0].ID, 0, chapter.URL, 1)
+	if err != nil || renewed == nil || renewed.CachedAt <= saved.CachedAt {
+		t.Fatalf("renewal=%v err=%v", renewed, err)
+	}
+	// A changed source definition must miss even a fresh copy.
+	sources[0].RuleContent = `{"content":".content@html","title":"title@text"}`
+	if err := server.standalone.sourceStore.Upsert(&sources[0]); err != nil {
+		t.Fatal(err)
 	}
 	mode.Store(3)
 	completed := make(chan *httptest.ResponseRecorder, 1)

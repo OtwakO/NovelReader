@@ -119,3 +119,38 @@ it('expires reusable documents without retaining unavailable figures', async () 
     await loader.dispose();
   } finally { clock.mockRestore(); wall.mockRestore(); }
 });
+
+it('Refresh drains an ordinary request and bypasses both caches', async () => {
+  const first = deferred();
+  vi.mocked(getChapterContent).mockReturnValueOnce(first.promise);
+  const loader = createChapterLoader('book', 7);
+  const ordinary = loader.load(0);
+  await Promise.resolve();
+  const refreshed = loader.refresh(0);
+  const follower = loader.load(0);
+  expect(follower).toBe(refreshed);
+  expect(getChapterContent).toHaveBeenCalledTimes(1);
+  const replacement = { ...content, document: { ...content.document, title: 'New' } };
+  vi.mocked(getChapterContent).mockResolvedValueOnce(replacement);
+  first.resolve(content);
+  await ordinary;
+  await expect(refreshed).resolves.toEqual(replacement);
+  expect(getChapterContent).toHaveBeenLastCalledWith('book', 0, 7, expect.any(AbortSignal), true);
+  await expect(loader.load(0)).resolves.toEqual(replacement);
+  expect(getChapterContent).toHaveBeenCalledTimes(2);
+  await loader.dispose();
+});
+
+it('does not retain an earlier pending copy when Refresh fails', async () => {
+  const first = deferred();
+  vi.mocked(getChapterContent).mockReturnValueOnce(first.promise).mockRejectedValueOnce(new Error('offline'));
+  const loader = createChapterLoader('book', 7);
+  const ordinary = loader.load(0);
+  const failure = expect(loader.refresh(0)).rejects.toThrow('offline');
+  first.resolve(content);
+  await ordinary;
+  await failure;
+  await loader.load(0);
+  expect(getChapterContent).toHaveBeenCalledTimes(3);
+  await loader.dispose();
+});

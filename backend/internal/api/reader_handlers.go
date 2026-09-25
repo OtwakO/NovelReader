@@ -439,7 +439,19 @@ func (s *readerAPI) handleGetChapterContent(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "contentRevision is required")
 		return
 	}
-	content, err := s.reading.Open(r.Context(), r.PathValue("id"), revision, index)
+	open := s.reading.Open
+	if value := r.URL.Query().Get("refresh"); value != "" {
+		refresh, err := strconv.ParseBool(value)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "refresh must be a boolean")
+			return
+		}
+		if refresh {
+			open = s.reading.Refresh
+		}
+	}
+	w.Header().Set("Cache-Control", "private, no-store")
+	content, err := open(r.Context(), r.PathValue("id"), revision, index)
 	if err != nil {
 		writeReadingError(w, err)
 		return

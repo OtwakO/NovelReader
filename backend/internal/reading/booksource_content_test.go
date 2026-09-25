@@ -17,12 +17,12 @@ func TestBookSourceDocumentNormalizesCacheBlocksAndIssuesResources(t *testing.T)
 		{Kind: processor.ProseBlockImage, Src: "https://source.test/image"},
 		{Kind: "text", Text: "after"},
 	}}
-	content, err := p.document(entry, "bundle", false, true)
+	content, err := p.document(entry, "bundle", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	blocks := content.Document.Blocks
-	if len(blocks) != 3 || blocks[0].Kind != "paragraph" || blocks[2].Kind != "paragraph" || blocks[1].Resource == nil || blocks[1].Resource.Href != "resource:book:3:2:0" || !content.OfflineCopy {
+	if len(blocks) != 3 || blocks[0].Kind != "paragraph" || blocks[2].Kind != "paragraph" || blocks[1].Resource == nil || blocks[1].Resource.Href != "resource:book:3:2:0" || content.OfflineCopy {
 		t.Fatalf("content=%+v", content)
 	}
 }
@@ -30,7 +30,7 @@ func TestBookSourceDocumentNormalizesCacheBlocksAndIssuesResources(t *testing.T)
 func TestImageAdmissionFailurePreservesTextButNotCacheEligibility(t *testing.T) {
 	p := BookSource{}
 	entry := book.CachedChapter{Title: "Chapter", Blocks: []processor.ProseBlock{{Kind: "text", Text: "Readable prose"}, {Kind: processor.ProseBlockImage, Src: "private"}}}
-	content, err := p.document(entry, "", true, false)
+	content, err := p.document(entry, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestImageAdmissionFailurePreservesTextButNotCacheEligibility(t *testing.T) 
 		t.Fatalf("partial document: %+v", content)
 	}
 	entry.Blocks = entry.Blocks[1:]
-	if _, err := p.document(entry, "", true, false); err != ErrImageUnavailable {
+	if _, err := p.document(entry, "", true); err != ErrImageUnavailable {
 		t.Fatalf("image-only failure: %v", err)
 	}
 }

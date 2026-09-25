@@ -72,12 +72,25 @@ func (s *Service) Catalog(ctx context.Context, id string, retry bool) (Catalog, 
 }
 
 func (s *Service) Open(ctx context.Context, id string, revision int64, index int) (Content, error) {
+	return s.open(ctx, id, revision, index, false)
+}
+
+// Refresh bypasses fetched BookSource copies. Imported publications are already
+// prepared immutable data under their content revision, so they reopen normally.
+func (s *Service) Refresh(ctx context.Context, id string, revision int64, index int) (Content, error) {
+	return s.open(ctx, id, revision, index, true)
+}
+
+func (s *Service) open(ctx context.Context, id string, revision int64, index int, refresh bool) (Content, error) {
 	p, item, err := s.resolve(ctx, id)
 	if err != nil {
 		return Content{}, err
 	}
 	if item.ContentRevision != revision {
 		return Content{}, library.ErrStateChanged
+	}
+	if refresh && item.Provider == library.BookSource {
+		return s.BookSource.openChapter(ctx, id, revision, index, true)
 	}
 	return p.open(ctx, id, revision, index)
 }

@@ -394,12 +394,13 @@ export default defineComponent({
       position: number,
       request?: number,
       proposal?: ReaderNavigation,
+      refresh = false,
     ) {
       request ??= this.generation;
       this.chapterLoader ??= markRaw(
         createChapterLoader(this.bookId, this.catalogRevision, this.stopStaleSession),
       );
-      const content = await this.chapterLoader.load(index);
+      const content = await (refresh ? this.chapterLoader.refresh(index) : this.chapterLoader.load(index));
       if (request !== this.generation) return;
       let mode: ReaderPreferences['chineseConversion'];
       let display;
@@ -767,6 +768,7 @@ export default defineComponent({
                 current: { ...this.navigation.current, position, anchor: undefined },
               }
             : undefined,
+          true,
         );
       } catch (cause) {
         if (request === this.generation) {

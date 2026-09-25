@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,12 +12,16 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 )
 
-func TestChapterRequestCancellationStopsUpstream(t *testing.T) {
-	started, stopped := make(chan struct{}), make(chan struct{})
+func TestChapterRequestCancellationDrainsAndPublishesSharedWork(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		close(started)
-		<-r.Context().Done()
-		close(stopped)
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		fmt.Fprint(w, "<article>completed shared chapter</article>")
 	}))
 	defer upstream.Close()
 	server, cleanup := newWorkflowAPIServer(t)
@@ -49,13 +54,18 @@ func TestChapterRequestCancellationStopsUpstream(t *testing.T) {
 	}
 	cancel()
 	select {
-	case <-stopped:
-	case <-time.After(3 * time.Second):
-		t.Fatal("upstream request was not canceled")
+	case <-done:
+		t.Fatal("initiating handler released ownership before work drained")
+	default:
 	}
+	close(release)
 	select {
 	case <-done:
 	case <-time.After(3 * time.Second):
 		t.Fatal("chapter handler did not return")
+	}
+	cached, err := server.standalone.bookStore.GetChapterCache("book", sources[0].ID, 0, upstream.URL+"/chapter", 1)
+	if err != nil || cached == nil {
+		t.Fatalf("shared work was not published: cached=%v err=%v", cached, err)
 	}
 }
