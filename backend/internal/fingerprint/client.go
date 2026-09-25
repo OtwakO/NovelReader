@@ -4,6 +4,7 @@ package fingerprint
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -246,7 +247,7 @@ func (c *Client) doWithCharset(ctx context.Context, method, rawURL, body string,
 }
 
 func (c *Client) fallbackRequest(ctx context.Context, method, rawURL, body string, headers map[string]string, followRedirect bool, retry int, responseCharset string, cause error) (*fetcher.Response, error) {
-	if c.fallback == nil {
+	if c.fallback == nil || errors.Is(cause, fetcher.ErrResponseTooLarge) {
 		return nil, cause
 	}
 	if method == http.MethodGet && !followRedirect {
@@ -308,7 +309,7 @@ func response(resp *fhttp.Response) (*fetcher.Response, error) {
 
 func responseWithCharset(resp *fhttp.Response, responseCharset string) (*fetcher.Response, error) {
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+	body, err := fetcher.ReadTextBody(resp.Body)
 	if err != nil {
 		return nil, err
 	}

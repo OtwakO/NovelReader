@@ -3,6 +3,7 @@ package fetcher
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -337,10 +338,13 @@ func (c *Client) doRequestWithDNSIP(ctx context.Context, method, rawURL, reqBody
 		}
 
 		// Read raw bytes for charset detection
-		rawBody, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+		rawBody, err := ReadTextBody(resp.Body)
 		resp.Body.Close()
+		if errors.Is(err, ErrResponseTooLarge) {
+			return nil, err
+		}
 		if err != nil {
-			lastErr = fmt.Errorf("fetcher: read body: %w", err)
+			lastErr = err
 			continue
 		}
 

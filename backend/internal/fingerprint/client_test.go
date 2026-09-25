@@ -231,3 +231,19 @@ func TestClientFallsBackToNormalHTTPAfterFingerprintRejection(t *testing.T) {
 		t.Fatalf("response=%+v", response)
 	}
 }
+
+func TestFingerprintRejectsOversizedTextWithoutFallback(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte(strings.Repeat("a", 10*1024*1024+1)))
+	}))
+	defer server.Close()
+	client, err := New(Config{Timeout: 5 * time.Second, InsecureSkipVerify: true}, &captureFallback{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.Get(server.URL, nil)
+	if err == nil || response != nil {
+		t.Fatal("oversized response accepted or bypassed through fallback")
+	}
+}
