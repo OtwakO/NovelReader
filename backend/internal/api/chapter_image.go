@@ -103,8 +103,12 @@ func cachedImageURL(cached *book.CachedChapter, requested int) string {
 	return ""
 }
 
-func chapterImageHref(bookID string, contentRevision int64, chapterIndex, imageIndex int) string {
-	return "/api/books/" + url.PathEscape(bookID) + "/chapters/" + strconv.Itoa(chapterIndex) + "/images/" + strconv.Itoa(imageIndex) + "?contentRevision=" + strconv.FormatInt(contentRevision, 10)
+func (s *readerAPI) chapterImageHref(bookID string, contentRevision int64, chapterIndex, imageIndex int) string {
+	href := "/api/books/" + url.PathEscape(bookID) + "/chapters/" + strconv.Itoa(chapterIndex) + "/images/" + strconv.Itoa(imageIndex) + "?contentRevision=" + strconv.FormatInt(contentRevision, 10)
+	if s.home != nil {
+		href += "&readerGeneration=" + url.QueryEscape(s.home.Generation())
+	}
+	return href
 }
 
 func (s *readerAPI) validateChapterSnapshot(w http.ResponseWriter, r *http.Request, snapshot *book.Book) bool {

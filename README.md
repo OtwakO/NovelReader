@@ -112,6 +112,8 @@ tar -czf novelreader-data-$(date +%F).tar.gz data/
 docker compose start app
 ```
 
+When restoring a complete data-folder copy, follow the [cold-copy procedure](docs/runbooks/development-data-reset.md#complete-deployment-cold-copy), including renewal of reader-home generations before restart. Ordinary restarts do not require this.
+
 NovelReader also provides per-reader backup and restore from the web interface. Confirming restore
 retires this tab's old reader work and unsent uploads before replacement begins. If the response is
 lost, use **Check restore status**; do not resend the commit. Navigation/reload returns this tab to
@@ -122,7 +124,10 @@ an unknown result does not mean success or failure.
 Portable reader backups exclude fetched BookSource chapter caches on both export and restore;
 those chapters require upstream access again after restoration. Saved catalogs, progress,
 bookmarks, and imported TXT/EPUB originals and prepared reading data are preserved. Export
-does not clear the live reader cache. The complete deployment copy above remains unfiltered.
+does not clear the live reader cache. Portable snapshots also omit home generation: manual
+restore must copy their manifest along with the data. The complete deployment copy above
+remains unfiltered. Other open tabs detect a replaced home on a subsequent reader request
+and ask for a reload; stale writes are not automatically retried.
 
 Portable reader backups have the same limits on export and restore: 2 GiB compressed,
 8 GiB of unpacked entry payloads, and 100,000 entries (including directories and backup

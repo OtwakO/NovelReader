@@ -201,7 +201,7 @@ Intentional changes: one forward target becomes two; the retained ±1 window bec
 
 ## Current State
 
-**First increment implemented and verified:** portable export/restore staging excludes fetched BookSource cache rows and clears catalog cache flags through `ReaderSchema.PreparePortable`. Shared staging compaction removes unused pages; live caches, archive inputs, catalogs and reading state remain unchanged. No schema change. See `backend/internal/book/portable_test.go` for the regression. Cached reading is not implemented; remaining engineering gates still apply. Source observations (update affected rows as increments land):
+**First increment implemented and verified:** portable export/restore staging excludes fetched BookSource cache rows and clears catalog cache flags through `ReaderSchema.PreparePortable`. Shared staging compaction removes unused pages; live caches, archive inputs, catalogs and reading state remain unchanged. No schema change. See `backend/internal/book/portable_test.go` for the regression. **Home-identity milestone implemented:** optional manifest generation, staged replacement/rollback ownership, qualified API requests/resource URLs, client request-lifetime retirement and reader memory/conversion retirement. See `readerstore/home_identity_test.go`, `api/reader_generation_test.go`, `transport-generation.test.ts` and reader lifecycle tests. No epoch bump or new dependency. Freshness, immutable per-document resources and persistent client caching are not implemented; their gates still apply. Source observations (update affected rows as milestones land):
 
 | Current fact | Entry points |
 |---|---|
@@ -213,7 +213,7 @@ Intentional changes: one forward target becomes two; the retained ±1 window bec
 | Source-session field/registry locks do not provide whole-workflow serialization/deduplication | `backend/internal/sourceexec/session.go`, `session_registry.go`, `backend/internal/book/search.go` |
 | Source switching/reparse already advance interpretation revisions | `backend/internal/book/source_switch.go`, `backend/internal/library/state.go`, `backend/internal/txtstore/reparse_apply.go` |
 | BookSource image ordinals resolve against the current replaceable cache row | `backend/internal/api/chapter_image.go`, `backend/internal/book/image.go` |
-| No home-replacement generation; device-derived EPUB reader scope survives ordinary restart but cannot distinguish restore | `backend/internal/readerstore/home.go`, `device_identity.go`, `backend/internal/api/reader_api.go`, `epub_resources.go` |
+| Durable manifest generation survives restart/eviction and changes with replacement; runtime API and generated image URLs validate it | `backend/internal/readerstore/home_identity.go`, `manager.go`, `backend/internal/api/reader_api.go`, `epub_resources.go`, `chapter_image.go` |
 | Portable preparation strips BookSource cache rows/flags on export/import and compacts the staged database | `backend/internal/readerstore/backup.go`, `portable_validation.go`, `database.go`, `backend/internal/book/store.go` |
 | Current frontend request/reset and pending-restore lifetime is tab-local, not a persistent cross-tab cache-write gate | `frontend/src/app/reader-state.ts`, `frontend/src/api/transport.ts`, `frontend/src/features/backups/restore-session.ts` |
 
@@ -221,11 +221,11 @@ The reported unexpected Next-chapter refetch remains **unreproduced**. Failure-f
 
 ## Next Action and implementation tracking
 
-Portable-cache exclusion is complete. Next, settle the immutable image-resource and reader-home identity contracts together, tracing `chapter_image.go`, `book/image.go`, `readerstore/home.go` and the replacement boundary. Then resolve execution ownership before enabling cache-first retrieval or persistent client reads. Before implementing the affected interfaces, settle and record:
+Portable-cache exclusion is complete. The storage/API/client home-identity milestone is also complete. Its contract uses an optional generation in the version-1 home manifest, initialized atomically for compatible existing homes, preserved on restart and regenerated in staged replacement. Portable snapshots omit it; copying their manifest for manual restore therefore also causes fresh initialization. The API exposes `X-Reader-Generation` and checks supplied values before invoking handlers; absence remains compatible with existing clients (which gain no replacement guard). The frontend pins the first reported generation, sends it on subsequent reader requests and rejects/aborts the old lifetime on mismatch; it never retries stale mutations automatically. Auth/restore control requests remain independent. No database epoch change. Next, resolve immutable resource lifetime and execution ownership together with backend freshness/Refresh, then deliver the backend cached-reading path as a cohesive milestone rather than isolated helper commits. Home generation is public identity, not a resource-signing/encryption secret. Same-home image refresh/eviction remains unresolved. Before implementing the affected interfaces, settle and record:
 
 1. **Resource contract:** concrete immutable resource representation, bounded retention/availability and compatibility, including inline images and restore.
 2. **Execution contract:** actual shared-session scope, owner lifetime, matching-request sharing, cancellation and Refresh ordering; no assumptions about existing serialization.
-3. **Identity/freshness interface:** home-generation storage/initialization/rollback and manual-restore handling; coherent entry/read/write/resource validation; explicit Refresh and remaining-freshness metadata; transactional client invalidation.
+3. **Remaining freshness/client interface:** explicit Refresh and remaining-freshness metadata; client cache keys use the validated home generation returned by the reader snapshot; transactional persistent invalidation is still required. The implemented header is optional for backward compatibility, so unqualified older clients lack the replacement guard. Complete deployment rollback requires the generation-renewal step in the cold-copy runbook.
 4. Reproduce one reported Next-chapter delay/miss through the existing interface. Distinguish content retrieval, conversion and lifecycle causes before claiming a fix.
 
 TTL, client book count and window are settled; do not reopen them as unanswered preferences. Any necessary durable storage/API compatibility change must be explained before activation. Do not assume a fresh-data epoch bump or reset is permitted.
@@ -234,7 +234,7 @@ Track complete, verified increments here, adjusting order for actual dependencie
 
 - [ ] Settle engineering gates and record compatibility/rollback decisions.
 - [x] Exclude existing disposable chapter caches through portable preparation; verify preserved durable reading/recovery state. Any new resource-cache state must join this boundary when introduced.
-- [ ] Implement home/resource identity and narrow execution ownership needed by cached reads.
+- [ ] Complete resource identity and narrow execution ownership needed by cached reads. Home identity is implemented end to end; immutable document-instance resource lifetime remains.
 - [ ] Implement backend cache-first freshness and explicit Refresh without expired-copy fallback.
 - [ ] Implement client memory/IndexedDB lifecycle, retention, invalidation and storage-failure behavior.
 - [ ] Implement requested/committed navigation feedback while preserving progress and EPUB semantics.
@@ -245,7 +245,7 @@ Update Current State, this checklist/Next Action and Verification at meaningful 
 
 ## Verification
 
-**Performed:** original-plan/conversation cross-check and fresh-session handoff review; documentation whitespace/link checks passed. The portable-cache regression first failed on retained cache rows, then passed after the fix. `cd backend && go test ./internal/readerstore ./internal/backup ./internal/book` passes; `go test ./internal/epubstore ./internal/txtstore -run Portable` passes. These cover the first increment, not cached-reading implementation. No browser journeys or timing measurements have been run. AFT did not provide authoritative Go diagnostics for this increment; Go test compilation is the verification gate.
+**Performed:** original-plan/conversation cross-check and fresh-session handoff review; documentation whitespace/link checks passed. The portable-cache regression first failed on retained cache rows, then passed after the fix. `cd backend && go test ./internal/readerstore ./internal/backup ./internal/book` passes; `go test ./internal/epubstore ./internal/txtstore -run Portable` passes. These cover the first increment, not cached-reading implementation. Home-identity verification: `go test ./internal/readerstore ./internal/backup ./internal/api` passes; targeted `-race` runs for `HomeGeneration|CompatibleManifest|ReaderGeneration|PublishReplacement` in readerstore/API pass. Frontend shared-transport checkpoint passed all 328 tests; the final reader-lifetime changes pass 80 targeted reader/transport tests. Typecheck and production build pass via `node node_modules/vue-tsc/bin/vue-tsc.js --noEmit` and `node scripts/run-node-tool.mjs vite build --logLevel warn`. Normal `npm run build` encountered a pre-existing local `vue-tsc` executable permission error; no tooling change was folded into this work. No browser journeys or timing measurements have been run. AFT did not provide authoritative diagnostics for the edited Go/TS files; compiler/test commands are the verification gate.
 
 Use existing synthetic fixtures and the fewest tests that establish these contracts:
 

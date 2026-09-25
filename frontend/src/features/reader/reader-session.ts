@@ -1,6 +1,6 @@
 import { getBook, type LibraryBook } from '../../api/books';
 import { waitForCatalog, type CatalogPollingOptions } from '../../api/reader';
-import { ApiError } from '../../api/transport';
+import { ApiError, readerHomeGeneration } from '../../api/transport';
 
 export class ReaderRevisionConflict extends Error {
   constructor() { super('Reading state changed; reopen the current saved location'); }
@@ -24,7 +24,7 @@ export async function loadReaderSnapshot(bookId: string, options: CatalogPolling
     if (options.isCurrent && !options.isCurrent()) throw new DOMException('Reader superseded', 'AbortError');
     if (!result.catalog) throw new ReaderCatalogError(result.error, book);
     const catalog = result.catalog;
-    if (book.contentRevision === catalog.contentRevision) return { book, catalog };
+    if (book.contentRevision === catalog.contentRevision) return { book, catalog, homeGeneration: readerHomeGeneration() };
   }
   throw new ReaderRevisionConflict();
 }

@@ -9,7 +9,11 @@ import (
 )
 
 func (s *readerAPI) epubResourceHref(id string, revision int64, resource string) string {
-	return "/api/books/" + url.PathEscape(id) + "/epub-resources/" + url.PathEscape(resource) + "?revision=" + strconv.FormatInt(revision, 10) + "&reader=" + url.QueryEscape(s.coverCacheScope)
+	href := "/api/books/" + url.PathEscape(id) + "/epub-resources/" + url.PathEscape(resource) + "?revision=" + strconv.FormatInt(revision, 10) + "&reader=" + url.QueryEscape(s.coverCacheScope)
+	if s.home != nil {
+		href += "&readerGeneration=" + url.QueryEscape(s.home.Generation())
+	}
+	return href
 }
 
 // The outer reader route owns authentication and the home lease. The reader

@@ -6,6 +6,11 @@ type AuthenticationLossListener = () => void;
 let authenticationLossListener: AuthenticationLossListener | undefined;
 let readerRequests = new AbortController();
 let controlRequests = new AbortController();
+let readerGeneration: string | undefined;
+const readerGenerationHeader = 'X-Reader-Generation';
+
+// Available only after an authenticated reader response; never an offline identity.
+export function readerHomeGeneration(): string | undefined { return readerGeneration; }
 
 export function readerRequestSignal(): AbortSignal { return readerRequests.signal; }
 
@@ -14,6 +19,7 @@ export function resetReaderRequests(): void {
   controlRequests.abort();
   readerRequests = new AbortController();
   controlRequests = new AbortController();
+  readerGeneration = undefined;
 }
 
 // Replacement retires the old request lifetime. Only identity/restore controls
@@ -67,14 +73,28 @@ async function fetchRequest(input: RequestInfo | URL, init?: RequestInit, contro
   const owner = control ? controlRequests.signal : readerRequests.signal;
   const signal = init?.signal ? AbortSignal.any([owner, init.signal]) : owner;
   signal.throwIfAborted();
+  const headers = new Headers(init?.headers);
+  if (!control && readerGeneration) headers.set(readerGenerationHeader, readerGeneration);
+  let response: Response;
   try {
-    const response = await fetch(input, { ...init, signal });
+    response = await fetch(input, { ...init, headers, signal });
     signal.throwIfAborted();
-    return { response, signal };
   } catch (cause) {
     signal.throwIfAborted();
     throw new NetworkError(cause);
   }
+  if (!control) {
+    const generation = response.headers.get(readerGenerationHeader);
+    if (generation && readerGeneration && generation !== readerGeneration) {
+      const error = new ApiError(409, { code: 'reader_home_changed', message: 'Reader data was replaced. Reload to continue.' });
+      // Also reject earlier responses still parsing their bodies. Never adopt the
+      // replacement and retry a mutation that belongs to the previous home.
+      readerRequests.abort(error);
+      throw error;
+    }
+    if (generation) readerGeneration = generation;
+  }
+  return { response, signal };
 }
 
 export class ApiError extends Error {

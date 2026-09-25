@@ -1,5 +1,5 @@
 import type { SearchResult } from './models';
-import { request } from './transport';
+import { readerHomeGeneration, readerRequestSignal, request } from './transport';
 export type { AltSource, SearchResult } from './models';
 export interface SearchBatchOptions { batchSize: number; concurrency: number; cursor?: string }
 export interface SearchBatchStart { offset: number; eligible: number; sourcesInBatch: number; requestedConcurrency: number; effectiveConcurrency: number; retryCursor: string }
@@ -18,11 +18,16 @@ export function searchInstalledSource(sourceId: string, query: string) {
 }
 
 export function searchBooksBatchStream(query: string, options: SearchBatchOptions, handlers: SearchBatchHandlers): EventSource {
+  const owner = readerRequestSignal();
+  owner.throwIfAborted();
   const params = new URLSearchParams({ q: query, batchSize: String(options.batchSize), concurrency: String(options.concurrency) });
+  const generation = readerHomeGeneration();
+  if (generation) params.set('readerGeneration', generation);
   if (options.cursor) params.set('cursor', options.cursor);
   const stream = new EventSource(`/api/search/stream?${params}`);
   let finished = false;
   stream.onmessage = (message) => {
+    if (owner.aborted) { stream.close(); return; }
     try {
       const event = JSON.parse(message.data) as Record<string, unknown>;
       if (event.type === 'start') handlers.onStart(event as unknown as SearchBatchStart);

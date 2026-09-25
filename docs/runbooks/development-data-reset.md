@@ -39,8 +39,12 @@ deployment backup:
 1. Stop NovelReader and wait for the process to exit.
 2. Copy/archive the complete configured `DATA_DIR`, preserving every file and name, including
    installation credential keys needed to decrypt saved source credentials.
-3. Restore by stopping NovelReader, replacing the complete `DATA_DIR`, and starting a compatible
-   NovelReader version.
+3. Restore with NovelReader stopped by replacing the complete `DATA_DIR`.
+4. Before restarting, remove only the optional `generation` property from each restored
+   `users/<reader-id>/manifest.json`. Preserve its `format`/`version` and all data files.
+   The next open initializes a fresh home identity, preventing old browser state from matching
+   rolled-back data. Do not change generations for ordinary restarts.
+5. Start a compatible NovelReader version.
 
 If NovelReader crashed and cannot restart, copy everything as-is, including SQLite `-wal` and
 `-shm` files. Never copy only a main `.db` file or manually delete WAL/SHM files from the copy.

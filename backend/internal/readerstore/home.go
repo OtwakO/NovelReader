@@ -1,7 +1,6 @@
 package readerstore
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -30,8 +29,9 @@ var (
 )
 
 type HomeManifest struct {
-	Format  string `json:"format"`
-	Version int    `json:"version"`
+	Format     string `json:"format"`
+	Version    int    `json:"version"`
+	Generation string `json:"generation,omitempty"`
 }
 
 type FileStore struct {
@@ -213,28 +213,4 @@ func requiredHomeDirectories() []string {
 		filepath.Join(FilesDirectory, CoversDirectory),
 		filepath.Join(FilesDirectory, ChapterAssetsDirectory),
 	}
-}
-
-func writeHomeManifest(path string) error {
-	manifest := HomeManifest{Format: HomeFormat, Version: CurrentHomeVersion}
-	encoded, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return fmt.Errorf("readerstore: encode reader manifest: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(path, HomeManifestName), append(encoded, '\n'), 0o600); err != nil {
-		return fmt.Errorf("readerstore: write reader manifest: %w", err)
-	}
-	return nil
-}
-
-func readHomeManifest(path string) (HomeManifest, error) {
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return HomeManifest{}, err
-	}
-	var manifest HomeManifest
-	if err := json.Unmarshal(contents, &manifest); err != nil {
-		return HomeManifest{}, err
-	}
-	return manifest, nil
 }

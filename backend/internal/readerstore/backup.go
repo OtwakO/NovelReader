@@ -45,7 +45,7 @@ func (m *Manager) SnapshotHome(ctx context.Context, userID UserID, destination s
 			return err
 		}
 		defer unlock()
-		if err := writeHomeManifest(destination); err != nil {
+		if err := writePortableHomeManifest(destination); err != nil {
 			return err
 		}
 		if err := backupDatabase(ctx, home.DB(), filepath.Join(destination, ReaderDatabaseName)); err != nil {

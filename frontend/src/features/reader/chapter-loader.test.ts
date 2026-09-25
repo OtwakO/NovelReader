@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getChapterContent, type ChapterContent } from '../../api/reader';
 import { createChapterLoader } from './chapter-loader';
+import { resetReaderRequests } from '../../api/transport';
 
 vi.mock('../../api/reader', () => ({ getChapterContent: vi.fn() }));
 const content: ChapterContent = { version: 1, contentRevision: 7, offlineCopy: false, document: { kind: 'prose', title: 'Chapter', blocks: [] } };
@@ -10,7 +11,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-beforeEach(() => { vi.mocked(getChapterContent).mockReset().mockResolvedValue(content); });
+beforeEach(() => { resetReaderRequests(); vi.mocked(getChapterContent).mockReset().mockResolvedValue(content); });
 
 describe('reading-session chapter loader', () => {
   it('shares prefetch with navigation, reuses recent content, and bounds retention', async () => {
@@ -72,4 +73,19 @@ describe('reading-session chapter loader', () => {
     await loader.dispose(true);
     expect(vi.mocked(getChapterContent).mock.calls[0]![3]!.aborted).toBe(true);
   });
+});
+
+it('does not reuse memory or pending content across a retired reader lifetime', async () => {
+  const loader = createChapterLoader('book', 7);
+  await loader.load(0);
+  const delayed = deferred();
+  vi.mocked(getChapterContent).mockReturnValueOnce(delayed.promise);
+  const pending = loader.load(1);
+  const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  await Promise.resolve();
+  resetReaderRequests();
+  delayed.resolve(content);
+  await rejected;
+  await expect(loader.load(0)).rejects.toMatchObject({ name: 'AbortError' });
+  expect(getChapterContent).toHaveBeenCalledTimes(2);
 });

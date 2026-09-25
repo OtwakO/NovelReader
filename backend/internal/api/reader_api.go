@@ -56,7 +56,7 @@ func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 	a.reading = &reading.Service{Library: runtime.libraryStore, TXT: a.txtStore, EPUB: a.epubStore, EPUBResourceHref: a.epubResourceHref,
 		BookSource: &reading.BookSource{Store: runtime.bookStore, Sources: runtime.sourceStore,
 			Catalogs: runtime.catalogs, Searcher: runtime.searcher, ProcessorConfig: services.processorCfg,
-			ImageHref: chapterImageHref},
+			ImageHref: a.chapterImageHref},
 	}
 	a.registerRoutes()
 	if a.txtStore != nil && services.fileImports != nil {
@@ -71,6 +71,25 @@ func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 	return a
 }
 
+const readerGenerationHeader = "X-Reader-Generation"
+
 func (s *readerAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// The authenticated outer boundary holds this home's lease through the
+	// response. Replacement cannot race the check and the handler's writes.
+	if s.home != nil {
+		generation := s.home.Generation()
+		w.Header().Set(readerGenerationHeader, generation)
+		w.Header().Set("Cache-Control", "private, no-store")
+		if expected := r.Header.Get(readerGenerationHeader); expected != "" && expected != generation {
+			writeErrorCode(w, http.StatusConflict, "reader_home_changed", "Reader data was replaced. Reload to continue.")
+			return
+		}
+		// Native resource/stream requests cannot set headers. Check their URL
+		// qualification independently so a current header cannot revive an old URL.
+		if expected := r.URL.Query().Get("readerGeneration"); expected != "" && expected != generation {
+			writeErrorCode(w, http.StatusNotFound, "resource_not_found", "resource unavailable")
+			return
+		}
+	}
 	s.mux.ServeHTTP(w, r)
 }

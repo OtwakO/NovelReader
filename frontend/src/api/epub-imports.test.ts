@@ -17,7 +17,7 @@ it('uses shared admission, an unchanged file body and explicit EPUB policy/gener
   const [url, options] = fetch.mock.calls[1]!;
   expect(new URL(url, 'https://reader.test').searchParams.get('filename')).toBe(file.name);
   expect(new URL(url, 'https://reader.test').searchParams.get('imageMode')).toBe('optimized');
-  expect(options.body).toBe(file); expect(options.headers['Content-Type']).toBe('application/octet-stream');
+  expect(options.body).toBe(file); expect(new Headers(options.headers).get('Content-Type')).toBe('application/octet-stream');
   expect(JSON.parse(fetch.mock.calls[2]![1].body)).toEqual({ generation: 4, name: 'Title', author: 'Author' });
   resetReaderRequests(); expect(options.signal.aborted).toBe(true);
 });

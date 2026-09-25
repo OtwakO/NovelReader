@@ -12,7 +12,7 @@ it('sends the original file body through the reader-owned transport with an enco
   const [url, options] = fetch.mock.calls[0]!;
   expect(new URL(url, 'https://reader.test').searchParams.get('filename')).toBe(file.name);
   expect(options.method).toBe('PUT'); expect(options.body).toBe(file);
-  expect(options.headers['Content-Type']).toBe('application/octet-stream');
+  expect(new Headers(options.headers).get('Content-Type')).toBe('application/octet-stream');
   const signal = options.signal as AbortSignal; resetReaderRequests(); expect(signal.aborted).toBe(true);
 });
 

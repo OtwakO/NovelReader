@@ -18,6 +18,7 @@ import {
   type Font,
 } from '../../api/reader';
 import { getChineseConversionCapability, type ChineseConversionCapability } from '../../api/system';
+import { readerRequestSignal } from '../../api/transport';
 import AppButton from '../../ui/components/AppButton.vue';
 import { createReaderDisplayConverter } from './chinese-conversion';
 import { createChapterLoader } from './chapter-loader';
@@ -85,6 +86,7 @@ export default defineComponent({
       displayNavigation: undefined as CatalogNavigation | undefined,
       navigation: null as ReaderNavigation | null,
       chapterLoader: null as ReturnType<typeof createChapterLoader> | null,
+      requestLifetime: markRaw(readerRequestSignal()),
       convertDisplay: markRaw(createReaderDisplayConverter()),
       navigating: false,
       refetching: false,
@@ -222,6 +224,8 @@ export default defineComponent({
     },
   },
   async mounted() {
+    this.requestLifetime.addEventListener('abort', this.onReaderRetired);
+    if (this.requestLifetime.aborted) { this.onReaderRetired(); return; }
     window.addEventListener('keydown', this.onKeydown);
     this.wakeLockController = createReaderWakeLock(
       () => this.preferences.keepScreenAwake,
@@ -235,6 +239,7 @@ export default defineComponent({
     if (this.preferences.fontId !== 'system') void this.loadFonts();
   },
   beforeUnmount() {
+    this.requestLifetime.removeEventListener('abort', this.onReaderRetired);
     this.generation += 1;
     this.conversionGeneration += 1;
     void this.chapterLoader?.dispose(true);
@@ -347,6 +352,12 @@ export default defineComponent({
       } finally {
         this.catalogRetrying = false;
       }
+    },
+    onReaderRetired() {
+      this.stopStaleSession();
+      this.revisionConflict = false; // Reopening an ordinal cannot repair a retired home.
+      const reason = this.requestLifetime.reason;
+      this.error = reason instanceof Error ? reason.message : this.$t('reader.errors.load');
     },
     stopStaleSession() {
       this.revisionConflict = true;

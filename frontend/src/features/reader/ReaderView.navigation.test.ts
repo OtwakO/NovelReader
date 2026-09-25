@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReaderView from './ReaderView.vue';
 import { getBook, getBookSource, mergeBookSources } from '../../api/books';
 import { getChapterContent, saveProgress, switchBookSource, waitForCatalog, type ChapterContent } from '../../api/reader';
-import { ApiError } from '../../api/transport';
+import { ApiError, request, resetReaderRequests } from '../../api/transport';
 import { resetProgressWriter, waitForProgressWrites } from './progress-writer';
 
 vi.mock('../../api/books', () => ({ getBook:vi.fn(), getBookSource:vi.fn(), mergeBookSources:vi.fn(), clearBookSources:vi.fn() }));
@@ -15,7 +15,7 @@ const source = {sourceId:'new',sourceUrl:'new',bookUrl:'/new',sourceName:'New',n
 let wrapper:ReturnType<typeof shallowMount<typeof ReaderView>>;
 
 beforeEach(()=>{
-  vi.clearAllMocks();resetProgressWriter();localStorage.clear();
+  vi.clearAllMocks();resetReaderRequests();resetProgressWriter();localStorage.clear();
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callback(0); return 0; });
   localStorage.setItem('novelreader.reader.preferences.v1',JSON.stringify({prefetchNextChapter:false}));
   vi.mocked(getBook).mockResolvedValue({...initialBook});
@@ -354,4 +354,24 @@ it('reopens an auxiliary bookmark through the sheet and a fresh qualified route 
   wrapper.unmount();
   await waitForProgressWrites('book');
   expect(saveProgress).not.toHaveBeenCalled();
+});
+
+it('retires the displayed session on home replacement before a delayed conversion can commit', async () => {
+  const fetchMock = vi.fn().mockResolvedValueOnce(new Response('{}', { headers: { 'X-Reader-Generation': 'original' } }));
+  vi.stubGlobal('fetch', fetchMock);
+  await request('/books');
+  const vm = await open();
+  let release!: (value: { chapters: typeof vm.chapters; content: ChapterContent }) => void;
+  vi.spyOn(vm, 'convertDisplay').mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+  const navigation = vm.navigate(1);
+  await flushPromises();
+  fetchMock.mockResolvedValueOnce(new Response('{}', { status: 409, headers: { 'X-Reader-Generation': 'replacement' } }));
+  await expect(request('/books')).rejects.toMatchObject({ code: 'reader_home_changed' });
+  release({ chapters: vm.chapters, content: chapter('stale conversion') });
+  await navigation;
+  expect(vm.currentIndex).toBe(0);
+  expect(vm.displayContent?.document.title).toBe('old 0');
+  expect(vm.chapterLoader).toBeNull();
+  expect(vm.error).toContain('Reload');
+  expect(vi.mocked(saveProgress).mock.calls.every(call => call[3] === 0)).toBe(true);
 });

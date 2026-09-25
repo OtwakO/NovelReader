@@ -75,6 +75,7 @@ func TestManagerPublishReplacementRollsBackInvalidStage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	originalGeneration := bob.Generation()
 	if _, err := bob.DB().Exec(`INSERT INTO retained_value VALUES ('keep')`); err != nil {
 		t.Fatal(err)
 	}
@@ -94,6 +95,14 @@ func TestManagerPublishReplacementRollsBackInvalidStage(t *testing.T) {
 		t.Fatalf("rollback remains: %v", err)
 	}
 	assertDatabaseValue(t, filepath.Join(homePath, ReaderDatabaseName), `SELECT value FROM retained_value`, "keep")
+	reopened, err := manager.Open(ctx, testUserBob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if reopened.Generation() != originalGeneration {
+		t.Fatal("failed replacement changed home identity")
+	}
 }
 
 func newBackupTestManager(t *testing.T) *Manager {

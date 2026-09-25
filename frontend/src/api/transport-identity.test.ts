@@ -6,7 +6,7 @@ afterEach(() => { onAuthenticationLoss(); resetReaderRequests(); vi.unstubAllGlo
 it.each([200, 401])('rejects a previous identity response during body parsing (%s)', async (status) => {
   let resolve!: (value: unknown) => void;
   const json = vi.fn(() => new Promise(done => { resolve = done; }));
-  const fetchMock = vi.fn().mockResolvedValue({ ok: status === 200, status, json });
+  const fetchMock = vi.fn().mockResolvedValue({ ok: status === 200, status, headers: new Headers(), json });
   const lost = vi.fn();
   onAuthenticationLoss(lost);
   vi.stubGlobal('fetch', fetchMock);

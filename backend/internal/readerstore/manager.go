@@ -36,6 +36,7 @@ type Manager struct {
 type homeEntry struct {
 	id            UserID
 	path          string
+	generation    string
 	readerDB      *sql.DB
 	credentialsDB *sql.DB
 	fileMutation  chan struct{}
@@ -324,6 +325,7 @@ func (m *Manager) Close() error {
 	return closeErr
 }
 
+func (h *Home) Generation() string     { return h.entry.generation }
 func (h *Home) ID() UserID             { return h.entry.id }
 func (h *Home) DB() *sql.DB            { return h.entry.readerDB }
 func (h *Home) CredentialsDB() *sql.DB { return h.entry.credentialsDB }
@@ -349,6 +351,10 @@ func (m *Manager) openEntry(userID UserID) (*homeEntry, error) {
 	if err := validateHome(homePath, m.schemas); err != nil {
 		return nil, err
 	}
+	generation, err := ensureHomeGeneration(homePath)
+	if err != nil {
+		return nil, err
+	}
 	readerDB, err := openHomeDatabase(filepath.Join(homePath, ReaderDatabaseName))
 	if err != nil {
 		return nil, err
@@ -358,7 +364,7 @@ func (m *Manager) openEntry(userID UserID) (*homeEntry, error) {
 		_ = readerDB.Close()
 		return nil, err
 	}
-	return &homeEntry{id: userID, path: homePath, readerDB: readerDB, credentialsDB: credentialsDB, fileMutation: make(chan struct{}, 1), references: 1}, nil
+	return &homeEntry{id: userID, path: homePath, generation: generation, readerDB: readerDB, credentialsDB: credentialsDB, fileMutation: make(chan struct{}, 1), references: 1}, nil
 }
 
 func (m *Manager) release(entry *homeEntry) error {

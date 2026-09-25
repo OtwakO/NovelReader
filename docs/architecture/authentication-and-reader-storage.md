@@ -35,8 +35,14 @@ data/users/<immutable-reader-id>/
     .work/epub/                # disposable EPUB transfer/preparation work
 ```
 
-`reader.db` and ordinary files are portable plaintext Reader Data: BookSources, shelf books, chapters, progress, bookmarks, caches, preferences, source profiles, and file metadata. They remain inspectable without an application secret. Browser-only Reader preferences are outside
+`reader.db` and ordinary files hold plaintext Reader Data: BookSources, shelf books, chapters, progress, bookmarks, caches, preferences, source profiles, and file metadata. They remain inspectable without an application secret. Browser-only Reader preferences are outside
 this storage/backup boundary; see [Reader state](discovery-and-reading.md#reader-state).
+
+The version-1 home manifest has an optional public `generation` (not a secret). New homes and staged replacements receive fresh values; a validated legacy home initializes it atomically on first open. Ordinary restarts/runtime eviction preserve it, and replacement rollback preserves the previous manifest. This requires no database/schema-epoch change. Portable snapshots omit generation so copying their complete home, including its manifest, also initializes a new identity during manual restore.
+
+Authenticated reader-runtime responses carry `X-Reader-Generation`. A supplied mismatched header returns `409 reader_home_changed` before any handler executes, while the runtime lease keeps replacement outside the check/write interval. Generated BookSource/EPUB resource URLs carry a `readerGeneration` query value; a mismatch returns 404 even if a current header is also supplied. Headerless legacy clients remain compatible but lack this guard. This does not fix BookSource image ordinals changing during same-home Refresh; immutable document-resource identity remains active cache-plan work.
+
+The frontend transport pins the first reported home generation for its reader-request lifetime. Replacement detection aborts that lifetime, rejects late response bodies, and retires the reader's loader/conversion work; it does not adopt the replacement or replay mutations. Reload or the existing explicit reader-state reset starts fresh validation. Auth/restore controls retain their separate lifetime; import-admission routes retain their existing ticket/quiescence boundary. There is no proactive cross-device notification or offline identity validation. Search streams qualify their URLs when identity is known and discard events from a retired request lifetime.
 
 Reader schema epoch 16 composes library-owned shared metadata/state/bookmarks and independent last-read timestamps, BookSource-owned
 bindings/catalog/cache, managed TXT files/interpretations/indexes, EPUB receipts/preparations/section spans/resources/inbox claims and the other reader modules. Foreign keys are enabled on every pooled reader
@@ -405,7 +411,7 @@ This covers committed file retirements, not atomicity between SQLite and new fil
 
 ### Complete deployment backup
 
-With NovelReader stopped, copying the complete configured `DATA_DIR` is the disaster-recovery boundary. Preserve every file, including SQLite WAL/SHM sidecars after a crash. See [development reset and cold-copy runbook](../runbooks/development-data-reset.md).
+With NovelReader stopped, copying the complete configured `DATA_DIR` is the disaster-recovery boundary. Preserve every file, including SQLite WAL/SHM sidecars after a crash. Unlike portable archives, complete copies include home generations. Full-data rollback must renew restored home generations before startup so retained clients cannot mistake replacement data for their prior home. Ordinary restart needs no identity change. See [development reset and cold-copy runbook](../runbooks/development-data-reset.md).
 
 ### Portable Reader Data backup
 
