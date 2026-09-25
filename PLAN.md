@@ -59,6 +59,11 @@ Accepted future-facing architecture:
 
 ## Current State
 
+[Native ARM64 container releases](docs/plans/2026-09-26-arm64-containers.md) — active on
+`feat/arm64-containers`: native AMD64/ARM64 build-and-test matrix, official Chrome packages and
+multi-platform publication gates are implemented; local AMD64 builds, both browser modes and Compose
+verification pass. Native ARM64 and registry verification await the authorized feature-branch CI run.
+
 The multi-provider branch is integrated into local `main` with a history-preserving merge after [clean-checkout integration checks](docs/notes/2026-09-21-import-user-testing-and-branch-review.md#local-branch-integration). That integration has not been pushed or deployed. The cache/prefetch workstream is implemented, locally verified, and merged into local `main`; it has not been pushed or deployed.
 
 Reader schema is **16**, adding EPUB inbox claims with portable cleanup-authority stripping. Existing epoch-15 and older homes/backups remain preserved, not migrated. [Independent last-read tracking](docs/plans/2026-09-17-last-read-tracking.md), introduced at epoch 13, continues to separate reading from additions/metadata updates.

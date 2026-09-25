@@ -30,7 +30,7 @@ NovelReader aims for practical Legado compatibility, but it cannot support every
 
 ### Requirements
 
-- Docker Engine
+- Docker Engine on a 64-bit AMD64 or ARM64 Linux container host
 - Docker Compose 2.20.2 or newer
 
 ### 1. Download the deployment file
@@ -333,6 +333,8 @@ The Docker build runs these module tests in the final runtime with
 For container verification:
 
 ```bash
+# Publication gate regressions (requires bash, Python 3 and jq; no registry access):
+python3 -m unittest discover -s build -p 'test_*.py' -q
 ./docker-e2e.sh
 ```
 
@@ -350,11 +352,21 @@ The deployment uses a jointly verified app/worker pair:
 - `ghcr.io/otwako/novelreader:latest`
 - `ghcr.io/otwako/novelreader-webview:latest`
 
-CI builds the app and worker concurrently using `docker-bake.hcl`, tests the worker in headless and
-headful modes, and runs Compose against the exact images before publishing their digests without rebuilding. Main-branch releases update `latest` and
+The release workflow targets `linux/amd64` and `linux/arm64` using native runners. Docker selects the
+matching architecture from the shared image tag; Compose needs no platform override. Both use Patchright
+with branded Google Chrome, installed from Google's official architecture-specific package.
+
+CI builds the app and worker concurrently on each architecture using `docker-bake.hcl`, tests the worker
+in headless and headful modes, and runs Compose against the exact images. Only after both architectures
+pass does CI assemble and verify multi-platform indexes from those tested digests, without rebuilding.
+Main-branch releases update `latest` and
 `edge`; each image also gets an immutable `sha-<full commit SHA>` reference. Alias updates are sequential
 (worker first, app last), not a registry-wide atomic operation. To pin or roll back, keep both verified
 image digests together. Rebuilding an old commit may resolve newer WebView dependencies.
+
+Manual workflow runs default to verification only: they stage `ci-*` images/indexes but do not change
+release aliases or immutable SHA tags. Select the `publish` input to also promote the verified pair to
+`manual` (or the version alias when run against a release tag).
 
 If the packages are private, sign in before pulling:
 

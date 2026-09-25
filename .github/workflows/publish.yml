@@ -23,13 +23,19 @@ on:
       - '!frontend/**/*.md'
       - '!webview-worker/**/*.md'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Promote verified images to public tags (otherwise stage and verify only)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: containers-${{ github.ref }}
+  # One release owns both architecture builds through final pair promotion.
+  group: novelreader-container-publication
   cancel-in-progress: false
 
 env:
@@ -99,12 +105,17 @@ jobs:
           uv run --frozen --no-sync python -c "import patchright; print('Patchright import passed')"
 
   containers:
-    name: Verify and publish images
+    name: Verify images (${{ matrix.arch }})
     needs: [backend, frontend, webview]
-    concurrency:
-      group: novelreader-container-publication
-      cancel-in-progress: false
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -125,6 +136,9 @@ jobs:
           docker compose -f compose.e2e.yaml --profile webview --profile e2e config --quiet
 
       - name: Build app and WebView images concurrently
+        env:
+          PLATFORM: linux/${{ matrix.arch }}
+          CACHE_ARCH: ${{ matrix.arch }}
         uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7
         with:
           source: .
@@ -134,6 +148,14 @@ jobs:
             worker
           set: |
             *.labels.org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Verify native image architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          for image in novelreader:e2e novelreader-webview:e2e; do
+            test "$(docker image inspect "$image" --format '{{.Os}}/{{.Architecture}}')" = "linux/$EXPECTED_ARCH"
+          done
 
       - name: Verify WebView image in both modes
         run: |
@@ -158,10 +180,11 @@ jobs:
         run: ./docker-e2e.sh
 
       - name: Stage verified image digests
-        id: stage
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          staging_tag="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          staging_tag="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${ARCH}"
 
           stage_local() {
             local source=$1 repository=$2
@@ -171,11 +194,10 @@ jobs:
             docker buildx imagetools inspect "$target" --format '{{.Manifest.Digest}}'
           }
 
-          digests=$(mktemp -d)
-          trap 'rm -rf "$digests"' EXIT
-          stage_local novelreader:e2e "$APP_IMAGE" > "$digests/app" &
+          mkdir -p digests
+          stage_local novelreader:e2e "$APP_IMAGE" > "digests/$ARCH-app" &
           app_pid=$!
-          stage_local novelreader-webview:e2e "$WORKER_IMAGE" > "$digests/worker" &
+          stage_local novelreader-webview:e2e "$WORKER_IMAGE" > "digests/$ARCH-worker" &
           worker_pid=$!
 
           # Drain both uploads even if one fails; never promote a partial pair.
@@ -185,55 +207,39 @@ jobs:
           if [[ "$status" != 0 ]]; then
             exit "$status"
           fi
-          app_digest=$(< "$digests/app")
-          worker_digest=$(< "$digests/worker")
-          printf 'app_digest=%s\nworker_digest=%s\n' \
-            "$app_digest" "$worker_digest" | tee -a "$GITHUB_OUTPUT"
 
-      - name: Promote verified image pair
+      - name: Save verified architecture digests
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-digests-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Assemble and publish multi-platform pair
+    needs: [containers]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Test publication gates
+        run: python3 -m unittest discover -s build -p 'test_*.py' -q
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: Log in to GHCR
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download verified architecture digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: image-digests-*
+          path: digests
+          merge-multiple: true
+      - name: Assemble verified indexes and optionally promote
         env:
-          APP_DIGEST: ${{ steps.stage.outputs.app_digest }}
-          WORKER_DIGEST: ${{ steps.stage.outputs.worker_digest }}
-        run: |
-          set -euo pipefail
-
-          ensure_immutable() {
-            local repository=$1 digest=$2
-            local tag="$repository:sha-$GITHUB_SHA"
-            local existing=
-            existing=$(docker buildx imagetools inspect "$tag" --format '{{.Manifest.Digest}}' 2>/dev/null || true)
-            if [[ -n "$existing" && "$existing" != "$digest" ]]; then
-              echo "$tag already points to $existing, refusing to overwrite it with $digest" >&2
-              exit 1
-            fi
-            if [[ -z "$existing" ]]; then
-              docker buildx imagetools create --prefer-index=false --tag "$tag" "$repository@$digest"
-            fi
-          }
-
-          promote() {
-            local repository=$1 digest=$2
-            shift 2
-            local args=(--prefer-index=false)
-            for alias in "$@"; do
-              args+=(--tag "$repository:$alias")
-            done
-            docker buildx imagetools create "${args[@]}" "$repository@$digest"
-          }
-
-          # Both images receive immutable references before any public alias moves.
-          # The worker moves first and the app last so the published pair stays compatible.
-          ensure_immutable "$APP_IMAGE" "$APP_DIGEST"
-          ensure_immutable "$WORKER_IMAGE" "$WORKER_DIGEST"
-
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            release_tag="${GITHUB_REF_NAME#v}"
-            promote "$WORKER_IMAGE" "$WORKER_DIGEST" "$release_tag"
-            promote "$APP_IMAGE" "$APP_DIGEST" "$release_tag"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            promote "$WORKER_IMAGE" "$WORKER_DIGEST" manual
-            promote "$APP_IMAGE" "$APP_DIGEST" manual
-          else
-            promote "$WORKER_IMAGE" "$WORKER_DIGEST" latest edge
-            promote "$APP_IMAGE" "$APP_DIGEST" latest edge
-          fi
+          PUBLISH_IMAGES: ${{ github.event_name != 'workflow_dispatch' || inputs.publish }}
+        run: bash build/publish-images.sh digests

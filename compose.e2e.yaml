@@ -4,7 +4,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    platform: linux/amd64
     restart: unless-stopped
     stop_grace_period: 15s
     ports:
@@ -44,7 +43,6 @@ services:
     build:
       context: ./webview-worker
       dockerfile: Dockerfile
-    platform: linux/amd64
     restart: unless-stopped
     stop_grace_period: 15s
     expose:
@@ -70,7 +68,6 @@ services:
   fixture:
     profiles: [e2e]
     image: ${NOVELREADER_WEBVIEW_IMAGE:-ghcr.io/otwako/novelreader-webview:edge}
-    platform: linux/amd64
     entrypoint: ["python", "-m", "http.server", "8000", "--directory", "/fixtures"]
     read_only: true
     volumes:

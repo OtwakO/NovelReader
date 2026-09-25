@@ -20,9 +20,19 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     WEBVIEW_BROWSER_MODE=headless
 
 COPY --from=build /app/.venv /app/.venv
-RUN /app/.venv/bin/patchright install chrome --no-shell --with-deps \
-    && apt-get install -y --no-install-recommends xvfb \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /usr/share/doc/* /usr/share/man/* /tmp/* /root/.cache/ms-playwright
+# Patchright's Chrome installer rejects ARM64 even though Google now ships it.
+# Use the same official stable package installation on both native architectures.
+# Retain Patchright's browser dependencies/fonts; only replace Chrome installation.
+RUN /app/.venv/bin/patchright install-deps chromium \
+    && arch="$(dpkg --print-architecture)" \
+    && case "$arch" in amd64|arm64) ;; *) echo "Unsupported Chrome architecture: $arch" >&2; exit 1 ;; esac \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl xvfb \
+    && curl -fsSL --retry 3 --max-time 180 \
+        "https://dl.google.com/linux/direct/google-chrome-stable_current_${arch}.deb" -o /tmp/chrome.deb \
+    && apt-get install -y --no-install-recommends /tmp/chrome.deb \
+    && google-chrome --version \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /usr/share/doc/* /usr/share/man/* /tmp/*
 
 WORKDIR /app
 RUN useradd --create-home --uid 10001 appuser \

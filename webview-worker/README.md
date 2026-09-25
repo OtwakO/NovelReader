@@ -7,13 +7,15 @@ the latest stable Patchright and branded Chrome, then CI tests that exact image 
 
 ## Local process
 
-Run from the repository root on Linux, with `google-chrome` available on `PATH` after installation:
+Run from the repository root on Linux. First install branded Google Chrome stable for your architecture
+from [Google's official download](https://www.google.com/chrome/) and ensure `google-chrome` is on `PATH`.
+Install Xvfb as well for headful mode. Patchright's Chrome installer still rejects Linux ARM64, even though
+Google now distributes a native ARM64 package; this is an installer limitation, not a driver limitation.
 
 ```bash
 cd webview-worker
 uv python install
 uv sync --frozen
-uv run --frozen --no-sync patchright install chrome --with-deps
 WEBVIEW_WORKER_PORT=8787 uv run --frozen --no-sync python worker.py
 ```
 
@@ -27,8 +29,10 @@ Windows batch launcher has been retired; Compose provides the Linux browser envi
 
 ## Container
 
-The public `linux/amd64` image is `ghcr.io/otwako/novelreader-webview`. Its build copies a pinned
-uv binary and installs the latest stable Patchright and Chrome. Release builds disable Docker
+The release image `ghcr.io/otwako/novelreader-webview` targets both `linux/amd64` and `linux/arm64`.
+Its build copies a pinned uv binary and installs the latest stable Patchright and Google's official
+Chrome Debian package matching the image architecture. Both architectures use the same driver and
+browser selection; there is no ARM-specific Playwright or Chromium fallback. Release builds disable Docker
 cache for this image so browser/dependency installation is not silently reused. For an equivalent
 local build, use `docker build --no-cache -t novelreader-webview ./webview-worker` from the repo root.
 Rebuilding the same source revision may resolve newer dependencies; roll back using a previously
