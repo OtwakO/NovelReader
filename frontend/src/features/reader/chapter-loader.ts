@@ -8,7 +8,7 @@ const maxRecentChapters = 5;
 /** One reader/book interpretation revision. Dispose and drain before replacing that binding. */
 export function createChapterLoader(bookId: string, contentRevision: number, onRevisionConflict?: () => void) {
   const owner = readerRequestSignal();
-  const cache = new Map<number, ReadingContent>();
+  const cache = new Map<number, { content: ReadingContent; expiresAt: number; expiresAtWall: number }>();
   const pending = new Map<number, Promise<ReadingContent>>();
   const controller = new AbortController();
   let closed = false;
@@ -19,11 +19,12 @@ export function createChapterLoader(bookId: string, contentRevision: number, onR
     if (owner.aborted) return Promise.reject(owner.reason);
     if (closed) return Promise.reject(new DOMException('Reader session closed', 'AbortError'));
     const cached = cache.get(index);
-    if (cached) {
+    if (cached && performance.now() < cached.expiresAt && Date.now() < cached.expiresAtWall) {
       cache.delete(index);
       cache.set(index, cached);
-      return Promise.resolve(cached);
+      return Promise.resolve(cached.content);
     }
+    cache.delete(index);
     const existing = pending.get(index);
     if (existing) return existing;
 
@@ -31,12 +32,20 @@ export function createChapterLoader(bookId: string, contentRevision: number, onR
     const operation = tail.then(async () => {
       owner.throwIfAborted();
       if (closed) throw new DOMException('Reader session closed', 'AbortError');
+      const startedAt = performance.now();
+      const startedAtWall = Date.now();
       const content = await getChapterContent(bookId, index, contentRevision, controller.signal);
       owner.throwIfAborted();
       if (closed) throw new DOMException('Reader session closed', 'AbortError');
       if (content.contentRevision !== contentRevision) throw new ReaderRevisionConflict();
-      if (!content.offlineCopy) {
-        cache.set(index, content);
+      // Subtract the whole request duration conservatively; receipt time must
+      // not extend the backend's image-resource/freshness promise.
+      const expiresAt = content.version === 1 && content.freshForMs !== undefined ? startedAt + content.freshForMs : Infinity;
+      // Wall time also covers platforms whose monotonic clock pauses in sleep.
+      const expiresAtWall = content.version === 1 && content.freshForMs !== undefined ? startedAtWall + content.freshForMs : Infinity;
+      const unavailableImages = content.version === 1 && content.document.blocks.some(block => block.kind === 'image' && block.resource.unavailable);
+      if (!content.offlineCopy && !unavailableImages && performance.now() < expiresAt && Date.now() < expiresAtWall) {
+        cache.set(index, { content, expiresAt, expiresAtWall });
         if (cache.size > maxRecentChapters) cache.delete(cache.keys().next().value!);
       }
       return content;
@@ -50,7 +59,9 @@ export function createChapterLoader(bookId: string, contentRevision: number, onR
   }
 
   function prefetch(index: number): void {
-    if (owner.aborted || closed || speculative || pending.size || cache.has(index)) return;
+    if (owner.aborted || closed || speculative || pending.size) return;
+    const cached = cache.get(index);
+    if (cached && performance.now() < cached.expiresAt && Date.now() < cached.expiresAtWall) return;
     // Speculative errors are deliberately non-blocking; a foreground visit can retry normally.
     speculative = load(index).then(() => undefined, () => undefined).finally(() => { speculative = null; });
   }

@@ -9,10 +9,6 @@ import (
 	"github.com/otwako/novelreader/internal/sourceexec"
 )
 
-func setExecutorContext(executor *sourceexec.Executor, src booksource.BookSource, b *Book, current, next *Chapter, baseURL string) {
-	setExecutorContextWithBookData(executor, src, bookContext(b, src), b, current, next, baseURL)
-}
-
 func setExecutorContextWithBookData(executor *sourceexec.Executor, src booksource.BookSource, bookData map[string]interface{}, b *Book, current, next *Chapter, baseURL string) {
 	executor.SetURLContext(&analyzer.URLContext{
 		Source:      src.ScriptData(),

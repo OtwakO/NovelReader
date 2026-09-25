@@ -9,7 +9,7 @@ export type ProseBlock =
   | { kind: 'paragraph'; text: string }
   | { kind: 'image'; resource: ContentResourceReference; alt?: string };
 export interface ProseDocument { kind: 'prose'; title: string; blocks: ProseBlock[] }
-export interface ChapterContent { version: 1; contentRevision: number; document: ProseDocument; offlineCopy: boolean }
+export interface ChapterContent { freshForMs?: number; version: 1; contentRevision: number; document: ProseDocument; offlineCopy: boolean }
 export type ReadingContent = ChapterContent | StructuredChapterContent;
 export interface Bookmark { id: string; bookId: string; contentRevision: number; chapterIndex: number; chapterTitle: string; position: number; note: string; orphaned: boolean; createdAt: number }
 export interface Font { id: string; name: string; fileName: string; fileSize: number }
@@ -49,7 +49,9 @@ function parseChapterContent(data: Record<string, unknown>): ReadingContent {
   if (typeof data.contentRevision !== 'number' || !Number.isSafeInteger(data.contentRevision) || data.contentRevision < 0 || data.version !== 1 || !data.document || typeof data.document !== 'object') throw new Error('Invalid chapter content response');
   const document = data.document as Record<string, unknown>;
   if (document.kind !== 'prose' || typeof document.title !== 'string' || !Array.isArray(document.blocks)) throw new Error('Invalid prose document');
+  if (data.freshForMs !== undefined && (typeof data.freshForMs !== 'number' || !Number.isSafeInteger(data.freshForMs) || data.freshForMs < 0)) throw new Error('Invalid chapter freshness');
   return {
+    ...(typeof data.freshForMs === 'number' ? { freshForMs: data.freshForMs } : {}),
     version: 1,
     contentRevision: data.contentRevision,
     document: {

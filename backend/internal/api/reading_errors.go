@@ -24,6 +24,8 @@ func writeReadingError(w http.ResponseWriter, err error) {
 		writeErrorCode(w, http.StatusNotFound, "source_not_found", "source not found")
 	case errors.Is(err, reading.ErrUnsupportedProvider):
 		writeErrorCode(w, http.StatusNotImplemented, "provider_not_supported", "reading is not available for this publication provider")
+	case errors.Is(err, reading.ErrImageUnavailable):
+		writeErrorCode(w, http.StatusServiceUnavailable, "chapter_images_unavailable", "chapter images could not be prepared; retry loading the chapter")
 	case errors.As(err, &crawl):
 		writeCrawlError(w, crawl.Stage, crawl.Err)
 	default:

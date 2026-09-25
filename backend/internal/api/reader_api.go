@@ -56,10 +56,14 @@ func newReaderAPI(runtime *readerRuntime, services *readerServices) *readerAPI {
 		a.txtStore = txtstore.NewStore(runtime.db, runtime.home.Files())
 		a.epubStore = epubstore.NewStore(runtime.db, runtime.home.Files())
 	}
+	owner := chapterresource.Owner{ReaderID: "standalone", Generation: "standalone"}
+	if runtime.home != nil {
+		owner.ReaderID, owner.Generation = string(runtime.home.ID()), runtime.home.Generation()
+	}
 	a.reading = &reading.Service{Library: runtime.libraryStore, TXT: a.txtStore, EPUB: a.epubStore, EPUBResourceHref: a.epubResourceHref,
 		BookSource: &reading.BookSource{Store: runtime.bookStore, Sources: runtime.sourceStore,
 			Catalogs: runtime.catalogs, Searcher: runtime.searcher, ProcessorConfig: services.processorCfg,
-			ImageHref: a.chapterImageHref},
+			ImageHref: a.chapterImageHref, Resources: services.chapterResources, ResourceOwner: owner},
 	}
 	a.registerRoutes()
 	if a.txtStore != nil && services.fileImports != nil {

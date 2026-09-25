@@ -104,3 +104,13 @@ it('rejects unknown versions and malformed structured content rather than fallin
     await expect(getChapterContent('book', 0, 9)).rejects.toThrow();
   }
 });
+
+it('accepts explicit image unavailability and remaining freshness', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    version: 1, contentRevision: 7, freshForMs: 0,
+    document: { kind: 'prose', title: 'Chapter', blocks: [{ kind: 'image', resource: { href: '', unavailable: true } }] },
+  }), { status: 200 })));
+  await expect(getChapterContent('book', 0, 7)).resolves.toMatchObject({ freshForMs: 0,
+    document: { blocks: [{ kind: 'image', resource: { href: '', unavailable: true } }] },
+  });
+});

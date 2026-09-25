@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/library"
@@ -32,7 +33,12 @@ func (p *BookSource) open(ctx context.Context, id string, revision int64, index 
 	if src == nil {
 		return p.fallback(ctx, item, ch, ErrSourceNotFound)
 	}
-	raw, title, err := p.Searcher.GetChapterContentForBookContext(ctx, *src, item, ch, next)
+	identity, err := src.DefinitionIdentity()
+	if err != nil {
+		return Content{}, err
+	}
+	document, err := p.Searcher.GetChapterDocument(ctx, *src, item, ch, next)
+	raw, title := document.Content, document.Title
 	if err == nil && strings.TrimSpace(raw) == "" {
 		err = errors.New("content: empty extraction")
 	}
@@ -43,16 +49,18 @@ func (p *BookSource) open(ctx context.Context, id string, revision int64, index 
 		title = ch.Title
 	}
 	result := processor.New(p.ProcessorConfig).Process(title, raw)
-	if err := p.current(ctx, item); err != nil {
+	if err := p.currentDefinition(ctx, item, identity); err != nil {
 		return Content{}, err
 	}
-	if err := p.Store.SaveChapterCache(book.CachedChapter{
+	entry := book.CachedChapter{
+		SourceIdentity: identity, BookContext: document.BookContext, ChapterContext: document.ChapterContext, CachedAt: document.RetrievedAt.UnixNano(),
 		ContentRevision: revision, BookID: id, SourceID: item.SourceID, ChapterIndex: index,
 		ChapterURL: ch.URL, Title: result.Title, Paragraphs: result.Paragraphs, Blocks: result.Blocks,
-	}); err != nil {
+	}
+	if err := p.Store.SaveChapterCache(entry); err != nil {
 		slog.Warn("reading: chapter cache save failed", "book_id", id, "chapter_index", index, "error", err)
 	}
-	return p.content(id, revision, index, result.Title, result.Paragraphs, result.Blocks, false), nil
+	return p.content(ctx, item, entry, false)
 }
 
 func (p *BookSource) current(ctx context.Context, snapshot *book.Book) error {
@@ -78,10 +86,28 @@ func (p *BookSource) fallback(ctx context.Context, item *book.Book, chapter *boo
 	if cached == nil {
 		return Content{}, cause
 	}
-	return p.content(item.ID, item.ContentRevision, chapter.Index, cached.Title, cached.Paragraphs, cached.Blocks, true), nil
+	if cached.SourceIdentity == "" || time.Since(time.Unix(0, cached.CachedAt)) >= chapterFreshness {
+		return Content{}, cause
+	}
+	if err := p.currentDefinition(ctx, item, cached.SourceIdentity); err != nil {
+		return Content{}, cause
+	}
+	return p.content(ctx, item, *cached, true)
 }
 
-func (p *BookSource) content(id string, revision int64, index int, title string, paragraphs []string, blocks []processor.ProseBlock, offline bool) Content {
+const chapterFreshness = 24 * time.Hour
+
+func (p *BookSource) content(ctx context.Context, item *book.Book, entry book.CachedChapter, offline bool) (Content, error) {
+	reference, unavailable := p.prepareImages(ctx, item, entry)
+	if err := p.currentDefinition(ctx, item, entry.SourceIdentity); err != nil {
+		return Content{}, err
+	}
+	return p.document(entry, reference.ID, unavailable, offline)
+}
+
+func (p *BookSource) document(entry book.CachedChapter, bundleID string, unavailable, offline bool) (Content, error) {
+	paragraphs, blocks := entry.Paragraphs, entry.Blocks
+	hasText := false
 	if len(blocks) == 0 {
 		blocks = make([]processor.ProseBlock, len(paragraphs))
 		for i, paragraph := range paragraphs {
@@ -96,13 +122,27 @@ func (p *BookSource) content(id string, revision int64, index int, title string,
 		if item.Kind == "text" {
 			item.Kind = processor.ProseBlockParagraph
 		}
+		if item.Kind == processor.ProseBlockParagraph && strings.TrimSpace(block.Text) != "" {
+			hasText = true
+		}
 		if block.Kind == processor.ProseBlockImage {
-			item.Resource = &ResourceReference{Href: p.ImageHref(id, revision, index, imageIndex)}
+			item.Resource = &ResourceReference{Unavailable: unavailable}
+			if !unavailable {
+				item.Resource.Href = p.ImageHref(entry.BookID, entry.ContentRevision, entry.ChapterIndex, imageIndex, bundleID)
+			}
 			imageIndex++
 		}
 		output = append(output, item)
 	}
-	content := prose(revision, title, output)
+	if unavailable && !hasText {
+		return Content{}, ErrImageUnavailable
+	}
+	content := prose(entry.ContentRevision, entry.Title, output)
+	remaining := max(int64(0), time.Until(time.Unix(0, entry.CachedAt).Add(chapterFreshness)).Milliseconds())
+	if unavailable {
+		remaining = 0
+	}
+	content.FreshForMS = &remaining
 	content.OfflineCopy = offline
-	return content
+	return content, nil
 }

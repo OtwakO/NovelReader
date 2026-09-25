@@ -6,6 +6,7 @@ import (
 
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/chapterresource"
 	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/processor"
 )
@@ -18,7 +19,9 @@ type BookSource struct {
 	Catalogs        *book.Catalogs
 	Searcher        *book.Searcher
 	ProcessorConfig processor.Config
-	ImageHref       func(bookID string, revision int64, chapterIndex, imageIndex int) string
+	Resources       *chapterresource.Store
+	ResourceOwner   chapterresource.Owner
+	ImageHref       func(bookID string, revision int64, chapterIndex, imageIndex int, bundleID string) string
 }
 
 func (p *BookSource) catalog(_ context.Context, id string, retry bool) (Catalog, error) {

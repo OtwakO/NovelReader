@@ -35,10 +35,30 @@ func (s *Searcher) getStoredImage(ctx context.Context, src booksource.BookSource
 	if s == nil || b == nil || strings.TrimSpace(rawURL) == "" {
 		return nil, "", fmt.Errorf("%s: URL is empty", label)
 	}
+	return s.getImageWithContext(ctx, src, bookContext(b, src), chapterContextOrNil(b, chapter, chapterURL(chapter)), rawURL, script, preserveOnNonBytes, label)
+}
+
+// GetChapterImageForContext resolves a recipe with document-owned script inputs.
+func (s *Searcher) GetChapterImageForContext(ctx context.Context, src booksource.BookSource, bookData, chapterData map[string]any, rawURL string) ([]byte, string, error) {
+	script := strings.TrimSpace(parseRuleJSON(src.RuleContent)["imageDecode"])
+	if usesAndroidBitmapDecoder(script) {
+		return nil, "", ErrUnsupportedImageDecoder
+	}
+	return s.getImageWithContext(ctx, src, bookData, chapterData, rawURL, script, false, "image")
+}
+
+func chapterURL(chapter *Chapter) string {
+	if chapter == nil {
+		return ""
+	}
+	return chapter.URL
+}
+
+func (s *Searcher) getImageWithContext(ctx context.Context, src booksource.BookSource, bookData, chapterData map[string]any, rawURL, script string, preserveOnNonBytes bool, label string) ([]byte, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
 	defer cancel()
 
-	session, release, err := s.sessions.AcquireWorkflow(ctx, src.ID, b.BookURL, "")
+	session, release, err := s.sessions.AcquireWorkflow(ctx, src.ID, analyzer.ToString(bookData["bookUrl"]), "")
 	if err != nil {
 		return nil, "", err
 	}
@@ -50,7 +70,7 @@ func (s *Searcher) getStoredImage(ctx context.Context, src booksource.BookSource
 		if err != nil {
 			return nil, "", fmt.Errorf("%s: inline data: %w", label, err)
 		}
-		data, err = s.applyImageDecode(ctx, src, b, chapter, session, script, data, rawURL, preserveOnNonBytes, label)
+		data, err = s.applyImageDecode(ctx, src, bookData, chapterData, session, script, data, rawURL, preserveOnNonBytes, label)
 		return data, contentType, err
 	}
 	if s.fetcher == nil {
@@ -65,11 +85,11 @@ func (s *Searcher) getStoredImage(ctx context.Context, src booksource.BookSource
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, nil, session)
 	contextURL := rawURL
 	resolutionBaseURL := src.BookSourceURL
-	if chapter != nil {
-		contextURL = chapter.URL
-		resolutionBaseURL = chapter.URL
+	if chapterData != nil {
+		contextURL = analyzer.ToString(chapterData["url"])
+		resolutionBaseURL = contextURL
 	}
-	setExecutorContext(executor, src, b, chapter, nil, contextURL)
+	executor.SetURLContext(&analyzer.URLContext{Source: src.ScriptData(), Book: bookData, Chapter: chapterData, JSLib: src.JSLib})
 	spec, err := executor.BuildContext(ctx, rawURL, "", 1, resolutionBaseURL)
 	if err != nil {
 		return nil, "", fmt.Errorf("%s: URL: %w", label, err)
@@ -93,7 +113,7 @@ func (s *Searcher) getStoredImage(ctx context.Context, src booksource.BookSource
 	if len(data) == 0 {
 		data = []byte(response.Body)
 	}
-	data, err = s.applyImageDecode(ctx, src, b, chapter, session, script, data, spec.URL, preserveOnNonBytes, label)
+	data, err = s.applyImageDecode(ctx, src, bookData, chapterData, session, script, data, spec.URL, preserveOnNonBytes, label)
 	if err != nil {
 		return nil, "", err
 	}
@@ -145,7 +165,7 @@ func decodeInlineImage(rawURL string) ([]byte, string, bool, error) {
 	return []byte(data), mediaType, true, nil
 }
 
-func (s *Searcher) applyImageDecode(ctx context.Context, src booksource.BookSource, b *Book, chapter *Chapter, session *sourceexec.SourceSession, script string, data []byte, resourceURL string, preserveOnNonBytes bool, label string) ([]byte, error) {
+func (s *Searcher) applyImageDecode(ctx context.Context, src booksource.BookSource, bookData, chapterData map[string]any, session *sourceexec.SourceSession, script string, data []byte, resourceURL string, preserveOnNonBytes bool, label string) ([]byte, error) {
 	if script == "" {
 		return data, nil
 	}
@@ -155,10 +175,10 @@ func (s *Searcher) applyImageDecode(ctx context.Context, src booksource.BookSour
 	bindings := map[string]interface{}{
 		"sourceState": session,
 		"source":      src.ScriptData(),
-		"book":        bookContext(b, src),
+		"book":        bookData,
 	}
-	if chapter != nil {
-		bindings["chapter"] = chapterContext(b, chapter, chapter.URL)
+	if chapterData != nil {
+		bindings["chapter"] = chapterData
 		bindings["src"] = resourceURL
 	}
 	value, err := s.jsVM.EvalContext(ctx, decodeScript(src.JSLib, script), data, resourceURL, bindings)

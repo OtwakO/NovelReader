@@ -89,3 +89,33 @@ it('does not reuse memory or pending content across a retired reader lifetime', 
   await expect(loader.load(0)).rejects.toMatchObject({ name: 'AbortError' });
   expect(getChapterContent).toHaveBeenCalledTimes(2);
 });
+
+it('expires reusable documents without retaining unavailable figures', async () => {
+  const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
+  const wall = vi.spyOn(Date, 'now').mockReturnValue(0);
+  try {
+    vi.mocked(getChapterContent).mockResolvedValue({ ...content, freshForMs: 50 });
+    const response = deferred();
+    vi.mocked(getChapterContent).mockReturnValueOnce(response.promise);
+    const loader = createChapterLoader('book', 7);
+    const pending = loader.load(0);
+    await Promise.resolve();
+    clock.mockReturnValue(40);
+    wall.mockReturnValue(40);
+    response.resolve({ ...content, freshForMs: 50 });
+    await pending;
+    await loader.load(0);
+    expect(getChapterContent).toHaveBeenCalledTimes(1);
+    clock.mockReturnValue(50);
+    await loader.load(0);
+    expect(getChapterContent).toHaveBeenCalledTimes(2);
+    wall.mockReturnValue(100); // Simulated sleep while performance.now pauses.
+    await loader.load(0);
+    expect(getChapterContent).toHaveBeenCalledTimes(3);
+    vi.mocked(getChapterContent).mockResolvedValueOnce({ ...content, document: { ...content.document, blocks: [{ kind: 'image', resource: { href: '', unavailable: true } }] } });
+    await loader.load(1);
+    await loader.load(1);
+    expect(getChapterContent).toHaveBeenCalledTimes(5);
+    await loader.dispose();
+  } finally { clock.mockRestore(); wall.mockRestore(); }
+});

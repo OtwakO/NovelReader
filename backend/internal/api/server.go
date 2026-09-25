@@ -90,6 +90,11 @@ func NewServer(sourceStore *booksource.Store, bookStore *book.Store, searcher *b
 	services := &readerServices{fetcher: fetcher, processorCfg: processorCfg,
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
 		coverReferenceKey:   mustNewCoverReferenceKey(), collectionLoader: booksource.NewRemoteLoader()}
+	if dataDir != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		services.initializeChapterResources(ctx, dataDir, chapterresource.DefaultLimits())
+		cancel()
+	}
 	runtime := &readerRuntime{db: db, sourceStore: sourceStore, bookStore: bookStore, libraryStore: library.NewStore(db), searcher: searcher, fontStore: fontStore}
 	if bookStore != nil && sourceStore != nil && searcher != nil {
 		runtime.catalogs = book.NewCatalogs(bookStore, sourceStore, searcher)
@@ -125,15 +130,7 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 	// Startup is the admission gate: recover before routes or schedulers run.
 	startupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	resources, resourceErr := chapterresource.Open(startupCtx, filepath.Join(dataRoot, "cache", "chapter-resources.sqlite"), resourceLimits)
-	if resourceErr != nil {
-		services.chapterResourcesErr = resourceErr
-		// A disposable-store failure must not take durable reading offline. Keep
-		// existing files intact; image publication will report unavailable recipes.
-		slog.Error("chapter resource storage unavailable; image preparation disabled until restart", "error", resourceErr)
-	} else {
-		services.chapterResources = resources
-	}
+	services.initializeChapterResources(startupCtx, dataRoot, resourceLimits)
 	ids, err := authHandler.ListReaderHomeIDs(startupCtx)
 	if err == nil {
 		s.fileImports, err = fileimport.Start(startupCtx, readers, ids)
@@ -186,4 +183,12 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+func (s *readerServices) initializeChapterResources(ctx context.Context, dataRoot string, limits chapterresource.Limits) {
+	s.chapterResources, s.chapterResourcesErr = chapterresource.Open(ctx, filepath.Join(dataRoot, "cache", "chapter-resources.sqlite"), limits)
+	if s.chapterResourcesErr != nil {
+		// Keep existing files intact and unrelated reading available.
+		slog.Error("chapter resource storage unavailable; image preparation disabled until restart", "error", s.chapterResourcesErr)
+	}
 }

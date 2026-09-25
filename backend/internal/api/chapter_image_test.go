@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/chapterresource"
 	"github.com/otwako/novelreader/internal/processor"
 	"github.com/otwako/novelreader/internal/reading"
 )
@@ -36,8 +39,9 @@ func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
 	server, closeDB := newWorkflowAPIServer(t)
 	defer closeDB()
 	ruleContent, _ := json.Marshal(map[string]string{
-		"content":     ".content@html",
-		"imageDecode": `if (src.indexOf('/novel/image.bin') < 0) throw new Error('wrong src: ' + src); result.map(function(value) { return value ^ 90; })`,
+		"content":      ".content@html",
+		"replaceRegex": `<js>book.name = 'Captured'; result;</js>`,
+		"imageDecode":  `if (book.name !== 'Captured') throw new Error('lost document context'); if (src.indexOf('/novel/image.bin') < 0) throw new Error('wrong src: ' + src); result.map(function(value) { return value ^ 90; })`,
 	})
 	source := booksource.BookSource{
 		BookSourceURL: upstream.URL, BookSourceName: "chapter image fixture",
@@ -54,7 +58,14 @@ func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Disposable prose persistence failure must not produce unbacked image URLs.
+	if _, err := server.standalone.db.Exec(`CREATE TRIGGER fail_chapter_cache BEFORE INSERT ON chapter_cache BEGIN SELECT RAISE(FAIL, 'synthetic cache write failure'); END;`); err != nil {
+		t.Fatal(err)
+	}
 	contentResponse := performAPIRequest(server, http.MethodGet, "/api/books/image-book/chapters/0/content?contentRevision=1", nil)
+	if _, err := server.standalone.db.Exec(`DROP TRIGGER fail_chapter_cache`); err != nil {
+		t.Fatal(err)
+	}
 	if contentResponse.Code != http.StatusOK || bytes.Contains(contentResponse.Body.Bytes(), []byte("image.bin")) {
 		t.Fatalf("content status=%d body=%s", contentResponse.Code, contentResponse.Body.String())
 	}
@@ -63,16 +74,39 @@ func TestStoredChapterImageUsesIndexedURLHeadersAndDecodeScript(t *testing.T) {
 		t.Fatalf("content=%+v err=%v body=%s", content, err, contentResponse.Body.String())
 	}
 	imageBlock := content.Document.Blocks[1]
-	if imageBlock.Kind != processor.ProseBlockImage || imageBlock.Resource == nil || imageBlock.Resource.Href != "/api/books/image-book/chapters/0/images/0?contentRevision=1" || imageBlock.Alt != "Route map" {
+	if imageBlock.Kind != processor.ProseBlockImage || imageBlock.Resource == nil || !strings.HasPrefix(imageBlock.Resource.Href, "/api/books/image-book/chapters/0/images/0?contentRevision=1&bundle=") || imageBlock.Alt != "Route map" {
 		t.Fatalf("image block=%+v body=%s", imageBlock, contentResponse.Body.String())
 	}
 
-	response := performAPIRequest(server, http.MethodGet, "/api/books/image-book/chapters/0/images/0?contentRevision=1&url=http://127.0.0.1/private", nil)
+	response := performAPIRequest(server, http.MethodGet, imageBlock.Resource.Href+"&url=http://127.0.0.1/private", nil)
 	if response.Code != http.StatusOK || !bytes.Equal(response.Body.Bytes(), []byte("IMAGE")) {
 		t.Fatalf("status=%d body=%v", response.Code, response.Body.Bytes())
 	}
 	if response.Header().Get("X-Content-Type-Options") != "nosniff" || response.Header().Get("Content-Security-Policy") != "sandbox; default-src 'none'" {
 		t.Fatalf("security headers=%v", response.Header())
+	}
+	// Ordinary cache replacement and eviction must not change this document's image.
+	if err := server.standalone.bookStore.SaveChapterCache(book.CachedChapter{ContentRevision: 1, BookID: storedBook.ID, SourceID: source.ID, ChapterIndex: 0, ChapterURL: upstream.URL + "/novel/chapter/1", Blocks: []processor.ProseBlock{{Kind: processor.ProseBlockImage, Src: upstream.URL + "/different"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := performAPIRequest(server, http.MethodGet, imageBlock.Resource.Href, nil); got.Code != http.StatusOK || !bytes.Equal(got.Body.Bytes(), []byte("IMAGE")) {
+		t.Fatalf("replacement changed image: %d %s", got.Code, got.Body.String())
+	}
+	if _, err := server.standalone.db.Exec("DELETE FROM chapter_cache"); err != nil {
+		t.Fatal(err)
+	}
+	if got := performAPIRequest(server, http.MethodGet, imageBlock.Resource.Href, nil); got.Code != http.StatusOK {
+		t.Fatalf("eviction broke image: %d", got.Code)
+	}
+	source.Header = `{"X-Image-Token":"changed"}`
+	if err := server.standalone.sourceStore.Upsert(&source); err != nil {
+		t.Fatal(err)
+	}
+	if got := performAPIRequest(server, http.MethodGet, imageBlock.Resource.Href, nil); got.Code != http.StatusNotFound {
+		t.Fatalf("changed definition retained old reference: %d", got.Code)
+	}
+	if got := performAPIRequest(server, http.MethodGet, "/api/books/image-book/chapters/0/images/0?contentRevision=1", nil); got.Code != http.StatusNotFound {
+		t.Fatal("unqualified ordinal remained resolvable")
 	}
 	if err := server.standalone.bookStore.SaveChapters(storedBook.ID, []book.Chapter{{Index: 0, Title: "Chapter", URL: upstream.URL + "/novel/chapter/1"}}); err != nil {
 		t.Fatal(err)
@@ -107,7 +141,15 @@ func TestStoredChapterImageRejectsAndroidBitmapDecoder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	response := performAPIRequest(server, http.MethodGet, "/api/books/bitmap-book/chapters/0/images/0?contentRevision=1", nil)
+	identity, err := source.DefinitionIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := server.services.chapterResources.Admit(t.Context(), chapterresource.Owner{ReaderID: "standalone", Generation: "standalone", BookID: storedBook.ID, Revision: 1, SourceID: source.ID, SourceIdentity: identity}, chapterresource.Images{Book: map[string]any{"bookUrl": storedBook.BookURL}, Chapter: map[string]any{"url": chapter.URL}, URLs: []string{"https://source.test/image"}}, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := performAPIRequest(server, http.MethodGet, server.standalone.chapterImageHref(storedBook.ID, 1, 0, 0, ref.ID), nil)
 	if response.Code != http.StatusNotImplemented || !bytes.Contains(response.Body.Bytes(), []byte("chapter_image_decoder_unsupported")) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}

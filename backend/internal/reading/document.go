@@ -22,8 +22,9 @@ const (
 )
 
 type ResourceReference struct {
-	Href      string `json:"href"`
-	MediaType string `json:"mediaType,omitempty"`
+	Unavailable bool   `json:"unavailable,omitempty"`
+	Href        string `json:"href"`
+	MediaType   string `json:"mediaType,omitempty"`
 }
 type Document struct {
 	CoverPlaceholder bool    `json:"coverPlaceholder,omitempty"`
@@ -32,6 +33,7 @@ type Document struct {
 	Blocks           []Block `json:"blocks"`
 }
 type Content struct {
+	FreshForMS      *int64   `json:"freshForMs,omitempty"`
 	ContentRevision int64    `json:"contentRevision"`
 	Version         int      `json:"version"`
 	Document        Document `json:"document"`

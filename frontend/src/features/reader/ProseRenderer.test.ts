@@ -87,3 +87,15 @@ it('shows labeled default cover artwork without changing book text or anchors an
   expect(wrapper.text()).toContain('Original cover unavailable');
   expect(() => parseStructuredChapterContent({ ...raw, document: { ...raw.document, coverPlaceholder: 'yes' } })).toThrow('Invalid cover placeholder');
 });
+
+it('renders an explicitly unavailable figure without issuing an image request', () => {
+  const wrapper = mount(ProseRenderer, { props: {
+    document: { kind: 'prose', title: 'Chapter', blocks: [
+      { kind: 'paragraph', text: 'Still readable' },
+      { kind: 'image', resource: { href: '', unavailable: true }, alt: 'Map' },
+    ] }, showImages: true, fallbackImageAlt: 'Image', imageUnavailable: 'Unavailable',
+  } });
+  expect(wrapper.find('img').exists()).toBe(false);
+  expect(wrapper.find('[role="status"]').text()).toBe('Map — Unavailable');
+  expect(wrapper.text()).toContain('Still readable');
+});

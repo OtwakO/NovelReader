@@ -39,7 +39,7 @@ export function renderProseNodes(nodes: StructuredProseNode[], options: RenderOp
       case 'text': return node.text;
       case 'image': {
         if (!options.showImages) return null;
-        if (options.failedResources.has(node.resource.href)) return h('span', { ...attrs, class: 'image-failure', role: 'status' }, node.alt ? `${node.alt} — ${options.imageUnavailable}` : options.imageUnavailable);
+        if (node.resource.unavailable || options.failedResources.has(node.resource.href)) return h('span', { ...attrs, class: 'image-failure', role: 'status' }, node.alt ? `${node.alt} — ${options.imageUnavailable}` : options.imageUnavailable);
         return h('img', { ...attrs, src: node.resource.href, alt: node.alt || options.fallbackImageAlt, width: node.width, height: node.height,
           loading: 'lazy', decoding: 'async', onClick: (event: MouseEvent) => event.stopPropagation(), onError: () => options.imageFailed(node.resource.href) });
       }

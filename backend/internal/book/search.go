@@ -947,6 +947,11 @@ func (s *Searcher) GetChapterContentForBook(src booksource.BookSource, b *Book, 
 
 // GetChapterContentForBookContext honors caller cancellation and the configured workflow timeout.
 func (s *Searcher) GetChapterContentForBookContext(ctx context.Context, src booksource.BookSource, b *Book, current, next *Chapter) (string, string, error) {
+	result, err := s.GetChapterDocument(ctx, src, b, current, next)
+	return result.Content, result.Title, err
+}
+
+func (s *Searcher) getChapterContent(ctx context.Context, src booksource.BookSource, b *Book, current, next *Chapter, result *ChapterDocument) (string, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
 	defer cancel()
 	if current == nil || current.URL == "" {
@@ -974,6 +979,8 @@ func (s *Searcher) GetChapterContentForBookContext(ctx context.Context, src book
 	transport := s.newTransport(s.workflowClient(), session)
 	executor := sourceexec.NewExecutorWithSession(s.jsVM, transport, session)
 	bookData := bookContext(b, src)
+	result.BookContext = bookData
+	result.ChapterContext = chapterContext(b, current, chapterURL)
 	setExecutorContextWithBookData(executor, src, bookData, b, current, next, chapterURL)
 	spec, err := executor.BuildContext(ctx, chapterURL, "", 1, src.BookSourceURL)
 	if err != nil || spec.URL == "" {

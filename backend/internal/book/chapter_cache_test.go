@@ -24,7 +24,7 @@ func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
 			t.Fatal(err)
 		}
 		for chapter := 0; chapter < 101; chapter++ {
-			entry := CachedChapter{BookID: bookID, SourceID: "source", ChapterIndex: chapter, ChapterURL: fmt.Sprintf("url-%d", chapter), Title: "Title", Paragraphs: []string{fmt.Sprintf("content-%d", chapter)}, Blocks: []processor.ProseBlock{{Kind: processor.ProseBlockImage, Src: fmt.Sprintf("image-%d", chapter)}}}
+			entry := CachedChapter{CachedAt: 123456, SourceIdentity: "definition", BookContext: map[string]any{"name": "Captured"}, ChapterContext: map[string]any{"url": "chapter"}, BookID: bookID, SourceID: "source", ChapterIndex: chapter, ChapterURL: fmt.Sprintf("url-%d", chapter), Title: "Title", Paragraphs: []string{fmt.Sprintf("content-%d", chapter)}, Blocks: []processor.ProseBlock{{Kind: processor.ProseBlockImage, Src: fmt.Sprintf("image-%d", chapter)}}}
 			if err := store.SaveChapterCache(entry); err != nil {
 				t.Fatal(err)
 			}
@@ -41,6 +41,9 @@ func TestChapterCacheUsesExactIdentityAndBoundedLRU(t *testing.T) {
 	cached, err := store.GetChapterCache("book-5", "source", 100, "url-100", 0)
 	if err != nil || cached == nil || cached.Paragraphs[0] != "content-100" || len(cached.Blocks) != 1 || cached.Blocks[0].Src != "image-100" {
 		t.Fatalf("cached=%+v err=%v", cached, err)
+	}
+	if cached.CachedAt != 123456 || cached.SourceIdentity != "definition" || cached.BookContext["name"] != "Captured" || cached.ChapterContext["url"] != "chapter" {
+		t.Fatalf("lost document metadata: %+v", cached)
 	}
 	if cached, err := store.GetChapterCache("book-5", "source", 100, "changed-url", 0); err != nil || cached != nil {
 		t.Fatalf("changed URL cached=%+v err=%v", cached, err)
