@@ -87,7 +87,7 @@ Reader schema is **16**, adding EPUB inbox claims with portable cleanup-authorit
 - Installable Vue PWA; production GHCR Compose, checkout-built local Compose with bind-mounted data, and separate deterministic Compose E2E.
 - Worker-wide Chrome headless/headful selection and paired app/worker release publication with exact-image verification.
 
-The completed [reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) workstream adds backend cache-first/Refresh, immutable image resources, persistent client caching, transactional invalidation, two-target conversion preparation/renewal and destination-specific navigation feedback. Focused tests and synthetic browser checks pass; live-source latency remains unmeasured. The plan records verification and compatibility limits.
+The completed [reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) workstream adds backend cache-first/Refresh, immutable image resources, persistent client caching, transactional invalidation, two-target conversion preparation/renewal and destination-specific navigation feedback. Focused tests and synthetic browser checks pass. [Live reader re-entry measurements](docs/notes/2026-09-26-reader-reentry-latency.md) confirm memory/IndexedDB chapter hits but identify blocking catalog/metadata requests and repeated conversion; the note proposes improvements without weakening invalidation, TTL or retention. No follow-up implementation is accepted yet; upstream crawl latency remains unmeasured.
 
 ### Compatibility position
 
