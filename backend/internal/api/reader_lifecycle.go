@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/otwako/novelreader/internal/fileimport"
 	"github.com/otwako/novelreader/internal/readerstore"
@@ -35,6 +37,17 @@ func (s *Server) resumeReader(id readerstore.UserID) {
 func (s *Server) forgetReader(id readerstore.UserID) error {
 	if err := errors.Join(s.fileAdmission.Forget(id), s.fileImports.Forget(id)); err != nil {
 		return err
+	}
+	if s.services.chapterResourcesErr != nil {
+		return fmt.Errorf("delete reader chapter resources: %w", s.services.chapterResourcesErr)
+	}
+	if s.services.chapterResources != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := s.services.chapterResources.DeleteReader(ctx, string(id))
+		cancel()
+		if err != nil {
+			return fmt.Errorf("delete reader chapter resources: %w", err)
+		}
 	}
 	s.services.fileInbox.invalidate(id)
 	// The home has been removed and account admission disabled. Release the

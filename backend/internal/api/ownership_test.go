@@ -15,6 +15,7 @@ import (
 	"github.com/otwako/novelreader/internal/auth"
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/chapterresource"
 	"github.com/otwako/novelreader/internal/epubstore"
 	"github.com/otwako/novelreader/internal/fontstore"
 	"github.com/otwako/novelreader/internal/library"
@@ -232,7 +233,7 @@ func newOwnershipServer(t *testing.T) (*Server, *auth.SessionService, *readersto
 	limits.SessionTTL = time.Minute
 	jsVM := analyzer.NewJSVMWithPoolSize(1)
 	searcher := book.NewSearcherWithLimits(nil, jsVM, analyzer.NewCacheManager(), nil, nil, limits)
-	server, err := NewAuthenticatedServer(authHandler, readers, root, searcher, jsVM, limits, processor.Config{}, system, nil, nil, nil)
+	server, err := NewAuthenticatedServer(authHandler, readers, root, searcher, jsVM, limits, processor.Config{}, system, nil, nil, nil, chapterresource.DefaultLimits())
 	if err != nil {
 		t.Fatal(err)
 	}

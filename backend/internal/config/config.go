@@ -5,9 +5,12 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/otwako/novelreader/internal/chapterresource"
 )
 
 type Config struct {
+	ChapterResourceCache    chapterresource.Limits
 	Port                    int
 	DataDir                 string
 	ReadTimeout             time.Duration
@@ -28,6 +31,7 @@ type Config struct {
 func Load() *Config {
 	dataDir := getEnv("DATA_DIR", "./data")
 	return &Config{
+		ChapterResourceCache:    chapterResourceLimits(),
 		Port:                    getEnvInt("PORT", 8888),
 		DataDir:                 dataDir,
 		ReadTimeout:             time.Duration(getEnvInt("READ_TIMEOUT_SECONDS", 30)) * time.Second,

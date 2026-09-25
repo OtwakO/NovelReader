@@ -7,6 +7,7 @@ import (
 	"github.com/otwako/novelreader/internal/auth"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/candidate"
+	"github.com/otwako/novelreader/internal/chapterresource"
 	"github.com/otwako/novelreader/internal/chineseconv"
 	"github.com/otwako/novelreader/internal/epubstore"
 	"github.com/otwako/novelreader/internal/fetcher"
@@ -20,6 +21,8 @@ import (
 // readerServices are assembled once by Server and borrowed by reader handlers.
 // Their lifecycle belongs to Server, not to an individual reader runtime.
 type readerServices struct {
+	chapterResources    *chapterresource.Store
+	chapterResourcesErr error
 	fetcher             *fetcher.Client
 	processorCfg        processor.Config
 	auth                *auth.HTTPHandler

@@ -28,6 +28,11 @@ services:
       # MAX_WORKFLOW_SESSIONS: "1024"
       # SESSION_TTL_MINUTES: "30"
       # EXPLORE_SOURCE_TIMEOUT_SECONDS: "30"
+      # Disposable chapter-image recipe cache (not books or imported resources):
+      # CHAPTER_RESOURCE_CACHE_MAX_MIB: "1024"
+      # CHAPTER_RESOURCE_CACHE_READER_MAX_MIB: "256"
+      # CHAPTER_RESOURCE_CACHE_MAX_BUNDLES: "10000"
+      # CHAPTER_RESOURCE_CACHE_READER_MAX_BUNDLES: "2000"
     depends_on:
       webview-worker:
         condition: service_healthy

@@ -79,6 +79,23 @@ docker compose up -d --force-recreate app
 
 NovelReader stores its data in the `data` folder beside `docker-compose.yml`. The WebView worker runs only on the private Compose network and does not expose a browser port to the host.
 
+### Chapter-resource cache capacity
+
+The backend owns a disposable image-recipe cache at `DATA_DIR/cache/chapter-resources.sqlite`, outside portable Reader Data backups. **Reading-path integration is still in progress:** these settings configure the store, but chapters do not yet publish image bundles to it. See the [active implementation plan](docs/plans/2026-09-22-reader-cache-and-prefetch.md).
+
+Set these environment variables on the app process, or uncomment the entries under `app.environment` in `docker-compose.yml` and recreate the app container:
+
+| Variable | Default | Limit |
+|---|---:|---|
+| `CHAPTER_RESOURCE_CACHE_MAX_MIB` | 1024 | Installation-wide encoded bundle bytes, in MiB |
+| `CHAPTER_RESOURCE_CACHE_READER_MAX_MIB` | 256 | Per-reader encoded bundle bytes, in MiB |
+| `CHAPTER_RESOURCE_CACHE_MAX_BUNDLES` | 10000 | Installation-wide bundle count |
+| `CHAPTER_RESOURCE_CACHE_READER_MAX_BUNDLES` | 2000 | Per-reader bundle count |
+
+These are ceilings, not preallocated space; both scopes apply. They do not limit books, bookmarks, progress, imported TXT/EPUB data, chapter-text caches or browser caches. Bundles contain private image recipes and any inline image payloads, not downloaded remote images. Invalid or nonpositive values use defaults. Leave additional disk headroom for SQLite metadata/journals and durable application data; these settings are not filesystem quotas. Size limits for active usage, especially inline images—not simply registered-user count.
+
+The store reclaims expired bundles rather than evicting unexpired promises. Lowering limits below existing usage prevents new allocation until usage falls; it does not purge existing bundles. Storage-open failures are logged and leave existing cache files untouched; unrelated reading stays available. Fix the storage problem and restart to reopen the store. Reader deletion remains retryable if its cache cleanup fails.
+
 ## Update
 
 This revision requires reader schema epoch 16 (EPUB server-inbox claims and portable cleanup ownership).

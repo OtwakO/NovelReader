@@ -136,7 +136,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("recovery HTTP: %v", err)
 	}
-	apiSrv, err := api.NewAuthenticatedServer(authHandler, readers, cfg.DataDir, searcher, jsVM, limits, procCfg, systemStore, browserClient, browserClient, conversion)
+	apiSrv, err := api.NewAuthenticatedServer(authHandler, readers, cfg.DataDir, searcher, jsVM, limits, procCfg, systemStore, browserClient, browserClient, conversion, cfg.ChapterResourceCache)
 	if err != nil {
 		log.Fatalf("authenticated API: %v", err)
 	}

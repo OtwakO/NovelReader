@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/otwako/novelreader/internal/analyzer"
@@ -17,6 +18,7 @@ import (
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/candidate"
+	"github.com/otwako/novelreader/internal/chapterresource"
 	"github.com/otwako/novelreader/internal/chineseconv"
 	"github.com/otwako/novelreader/internal/fetcher"
 	"github.com/otwako/novelreader/internal/fileimport"
@@ -76,6 +78,9 @@ func (s *Server) Close() error {
 	if s.services != nil && s.services.fileInbox != nil {
 		s.services.fileInbox.clear()
 	}
+	if s.services != nil && s.services.chapterResources != nil {
+		closeErr = errors.Join(closeErr, s.services.chapterResources.Close())
+	}
 	return closeErr
 }
 
@@ -109,7 +114,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // NewAuthenticatedServer creates the production Reader Data boundary.
-func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, dataRoot string, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, browser sourceinteraction.Browser, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service) (*Server, error) {
+func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.Manager, dataRoot string, rootSearcher *book.Searcher, jsVM *analyzer.JSVM, limits book.SearcherLimits, processorCfg processor.Config, health interface{ PingContext(context.Context) error }, browser sourceinteraction.Browser, webViewProbe interface{ Probe(context.Context) error }, conversion chineseconv.Service, resourceLimits chapterresource.Limits) (*Server, error) {
 	services := &readerServices{fetcher: rootSearcher.SharedFetcher(), processorCfg: processorCfg, auth: authHandler,
 		webViewProbe: webViewProbe, chineseConversion: conversion, fileInbox: newInboxControls(),
 		candidateOperations: candidate.NewManager(candidate.DefaultPolicy()),
@@ -120,6 +125,15 @@ func NewAuthenticatedServer(authHandler *auth.HTTPHandler, readers *readerstore.
 	// Startup is the admission gate: recover before routes or schedulers run.
 	startupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+	resources, resourceErr := chapterresource.Open(startupCtx, filepath.Join(dataRoot, "cache", "chapter-resources.sqlite"), resourceLimits)
+	if resourceErr != nil {
+		services.chapterResourcesErr = resourceErr
+		// A disposable-store failure must not take durable reading offline. Keep
+		// existing files intact; image publication will report unavailable recipes.
+		slog.Error("chapter resource storage unavailable; image preparation disabled until restart", "error", resourceErr)
+	} else {
+		services.chapterResources = resources
+	}
 	ids, err := authHandler.ListReaderHomeIDs(startupCtx)
 	if err == nil {
 		s.fileImports, err = fileimport.Start(startupCtx, readers, ids)

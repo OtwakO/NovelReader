@@ -16,6 +16,8 @@ Describe the current ownership, storage, authentication, credential, and backup 
 
 `api.Server` owns authentication, health, backup/restore, shared TXT/EPUB worker lifecycle and process shutdown. Each `readerRuntime` owns one `readerAPI` with routes registered at runtime construction; the handler binds directly to that runtime and borrows explicitly assembled `readerServices`. Authenticated requests acquire a lease, invoke the cached handler and release the lease—no Server copy or per-request dependency replacement. A replacement runtime gets a new handler and reader-specific cover scope. Candidate operations acquire their own additional lease so they can outlive the starting request. Standalone `NewServer` binds one reader explicitly and preserves its existing HTTP wrapper.
 
+The authenticated server also owns the disposable `chapterresource.Store` at `data/cache/chapter-resources.sqlite`. It is independent of runtime eviction and portable homes, with atomic per-reader/installation admission and expiry cleanup. The server closes it after draining reader runtimes; account deletion removes that reader's bundles before declaring cleanup complete. Failed store initialization leaves its files intact and does not block unrelated reading; cache-cleanup failures keep account deletion retryable. The reading/image routes are **not yet connected** to this store. Configuration is documented in [README](../../README.md#chapter-resource-cache-capacity); remaining integration belongs to the [cache plan](../plans/2026-09-22-reader-cache-and-prefetch.md).
+
 ## Reader home
 
 ```text

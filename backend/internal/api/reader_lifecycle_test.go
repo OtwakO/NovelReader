@@ -175,6 +175,9 @@ func TestServerCloseDrainsWorkersAndRuntimesAfterOtherCleanupFails(t *testing.T)
 	if _, err := server.fileAdmission.Request(alice); !errors.Is(err, fileimport.ErrClosed) {
 		t.Fatalf("intake still admitted work: %v", err)
 	}
+	if err := server.services.chapterResources.Cleanup(t.Context()); err == nil {
+		t.Fatal("shared chapter resource store remained open after cleanup error")
+	}
 	if _, release, err := server.runtimes.acquire(t.Context(), alice); err == nil {
 		release()
 		t.Fatal("API runtimes remained open after cleanup error")
