@@ -178,8 +178,12 @@ The chapter cache owns memory and IndexedDB reuse for three recently committed b
 up to five main-section documents around its committed position. Online book/catalog validation
 qualifies reader/home/revision/provider identity before reuse; BookSource additionally requires the
 catalog's opaque source-definition tag. Copies preserve remaining freshness. IndexedDB writes check
-the shared invalidation epoch transactionally; BroadcastChannel retires affected memory. Storage
-failures fall back to memory/network. Retention advances after successful display/anchor restoration,
+the shared invalidation epoch transactionally. Completed, unaffected memory entries advance across
+a known committed invalidation transition; in-flight request/write tickets keep their original epoch.
+BroadcastChannel sends that transition after commit, retires affected memory, and advances surviving
+copies in other tabs. Copies missing an intervening transition are discarded rather than requalified.
+This keeps Refresh and unrelated-book invalidations from freezing persistent retention windows.
+Storage failures fall back to memory/network. Retention advances after successful display/anchor restoration,
 not speculative retrieval. The loader prepares the next two main sections nearest-first, using the
 same window policy and converter as foreground reading. One pump and one expiry timer renew
 BookSource targets while visible/enabled; imports have no expiry timer. Foreground joins matching

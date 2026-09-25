@@ -9,7 +9,7 @@ const chapters = [0, 1, 2, 3, 4, 5, 6].map(index => ({ index, title: String(inde
 const identity = { homeGeneration: 'home', bookId: 'book', revision: 1, provider: 'txt' as const };
 const content: ChapterContent = { version: 1, contentRevision: 1, offlineCopy: false, document: { kind: 'prose', title: 'Synthetic', blocks: [{ kind: 'paragraph', text: 'Readable' }] } };
 const started = () => ({ wall: Date.now(), monotonic: performance.now() });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it('persists canonical committed/window content across readers without treating speculation as a visit', async () => {
   const factory = new IDBFactory();
@@ -90,5 +90,47 @@ it('retries quota pressure once and degrades to memory when storage becomes unav
   session.accept(1, nextContent, next.ticket, started());
   expect(session.peek(1)).toBe(nextContent);
   expect(warning).toHaveBeenCalledOnce();
+  await storage.close();
+});
+
+it.each(['refresh', 'other-book', 'other-tab'] as const)('retains the new disk window after %s invalidation', async (invalidation) => {
+  const channels: { onmessage?: (event: { data: unknown }) => void }[] = [];
+  vi.stubGlobal('BroadcastChannel', class {
+    onmessage?: (event: { data: unknown }) => void;
+    constructor() { channels.push(this); }
+    postMessage(data: unknown) { for (const channel of channels) if (channel !== this) channel.onmessage?.({ data }); }
+  });
+  const factory = new IDBFactory();
+  const storage = new ChapterCacheStorage('refresh-window', factory);
+  const cache = new ChapterCache(storage);
+  await cache.useReader('reader');
+  const session = await cache.bind(identity, chapters, await cache.beginValidation(), 0);
+  for (const index of [0, 1, 2]) {
+    const lookup = await session.lookup(index);
+    const chapter = { ...content };
+    session.accept(index, chapter, lookup.ticket, started());
+    if (index === 0) session.commit(index, chapter);
+  }
+  await session.settled();
+  if (invalidation === 'other-tab') {
+    const otherStorage = new ChapterCacheStorage('refresh-window', factory);
+    const other = new ChapterCache(otherStorage);
+    await other.useReader('reader');
+    await other.invalidate({ bookId: 'book', index: 0 });
+    await otherStorage.close();
+  } else if (invalidation === 'other-book') await cache.invalidate({ bookId: 'another-book' });
+  else await session.refresh(0);
+  const neighbor = session.peek(1)!;
+  expect(neighbor).toBeDefined();
+  session.commit(1, neighbor);
+  const next = await session.lookup(3);
+  session.accept(3, { ...content }, next.ticket, started());
+  await session.settled();
+  const reopenedStorage = new ChapterCacheStorage('refresh-window', factory);
+  const reopened = new ChapterCache(reopenedStorage);
+  await reopened.useReader('reader');
+  const reader = await reopened.bind(identity, chapters, await reopened.beginValidation(), 1);
+  expect((await reader.lookup(3)).content).toEqual(content);
+  await reopenedStorage.close();
   await storage.close();
 });

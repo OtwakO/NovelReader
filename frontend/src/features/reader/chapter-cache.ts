@@ -28,6 +28,7 @@ export class ChapterCache {
       const value = event.data;
       if (!value || typeof value !== 'object' || (value.bookId !== undefined && typeof value.bookId !== 'string') || (value.index !== undefined && !Number.isSafeInteger(value.index))) return;
       this.clearMemory(value as CacheInvalidation);
+      if (Number.isSafeInteger(value.epoch)) this.advanceRetainedEpoch(value.epoch);
     };
   }
 
@@ -41,6 +42,18 @@ export class ChapterCache {
         book.entries.clear(); book.retained = false; this.books.delete(book.scope);
       }
       else book.entries.delete(filter.index);
+    }
+  }
+
+  // Only completed, retained documents survive a known invalidation transition.
+  // Never renew the tickets held by requests or writes already in flight.
+  private advanceRetainedEpoch(epoch: number) {
+    for (const book of this.books.values()) {
+      if (book.epoch === epoch - 1) book.epoch = epoch;
+      for (const [index, receipt] of book.entries) {
+        if (receipt.epoch === epoch - 1) book.entries.set(index, { ...receipt, epoch });
+        else if (receipt.epoch !== undefined && receipt.epoch < epoch) book.entries.delete(index);
+      }
     }
   }
 
@@ -65,8 +78,11 @@ export class ChapterCache {
 
   invalidate(filter: CacheInvalidation = {}): Promise<unknown> {
     this.clearMemory(filter);
-    this.pending = this.pending.then(() => this.disk(() => this.storage.invalidate(filter)));
-    this.channel?.postMessage(filter);
+    this.pending = this.pending.then(async () => {
+      const epoch = await this.disk(() => this.storage.invalidate(filter));
+      if (epoch !== undefined) this.advanceRetainedEpoch(epoch);
+      this.channel?.postMessage({ ...filter, epoch });
+    });
     return this.pending;
   }
 
@@ -90,7 +106,9 @@ export class ChapterCache {
       if (validation.local !== this.local || (!this.disabled && !qualification)) throw new ChapterCacheInvalidated();
       if (qualification?.changed) {
         const filter = qualification.homeChanged ? {} : { bookId: identity.bookId };
-        this.clearMemory(filter); this.channel?.postMessage(filter);
+        this.clearMemory(filter);
+        this.advanceRetainedEpoch(qualification.epoch);
+        this.channel?.postMessage({ ...filter, epoch: qualification.epoch });
       }
       epoch = qualification?.epoch;
     }
