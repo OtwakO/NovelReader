@@ -725,7 +725,14 @@ func (s *Searcher) GetBookInfoForBook(src booksource.BookSource, b *Book, bookUR
 
 // GetBookInfoForBookContext enriches a candidate within the caller-owned workflow deadline.
 func (s *Searcher) GetBookInfoForBookContext(ctx context.Context, src booksource.BookSource, b *Book, bookURL string) (*Book, error) {
-	return s.getBookInfoForBookWithSession(ctx, src, b, bookURL, s.sessions.GetOrCreateBook(src.ID, bookURL))
+	ctx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
+	defer cancel()
+	session, release, err := s.sessions.AcquireWorkflow(ctx, src.ID, bookURL, "")
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return s.getBookInfoForBookWithSession(ctx, src, b, bookURL, session)
 }
 
 func (s *Searcher) getBookInfoForBookWithSession(ctx context.Context, src booksource.BookSource, b *Book, bookURL string, session *sourceexec.SourceSession) (*Book, error) {
@@ -808,6 +815,8 @@ func (s *Searcher) GetChapterListForBook(src booksource.BookSource, b *Book, toc
 
 // GetChapterListForBookContext resolves a TOC within the caller-owned workflow deadline.
 func (s *Searcher) GetChapterListForBookContext(ctx context.Context, src booksource.BookSource, b *Book, tocURL string) ([]Chapter, error) {
+	ctx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
+	defer cancel()
 	if b == nil {
 		return nil, fmt.Errorf("chapter list: book is required")
 	}
@@ -817,7 +826,11 @@ func (s *Searcher) GetChapterListForBookContext(ctx context.Context, src booksou
 		fetchURL = bookURL
 	}
 
-	session := s.sessions.GetOrCreateBook(src.ID, bookURL)
+	session, release, err := s.sessions.AcquireWorkflow(ctx, src.ID, bookURL, "")
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if err := s.prepareSourceSession(ctx, src, session); err != nil {
 		return nil, fmt.Errorf("chapter list: source profile: %w", err)
 	}
@@ -941,15 +954,15 @@ func (s *Searcher) GetChapterContentForBookContext(ctx context.Context, src book
 	}
 	chapterURL := current.URL
 
-	var session *sourceexec.SourceSession
-	if b != nil && b.BookURL != "" {
-		session = s.sessions.GetOrCreateBook(src.ID, b.BookURL)
-	} else {
-		session = s.sessions.GetChapter(src.ID, chapterURL)
+	bookURL := ""
+	if b != nil {
+		bookURL = b.BookURL
 	}
-	if session == nil {
-		session = sourceexec.NewSourceSession()
+	session, release, err := s.sessions.AcquireWorkflow(ctx, src.ID, bookURL, chapterURL)
+	if err != nil {
+		return "", "", err
 	}
+	defer release()
 	if err := s.prepareSourceSession(ctx, src, session); err != nil {
 		return "", "", fmt.Errorf("content: source profile: %w", err)
 	}

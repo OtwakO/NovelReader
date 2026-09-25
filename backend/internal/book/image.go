@@ -38,7 +38,11 @@ func (s *Searcher) getStoredImage(ctx context.Context, src booksource.BookSource
 	ctx, cancel := context.WithTimeout(ctx, s.sourceTimeout())
 	defer cancel()
 
-	session := s.sessions.GetOrCreateBook(src.ID, b.BookURL)
+	session, release, err := s.sessions.AcquireWorkflow(ctx, src.ID, b.BookURL, "")
+	if err != nil {
+		return nil, "", err
+	}
+	defer release()
 	if err := s.prepareSourceSession(ctx, src, session); err != nil {
 		return nil, "", fmt.Errorf("%s: source profile: %w", label, err)
 	}

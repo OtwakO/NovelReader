@@ -15,12 +15,13 @@ const (
 // SessionRegistry keeps source state shared within one server/workflow scope.
 // The caller must provide a user-scoped registry when multiple users are supported.
 type SessionRegistry struct {
-	mu       sync.Mutex
-	books    map[string]*SourceSession
-	chapters map[string]*SourceSession
-	lastUsed map[*SourceSession]time.Time
-	max      int
-	ttl      time.Duration
+	mu        sync.Mutex
+	books     map[string]*SourceSession
+	chapters  map[string]*SourceSession
+	lastUsed  map[*SourceSession]time.Time
+	max       int
+	ttl       time.Duration
+	workflows map[*SourceSession]*sessionWorkflow
 }
 
 // NewSessionRegistry creates a registry with bounded memory and one-hour idle expiry.
@@ -28,7 +29,8 @@ func NewSessionRegistry() *SessionRegistry {
 	return NewSessionRegistryWithLimits(defaultMaxSessions, defaultSessionTTL)
 }
 
-// NewSessionRegistryWithLimits creates a registry with deterministic eviction policy.
+// NewSessionRegistryWithLimits bounds idle retention. Active/waiting workflow
+// leases cannot be evicted; release trims any temporary excess.
 func NewSessionRegistryWithLimits(maxSessions int, idleTTL time.Duration) *SessionRegistry {
 	if maxSessions < 1 {
 		maxSessions = defaultMaxSessions
@@ -37,15 +39,17 @@ func NewSessionRegistryWithLimits(maxSessions int, idleTTL time.Duration) *Sessi
 		idleTTL = defaultSessionTTL
 	}
 	return &SessionRegistry{
-		books:    make(map[string]*SourceSession),
-		chapters: make(map[string]*SourceSession),
-		lastUsed: make(map[*SourceSession]time.Time),
-		max:      maxSessions,
-		ttl:      idleTTL,
+		books:     make(map[string]*SourceSession),
+		chapters:  make(map[string]*SourceSession),
+		lastUsed:  make(map[*SourceSession]time.Time),
+		workflows: make(map[*SourceSession]*sessionWorkflow),
+		max:       maxSessions,
+		ttl:       idleTTL,
 	}
 }
 
-// GetOrCreateBook returns the stable session for one source/book pair.
+// GetOrCreateBook accesses cached state for one source/book pair. Executing
+// workflows use AcquireWorkflow to keep that identity pinned until completion.
 func (r *SessionRegistry) GetOrCreateBook(sourceURL, bookURL string) *SourceSession {
 	if r == nil {
 		return NewSourceSession()
@@ -73,6 +77,9 @@ func (r *SessionRegistry) AssociateBook(sourceURL, bookURL string, session *Sour
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.evictLocked(time.Now())
+	if workflow := r.workflows[session]; workflow != nil && workflow.retired {
+		return
+	}
 	r.books[sessionKey(sourceURL, bookURL)] = session
 	r.touchLocked(session)
 	r.evictLocked(time.Now())
@@ -142,6 +149,9 @@ func (r *SessionRegistry) DeleteSource(sourceID string) {
 		}
 	}
 	for session := range removed {
+		if workflow := r.workflows[session]; workflow != nil {
+			workflow.retired = true
+		}
 		delete(r.lastUsed, session)
 	}
 }
@@ -166,7 +176,7 @@ func (r *SessionRegistry) touchLocked(session *SourceSession) {
 
 func (r *SessionRegistry) evictLocked(now time.Time) {
 	for session, lastUsed := range r.lastUsed {
-		if now.Sub(lastUsed) > r.ttl {
+		if !r.pinnedLocked(session) && now.Sub(lastUsed) > r.ttl {
 			r.removeLocked(session)
 		}
 	}
@@ -174,9 +184,16 @@ func (r *SessionRegistry) evictLocked(now time.Time) {
 		var oldest *SourceSession
 		var oldestAt time.Time
 		for session, lastUsed := range r.lastUsed {
+			if r.pinnedLocked(session) {
+				continue
+			}
 			if oldest == nil || lastUsed.Before(oldestAt) {
 				oldest, oldestAt = session, lastUsed
 			}
+		}
+		if oldest == nil {
+			// Running/waiting workflows are not idle cache entries.
+			break
 		}
 		r.removeLocked(oldest)
 	}
