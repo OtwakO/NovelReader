@@ -91,6 +91,8 @@ Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for un
 
 ### Completed workstream handoffs
 
+[Verified project-review corrections](docs/plans/2026-09-25-project-review-corrections.md) — five reproduced defects corrected, test-only search merger removed, and approved ReaderView formatting completed on `fix/verified-project-review`. Full Go tests/vet, frontend regression, focused race tests and builds pass. Not merged, pushed or deployed; the plan records evidence and verification limits.
+
 [EPUB support](docs/plans/2026-09-17-epub-support.md) — completed bounded reflowable novel-reading milestone at epoch 16. Browser/inbox intake, review, shared reading and image resources, progress/bookmarks, portable lifecycle and removal are integrated without a second reader or scheduler. The final isolated Chromium journey covered inbox import → reading/bookmark → export → removal → restore → restart → reading/resources → removal. Existing data was untouched; deployment, broad real-book compatibility and stress/power-loss testing are not claimed.
 
 [Parallel release builds](docs/plans/parallel-release-builds.md) — concurrent production builds are
@@ -142,8 +144,6 @@ Continue Reading's narrow-screen reflow (`947a2b8`) and the bookshelf cover-gall
 [Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) — U1–U4 and R1–R3 are resolved: preview/history improvements, retained inbox refresh notifications, behavior-preserving reader readability, and corrected test fixtures. Final reader/import verification passed 126 tests without warnings, typecheck and production build. The note retains original findings and scoped verification limits.
 
 ## Active Work
-
-[Verified project-review corrections](docs/plans/2026-09-25-project-review-corrections.md) — verify the reported defects before fixing their causes; evidence, progress and remaining verification live in the plan. No subagents or speculative cleanup.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
