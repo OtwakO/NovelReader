@@ -91,7 +91,7 @@ Use [Legado compatibility roadmap](docs/roadmaps/legado-compatibility.md) for un
 
 ### Completed workstream handoffs
 
-[Verified project-review corrections](docs/plans/2026-09-25-project-review-corrections.md) — five reproduced defects corrected, test-only search merger removed, and approved ReaderView formatting completed on `fix/verified-project-review`. Full Go tests/vet, frontend regression, focused race tests and builds pass. Not merged, pushed or deployed; the plan records evidence and verification limits.
+[Verified project-review corrections](docs/plans/2026-09-25-project-review-corrections.md) — five reproduced defects corrected, test-only search merger removed, and approved ReaderView formatting completed and fast-forwarded into local `main`. Full Go tests/vet, frontend regression, focused race tests and builds pass. Not pushed or deployed; the plan records evidence and verification limits.
 
 [EPUB support](docs/plans/2026-09-17-epub-support.md) — completed bounded reflowable novel-reading milestone at epoch 16. Browser/inbox intake, review, shared reading and image resources, progress/bookmarks, portable lifecycle and removal are integrated without a second reader or scheduler. The final isolated Chromium journey covered inbox import → reading/bookmark → export → removal → restore → restart → reading/resources → removal. Existing data was untouched; deployment, broad real-book compatibility and stress/power-loss testing are not claimed.
 
