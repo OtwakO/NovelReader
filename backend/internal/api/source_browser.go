@@ -126,7 +126,7 @@ func (s *readerAPI) handleCloseSourceBrowser(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		s.deleteSourceSession(sourceID)
-		resumed.Effects = sourceinteraction.RegisterBrowserRequests(resumed.Effects, s.browserSessions)
+		resumed.Effects = sourceinteraction.RegisterBrowserRequests(sourceID, resumed.Effects, s.browserSessions)
 		response.Resumed = &resumed
 	}
 	writeJSON(w, http.StatusOK, response)

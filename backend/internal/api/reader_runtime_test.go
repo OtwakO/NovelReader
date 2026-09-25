@@ -108,7 +108,7 @@ func TestRuntimeEvictionKeepsOwnershipWithoutBlockingOtherReaders(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	requestID := first.browserSessions.Register(sourceinteraction.BrowserRequest{URL: "https://example.test"})
+	requestID := first.browserSessions.Register("source", sourceinteraction.BrowserRequest{URL: "https://example.test"})
 	if _, err := first.browserSessions.Start(t.Context(), "source", requestID, webview.InteractiveViewport{}, sourceexec.NewSourceSession()); err != nil {
 		t.Fatal(err)
 	}

@@ -188,7 +188,7 @@ func (d *Describer) act(ctx context.Context, sourceID string, request ActionRequ
 }
 
 // RegisterBrowserRequests replaces source URLs with one-use opaque Reader-runtime references.
-func RegisterBrowserRequests(effects []Effect, sessions *BrowserSessions) []Effect {
+func RegisterBrowserRequests(sourceID string, effects []Effect, sessions *BrowserSessions) []Effect {
 	if sessions == nil {
 		return effects
 	}
@@ -196,7 +196,7 @@ func RegisterBrowserRequests(effects []Effect, sessions *BrowserSessions) []Effe
 		if effects[index].Type != "browser_required" || effects[index].URL == "" {
 			continue
 		}
-		effects[index].BrowserRequestID = sessions.Register(BrowserRequest{URL: effects[index].URL, Title: effects[index].Title, Continuation: effects[index].continuation})
+		effects[index].BrowserRequestID = sessions.Register(sourceID, BrowserRequest{URL: effects[index].URL, Title: effects[index].Title, Continuation: effects[index].continuation})
 		effects[index].URL = ""
 	}
 	return effects

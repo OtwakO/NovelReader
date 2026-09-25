@@ -35,7 +35,7 @@ func (b *browserFixture) CloseInteractive(_ context.Context, _, _ string, _ bool
 func TestBrowserSessionsConsumeOpaqueRequestAndCloseOnSourceInvalidation(t *testing.T) {
 	browser := &browserFixture{}
 	sessions := NewBrowserSessions(browser)
-	requestID := sessions.Register(BrowserRequest{URL: "https://example.test/login", Title: "Login"})
+	requestID := sessions.Register("source-a", BrowserRequest{URL: "https://example.test/login", Title: "Login"})
 	frame, err := sessions.Start(t.Context(), "source-a", requestID, webview.InteractiveViewport{}, sourceexec.NewSourceSession())
 	if err != nil || frame.SessionID == "" {
 		t.Fatalf("frame=%+v error=%v", frame, err)
@@ -53,7 +53,7 @@ func TestBrowserSessionsRequestsHTMLOnlyForAwaitContinuation(t *testing.T) {
 	browser := &browserFixture{}
 	sessions := NewBrowserSessions(browser)
 	continuation := &ActionContinuation{Request: ActionRequest{Revision: "revision", ActionID: "action-0"}}
-	requestID := sessions.Register(BrowserRequest{URL: "https://example.test/settings", Continuation: continuation})
+	requestID := sessions.Register("source-a", BrowserRequest{URL: "https://example.test/settings", Continuation: continuation})
 	frame, err := sessions.Start(t.Context(), "source-a", requestID, webview.InteractiveViewport{}, sourceexec.NewSourceSession())
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestBrowserSessionsRequestsHTMLOnlyForAwaitContinuation(t *testing.T) {
 
 func TestRegisterBrowserRequestsDoesNotExposeSourceURL(t *testing.T) {
 	sessions := NewBrowserSessions(&browserFixture{})
-	effects := RegisterBrowserRequests([]Effect{{Type: "browser_required", URL: "https://example.test/login", Title: "Login"}}, sessions)
+	effects := RegisterBrowserRequests("source-a", []Effect{{Type: "browser_required", URL: "https://example.test/login", Title: "Login"}}, sessions)
 	if effects[0].URL != "" || effects[0].BrowserRequestID == "" {
 		t.Fatalf("effect=%+v", effects[0])
 	}
@@ -74,7 +74,7 @@ func TestRegisterBrowserRequestsDoesNotExposeSourceURL(t *testing.T) {
 
 func TestRegisterBrowserRequestsRegistersAwaitLaunches(t *testing.T) {
 	sessions := NewBrowserSessions(&browserFixture{})
-	effects := RegisterBrowserRequests([]Effect{{Type: "browser_required", URL: "https://example.test/register", Await: true}}, sessions)
+	effects := RegisterBrowserRequests("source-a", []Effect{{Type: "browser_required", URL: "https://example.test/register", Await: true}}, sessions)
 	if effects[0].URL != "" || effects[0].BrowserRequestID == "" || !effects[0].Await {
 		t.Fatalf("effect=%+v", effects[0])
 	}
@@ -83,7 +83,7 @@ func TestRegisterBrowserRequestsRegistersAwaitLaunches(t *testing.T) {
 func TestBrowserSessionsAcceptsBoundedHTMLDataDocument(t *testing.T) {
 	browser := &browserFixture{}
 	sessions := NewBrowserSessions(browser)
-	requestID := sessions.Register(BrowserRequest{URL: "data:text/html;base64,PGgxPlNldHRpbmdzPC9oMT4=", Title: "Settings"})
+	requestID := sessions.Register("source-a", BrowserRequest{URL: "data:text/html;base64,PGgxPlNldHRpbmdzPC9oMT4=", Title: "Settings"})
 	if _, err := sessions.Start(t.Context(), "source-a", requestID, webview.InteractiveViewport{}, sourceexec.NewSourceSession()); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestBrowserSessionsAcceptsBoundedHTMLDataDocument(t *testing.T) {
 
 func TestBrowserSessionsRejectsNonHTMLDataDocument(t *testing.T) {
 	sessions := NewBrowserSessions(&browserFixture{})
-	requestID := sessions.Register(BrowserRequest{URL: "data:text/javascript;base64,YWxlcnQoMSk="})
+	requestID := sessions.Register("source-a", BrowserRequest{URL: "data:text/javascript;base64,YWxlcnQoMSk="})
 	if _, err := sessions.Start(t.Context(), "source-a", requestID, webview.InteractiveViewport{}, sourceexec.NewSourceSession()); err == nil {
 		t.Fatal("expected non-HTML data URL to be rejected")
 	}

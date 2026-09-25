@@ -78,7 +78,7 @@ func TestScheduledReplacementInvalidatesInteractiveBrowser(t *testing.T) {
 	}
 	browser := &collectionBrowser{}
 	sessions := sourceinteraction.NewBrowserSessions(browser)
-	requestID := sessions.Register(sourceinteraction.BrowserRequest{URL: "https://example.test/login"})
+	requestID := sessions.Register(sources[0].ID, sourceinteraction.BrowserRequest{URL: "https://example.test/login"})
 	if _, err := sessions.Start(t.Context(), sources[0].ID, requestID, webview.InteractiveViewport{}, sourceexec.NewSourceSession()); err != nil {
 		t.Fatal(err)
 	}

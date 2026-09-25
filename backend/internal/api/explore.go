@@ -88,7 +88,7 @@ func (s *readerAPI) handleExploreAction(w http.ResponseWriter, r *http.Request) 
 	for index, effect := range result.Effects {
 		effects[index] = sourceinteraction.Effect{Type: effect.Type, Message: effect.Message, URL: effect.URL, Title: effect.Title, Await: effect.Await}
 	}
-	effects = sourceinteraction.RegisterBrowserRequests(effects, s.browserSessions)
+	effects = sourceinteraction.RegisterBrowserRequests(result.SourceID, effects, s.browserSessions)
 	writeJSON(w, http.StatusOK, map[string]interface{}{"sourceId": result.SourceID, "effects": effects})
 }
 

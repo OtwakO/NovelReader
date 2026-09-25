@@ -174,7 +174,7 @@ func (s *readerAPI) handleSourceInteractionAction(w http.ResponseWriter, r *http
 		return
 	}
 	s.deleteSourceSession(r.PathValue("id"))
-	result.Effects = sourceinteraction.RegisterBrowserRequests(result.Effects, s.browserSessions)
+	result.Effects = sourceinteraction.RegisterBrowserRequests(r.PathValue("id"), result.Effects, s.browserSessions)
 	writeJSON(w, http.StatusOK, result)
 }
 

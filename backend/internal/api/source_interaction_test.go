@@ -133,6 +133,23 @@ func TestSourceInteractionAwaitBrowserActionReturnsLaunchReference(t *testing.T)
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"browserRequestId"`) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
+	var result sourceinteraction.ActionResult
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	requestID := result.Effects[0].BrowserRequestID
+	sessions := server.standalone.browserSessions
+	if _, err := sessions.Start(t.Context(), "source-b", requestID, webview.InteractiveViewport{}, sourceexec.NewSourceSession()); err == nil {
+		t.Fatal("action launch was usable by a different source")
+	}
+	reset := httptest.NewRecorder()
+	server.ServeHTTP(reset, httptest.NewRequest(http.MethodDelete, "/api/sources/source-a/interaction/login", nil))
+	if reset.Code != http.StatusOK {
+		t.Fatalf("reset status=%d", reset.Code)
+	}
+	if _, err := sessions.Start(t.Context(), source.ID, requestID, webview.InteractiveViewport{}, sourceexec.NewSourceSession()); err == nil {
+		t.Fatal("login reset left the emitted browser request usable")
+	}
 }
 
 type apiBrowserFixture struct{ html string }

@@ -5,9 +5,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/otwako/novelreader/internal/sourceexec"
@@ -25,6 +27,7 @@ type Browser interface {
 }
 
 type BrowserRequest struct {
+	sourceID     string
 	URL          string
 	Title        string
 	Continuation *ActionContinuation
@@ -54,11 +57,12 @@ func NewBrowserSessions(browser Browser) *BrowserSessions {
 }
 
 // Register stores a one-use source-emitted browser request and returns an opaque reference.
-func (s *BrowserSessions) Register(request BrowserRequest) string {
+func (s *BrowserSessions) Register(sourceID string, request BrowserRequest) string {
 	if s == nil {
 		return ""
 	}
 	requestID := newBrowserRequestID()
+	request.sourceID = sourceID
 	s.mu.Lock()
 	clear(s.pending)
 	s.pending[requestID] = request
@@ -73,27 +77,33 @@ func (s *BrowserSessions) Start(ctx context.Context, sourceID, requestID string,
 	}
 	s.mu.Lock()
 	request, ok := s.pending[requestID]
-	delete(s.pending, requestID)
-	s.mu.Unlock()
-	if !ok {
-		return webview.InteractiveFrame{}, fmt.Errorf("sourceinteraction: browser request not found")
+	if !ok || request.sourceID != sourceID {
+		s.mu.Unlock()
+		return webview.InteractiveFrame{}, ErrBrowserSessionNotFound
 	}
+	delete(s.pending, requestID)
 	if err := validateBrowserURL(request.URL); err != nil {
+		s.mu.Unlock()
 		return webview.InteractiveFrame{}, err
 	}
-	s.CloseSource(ctx, "")
+	owned := &browserSession{sourceID: sourceID, startURL: request.URL, session: session, continuation: request.Continuation}
+	previous := s.session
+	// Ownership starts before worker I/O, so invalidation can retire an in-flight launch.
+	s.session = owned
+	s.mu.Unlock()
+	s.closeWorker(ctx, previous)
 	frame, err := s.browser.StartInteractive(ctx, request.URL, request.Title, viewport, session)
 	if err != nil {
+		s.forget(owned)
 		return webview.InteractiveFrame{}, err
 	}
-	owned := &browserSession{workerID: frame.SessionID, sourceID: sourceID, startURL: request.URL, session: session, continuation: request.Continuation}
 	s.mu.Lock()
-	if s.session != nil {
+	if s.session != owned {
 		s.mu.Unlock()
-		_, _ = s.browser.CloseInteractive(context.WithoutCancel(ctx), frame.SessionID, request.URL, false, false, session)
-		return webview.InteractiveFrame{}, fmt.Errorf("sourceinteraction: browser session already active")
+		s.closeWorker(ctx, &browserSession{workerID: frame.SessionID, startURL: request.URL, session: session})
+		return webview.InteractiveFrame{}, ErrBrowserSessionNotFound
 	}
-	s.session = owned
+	owned.workerID = frame.SessionID
 	s.mu.Unlock()
 	return frame, nil
 }
@@ -146,28 +156,32 @@ func (s *BrowserSessions) Close(ctx context.Context, sourceID, sessionID string,
 	return closed, nil
 }
 
-// CloseSource closes the active session when sourceID matches; an empty ID closes any session.
+// CloseSource retires matching pending, starting and active work; an empty ID retires all.
 func (s *BrowserSessions) CloseSource(ctx context.Context, sourceID string) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
-	owned := s.session
-	if owned == nil || sourceID != "" && owned.sourceID != sourceID {
-		s.mu.Unlock()
-		return
+	for id, request := range s.pending {
+		if sourceID == "" || request.sourceID == sourceID {
+			delete(s.pending, id)
+		}
 	}
-	s.session = nil
-	s.pending = make(map[string]BrowserRequest)
+	owned := s.session
+	if owned != nil && (sourceID == "" || owned.sourceID == sourceID) {
+		s.session = nil
+	} else {
+		owned = nil
+	}
 	s.mu.Unlock()
-	_, _ = s.browser.CloseInteractive(ctx, owned.workerID, owned.startURL, false, false, owned.session)
+	s.closeWorker(ctx, owned)
 }
 
 func (s *BrowserSessions) owned(sourceID, sessionID string) (*browserSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	owned := s.session
-	if owned == nil || owned.sourceID != sourceID || owned.workerID != sessionID {
+	if owned == nil || owned.workerID == "" || owned.sourceID != sourceID || owned.workerID != sessionID {
 		return nil, ErrBrowserSessionNotFound
 	}
 	return owned, nil
@@ -179,6 +193,22 @@ func (s *BrowserSessions) forget(owned *browserSession) {
 		s.session = nil
 	}
 	s.mu.Unlock()
+}
+
+// Cleanup must survive request cancellation, but must not wait indefinitely for the worker.
+func (s *BrowserSessions) closeWorker(ctx context.Context, owned *browserSession) {
+	if owned == nil {
+		return
+	}
+	if owned.workerID == "" {
+		// Let the bounded launch return its worker ID so it can close that context.
+		return
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if _, err := s.browser.CloseInteractive(cleanupCtx, owned.workerID, owned.startURL, false, false, owned.session); err != nil {
+		slog.Warn("sourceinteraction: browser cleanup failed", "error_type", fmt.Sprintf("%T", err))
+	}
 }
 
 func newBrowserRequestID() string { return strings.ReplaceAll(uuid.NewString(), "-", "") }
