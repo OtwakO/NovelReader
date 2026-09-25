@@ -1,3 +1,10 @@
+import type { ChineseConversionCapability } from './system';
+
+export interface ReadingContext {
+  sourceIdentity?: string;
+  chineseConversion: ChineseConversionCapability;
+}
+
 export interface AltSource {
   variableMap?: string;
   sourceId: string;
@@ -33,6 +40,8 @@ export interface SearchResult {
 }
 
 export interface LibraryBook {
+  /** Present only on qualified single-book reads; absent on older servers. */
+  readingContext?: ReadingContext;
   provider: string;
   originLabel?: string;
   id: string;

@@ -148,7 +148,18 @@ func (s *Store) DefinitionRevisions() (map[string]int64, error) {
 
 // GetByID returns one installed source definition by its immutable Source ID.
 func (s *Store) GetByID(id string) (*BookSource, error) {
-	row := s.db.QueryRow(`SELECT `+sourceColumns+` FROM book_sources WHERE id = ?`, id)
+	return getByID(context.Background(), s.db, id)
+}
+
+// GetByIDTx keeps definition identity in the caller's book/binding snapshot.
+func GetByIDTx(ctx context.Context, tx *sql.Tx, id string) (*BookSource, error) {
+	return getByID(ctx, tx, id)
+}
+
+func getByID(ctx context.Context, db interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, id string) (*BookSource, error) {
+	row := db.QueryRowContext(ctx, `SELECT `+sourceColumns+` FROM book_sources WHERE id = ?`, id)
 	src, err := scanSource(row)
 	if err != nil {
 		if err == sql.ErrNoRows {

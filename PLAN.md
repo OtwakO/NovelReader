@@ -87,7 +87,7 @@ Reader schema is **16**, adding EPUB inbox claims with portable cleanup-authorit
 - Installable Vue PWA; production GHCR Compose, checkout-built local Compose with bind-mounted data, and separate deterministic Compose E2E.
 - Worker-wide Chrome headless/headful selection and paired app/worker release publication with exact-image verification.
 
-The completed [reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) workstream adds backend cache-first/Refresh, immutable image resources, persistent client caching, transactional invalidation, two-target conversion preparation/renewal and destination-specific navigation feedback. Focused tests and synthetic browser checks pass. [Live reader re-entry measurements](docs/notes/2026-09-26-reader-reentry-latency.md) confirm memory/IndexedDB chapter hits but identify blocking catalog/metadata requests and repeated conversion. The accepted follow-up is tracked in the [reader-entry cache plan](docs/plans/2026-09-26-reader-entry-cache.md); implementation has not started. Upstream crawl latency remains unmeasured.
+The completed [reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) workstream adds backend cache-first/Refresh, immutable image resources, persistent client caching, transactional invalidation, two-target conversion preparation/renewal and destination-specific navigation feedback. Focused tests and synthetic browser checks pass. [Live reader re-entry measurements](docs/notes/2026-09-26-reader-reentry-latency.md) confirm memory/IndexedDB chapter hits but identify blocking catalog/metadata requests and repeated conversion. The accepted follow-up is tracked in the [reader-entry cache plan](docs/plans/2026-09-26-reader-entry-cache.md); implementation is underway. Upstream crawl latency remains unmeasured.
 
 ### Compatibility position
 
@@ -151,7 +151,7 @@ Continue Reading's narrow-screen reflow (`947a2b8`) and the bookshelf cover-gall
 
 ## Active Work
 
-[Reader-entry caching](docs/plans/2026-09-26-reader-entry-cache.md) — accepted direction, detailed planning on `feat/reader-entry-cache`. Preserve fresh validation, invalidation, TTLs and retention while reusing catalogs and prepared display. API/coherence, cache-upgrade, consumer-lifetime and recovery gates remain open; the current step is documentation only.
+[Reader-entry caching](docs/plans/2026-09-26-reader-entry-cache.md) — implementation underway on `feat/reader-entry-cache`. Additive coherent single-book qualification is implemented and focused tests pass; bounded catalog/display reuse and recovery integration remain. Preserve fresh validation, invalidation, TTLs and retention.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 

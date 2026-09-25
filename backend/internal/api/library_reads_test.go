@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/otwako/novelreader/internal/book"
+	"github.com/otwako/novelreader/internal/booksource"
 	"github.com/otwako/novelreader/internal/library"
 )
 
@@ -101,5 +102,86 @@ func TestLibraryRemovalCascadesBookSourceAndSharedChildren(t *testing.T) {
 		if err := server.standalone.db.QueryRow(`SELECT count(*) FROM ` + table).Scan(&count); err != nil || count != 0 {
 			t.Fatalf("after deletion %s count=%d err=%v", table, count, err)
 		}
+	}
+}
+
+func TestReaderEntryQualification(t *testing.T) {
+	server, closeDB := newWorkflowAPIServer(t)
+	defer closeDB()
+	source := &booksource.BookSource{ID: "entry-source", BookSourceURL: "https://source.test", BookSourceName: "Synthetic source"}
+	if err := server.standalone.sourceStore.Upsert(source); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.standalone.bookStore.AddBook(&book.Book{ID: "entry-book", Name: "Novel", SourceID: source.ID, BookURL: "https://source.test/book"}); err != nil {
+		t.Fatal(err)
+	}
+	read := func() libraryBookResponse {
+		t.Helper()
+		response := performAPIRequest(server, http.MethodGet, "/api/books/entry-book", nil)
+		var value libraryBookResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil || response.Code != http.StatusOK {
+			t.Fatalf("entry: status=%d err=%v", response.Code, err)
+		}
+		return value
+	}
+	first := read()
+	identity, err := source.DefinitionIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ReadingContext == nil || first.ReadingContext.SourceIdentity != identity {
+		t.Fatalf("missing definition qualification: %+v", first.ReadingContext)
+	}
+	// Entry metadata needs neither a prepared catalog nor an upstream crawl.
+	if first.TotalChapterNum != 0 {
+		t.Fatal("unexpected catalog")
+	}
+	source.Header = `{"X-Fixture":"changed"}`
+	if err := server.standalone.sourceStore.Upsert(source); err != nil {
+		t.Fatal(err)
+	}
+	changed := read()
+	if changed.ContentRevision != first.ContentRevision || changed.StateVersion != first.StateVersion || changed.ReadingContext.SourceIdentity == identity {
+		t.Fatal("definition edit must change qualification, not reading revisions")
+	}
+	response := performAPIRequest(server, http.MethodGet, "/api/books", nil)
+	var shelf []libraryBookResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &shelf); err != nil || len(shelf) != 1 || shelf[0].ReadingContext != nil {
+		t.Fatal("shelf must not load entry qualification")
+	}
+	// A missing source keeps detail/recovery available but cannot qualify reuse.
+	if _, err := server.standalone.db.Exec("DELETE FROM book_sources WHERE id = ?", source.ID); err != nil {
+		t.Fatal(err)
+	}
+	if read().ReadingContext != nil {
+		t.Fatal("missing source qualified cached reading")
+	}
+}
+
+func TestReaderEntryImportedProviders(t *testing.T) {
+	server, closeDB := newWorkflowAPIServer(t)
+	defer closeDB()
+	for _, provider := range []string{library.TXT, library.EPUB} {
+		t.Run(provider, func(t *testing.T) {
+			tx, err := server.standalone.db.BeginTx(t.Context(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tx.Rollback()
+			if err := library.InsertTx(t.Context(), tx, library.Item{ID: provider, Provider: provider, ContentRevision: 2, StateVersion: 4}); err != nil {
+				t.Fatal(err)
+			}
+			if err := tx.Commit(); err != nil {
+				t.Fatal(err)
+			}
+			response := performAPIRequest(server, http.MethodGet, "/api/books/"+provider, nil)
+			var value libraryBookResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil || response.Code != http.StatusOK {
+				t.Fatalf("entry: status=%d err=%v", response.Code, err)
+			}
+			if value.ReadingContext == nil || value.ReadingContext.SourceIdentity != "" || value.ContentRevision != 2 || value.StateVersion != 4 {
+				t.Fatalf("imported entry qualification: %+v", value)
+			}
+		})
 	}
 }

@@ -17,7 +17,7 @@ The [live measurement report](../notes/2026-09-26-reader-reentry-latency.md) own
 
 **Accepted direction:** lightweight authoritative entry validation, bounded persistent catalog reuse, memory-only conversion reuse across reader visits, and removing source-recovery metadata from the prose critical path. Extend existing ownership rather than build a general caching framework.
 
-**Current authorization:** documentation and planning before application implementation. The user requested this durable tracking plan; no application changes begin in this step. Resolve the implementation gates below and obtain authorization to start coding before marking a milestone in progress.
+**Current authorization:** implementation authorized. Proceed in coherent tested milestones, resolving each boundary's engineering gate before editing it. Merge/push/deployment remain separate.
 
 Included:
 - Reader entry, re-entry, reload and existing visible-reader revalidation.
@@ -135,7 +135,7 @@ Accepted decisions above must not be reopened merely to defer core requirements.
 
 | Gate | Required resolution | Preferred constraint |
 |---|---|---|
-| G1 — coherent entry API | Choose exact additive response fields/endpoint and server snapshot/revalidation sequence; define old-server fallback, catalog-not-ready/mismatch behavior and capability qualification | Extend existing book/reading owners; one small warm validation; no full catalog work on a match |
+| G1 — coherent entry API (resolved) | Add optional `readingContext` to single-book GET: installed source definition identity for BookSource and existing Chinese-conversion capability. Read the definition through the same SQLite transaction as library state/native binding; no catalog rows. Omit qualification for missing sources/unsupported providers. Client treats absent qualification as the legacy online path; catalog misses retain polling and bounded pair retries. | No new route, migration, shelf enrichment or revision system. Capability engine/version/presets qualify memory-only display reuse. |
 | G2 — cache-format evolution | Choose versioned catalog representation and IndexedDB upgrade/old-tab/downgrade handling; define capture/read/write/retain/invalidate transaction scopes | One control epoch and retained-book registry; no durable reader schema migration |
 | G3 — consumer lifetime | Specify detail-to-reader pending sharing/cancellation and transient detail-only retention; define converter/mode/engine lifetime | Reuse existing generation guards; no application-wide event framework or unlimited pending/result map |
 | G4 — recovery integration | Identify exactly which native fields are required before prose display and how source controls load/retry on normal and failure paths | Do not trade away source recovery to remove one await |
@@ -148,7 +148,7 @@ Each implementation milestone should leave affected code runnable with its focus
 
 - [x] **M0a — measurement and accepted direction.** Live evidence recorded; branch created; this plan establishes scope and invariants.
 - [ ] **M0b — resolve G1–G4 and authorize coding.** Inspect direct callers/tests for the selected boundaries; write down the wire shape, coherence proof, storage upgrade and lifetime rules. Do not implement during the documentation-only step.
-- [ ] **M1 — lightweight server qualification.** Add the selected additive contract and frontend parsing/fallback. Test coherent binding/source/home/state qualification and unchanged legacy behavior, including an invalidation race. Keep the current reader path working until integration is ready.
+- [x] **M1 — lightweight server qualification.** Single-book GET now includes optional `readingContext`; definition, native binding and library state share one SQLite snapshot. Frontend parses optional metadata while accepting old-server absence. Provider/source-edit/missing-source/shelf contracts pass; reader reuse is not yet enabled. Existing home lease is unchanged; integrated invalidation races remain in M5.
 - [ ] **M2 — bounded catalog reuse.** Add catalog storage/memory eligibility and integrate transactional epoch/pruning rules. Test persistence/reload, retention and late-write rejection with the existing fake-indexeddb setup. Include safe blocked/older-tab/failure handling.
 - [ ] **M3 — shared reader-entry flow.** Integrate fresh validation + retained/pending catalog reuse in Reader and Detail. Preserve progress drain, polling/retry and revision-qualified navigation. Remove redundant catalog work, not validation itself. Prove a warm entry does not fetch the full catalog or cached chapter.
 - [ ] **M4 — reusable display and nonblocking recovery metadata.** Integrate retained conversion and lazy/noncritical source metadata with explicit loading/error/retry state. Cover Refresh, conversion-mode changes and failure/source-switch recovery. Prove warm prepared Traditional entry makes no repeated conversion POSTs.
@@ -208,13 +208,13 @@ Start with the smallest relevant test file per milestone. As integration grows, 
 ## Current State
 
 - Branch: `feat/reader-entry-cache`, based on `docs/reader-reentry-analysis` at `1451c35` (which contains the sanitized measurement report). The eventual implementation branch can be merged once; the analysis branch needs no separate merge.
-- Direction accepted; detailed plan created. G1–G4 and all production milestones remain unfinished.
-- No application/API/cache-format change has been made. No new performance improvement, regression pass, resource ceiling or live invalidation verification is claimed.
+- Implementation authorized; G1 and M1 complete. Additive qualification and optional frontend parsing are implemented; no new cache reuse is enabled yet. G2–G4 remain to be resolved before their production boundaries change.
+- No cache-format change or measured performance improvement is claimed.
 - User-owned untracked files are outside this work and must remain untouched.
 
 ## Next Action
 
-Review this plan, resolve the G1–G4 engineering gates and obtain authorization to begin implementation. Start with the smallest coherent server entry-contract change and its regression tests (M1), not a broad frontend cache rewrite. Keep this plan as the single implementation handoff document as work progresses.
+Resolve catalog storage/lifetime gates and implement bounded catalog reuse (M2), then wire the shared entry flow. Keep this plan as the single implementation handoff document.
 
 ## Verification
 
@@ -222,4 +222,6 @@ Completed evidence: the linked measurement report contains live baseline method/
 
 Planning validation completed: dated-filename check passed; all 48 local documentation link targets across this plan, the measurement note and `PLAN.md` exist; `git diff --check` passed. Application tests/builds were not run for this documentation-only step.
 
-Pending implementation evidence: all deterministic regressions, race checks, cache-upgrade compatibility, resource measurements and before/after performance checks described above. Replace this pending summary with concrete results and remaining limits at meaningful milestones; do not append session diaries.
+M1 verification: `go test -race ./internal/api ./internal/booksource -run 'ReaderEntry|LibraryReads|Identity' -timeout 60s` passed; frontend books/reader-session tests passed (2 files, 5 tests), and `vue-tsc --noEmit` passed. This checks provider qualification, definition edits without revision changes, missing-source recovery and additive/legacy parsing, not integrated client invalidation races.
+
+Pending implementation evidence: client regressions, cache-upgrade compatibility, resource measurements and before/after performance checks described above. Replace this pending summary with concrete results and remaining limits at meaningful milestones; do not append session diaries.

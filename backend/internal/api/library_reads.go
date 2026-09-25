@@ -7,13 +7,22 @@ import (
 	"strings"
 
 	"github.com/otwako/novelreader/internal/book"
+	"github.com/otwako/novelreader/internal/booksource"
+	"github.com/otwako/novelreader/internal/chineseconv"
 	"github.com/otwako/novelreader/internal/library"
 )
 
 type libraryBookResponse struct {
 	library.Item
-	CoverDisplayURL string `json:"coverDisplayUrl,omitempty"`
-	OriginLabel     string `json:"originLabel,omitempty"`
+	CoverDisplayURL string                  `json:"coverDisplayUrl,omitempty"`
+	OriginLabel     string                  `json:"originLabel,omitempty"`
+	ReadingContext  *readingContextResponse `json:"readingContext,omitempty"`
+}
+
+// Single-book entry qualification, not a cached copy of mutable reading state.
+type readingContextResponse struct {
+	SourceIdentity    string                 `json:"sourceIdentity,omitempty"`
+	ChineseConversion chineseconv.Capability `json:"chineseConversion"`
 }
 
 // Shared state and native display inputs come from one SQLite snapshot. The
@@ -42,6 +51,25 @@ func (s *readerAPI) libraryBooks(ctx context.Context, id string) ([]libraryBookR
 	if err != nil {
 		return nil, err
 	}
+	var readingContext *readingContextResponse
+	if id != "" && len(items) == 1 {
+		switch items[0].Provider {
+		case library.TXT, library.EPUB:
+			readingContext = &readingContextResponse{ChineseConversion: s.conversionCapability()}
+		case library.BookSource:
+			source, err := booksource.GetByIDTx(ctx, tx, contexts[id].SourceID)
+			if err != nil {
+				return nil, err
+			}
+			if source != nil {
+				identity, err := source.DefinitionIdentity()
+				if err != nil {
+					return nil, err
+				}
+				readingContext = &readingContextResponse{SourceIdentity: identity, ChineseConversion: s.conversionCapability()}
+			}
+		}
+	}
 	// No transaction needs to span cover revision enrichment.
 	if err := tx.Rollback(); err != nil {
 		return nil, err
@@ -53,7 +81,7 @@ func (s *readerAPI) libraryBooks(ctx context.Context, id string) ([]libraryBookR
 		revisions[native.SourceID] = s.coverCacheRevision(native.SourceID)
 	}
 	for _, item := range items {
-		response := libraryBookResponse{Item: item}
+		response := libraryBookResponse{Item: item, ReadingContext: readingContext}
 		if item.Provider == library.BookSource {
 			native := contexts[item.ID]
 			response.OriginLabel = native.Origin
