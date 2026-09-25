@@ -866,8 +866,10 @@ func (s *Searcher) GetChapterListForBookContext(ctx context.Context, src booksou
 				if err != nil {
 					return nil, fmt.Errorf("chapter list: preUpdateJs reGetBook: %w", err)
 				}
+				if err := s.sessions.AssociateBook(src.ID, result.BookURL, session); err != nil {
+					return nil, fmt.Errorf("chapter list: preUpdateJs reGetBook: %w", err)
+				}
 				applySearchResultToBook(b, result)
-				s.sessions.AssociateBook(src.ID, b.BookURL, session)
 				if _, err := s.getBookInfoForBookWithSession(ctx, src, b, b.BookURL, session); err != nil {
 					return nil, fmt.Errorf("chapter list: preUpdateJs reGetBook: %w", err)
 				}

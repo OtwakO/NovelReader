@@ -2,6 +2,7 @@
 package sourceexec
 
 import (
+	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -69,20 +70,27 @@ func (r *SessionRegistry) GetOrCreateBook(sourceURL, bookURL string) *SourceSess
 	return session
 }
 
-// AssociateBook maps another source/book identity to an existing workflow session.
-func (r *SessionRegistry) AssociateBook(sourceURL, bookURL string, session *SourceSession) {
+var ErrSessionAliasConflict = errors.New("sourceexec: book URL already belongs to another session")
+
+// AssociateBook adds an alias without replacing another workflow's state or owner.
+func (r *SessionRegistry) AssociateBook(sourceURL, bookURL string, session *SourceSession) error {
 	if r == nil || session == nil || bookURL == "" {
-		return
+		return nil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.evictLocked(time.Now())
 	if workflow := r.workflows[session]; workflow != nil && workflow.retired {
-		return
+		return ErrSessionRetired
 	}
-	r.books[sessionKey(sourceURL, bookURL)] = session
+	key := sessionKey(sourceURL, bookURL)
+	if owner := r.books[key]; owner != nil && owner != session {
+		return ErrSessionAliasConflict
+	}
+	r.books[key] = session
 	r.touchLocked(session)
 	r.evictLocked(time.Now())
+	return nil
 }
 
 // GetBook returns an existing book session without creating one.
@@ -129,7 +137,6 @@ func (r *SessionRegistry) GetChapter(sourceURL, chapterURL string) *SourceSessio
 	return session
 }
 
-// IsChapter reports whether a URL belongs to a collected chapter list.
 // DeleteSource removes every session and alias owned by one immutable Source ID.
 func (r *SessionRegistry) DeleteSource(sourceID string) {
 	prefix := sourceID + "\x00"
@@ -156,6 +163,7 @@ func (r *SessionRegistry) DeleteSource(sourceID string) {
 	}
 }
 
+// IsChapter reports whether a URL belongs to a collected chapter list.
 func (r *SessionRegistry) IsChapter(sourceURL, chapterURL string) bool {
 	if r == nil {
 		return false

@@ -78,6 +78,14 @@ BookSource-owned; TXT and EPUB read their published indexes without crawling or 
 chapter entries contain `index`, `title`, `isVolume` and optional `auxiliary` membership; native IDs, URLs and file paths stay
 behind the reading interface. BookSource may instead return `202` synchronization state or a typed failure. `POST /api/books/{id}/chapters/sync` retries a retained failure; it does not force-refresh an already ready catalog.
 
+A TOC `reGetBook` redirect can add a book-URL alias to its existing source session, but cannot
+replace another retained session's ownership or script state. An unclaimed alias or the same owner
+is accepted; a different owner produces an explicit crawl error before destination detail execution.
+This applies to idle as well as active owners: waiting alone cannot reconcile their cookies/variables.
+Immediate retry need not resolve the conflict; ordinary session eviction or source invalidation retires
+that ownership. No state-merging or multi-session handoff scheduler is used. Reconsider a handoff only
+if real-source compatibility evidence warrants defining how both sessions' state should survive.
+
 See the completed [catalog synchronization plan](../plans/2026-08-31-catalog-synchronization.md).
 
 ## Reading documents and resources

@@ -90,7 +90,9 @@ func TestSourceRetirementRejectsQueuedWorkAndAliasResurrection(t *testing.T) {
 		}()
 		synctest.Wait()
 		registry.DeleteSource("source")
-		registry.AssociateBook("source", "replacement", old)
+		if err := registry.AssociateBook("source", "replacement", old); !errors.Is(err, ErrSessionRetired) {
+			t.Fatalf("retired association: %v", err)
+		}
 		if registry.GetBook("source", "replacement") != nil {
 			t.Fatal("retired work resurrected an alias")
 		}
@@ -107,4 +109,27 @@ func TestSourceRetirementRejectsQueuedWorkAndAliasResurrection(t *testing.T) {
 			t.Fatal("new workflow reused retired state")
 		}
 	})
+}
+
+func TestWorkflowAliasCannotReplaceAnotherOwner(t *testing.T) {
+	registry := NewSessionRegistry()
+	incoming, releaseIncoming, err := registry.AcquireWorkflow(t.Context(), "source", "old-book", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer releaseIncoming()
+	existing, releaseExisting, err := registry.AcquireWorkflow(t.Context(), "source", "new-book", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer releaseExisting()
+	if err := registry.AssociateBook("source", "new-book", incoming); !errors.Is(err, ErrSessionAliasConflict) {
+		t.Fatalf("association conflict: %v", err)
+	}
+	if err := registry.AssociateBook("source", "old-book", incoming); err != nil {
+		t.Fatalf("same owner association: %v", err)
+	}
+	if registry.GetBook("source", "new-book") != existing {
+		t.Fatal("alias replacement bypassed the destination's active workflow owner")
+	}
 }
