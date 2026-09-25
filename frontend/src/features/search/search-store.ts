@@ -27,12 +27,16 @@ export const useSearchStore = defineStore('search', {
     moreCount: (state) => Math.min(state.batchSize, Math.max(0, state.eligible - state.checked)),
   },
   actions: {
+    clearSavedState() {
+      try { sessionStorage.removeItem(storageKey); }
+      catch { this.storageWarning = true; }
+    },
     resetReaderState() {
       this.stop(false);
       const generation = this.generation;
       this.$reset();
       this.generation = generation;
-      try { sessionStorage.removeItem(storageKey); } catch { /* tab storage may be disabled */ }
+      this.clearSavedState();
     },
     initialize() {
       if (this.initialized) return;
@@ -47,12 +51,14 @@ export const useSearchStore = defineStore('search', {
         this.retryRequired = Boolean(saved.retryRequired || saved.inFlight); this.restartRequired = Boolean(saved.restartRequired);
         this.batchSourceIds = saved.batchSourceIds.filter((value) => typeof value === 'string'); this.sourceFailures = Math.max(0, saved.sourceFailures);
         this.activeBatchSize = Math.min(500, Math.max(1, saved.activeBatchSize)); this.activeConcurrency = Math.max(1, saved.activeConcurrency);
-      } catch { sessionStorage.removeItem(storageKey); }
+      } catch { this.clearSavedState(); }
     },
     persistPreferences() {
       this.batchSize = Math.min(500, Math.max(1, Math.trunc(this.batchSize || 1)));
       this.advancedConcurrency = Math.max(1, Math.trunc(this.advancedConcurrency || 1));
-      saveSearchPreferences({ batchSize: this.batchSize, intensity: this.intensity, advancedConcurrency: this.advancedConcurrency });
+      try {
+        saveSearchPreferences({ batchSize: this.batchSize, intensity: this.intensity, advancedConcurrency: this.advancedConcurrency });
+      } catch { this.storageWarning = true; }
     },
     save() {
       try {
@@ -63,7 +69,7 @@ export const useSearchStore = defineStore('search', {
     resetFor(query: string) {
       this.stop(false); this.searchedQuery = query; this.results = []; this.checked = 0; this.eligible = 0; this.committedOffset = 0;
       this.cursor = ''; this.retryCursor = ''; this.hasMore = false; this.retryRequired = false; this.restartRequired = false;
-      this.batchSourceIds = []; this.sourceFailures = 0; this.errorCode = ''; this.errorDetail = ''; sessionStorage.removeItem(storageKey);
+      this.batchSourceIds = []; this.sourceFailures = 0; this.errorCode = ''; this.errorDetail = ''; this.clearSavedState();
     },
     search() {
       const query = this.query.trim();
