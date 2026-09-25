@@ -126,12 +126,14 @@ export default defineComponent({
       this.tocError = "";
       try {
         if (!this.book) return;
-        const result = await loadValidatedCatalog(this.book, this.cacheValidation ?? await chapterCache.beginValidation(), {
-          retry,
-          isCurrent: () => request === this.loadGeneration,
-        });
+        const options = { retry, isCurrent: () => request === this.loadGeneration };
+        // A retry starts a new validation lifetime, including fresh book state.
+        const result = retry
+          ? await loadReaderSnapshot(this.bookId, options)
+          : { book: this.book, ...await loadValidatedCatalog(this.book, this.cacheValidation ?? await chapterCache.beginValidation(), options) };
         let catalog = result.catalog;
         if (request !== this.loadGeneration) return;
+        this.book = result.book;
         this.cacheValidation = result.cacheValidation;
         if (this.book?.contentRevision !== catalog.contentRevision || (this.book.readingContext && this.book.readingContext.sourceIdentity !== catalog.sourceIdentity)) {
           const snapshot = await loadReaderSnapshot(this.bookId, { isCurrent: () => request === this.loadGeneration });
