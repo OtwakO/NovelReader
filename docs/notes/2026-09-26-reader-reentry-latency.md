@@ -4,7 +4,7 @@
 
 The client chapter cache works, including IndexedDB after a full reload. Reader entry nevertheless waits for uncached metadata/catalog requests before consulting it. Traditional Chinese display conversion is also recreated on every reader lifetime. The bottleneck is the entry dependency chain and missing catalog/display reuse, not an observed chapter-cache miss on warm reopen.
 
-This is a measurement report and **proposed direction**, not an accepted implementation plan. No production code or cache policy was changed.
+This is the historical measurement report and original proposal. The subsequently accepted direction, implementation gates and current handoff now live in the [reader-entry cache plan](../plans/2026-09-26-reader-entry-cache.md). No production code or cache policy was changed during measurement.
 
 ## Evidence
 
@@ -78,7 +78,7 @@ Relevant source paths:
 
 The existing contract explicitly requires online entry validation: see the completed [cache plan](../plans/2026-09-22-reader-cache-and-prefetch.md#identity-and-lifecycle). It does not require retransmitting all catalog entries or serially loading recovery metadata on every entry.
 
-## Proposed direction — not yet accepted
+## Original proposed direction (historical)
 
 Prefer a small, coherent reader-entry boundary over a generic HTTP cache or another independent cache framework:
 
@@ -111,6 +111,6 @@ On the measured connection, one small request has roughly a 130–150 ms floor, 
 
 **Zero-request entry is a separate consistency decision.** A client cannot discover a remote-device source change or restore with no communication. A short validation TTL would introduce a stale window; background validation can display stale content first; a pushed invalidation channel alone does not prove currentness across disconnects. None is assumed accepted here. One lightweight fresh validation preserves the current entry/resume guarantee without requiring full catalog retransmission.
 
-## Next action
+## Handoff
 
-Review the proposed owner/API shape with the user before implementation. If accepted, create a focused implementation plan with cold/warm/reload timing baselines and deterministic invalidation, TTL, Refresh and retention regressions. No cache behavior change is authorized by this report.
+The focused reader-entry caching direction was accepted after measurement. Follow the [implementation plan](../plans/2026-09-26-reader-entry-cache.md) for scope, unresolved engineering gates, authorization, milestones and verification. This note remains the baseline evidence rather than a second implementation tracker.
