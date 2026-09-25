@@ -19,25 +19,6 @@ const maxImageBytes = 10 * 1024 * 1024
 
 var ErrUnsupportedImageDecoder = errors.New("image: Android bitmap decoder is unsupported")
 
-// GetChapterImage fetches and decodes one server-indexed image from a stored chapter.
-func (s *Searcher) GetChapterImage(ctx context.Context, src booksource.BookSource, b *Book, chapter *Chapter, imageURL string) ([]byte, string, error) {
-	if chapter == nil || strings.TrimSpace(chapter.URL) == "" {
-		return nil, "", fmt.Errorf("image: chapter is required")
-	}
-	script := strings.TrimSpace(parseRuleJSON(src.RuleContent)["imageDecode"])
-	if usesAndroidBitmapDecoder(script) {
-		return nil, "", ErrUnsupportedImageDecoder
-	}
-	return s.getStoredImage(ctx, src, b, chapter, imageURL, script, false, "image")
-}
-
-func (s *Searcher) getStoredImage(ctx context.Context, src booksource.BookSource, b *Book, chapter *Chapter, rawURL, script string, preserveOnNonBytes bool, label string) ([]byte, string, error) {
-	if s == nil || b == nil || strings.TrimSpace(rawURL) == "" {
-		return nil, "", fmt.Errorf("%s: URL is empty", label)
-	}
-	return s.getImageWithContext(ctx, src, bookContext(b, src), chapterContextOrNil(b, chapter, chapterURL(chapter)), rawURL, script, preserveOnNonBytes, label)
-}
-
 // GetChapterImageForContext resolves a recipe with document-owned script inputs.
 func (s *Searcher) GetChapterImageForContext(ctx context.Context, src booksource.BookSource, bookData, chapterData map[string]any, rawURL string) ([]byte, string, error) {
 	script := strings.TrimSpace(parseRuleJSON(src.RuleContent)["imageDecode"])
@@ -45,13 +26,6 @@ func (s *Searcher) GetChapterImageForContext(ctx context.Context, src booksource
 		return nil, "", ErrUnsupportedImageDecoder
 	}
 	return s.getImageWithContext(ctx, src, bookData, chapterData, rawURL, script, false, "image")
-}
-
-func chapterURL(chapter *Chapter) string {
-	if chapter == nil {
-		return ""
-	}
-	return chapter.URL
 }
 
 func (s *Searcher) getImageWithContext(ctx context.Context, src booksource.BookSource, bookData, chapterData map[string]any, rawURL, script string, preserveOnNonBytes bool, label string) ([]byte, string, error) {

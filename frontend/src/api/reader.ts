@@ -61,6 +61,8 @@ export function parseChapterContent(data: Record<string, unknown>): ReadingConte
       title: document.title,
       blocks: document.blocks.map(parseProseBlock),
     },
+    // Retain the legacy marker at the input boundary so old fallback payloads
+    // cannot become reusable cache entries. Current servers never emit it.
     offlineCopy: Boolean(data.offlineCopy),
   };
 }

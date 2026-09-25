@@ -1,4 +1,4 @@
-// Chapter cache stores bounded processed content for upstream-outage fallback.
+// Chapter cache stores bounded processed snapshots for identity-qualified, fresh reuse.
 package book
 
 import (

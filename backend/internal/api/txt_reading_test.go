@@ -87,7 +87,7 @@ func TestTXTReadingThroughCommonHTTPRoutes(t *testing.T) {
 	}
 	response = f.request(http.MethodGet, fmt.Sprintf("%s/chapters/0/content?contentRevision=%d", base, catalog.ContentRevision), "")
 	var content reading.Content
-	if err := json.Unmarshal(response.Body.Bytes(), &content); err != nil || response.Code != 200 || content.Version != reading.DocumentVersion || content.OfflineCopy || content.ContentRevision != catalog.ContentRevision {
+	if err := json.Unmarshal(response.Body.Bytes(), &content); err != nil || response.Code != 200 || content.Version != reading.DocumentVersion || content.ContentRevision != catalog.ContentRevision {
 		t.Fatalf("content: %d %s %v", response.Code, response.Body.String(), err)
 	}
 	literalFound := false

@@ -39,7 +39,6 @@ type Content struct {
 	ContentRevision int64    `json:"contentRevision"`
 	Version         int      `json:"version"`
 	Document        Document `json:"document"`
-	OfflineCopy     bool     `json:"offlineCopy,omitempty"`
 }
 
 func prose(revision int64, title string, blocks []Block) Content {

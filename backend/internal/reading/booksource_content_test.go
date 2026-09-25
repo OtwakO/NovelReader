@@ -22,7 +22,7 @@ func TestBookSourceDocumentNormalizesCacheBlocksAndIssuesResources(t *testing.T)
 		t.Fatal(err)
 	}
 	blocks := content.Document.Blocks
-	if len(blocks) != 3 || blocks[0].Kind != "paragraph" || blocks[2].Kind != "paragraph" || blocks[1].Resource == nil || blocks[1].Resource.Href != "resource:book:3:2:0" || content.OfflineCopy {
+	if len(blocks) != 3 || blocks[0].Kind != "paragraph" || blocks[2].Kind != "paragraph" || blocks[1].Resource == nil || blocks[1].Resource.Href != "resource:book:3:2:0" {
 		t.Fatalf("content=%+v", content)
 	}
 }

@@ -62,7 +62,7 @@ func TestDecodeScriptSkipsRemoteLibraryMap(t *testing.T) {
 	}
 }
 
-func TestGetChapterImageDecodesInlineDataResourceWithoutFetcher(t *testing.T) {
+func TestGetChapterImageForContextDecodesInlineDataResourceWithoutFetcher(t *testing.T) {
 	searcher := &Searcher{}
 	source := booksource.BookSource{ID: "source", BookSourceURL: "https://source.test"}
 	storedBook := &Book{BookURL: "data:;base64,Ym9vaw==,{\"type\":\"book\"}"}
@@ -80,7 +80,7 @@ func TestGetChapterImageDecodesInlineDataResourceWithoutFetcher(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			data, contentType, err := searcher.GetChapterImage(t.Context(), source, storedBook, chapter, test.rawURL)
+			data, contentType, err := searcher.GetChapterImageForContext(t.Context(), source, bookContext(storedBook, source), chapterContext(storedBook, chapter, chapter.URL), test.rawURL)
 			if err != nil {
 				t.Fatal(err)
 			}

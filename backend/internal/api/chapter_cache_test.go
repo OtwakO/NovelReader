@@ -72,7 +72,7 @@ func TestChapterContentCacheFirstRefreshAndExpiry(t *testing.T) {
 	}
 	response := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content?contentRevision=1", nil)
 	var fresh reading.Content
-	if err := json.Unmarshal(response.Body.Bytes(), &fresh); err != nil || response.Code != http.StatusOK || fresh.OfflineCopy || fresh.ContentRevision != 1 || fresh.Version != reading.DocumentVersion || fresh.Document.Kind != "prose" || len(fresh.Document.Blocks) != 2 || fresh.Document.Blocks[1].Resource == nil {
+	if err := json.Unmarshal(response.Body.Bytes(), &fresh); err != nil || response.Code != http.StatusOK || fresh.ContentRevision != 1 || fresh.Version != reading.DocumentVersion || fresh.Document.Kind != "prose" || len(fresh.Document.Blocks) != 2 || fresh.Document.Blocks[1].Resource == nil {
 		t.Fatalf("fresh status=%d result=%+v err=%v body=%s", response.Code, fresh, err, response.Body.String())
 	}
 	catalogResponse := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters", nil)
@@ -94,7 +94,7 @@ func TestChapterContentCacheFirstRefreshAndExpiry(t *testing.T) {
 	for _, upstreamMode := range []int32{2, 1} {
 		mode.Store(upstreamMode)
 		response = performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/0/content?contentRevision=1", nil)
-		if err := json.Unmarshal(response.Body.Bytes(), &cached); err != nil || response.Code != http.StatusOK || cached.OfflineCopy || cached.Version != fresh.Version || cached.Document.Title != fresh.Document.Title || len(cached.Document.Blocks) != len(fresh.Document.Blocks) || cached.Document.Blocks[1].Resource == nil || cached.Document.Blocks[1].Resource.Href != fresh.Document.Blocks[1].Resource.Href {
+		if err := json.Unmarshal(response.Body.Bytes(), &cached); err != nil || response.Code != http.StatusOK || cached.Version != fresh.Version || cached.Document.Title != fresh.Document.Title || len(cached.Document.Blocks) != len(fresh.Document.Blocks) || cached.Document.Blocks[1].Resource == nil || cached.Document.Blocks[1].Resource.Href != fresh.Document.Blocks[1].Resource.Href {
 			t.Fatalf("mode=%d cached status=%d result=%+v err=%v body=%s", upstreamMode, response.Code, cached, err, response.Body.String())
 		}
 	}
