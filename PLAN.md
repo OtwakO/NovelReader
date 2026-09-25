@@ -59,7 +59,7 @@ Accepted future-facing architecture:
 
 ## Current State
 
-The multi-provider branch is integrated into local `main` with a history-preserving merge after [clean-checkout integration checks](docs/notes/2026-09-21-import-user-testing-and-branch-review.md#local-branch-integration). It has not been pushed or deployed; cache/prefetch implementation has not started.
+The multi-provider branch is integrated into local `main` with a history-preserving merge after [clean-checkout integration checks](docs/notes/2026-09-21-import-user-testing-and-branch-review.md#local-branch-integration). That integration has not been pushed or deployed. Cache/prefetch foundation work is underway on `docs/reader-cache-prefetch-design`; see Active Work for its verified state.
 
 Reader schema is **16**, adding EPUB inbox claims with portable cleanup-authority stripping. Existing epoch-15 and older homes/backups remain preserved, not migrated. [Independent last-read tracking](docs/plans/2026-09-17-last-read-tracking.md), introduced at epoch 13, continues to separate reading from additions/metadata updates.
 
@@ -141,7 +141,7 @@ Continue Reading's narrow-screen reflow (`947a2b8`) and the bookshelf cover-gall
 
 ## Active Work
 
-[Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted end-to-end memory/IndexedDB/backend caching, two-chapter forward preparation/renewal, immediate feedback and portable-cache exclusion. Implementation is underway: portable cache exclusion and reader-home identity across storage/API/client are implemented and tested. Immutable document-resource lifetime, execution ownership, freshness and persistent client caching remain; settled policy and milestone verification live in the plan.
+[Reader cache and prefetch](docs/plans/2026-09-22-reader-cache-and-prefetch.md) — accepted end-to-end memory/IndexedDB/backend caching, two-chapter forward preparation/renewal, immediate feedback and portable-cache exclusion. Implementation is underway: portable cache exclusion and reader-home identity across storage/API/client are implemented and tested. Finite backend image-bundle availability and explicit failure/invalidation behavior are now accepted but unimplemented, prioritizing lightweight clients without display leases. Concrete resource storage/budgets, execution ownership, freshness and persistent client caching remain; contracts, scope limits and milestone verification live in the plan.
 
 [BookSource engine compatibility audit](docs/plans/booksource-engine-compatibility-audit.md) — independent shared-engine review anchored in a frozen private 50-source Search/Book Info sample and upstream rule/reference comparisons. Confirmed E01–E05 corrections, the browser-owned UA provider and lifecycle hardening were locally integration-tested, merged and pushed to `main` at `759391e`. No implementation remains unfinished in that checkpoint; unresolved compatibility investigations and release-verification limits remain in the plan. No source-specific patches or real BookSources committed.
 
