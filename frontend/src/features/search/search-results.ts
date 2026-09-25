@@ -43,6 +43,11 @@ function alternatives(items: AltSource[], primary: Pick<SearchResult, 'sourceId'
   });
 }
 
+function bindingFromResult(result: SearchResult): AltSource {
+  const { sourceId, sourceUrl, bookUrl, sourceName, sourceGroup, capabilities, variableMap, lastChapter } = result;
+  return { sourceId, sourceUrl, bookUrl, sourceName, sourceGroup, capabilities, variableMap, lastChapter };
+}
+
 export function mergeSearchResults(current: SearchResult[], incoming: SearchResult[], query: string): SearchResult[] {
   const merged = current.map((item) => item.alternateSources ? { ...item, alternateSources: [...item.alternateSources] } : { ...item });
   const known = new Set<string>();
@@ -70,7 +75,7 @@ export function mergeSearchResults(current: SearchResult[], incoming: SearchResu
       item.shelfBookId ||= match.shelfBookId;
       item.alternateSources = alternatives([
         ...(match.alternateSources ?? []),
-        { sourceId: match.sourceId, sourceUrl: match.sourceUrl, bookUrl: match.bookUrl, sourceName: match.sourceName, sourceGroup: match.sourceGroup, capabilities: match.capabilities, variableMap: match.variableMap },
+        bindingFromResult(match),
         ...(item.alternateSources ?? []),
       ], item);
       merged[index] = item;
@@ -78,7 +83,7 @@ export function mergeSearchResults(current: SearchResult[], incoming: SearchResu
       match.shelfBookId ||= item.shelfBookId;
       match.alternateSources = alternatives([
         ...(match.alternateSources ?? []),
-        { sourceId: item.sourceId, sourceUrl: item.sourceUrl, bookUrl: item.bookUrl, sourceName: item.sourceName, sourceGroup: item.sourceGroup, capabilities: item.capabilities, variableMap: item.variableMap },
+        bindingFromResult(item),
         ...(item.alternateSources ?? []),
       ], match);
     }
