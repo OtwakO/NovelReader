@@ -167,6 +167,7 @@ func (p *BookSource) document(entry book.CachedChapter, bundleID string, unavail
 		return Content{}, ErrImageUnavailable
 	}
 	content := prose(entry.ContentRevision, entry.Title, output)
+	content.SourceIdentity = entry.SourceIdentity
 	remaining := max(int64(0), time.Until(time.Unix(0, entry.CachedAt).Add(chapterFreshness)).Milliseconds())
 	if unavailable {
 		remaining = 0

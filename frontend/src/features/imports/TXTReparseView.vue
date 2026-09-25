@@ -1,4 +1,5 @@
 <script lang="ts">
+import { chapterCache } from '../reader/chapter-cache';
 import { defineComponent } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppIcon from '../../ui/components/AppIcon.vue';
@@ -106,8 +107,11 @@ export default defineComponent({
       const impact = this.impact!;
       this.mutate(async signal => {
         this.applyAttempt = impact.generation;
-        await applyTXTReparse(this.id, { generation: impact.generation, activeGeneration: impact.activeGeneration, contentRevision: impact.contentRevision, stateVersion: impact.stateVersion, resumeChapter: this.resume?.index }, signal);
-        signal.throwIfAborted(); invalidateReadingState(this.id);
+        const bookId = this.id;
+        try {
+          await applyTXTReparse(bookId, { generation: impact.generation, activeGeneration: impact.activeGeneration, contentRevision: impact.contentRevision, stateVersion: impact.stateVersion, resumeChapter: this.resume?.index }, signal);
+          signal.throwIfAborted(); invalidateReadingState(bookId);
+        } finally { void chapterCache.invalidate({ bookId }); }
       });
     },
     chooseResume(heading: { index: number; title: string }) { this.resume = heading; this.confirmApply = false; },

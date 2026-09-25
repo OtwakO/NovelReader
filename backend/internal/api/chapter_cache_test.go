@@ -75,6 +75,11 @@ func TestChapterContentCacheFirstRefreshAndExpiry(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &fresh); err != nil || response.Code != http.StatusOK || fresh.OfflineCopy || fresh.ContentRevision != 1 || fresh.Version != reading.DocumentVersion || fresh.Document.Kind != "prose" || len(fresh.Document.Blocks) != 2 || fresh.Document.Blocks[1].Resource == nil {
 		t.Fatalf("fresh status=%d result=%+v err=%v body=%s", response.Code, fresh, err, response.Body.String())
 	}
+	catalogResponse := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters", nil)
+	var catalog reading.Catalog
+	if err := json.Unmarshal(catalogResponse.Body.Bytes(), &catalog); err != nil || catalogResponse.Code != http.StatusOK || catalog.SourceIdentity == "" || catalog.SourceIdentity != fresh.SourceIdentity {
+		t.Fatalf("catalog/content identity mismatch: catalog=%+v content=%+v err=%v", catalog, fresh, err)
+	}
 	for _, index := range []string{"00", "1"} {
 		response := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters/"+index+"/content?contentRevision=1", nil)
 		if response.Code != http.StatusNotFound {
@@ -125,6 +130,11 @@ func TestChapterContentCacheFirstRefreshAndExpiry(t *testing.T) {
 	sources[0].RuleContent = `{"content":".content@html","title":"title@text"}`
 	if err := server.standalone.sourceStore.Upsert(&sources[0]); err != nil {
 		t.Fatal(err)
+	}
+	changedCatalog := performAPIRequest(server, http.MethodGet, "/api/books/book/chapters", nil)
+	var changed reading.Catalog
+	if err := json.Unmarshal(changedCatalog.Body.Bytes(), &changed); err != nil || changedCatalog.Code != http.StatusOK || changed.SourceIdentity == catalog.SourceIdentity || changed.ContentRevision != catalog.ContentRevision {
+		t.Fatalf("definition change qualification: %+v err=%v", changed, err)
 	}
 	mode.Store(3)
 	completed := make(chan *httptest.ResponseRecorder, 1)

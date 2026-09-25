@@ -1,5 +1,6 @@
 import { getBook, type LibraryBook } from '../../api/books';
 import { waitForCatalog, type CatalogPollingOptions } from '../../api/reader';
+import { chapterCache, ChapterCacheInvalidated } from './chapter-cache';
 import { ApiError, readerHomeGeneration } from '../../api/transport';
 
 export class ReaderRevisionConflict extends Error {
@@ -9,13 +10,14 @@ export class ReaderCatalogError extends Error {
   constructor(cause: unknown, readonly book: LibraryBook) { super(cause instanceof Error ? cause.message : 'Chapter list unavailable', { cause }); }
 }
 export function isReaderRevisionConflict(cause: unknown): boolean {
-  return cause instanceof ReaderRevisionConflict || (cause instanceof ApiError && cause.code === 'state_changed');
+  return cause instanceof ReaderRevisionConflict || cause instanceof ChapterCacheInvalidated || (cause instanceof ApiError && cause.code === 'state_changed');
 }
 
 // State and catalog are separate HTTP resources. Retry their pair once, never
 // combine saved ordinals from one interpretation with another interpretation's TOC.
 export async function loadReaderSnapshot(bookId: string, options: CatalogPollingOptions = {}) {
   for (let attempt = 0; attempt < 2; attempt++) {
+    const cacheValidation = await chapterCache.beginValidation();
     const [book, result] = await Promise.all([
       getBook(bookId),
       waitForCatalog(bookId, { ...options, retry: attempt === 0 && options.retry })
@@ -24,7 +26,7 @@ export async function loadReaderSnapshot(bookId: string, options: CatalogPolling
     if (options.isCurrent && !options.isCurrent()) throw new DOMException('Reader superseded', 'AbortError');
     if (!result.catalog) throw new ReaderCatalogError(result.error, book);
     const catalog = result.catalog;
-    if (book.contentRevision === catalog.contentRevision) return { book, catalog, homeGeneration: readerHomeGeneration() };
+    if (book.contentRevision === catalog.contentRevision) return { book, catalog, homeGeneration: readerHomeGeneration(), cacheValidation };
   }
   throw new ReaderRevisionConflict();
 }

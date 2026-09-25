@@ -1,4 +1,5 @@
 <script lang="ts">
+import { chapterCache } from '../reader/chapter-cache';
 import { defineComponent } from "vue";
 import {
   clearBookSources,
@@ -205,6 +206,7 @@ export default defineComponent({
             ? cause.message
             : this.$t("sourceRecovery.switchFailed");
       } finally {
+        if (this.book) void chapterCache.invalidate({ bookId: this.book.id });
         this.switching = false;
       }
     },
@@ -235,6 +237,7 @@ export default defineComponent({
             ? cause.message
             : this.$t("bookDetail.removeFailed");
       } finally {
+        void chapterCache.invalidate({ bookId });
         this.removing = false;
         this.confirmingRemove = false;
       }

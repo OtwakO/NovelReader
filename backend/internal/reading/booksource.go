@@ -25,7 +25,7 @@ type BookSource struct {
 	ImageHref       func(bookID string, revision int64, chapterIndex, imageIndex int, bundleID string) string
 }
 
-func (p *BookSource) catalog(_ context.Context, id string, retry bool) (Catalog, error) {
+func (p *BookSource) catalog(ctx context.Context, id string, retry bool) (Catalog, error) {
 	if p.Catalogs == nil {
 		return Catalog{}, errors.New("reading: catalog service unavailable")
 	}
@@ -43,7 +43,28 @@ func (p *BookSource) catalog(_ context.Context, id string, retry bool) (Catalog,
 		for i, ch := range result.Chapters {
 			chapters[i] = Chapter{Index: ch.Index, Title: ch.Title, IsVolume: ch.IsVolume}
 		}
-		return Catalog{Chapters: chapters, ContentRevision: result.ContentRevision}, nil
+		catalog := Catalog{Chapters: chapters, ContentRevision: result.ContentRevision}
+		// Qualify reuse without coupling source edits to catalog/progress revisions.
+		item, err := p.Store.GetBook(id)
+		if err != nil {
+			return Catalog{}, err
+		}
+		if item != nil && item.ContentRevision == result.ContentRevision {
+			source, err := p.Sources.GetByID(item.SourceID)
+			if err != nil {
+				return Catalog{}, err
+			}
+			if source != nil {
+				catalog.SourceIdentity, err = source.DefinitionIdentity()
+				if err != nil {
+					return Catalog{}, err
+				}
+				if err := p.currentDefinition(ctx, item, catalog.SourceIdentity); err != nil {
+					return Catalog{}, err
+				}
+			}
+		}
+		return catalog, nil
 	default:
 		switch result.Failure {
 		case book.CatalogFailureBookNotFound:

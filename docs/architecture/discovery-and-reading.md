@@ -166,17 +166,23 @@ The Reader waits on the same catalog synchronization interface as Book Detail an
 Generation guards prevent stale catalog/content responses from replacing newer navigation or source
 state. Converted text and its chapter identity commit together, so progress describes visible content.
 
-The Reading Session retains up to five recent online chapter documents and deduplicates pending
-loads. Default-on prefetch requests only the next main readable chapter after display; it does not recurse,
-load images, or save progress. Speculative and foreground fetches are serialized because source
-scripts share mutable session state. Offline fallback documents are not retained in this session cache.
+The chapter cache owns memory and IndexedDB reuse for three recently committed books, each with
+up to five main-section documents around its committed position. Online book/catalog validation
+qualifies reader/home/revision/provider identity before reuse; BookSource additionally requires the
+catalog's opaque source-definition tag. Copies preserve remaining freshness. IndexedDB writes check
+the shared invalidation epoch transactionally; BroadcastChannel retires affected memory. Storage
+failures fall back to memory/network. Retention advances after successful display/anchor restoration,
+not speculative retrieval. Default-on prefetch still requests only the next main readable chapter;
+two-target preparation and renewal remain tracked in the [cache plan](../plans/2026-09-22-reader-cache-and-prefetch.md).
+It does not recurse, load images or save progress; foreground/speculative fetches remain serialized.
 
 Progress and bookmark mutations share one per-book queue and state-version owner. Progress
 acknowledgements do not block chapter display. Bookmark capture snapshots its revision-qualified
 location before awaiting progress; source switching drains that same mutation queue. Source switching and explicit Refresh discard chapter
 and conversion reuse and drain started requests before loading new content, preventing late source
-state writes. Unmount aborts outstanding requests; cancellation reaches the backend chapter workflow.
-Refresh preserves position and still reports an explicit offline copy if the upstream source fails.
+state writes. Unmount retires client requests; started shared backend chapter work drains within its
+source timeout while retaining runtime ownership. Refresh bypasses both caches and preserves the
+committed display/position on failure, reporting an error rather than returning an offline copy.
 
 Catalog/chapter display conversion is memoized by original object identity and conversion mode within
 the Reading Session, without mutating canonical content or introducing a cross-reader cache. The

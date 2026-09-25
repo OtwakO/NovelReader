@@ -22,6 +22,7 @@ import { readerRequestSignal } from '../../api/transport';
 import AppButton from '../../ui/components/AppButton.vue';
 import { createReaderDisplayConverter } from './chinese-conversion';
 import { createChapterLoader } from './chapter-loader';
+import { chapterCache, type CacheValidation } from './chapter-cache';
 import {
   checkReaderLink,
   isReaderRevisionConflict,
@@ -82,6 +83,9 @@ export default defineComponent({
   },
   data() {
     return {
+      cacheValidation: null as CacheValidation | null,
+      homeGeneration: '',
+      sourceIdentity: undefined as string | undefined,
       catalogNavigation: undefined as CatalogNavigation | undefined,
       displayNavigation: undefined as CatalogNavigation | undefined,
       navigation: null as ReaderNavigation | null,
@@ -227,6 +231,7 @@ export default defineComponent({
     this.requestLifetime.addEventListener('abort', this.onReaderRetired);
     if (this.requestLifetime.aborted) { this.onReaderRetired(); return; }
     window.addEventListener('keydown', this.onKeydown);
+    document.addEventListener('visibilitychange', this.revalidateVisibleReader);
     this.wakeLockController = createReaderWakeLock(
       () => this.preferences.keepScreenAwake,
       () => {
@@ -244,6 +249,7 @@ export default defineComponent({
     this.conversionGeneration += 1;
     void this.chapterLoader?.dispose(true);
     window.removeEventListener('keydown', this.onKeydown);
+    document.removeEventListener('visibilitychange', this.revalidateVisibleReader);
     void this.wakeLockController?.destroy();
     if (this.progressTimer) clearTimeout(this.progressTimer);
     void this.persistProgress();
@@ -277,17 +283,21 @@ export default defineComponent({
         this.chapterLoader = null;
         this.convertDisplay = markRaw(createReaderDisplayConverter());
         await waitForProgressWrites(this.bookId);
-        const { book, catalog } = await loadReaderSnapshot(this.bookId, {
+        const { book, catalog, homeGeneration, cacheValidation } = await loadReaderSnapshot(this.bookId, {
           retry,
           isCurrent: () => request === this.generation,
         });
         if (request !== this.generation) return;
         this.book = book;
+        this.homeGeneration = homeGeneration ?? '';
+        this.sourceIdentity = catalog.sourceIdentity;
+        this.cacheValidation = cacheValidation;
         checkReaderLink(this.$route.query.contentRevision, catalog.contentRevision);
         if (this.routeAnchor !== undefined && this.$route.query.contentRevision === undefined)
           throw new ReaderRevisionConflict();
         const nativeBook = book.provider === 'booksource' ? await getBookSource(this.bookId) : null;
         if (request !== this.generation) return;
+        if (nativeBook && nativeBook.contentRevision !== catalog.contentRevision) throw new ReaderRevisionConflict();
         this.nativeBook = nativeBook;
         this.sourceUrl = nativeBook?.sourceUrl || '';
         this.catalogRevision = catalog.contentRevision;
@@ -353,13 +363,27 @@ export default defineComponent({
         this.catalogRetrying = false;
       }
     },
+    async revalidateVisibleReader() {
+      if (document.hidden || !this.book || this.loading || this.switching || this.refetching) return;
+      const request = this.generation;
+      try {
+        const snapshot = await loadReaderSnapshot(this.bookId, { isCurrent: () => request === this.generation });
+        if (request !== this.generation) return;
+        if (snapshot.catalog.contentRevision !== this.catalogRevision || snapshot.catalog.sourceIdentity !== this.sourceIdentity || (snapshot.homeGeneration ?? '') !== this.homeGeneration) this.stopStaleSession();
+      } catch (cause) {
+        if (request !== this.generation) return;
+        this.stopStaleSession();
+        this.error = cause instanceof Error ? cause.message : this.$t('reader.errors.load');
+      }
+    },
     onReaderRetired() {
-      this.stopStaleSession();
+      this.stopStaleSession(true);
       this.revisionConflict = false; // Reopening an ordinal cannot repair a retired home.
       const reason = this.requestLifetime.reason;
       this.error = reason instanceof Error ? reason.message : this.$t('reader.errors.load');
     },
-    stopStaleSession() {
+    stopStaleSession(clearAll = false) {
+      void chapterCache.invalidate(clearAll ? {} : { bookId: this.bookId });
       this.revisionConflict = true;
       this.generation++;
       this.conversionGeneration++;
@@ -397,9 +421,13 @@ export default defineComponent({
       refresh = false,
     ) {
       request ??= this.generation;
-      this.chapterLoader ??= markRaw(
-        createChapterLoader(this.bookId, this.catalogRevision, this.stopStaleSession),
-      );
+      if (!this.chapterLoader) {
+        const validation = this.cacheValidation ?? await chapterCache.beginValidation();
+        const cache = await chapterCache.bind({ bookId: this.bookId, revision: this.catalogRevision, provider: this.book?.provider ?? 'booksource', homeGeneration: this.homeGeneration, sourceIdentity: this.sourceIdentity }, this.chapters, validation, this.book?.durChapterIndex ?? index);
+        if (request !== this.generation) { cache.dispose(); return; }
+        this.cacheValidation = null;
+        this.chapterLoader = markRaw(createChapterLoader(this.bookId, this.catalogRevision, this.stopStaleSession, cache));
+      }
       const content = await (refresh ? this.chapterLoader.refresh(index) : this.chapterLoader.load(index));
       if (request !== this.generation) return;
       let mode: ReaderPreferences['chineseConversion'];
@@ -417,6 +445,7 @@ export default defineComponent({
         }
       } while (request === this.generation && mode !== this.preferences.chineseConversion);
       if (request !== this.generation) return;
+      this.chapterLoader.assertCurrent(content);
       this.conversionGeneration += 1;
       const previous = {
         displayNavigation: this.displayNavigation,
@@ -444,6 +473,9 @@ export default defineComponent({
       this.error = '';
       try {
         await this.restore(position, request, proposal?.current.anchor);
+        if (request !== this.generation) return;
+        this.chapterLoader.assertCurrent(content);
+        this.chapterLoader.commit(index, content, this.recordsProgress);
       } catch (cause) {
         if (request !== this.generation) return;
         Object.assign(this, previous);
@@ -891,6 +923,8 @@ export default defineComponent({
         );
         if (request !== this.generation) return;
         switched = true;
+        await chapterCache.invalidate({ bookId: this.bookId });
+        this.cacheValidation = null;
         this.book = result.book;
         this.nativeBook = result.book;
         this.catalogRevision = result.book.contentRevision;
@@ -905,6 +939,7 @@ export default defineComponent({
           isCurrent: () => request === this.generation,
         });
         if (request !== this.generation) return;
+        this.sourceIdentity = catalog.sourceIdentity;
         if (catalog.contentRevision !== result.book.contentRevision)
           throw new ReaderRevisionConflict();
         const chapters = catalog.chapters;

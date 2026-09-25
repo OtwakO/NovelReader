@@ -9,7 +9,7 @@ export type ProseBlock =
   | { kind: 'paragraph'; text: string }
   | { kind: 'image'; resource: ContentResourceReference; alt?: string };
 export interface ProseDocument { kind: 'prose'; title: string; blocks: ProseBlock[] }
-export interface ChapterContent { freshForMs?: number; version: 1; contentRevision: number; document: ProseDocument; offlineCopy: boolean }
+export interface ChapterContent { sourceIdentity?: string; freshForMs?: number; version: 1; contentRevision: number; document: ProseDocument; offlineCopy: boolean }
 export type ReadingContent = ChapterContent | StructuredChapterContent;
 export interface Bookmark { id: string; bookId: string; contentRevision: number; chapterIndex: number; chapterTitle: string; position: number; note: string; orphaned: boolean; createdAt: number }
 export interface Font { id: string; name: string; fileName: string; fileSize: number }
@@ -20,8 +20,8 @@ export interface CatalogPollingOptions { retry?: boolean; isCurrent?: () => bool
 const catalogPollDelays = [500, 1000, 1500, 2000];
 
 export function getCatalog(bookId: string, retry = false): Promise<CatalogResult> {
-  return request<{ chapters?: unknown; contentRevision?: unknown; navigation?: unknown; state?: unknown }>(`/books/${encodeURIComponent(bookId)}/chapters${retry ? '/sync' : ''}`, retry ? { method: 'POST' } : undefined).then((value) => {
-    if (Array.isArray(value?.chapters) && typeof value.contentRevision === 'number' && Number.isSafeInteger(value.contentRevision) && value.contentRevision >= 0) return { state: 'ready', ...parseChapterCatalog(value.chapters, value.contentRevision, value.navigation) };
+  return request<{ chapters?: unknown; contentRevision?: unknown; navigation?: unknown; sourceIdentity?: unknown; state?: unknown }>(`/books/${encodeURIComponent(bookId)}/chapters${retry ? '/sync' : ''}`, retry ? { method: 'POST' } : undefined).then((value) => {
+    if (Array.isArray(value?.chapters) && typeof value.contentRevision === 'number' && Number.isSafeInteger(value.contentRevision) && value.contentRevision >= 0) return { state: 'ready', ...parseChapterCatalog(value.chapters, value.contentRevision, value.navigation, value.sourceIdentity) };
     if (value?.state === 'syncing') return { state: 'syncing' };
     throw new Error('Invalid catalog response');
   });
@@ -38,19 +38,21 @@ export async function waitForCatalog(bookId: string, options: CatalogPollingOpti
     result = await getCatalog(bookId);
     attempt += 1;
   }
-  return { chapters: result.chapters, contentRevision: result.contentRevision, ...(result.navigation ? { navigation: result.navigation } : {}) };
+  return { chapters: result.chapters, contentRevision: result.contentRevision, ...(result.sourceIdentity ? { sourceIdentity: result.sourceIdentity } : {}), ...(result.navigation ? { navigation: result.navigation } : {}) };
 }
 export function getChapterContent(bookId: string, chapterIdx: number, contentRevision: number, signal?: AbortSignal, refresh = false): Promise<ReadingContent> {
   return request<Record<string, unknown>>(`/books/${encodeURIComponent(bookId)}/chapters/${chapterIdx}/content?contentRevision=${contentRevision}${refresh ? '&refresh=true' : ''}`, { signal }).then(parseChapterContent);
 }
 
-function parseChapterContent(data: Record<string, unknown>): ReadingContent {
+export function parseChapterContent(data: Record<string, unknown>): ReadingContent {
   if (data.version === 2) return parseStructuredChapterContent(data);
   if (typeof data.contentRevision !== 'number' || !Number.isSafeInteger(data.contentRevision) || data.contentRevision < 0 || data.version !== 1 || !data.document || typeof data.document !== 'object') throw new Error('Invalid chapter content response');
+  if (data.sourceIdentity !== undefined && (typeof data.sourceIdentity !== 'string' || data.sourceIdentity.length === 0)) throw new Error('Invalid source identity');
   const document = data.document as Record<string, unknown>;
   if (document.kind !== 'prose' || typeof document.title !== 'string' || !Array.isArray(document.blocks)) throw new Error('Invalid prose document');
   if (data.freshForMs !== undefined && (typeof data.freshForMs !== 'number' || !Number.isSafeInteger(data.freshForMs) || data.freshForMs < 0)) throw new Error('Invalid chapter freshness');
   return {
+    ...(typeof data.sourceIdentity === 'string' ? { sourceIdentity: data.sourceIdentity } : {}),
     ...(typeof data.freshForMs === 'number' ? { freshForMs: data.freshForMs } : {}),
     version: 1,
     contentRevision: data.contentRevision,

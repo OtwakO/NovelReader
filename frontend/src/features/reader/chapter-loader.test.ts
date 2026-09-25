@@ -1,3 +1,4 @@
+import { flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getChapterContent, type ChapterContent } from '../../api/reader';
 import { createChapterLoader } from './chapter-loader';
@@ -32,7 +33,7 @@ describe('reading-session chapter loader', () => {
     loader.prefetch(1);
     loader.prefetch(2);
     const foreground = loader.load(3);
-    await Promise.resolve();
+    await flushPromises();
     expect(getChapterContent).toHaveBeenCalledTimes(1);
     first.resolve(content);
     await foreground;
@@ -45,7 +46,7 @@ describe('reading-session chapter loader', () => {
     const old = createChapterLoader('book', 7);
     const pending = old.load(1);
     const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
-    await Promise.resolve();
+    await flushPromises();
     const drained = old.dispose();
     first.resolve(content);
     await drained;
@@ -82,7 +83,7 @@ it('does not reuse memory or pending content across a retired reader lifetime', 
   vi.mocked(getChapterContent).mockReturnValueOnce(delayed.promise);
   const pending = loader.load(1);
   const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
-  await Promise.resolve();
+  await flushPromises();
   resetReaderRequests();
   delayed.resolve(content);
   await rejected;
@@ -99,7 +100,7 @@ it('expires reusable documents without retaining unavailable figures', async () 
     vi.mocked(getChapterContent).mockReturnValueOnce(response.promise);
     const loader = createChapterLoader('book', 7);
     const pending = loader.load(0);
-    await Promise.resolve();
+    await flushPromises();
     clock.mockReturnValue(40);
     wall.mockReturnValue(40);
     response.resolve({ ...content, freshForMs: 50 });
@@ -125,8 +126,9 @@ it('Refresh drains an ordinary request and bypasses both caches', async () => {
   vi.mocked(getChapterContent).mockReturnValueOnce(first.promise);
   const loader = createChapterLoader('book', 7);
   const ordinary = loader.load(0);
-  await Promise.resolve();
+  await flushPromises();
   const refreshed = loader.refresh(0);
+  expect(loader.refresh(0)).toBe(refreshed);
   const follower = loader.load(0);
   expect(follower).toBe(refreshed);
   expect(getChapterContent).toHaveBeenCalledTimes(1);

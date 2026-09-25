@@ -10,6 +10,7 @@ type Chapter struct {
 }
 
 type Catalog struct {
+	SourceIdentity  string      `json:"sourceIdentity,omitempty"`
 	Chapters        []Chapter   `json:"chapters"`
 	ContentRevision int64       `json:"contentRevision"`
 	Syncing         bool        `json:"-"`
@@ -33,6 +34,7 @@ type Document struct {
 	Blocks           []Block `json:"blocks"`
 }
 type Content struct {
+	SourceIdentity  string   `json:"sourceIdentity,omitempty"`
 	FreshForMS      *int64   `json:"freshForMs,omitempty"`
 	ContentRevision int64    `json:"contentRevision"`
 	Version         int      `json:"version"`

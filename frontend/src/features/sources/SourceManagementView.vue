@@ -1,4 +1,5 @@
 <script lang="ts">
+import { chapterCache } from '../reader/chapter-cache';
 import { defineComponent } from "vue";
 import {
   deleteSource,
@@ -257,6 +258,7 @@ export default defineComponent({
       this.error = "";
       try {
         const result = await syncSourceCollection(collection.id);
+        void chapterCache.invalidate({ provider: 'booksource' });
         this.notice = this.$t("sources.collections.synced", { ...result.changes });
         await this.load();
       } catch (cause) {
@@ -277,6 +279,7 @@ export default defineComponent({
       this.collectionBusy = true;
       try {
         const result = await replaceUploadCollection(this.replacingCollectionId, file);
+        void chapterCache.invalidate({ provider: 'booksource' });
         this.notice = this.$t("sources.collections.synced", { ...result.changes });
         await this.load();
       } catch (cause) {
@@ -291,6 +294,7 @@ export default defineComponent({
       this.collectionBusy = true;
       try {
         await deleteSourceCollection(this.pendingCollectionDelete.id);
+        void chapterCache.invalidate({ provider: 'booksource' });
         this.notice = this.$t("sources.collections.deleted", { name: this.pendingCollectionDelete.name });
         if (this.selectedCollectionId === this.pendingCollectionDelete.id) this.selectedCollectionId = "all";
         this.pendingCollectionDelete = null;
@@ -327,6 +331,7 @@ export default defineComponent({
         const result = await importSources(
           selectedImportJSON(this.importItems),
         );
+        void chapterCache.invalidate({ provider: 'booksource' });
         this.notice = this.$t("sources.import.success", {
           imported: result.imported,
           total: result.total,
@@ -360,6 +365,7 @@ export default defineComponent({
       this.editorError = "";
       try {
         await updateSource(this.editing.sourceId!, source);
+        void chapterCache.invalidate({ provider: 'booksource' });
         this.notice = this.$t("sources.editor.saved");
         this.editing = null;
         await this.load();
@@ -395,6 +401,7 @@ export default defineComponent({
       this.error = "";
       try {
         await deleteSource(this.pendingDelete.sourceId!);
+        void chapterCache.invalidate({ provider: 'booksource' });
         this.notice = this.$t("sources.delete.deleted", {
           name: this.pendingDelete.bookSourceName,
         });

@@ -1,10 +1,11 @@
 import type { Chapter } from './models';
 import { parseCatalogNavigation, type CatalogNavigation } from './catalog-navigation';
 
-export interface ChapterCatalog { chapters: Chapter[]; contentRevision: number; navigation?: CatalogNavigation }
+export interface ChapterCatalog { sourceIdentity?: string; chapters: Chapter[]; contentRevision: number; navigation?: CatalogNavigation }
 
 /** Main progression follows section order, not TOC order; filtering never renumbers indices. */
-export function parseChapterCatalog(chapters: unknown[], contentRevision: number, navigation?: unknown): ChapterCatalog {
+export function parseChapterCatalog(chapters: unknown[], contentRevision: number, navigation?: unknown, sourceIdentity?: unknown): ChapterCatalog {
+  if (sourceIdentity !== undefined && (typeof sourceIdentity !== 'string' || sourceIdentity.length === 0)) throw new Error('Invalid source identity');
   const indices = new Set<number>();
   const parsed = chapters.map(input => {
     if (!input || typeof input !== 'object') throw new Error('Invalid catalog section');
@@ -16,5 +17,5 @@ export function parseChapterCatalog(chapters: unknown[], contentRevision: number
     indices.add(value.index);
     return { index: value.index, title: value.title, isVolume: value.isVolume === true, ...(value.auxiliary === undefined ? {} : { auxiliary: value.auxiliary }) };
   });
-  return { contentRevision, chapters: parsed, ...(navigation === undefined ? {} : { navigation: parseCatalogNavigation(navigation, parsed, contentRevision) }) };
+  return { ...(typeof sourceIdentity === 'string' ? { sourceIdentity } : {}), contentRevision, chapters: parsed, ...(navigation === undefined ? {} : { navigation: parseCatalogNavigation(navigation, parsed, contentRevision) }) };
 }

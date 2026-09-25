@@ -9,12 +9,13 @@ import { clearCandidateOperations } from '../features/candidates/candidate-opera
 import { clearCandidateSelections } from '../features/search/candidate-selection';
 import { resetProgressWriter } from '../features/reader/progress-writer';
 
+import { chapterCache } from '../features/reader/chapter-cache';
 import { pendingRestore } from '../features/backups/restore-session';
 
 const ownerKey = 'novelreader.reader-state-owner';
 
 // Identity changes and home replacement share the same cache/request lifetime.
-export function resetReaderState(pinia: Pinia) {
+export function resetReaderState(pinia: Pinia, resetCache = true) {
   resetReaderRequests();
   useSearchStore(pinia).resetReaderState();
   useExploreStore(pinia).resetReaderState();
@@ -23,6 +24,7 @@ export function resetReaderState(pinia: Pinia) {
   clearCandidateSelections();
   resetProgressWriter();
   const readerId = useSessionStore(pinia).account?.id;
+  void chapterCache.useReader(readerId, resetCache);
   if (readerId && pendingRestore(readerId)) suspendReaderRequests();
 }
 
@@ -37,7 +39,9 @@ export function installReaderStateBoundary(pinia: Pinia) {
     let storedOwner: string | null = null;
     try { storedOwner = sessionStorage.getItem(ownerKey); } catch { /* no restoration when storage is disabled */ }
     if (!reader || reader !== storedOwner || previous !== undefined || pendingRestore(reader)) {
-      resetReaderState(pinia);
+      resetReaderState(pinia, previous !== undefined || !reader || Boolean(reader && pendingRestore(reader)));
+    } else {
+      void chapterCache.useReader(reader ?? undefined);
     }
     previous = reader;
     try {
