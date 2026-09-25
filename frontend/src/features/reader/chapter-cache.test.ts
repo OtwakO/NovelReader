@@ -134,3 +134,30 @@ it.each(['refresh', 'other-book', 'other-tab'] as const)('retains the new disk w
   await reopenedStorage.close();
   await storage.close();
 });
+
+it('hands off canonical catalogs, persists only reading books and rejects invalidated handoffs', async () => {
+  const factory = new IDBFactory();
+  const storage = new ChapterCacheStorage('catalogs', factory);
+  const cache = new ChapterCache(storage);
+  await cache.useReader('reader');
+  const catalog = { contentRevision: 1, chapters };
+  const first = await cache.catalog(identity, await cache.beginValidation());
+  await first.accept(catalog);
+  expect((await cache.catalog(identity, await cache.beginValidation())).catalog).toBe(catalog);
+  const otherStorage = new ChapterCacheStorage('catalogs', factory);
+  const other = new ChapterCache(otherStorage);
+  await other.useReader('reader');
+  expect((await other.catalog(identity, await other.beginValidation())).catalog).toBeUndefined();
+  const session = await cache.bind(identity, chapters, first.validation, 0);
+  const lookup = await session.lookup(0);
+  session.accept(0, content, lookup.ticket, started()); session.commit(0, content);
+  await session.settled();
+  expect((await other.catalog(identity, await other.beginValidation())).catalog).toEqual(catalog);
+  await cache.invalidate({ bookId: identity.bookId, index: 0 });
+  expect((await cache.catalog(identity, await cache.beginValidation())).catalog).toBe(catalog);
+  const pending = await cache.catalog(identity, await cache.beginValidation());
+  await cache.invalidate({ bookId: identity.bookId });
+  await expect(pending.accept(catalog)).rejects.toThrow(ChapterCacheInvalidated);
+  expect((await cache.catalog(identity, await cache.beginValidation())).catalog).toBeUndefined();
+  await storage.close(); await otherStorage.close();
+});

@@ -118,6 +118,9 @@ export default defineComponent({
       progressError: '',
       conversionError: '',
       sourceError: '',
+      sourceMetadataError: '',
+      sourceLoading: false,
+      sourceRequest: 0,
       sourceMessage: '',
       switching: false,
       chromeVisible: true,
@@ -206,6 +209,9 @@ export default defineComponent({
     },
   },
   watch: {
+    activeSheet(value: string) {
+      if (value === 'sources') void this.loadSourceMetadata();
+    },
     '$route.fullPath'() {
       if (this.suppressRouteLoad) {
         this.suppressRouteLoad = false;
@@ -243,7 +249,6 @@ export default defineComponent({
       },
     );
     await this.wakeLockController.sync();
-    void this.loadConversionCapability();
     await this.load();
     if (this.preferences.fontId !== 'system') void this.loadFonts();
   },
@@ -277,9 +282,11 @@ export default defineComponent({
       this.catalogFailed = false;
       this.revisionConflict = false;
       this.activeSheet = '';
+      this.nativeBook = null;
+      this.sourceMetadataError = '';
+      this.sourceUrl = '';
       if (this.book?.id !== this.bookId) {
         this.book = null;
-        this.nativeBook = null;
         this.chapters = [];
       }
       try {
@@ -294,20 +301,17 @@ export default defineComponent({
         });
         if (request !== this.generation) return;
         this.book = book;
+        if (book.readingContext) this.applyConversionCapability(book.readingContext.chineseConversion);
+        else void this.loadConversionCapability();
         this.homeGeneration = homeGeneration ?? '';
         this.sourceIdentity = catalog.sourceIdentity;
         this.cacheValidation = cacheValidation;
         checkReaderLink(this.$route.query.contentRevision, catalog.contentRevision);
         if (this.routeAnchor !== undefined && this.$route.query.contentRevision === undefined)
           throw new ReaderRevisionConflict();
-        const nativeBook = book.provider === 'booksource' ? await getBookSource(this.bookId) : null;
-        if (request !== this.generation) return;
-        if (nativeBook && nativeBook.contentRevision !== catalog.contentRevision) throw new ReaderRevisionConflict();
-        this.nativeBook = nativeBook;
-        this.sourceUrl = nativeBook?.sourceUrl || '';
         this.catalogRevision = catalog.contentRevision;
-        this.chapters = catalog.chapters;
-        this.catalogNavigation = catalog.navigation;
+        this.chapters = markRaw(catalog.chapters);
+        this.catalogNavigation = catalog.navigation ? markRaw(catalog.navigation) : undefined;
         setProgressVersion(this.bookId, book.stateVersion);
         const index = resolveChapterIndex(this.chapters, this.routeChapter, book.durChapterIndex);
         if (index === null) throw new Error(this.$t('reader.errors.noReadable'));
@@ -338,25 +342,11 @@ export default defineComponent({
         this.catalogFailed = cause instanceof ReaderCatalogError;
         if (cause instanceof ReaderCatalogError) {
           this.book = cause.book;
-          // Catalog failure must not hide BookSource recovery. Metadata is safe
-          // to display here, but cannot initialize a reading location/version.
-          try {
-            const native =
-              cause.book.provider === 'booksource' ? await getBookSource(this.bookId) : null;
-            if (request !== this.generation) return;
-            this.nativeBook = native;
-            this.sourceUrl = native?.sourceUrl || '';
-          } catch (sourceError) {
-            if (request !== this.generation) return;
-            this.nativeBook = null;
-            this.sourceError =
-              sourceError instanceof Error ? sourceError.message : this.$t('reader.errors.load');
-          }
         }
         this.error = cause instanceof Error ? cause.message : this.$t('reader.errors.load');
         this.loading = false;
         this.chromeVisible = true;
-        if (this.nativeBook) this.activeSheet = 'sources';
+        if (this.book?.provider === 'booksource') this.activeSheet = 'sources';
       }
     },
     async retryCatalog() {
@@ -376,7 +366,13 @@ export default defineComponent({
         const snapshot = await loadReaderSnapshot(this.bookId, { isCurrent: () => request === this.generation });
         if (request !== this.generation) return;
         if (snapshot.catalog.contentRevision !== this.catalogRevision || snapshot.catalog.sourceIdentity !== this.sourceIdentity || (snapshot.homeGeneration ?? '') !== this.homeGeneration) this.stopStaleSession();
-        else this.prefetchNext();
+        else {
+          if (snapshot.book.readingContext) {
+            this.applyConversionCapability(snapshot.book.readingContext.chineseConversion);
+            await this.refreshDisplay();
+          }
+          this.prefetchNext();
+        }
       } catch (cause) {
         if (request !== this.generation) return;
         this.stopStaleSession();
@@ -469,7 +465,7 @@ export default defineComponent({
       // Commit document, chapter identity, and position together: progress always describes visible text.
       this.navigation = proposal ?? createReaderNavigation(this.readerCatalog, index, position);
       this.currentIndex = index;
-      this.content = content;
+      this.content = markRaw(content);
       this.contentRevision = content.contentRevision;
       this.lastPosition = position;
       this.displayChapters = display.chapters;
@@ -802,7 +798,6 @@ export default defineComponent({
         await this.chapterLoader?.dispose();
         if (request !== this.generation) return;
         this.chapterLoader = null;
-        this.convertDisplay = markRaw(createReaderDisplayConverter());
         await this.loadContent(
           this.currentIndex,
           position,
@@ -853,14 +848,16 @@ export default defineComponent({
       this.activeSheet = 'settings';
       await Promise.all([this.loadFonts(), this.loadConversionCapability()]);
     },
+    applyConversionCapability(capability: ChineseConversionCapability) {
+      this.conversionCapability = capability;
+      this.convertDisplay = markRaw(chapterCache.displayConverter(capability));
+      if (!capability.available && this.preferences.chineseConversion !== 'original') this.preferences = { ...this.preferences, chineseConversion: 'original' };
+    },
     async loadConversionCapability() {
+      const request = this.generation;
       try {
-        this.conversionCapability = await getChineseConversionCapability();
-        if (
-          !this.conversionCapability.available &&
-          this.preferences.chineseConversion !== 'original'
-        )
-          this.preferences = { ...this.preferences, chineseConversion: 'original' };
+        const capability = await getChineseConversionCapability();
+        if (request === this.generation) this.applyConversionCapability(capability);
       } catch {
         /* retry when Typography opens */
       }
@@ -887,6 +884,25 @@ export default defineComponent({
         }
       })();
       return this.fontsLoading;
+    },
+    async loadSourceMetadata() {
+      if (this.book?.provider !== 'booksource' || this.nativeBook) return;
+      const request = this.generation;
+      if (this.sourceLoading && this.sourceRequest === request) return;
+      this.sourceRequest = request;
+      this.sourceLoading = true;
+      this.sourceMetadataError = '';
+      try {
+        const native = await getBookSource(this.bookId);
+        if (request !== this.generation) return;
+        if (native.contentRevision !== this.book.contentRevision) { this.stopStaleSession(); return; }
+        this.nativeBook = native;
+        this.sourceUrl = native.sourceUrl;
+      } catch (cause) {
+        if (request === this.generation) this.sourceMetadataError = cause instanceof Error ? cause.message : this.$t('reader.errors.load');
+      } finally {
+        if (this.sourceRequest === request) this.sourceLoading = false;
+      }
     },
     persistMatches(sources: AltSource[]) {
       if (!this.book || !sources.length) return;
@@ -1198,13 +1214,16 @@ export default defineComponent({
       @close="activeSheet = ''"
     />
     <ReaderSourceSheet
-      v-if="activeSheet === 'sources' && nativeBook"
+      v-if="activeSheet === 'sources' && book?.provider === 'booksource'"
       :book="nativeBook"
-      :current-source="nativeBook.origin || nativeBook.sourceUrl"
+      :current-source="nativeBook?.origin || nativeBook?.sourceUrl || ''"
+      :loading="sourceLoading"
+      :metadata-error="sourceMetadataError"
       :switching="switching"
       :action-error="sourceError || error"
       :action-message="sourceMessage"
       :on-clear-and-rescan="clearAndRescan"
+      @retry="loadSourceMetadata"
       @matches="persistMatches"
       @select="selectSource"
       @close="activeSheet = ''"

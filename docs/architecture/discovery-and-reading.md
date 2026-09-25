@@ -148,6 +148,10 @@ There is no shared section table or duplicate shared metadata in BookSource stor
 enrichment. `/api/books/{id}/booksource` exposes the combined BookSource-context projection separately.
 Shelf metadata and native display inputs are read in one SQLite snapshot with a fixed number of
 queries; source cover revisions remain batched. Native bindings are not required on a generic item.
+Single-book GET additionally returns optional `readingContext`: the installed source-definition identity
+(for BookSource) and Chinese-conversion capability. Definition, binding and saved state share the same
+SQLite snapshot; qualification does not read catalog rows or enrich shelf results. Missing sources or
+unsupported providers omit it so recovery remains available without qualifying cached reading.
 
 `library_items.last_read_at` / JSON `lastReadAt` is the server UTC Unix-millisecond time of the
 last accepted reading-progress write; zero means never read. It is library-owned, shared by TXT, EPUB and
@@ -175,9 +179,14 @@ Generation guards prevent stale catalog/content responses from replacing newer n
 state. Converted text and its chapter identity commit together, so progress describes visible content.
 
 The chapter cache owns memory and IndexedDB reuse for three recently committed books, each with
-up to five main-section documents around its committed position. Online book/catalog validation
-qualifies reader/home/revision/provider identity before reuse; BookSource additionally requires the
-catalog's opaque source-definition tag. Copies preserve remaining freshness. IndexedDB writes check
+up to five main-section documents around its committed position, plus one canonical catalog per book.
+Fresh single-book validation qualifies reader/home/revision/provider/source identity before catalog
+and chapter reuse; only catalog misses require the full catalog endpoint. Old servers without entry
+qualification retain the online catalog path. Detail and Reader share eligible pending catalog work;
+one unretained memory handoff supports detail-only visits without changing persistent recency.
+The existing IndexedDB database uses schema version 2, preserving chapter/control stores and adding
+catalogs under the same transactional epoch and pruning rules. Blocked upgrades and old-client version
+errors fall back to memory/network. Copies preserve remaining freshness. IndexedDB writes check
 the shared invalidation epoch transactionally. Completed, unaffected memory entries advance across
 a known committed invalidation transition; in-flight request/write tickets keep their original epoch.
 BroadcastChannel sends that transition after commit, retires affected memory, and advances surviving
@@ -197,15 +206,21 @@ reading state. Failed anchors/notes restore the prior location; Refresh failure 
 
 Progress and bookmark mutations share one per-book queue and state-version owner. Progress
 acknowledgements do not block chapter display. Bookmark capture snapshots its revision-qualified
-location before awaiting progress; source switching drains that same mutation queue. Source switching and explicit Refresh discard chapter
-and conversion reuse and drain started requests before loading new content, preventing late source
+location before awaiting progress; source switching drains that same mutation queue. Source switching
+retires the old scope; explicit Refresh replaces only the chapter/document, retaining unchanged catalog
+preparation. Both drain started requests before loading new content, preventing late source
 state writes. Unmount retires client requests; started shared backend chapter work drains within its
 source timeout while retaining runtime ownership. Refresh bypasses both caches and preserves the
 committed display/position on failure, reporting an error rather than returning an offline copy.
 
-Catalog/chapter display conversion is memoized by original object identity and conversion mode within
-the Reading Session, without mutating canonical content or introducing a cross-reader cache. The
-three-dot menu contains Bookmarks and Refresh; the settings sheet owns the prefetch toggle. Disabling
+Catalog/chapter display conversion is memoized by canonical object identity and the two supported
+conversion modes across visits within one reader account. WeakMaps tie result lifetime to retained
+canonical objects; account or capability engine/version/preset changes replace the converter. Converted
+output is never persisted, so reload can require conversion even when catalog/chapter storage hits.
+Source metadata loads when the recovery sheet opens, with loading/error/retry states; it does not block
+prose or catalog-error display. The three-dot menu contains Bookmarks and Refresh; the settings sheet
+owns the prefetch toggle. The [reader-entry plan](../plans/2026-09-26-reader-entry-cache.md) records
+verification and performance limits. Disabling
 images removes their figures, captions, placeholders, and image requests rather than merely hiding pixels.
 `ProseRenderer` centers all displayed images with block layout and automatic inline margins, including
 authored inline images, consistently in import preview and published reading.

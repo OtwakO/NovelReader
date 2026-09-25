@@ -1,3 +1,4 @@
+import type { ChapterCatalog } from '../../api/chapter-catalog';
 import { retainedBooks, type RetainedBook, type SavedChapter } from './chapter-cache-policy';
 
 interface Control { epoch: number; readerId: string | null; books: RetainedBook[] }
@@ -16,7 +17,7 @@ export class ChapterCacheStorage {
 
   private open(): Promise<IDBDatabase> {
     return this.opening ??= new Promise((resolve, reject) => {
-      const opening = (this.factory ?? indexedDB).open(this.name, 1);
+      const opening = (this.factory ?? indexedDB).open(this.name, 2);
       let expired = false;
       const fail = (cause: unknown) => { expired = true; clearTimeout(timer); reject(cause); };
       const timer = setTimeout(() => fail(new Error('Chapter cache open timed out')), 2000);
@@ -24,8 +25,11 @@ export class ChapterCacheStorage {
       opening.onerror = () => fail(opening.error);
       opening.onupgradeneeded = () => {
         const db = opening.result;
-        db.createObjectStore('control');
-        db.createObjectStore('chapters', { keyPath: 'id' }).createIndex('position', ['scope', 'index']);
+        if (!db.objectStoreNames.contains('control')) {
+          db.createObjectStore('control');
+          db.createObjectStore('chapters', { keyPath: 'id' }).createIndex('position', ['scope', 'index']);
+        }
+        db.createObjectStore('catalogs');
       };
       opening.onsuccess = () => {
         clearTimeout(timer);
@@ -41,7 +45,7 @@ export class ChapterCacheStorage {
   private async transaction<T>(mode: IDBTransactionMode, work: (tx: IDBTransaction, control: Control) => Promise<T>): Promise<T> {
     const db = await this.open();
     return new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(['control', 'chapters'], mode);
+      const tx = db.transaction(['control', 'chapters', 'catalogs'], mode);
       let result: T;
       let failure: unknown;
       const timer = setTimeout(() => {
@@ -62,8 +66,8 @@ export class ChapterCacheStorage {
   private saveControl(tx: IDBTransaction, control: Control) { tx.objectStore('control').put(control, 'state'); }
 
   // Cursor keys avoid copying every chapter payload just to prune metadata.
-  private prune(tx: IDBTransaction, keep: (scope: string, index: number) => boolean): Promise<void> {
-    return new Promise((resolve, reject) => {
+  private async prune(tx: IDBTransaction, keep: (scope: string, index: number) => boolean, keepCatalog: (scope: string) => boolean): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
       const cursor = tx.objectStore('chapters').index('position').openKeyCursor();
       cursor.onerror = () => reject(cursor.error);
       cursor.onsuccess = () => {
@@ -74,13 +78,15 @@ export class ChapterCacheStorage {
         row.continue();
       };
     });
+    const catalogs = tx.objectStore('catalogs');
+    for (const scope of await request(catalogs.getAllKeys())) if (!keepCatalog(String(scope))) catalogs.delete(scope);
   }
 
   async useReader(readerId: string | null, reset = false): Promise<number> {
     return this.transaction('readwrite', async (tx, control) => {
       if (reset || control.readerId !== readerId) {
         control.readerId = readerId; control.epoch++; control.books = [];
-        tx.objectStore('chapters').clear(); this.saveControl(tx, control);
+        tx.objectStore('chapters').clear(); tx.objectStore('catalogs').clear(); this.saveControl(tx, control);
       }
       return control.epoch;
     });
@@ -100,7 +106,7 @@ export class ChapterCacheStorage {
         control.epoch++;
         control.books = control.books.filter(book => !superseded(book.scope));
         this.saveControl(tx, control);
-        await this.prune(tx, candidate => !superseded(candidate));
+        await this.prune(tx, candidate => !superseded(candidate), candidate => !superseded(candidate));
       }
       return { epoch: control.epoch, changed, homeChanged };
     });
@@ -125,13 +131,28 @@ export class ChapterCacheStorage {
     });
   }
 
+  getCatalog(scope: string, epoch: number): Promise<ChapterCatalog | undefined> {
+    return this.transaction('readonly', async (tx, control) => {
+      if (control.epoch !== epoch) return;
+      return request<ChapterCatalog | undefined>(tx.objectStore('catalogs').get(scope));
+    });
+  }
+
+  putCatalog(readerId: string, scope: string, catalog: ChapterCatalog, epoch: number): Promise<boolean> {
+    return this.transaction('readwrite', async (tx, control) => {
+      if (control.readerId !== readerId || control.epoch !== epoch || !control.books.some(book => book.scope === scope)) return false;
+      tx.objectStore('catalogs').put(catalog, scope);
+      return true;
+    });
+  }
+
   // Only a committed foreground visit changes recency or the retained window.
   retain(readerId: string, book: RetainedBook, epoch: number): Promise<boolean> {
     return this.transaction('readwrite', async (tx, control) => {
       if (control.readerId !== readerId || control.epoch !== epoch) return false;
       control.books = [book, ...control.books.filter(value => value.scope !== book.scope)].slice(0, retainedBooks);
       this.saveControl(tx, control);
-      await this.prune(tx, (scope, index) => control.books.some(value => value.scope === scope && value.window.includes(index)));
+      await this.prune(tx, (scope, index) => control.books.some(value => value.scope === scope && value.window.includes(index)), scope => control.books.some(value => value.scope === scope));
       return true;
     });
   }
@@ -145,7 +166,7 @@ export class ChapterCacheStorage {
       };
       if (filter.index === undefined) control.books = control.books.filter(book => !affected(book.scope));
       this.saveControl(tx, control);
-      await this.prune(tx, (scope, index) => !affected(scope) || (filter.index !== undefined && index !== filter.index));
+      await this.prune(tx, (scope, index) => !affected(scope) || (filter.index !== undefined && index !== filter.index), scope => !affected(scope) || filter.index !== undefined);
       return control.epoch;
     });
   }
@@ -154,7 +175,7 @@ export class ChapterCacheStorage {
     return this.transaction('readwrite', async (tx, control) => {
       control.books = control.books.filter(book => book.scope === scope);
       this.saveControl(tx, control);
-      await this.prune(tx, value => value === scope);
+      await this.prune(tx, value => value === scope, value => value === scope);
     });
   }
 

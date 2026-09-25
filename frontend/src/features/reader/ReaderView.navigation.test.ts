@@ -416,3 +416,22 @@ it('warms conversion for both targets and reuses it on foreground navigation', a
   expect(vm.displayContent?.document.title).toBe('converted old 1');
   expect(convertChineseTexts).toHaveBeenCalledTimes(conversions);
 });
+
+it('opens cached prose without native metadata and keeps source loading retryable', async () => {
+  const vm = await open();
+  expect(vm.displayContent?.document.title).toBe('old 0');
+  expect(getBookSource).not.toHaveBeenCalled();
+  let reject!: (cause: Error) => void;
+  vi.mocked(getBookSource).mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail; }));
+  vm.activeSheet = 'sources';
+  await flushPromises();
+  expect(vm.sourceLoading).toBe(true);
+  expect(wrapper.find('reader-source-sheet-stub').exists()).toBe(true);
+  expect(vm.displayContent?.document.title).toBe('old 0');
+  reject(new Error('Metadata unavailable'));
+  await flushPromises();
+  expect(vm.sourceMetadataError).toBe('Metadata unavailable');
+  await vm.loadSourceMetadata();
+  expect(vm.nativeBook?.sourceId).toBe('old');
+  expect(vm.sourceMetadataError).toBe('');
+});

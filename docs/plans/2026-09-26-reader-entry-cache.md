@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 updated: 2026-09-26
 ---
 
@@ -131,14 +131,14 @@ Catalog validity follows interpretation/source qualification, not the chapter's 
 
 ## Decisions and implementation gates
 
-Accepted decisions above must not be reopened merely to defer core requirements. The following engineering details are **not yet settled**; record the outcome here before editing the corresponding production boundary.
+The engineering gates were resolved within the accepted direction as follows; no dependency, route, durable data migration or retention-policy expansion was needed.
 
 | Gate | Required resolution | Preferred constraint |
 |---|---|---|
 | G1 — coherent entry API (resolved) | Add optional `readingContext` to single-book GET: installed source definition identity for BookSource and existing Chinese-conversion capability. Read the definition through the same SQLite transaction as library state/native binding; no catalog rows. Omit qualification for missing sources/unsupported providers. Client treats absent qualification as the legacy online path; catalog misses retain polling and bounded pair retries. | No new route, migration, shelf enrichment or revision system. Capability engine/version/presets qualify memory-only display reuse. |
-| G2 — cache-format evolution | Choose versioned catalog representation and IndexedDB upgrade/old-tab/downgrade handling; define capture/read/write/retain/invalidate transaction scopes | One control epoch and retained-book registry; no durable reader schema migration |
-| G3 — consumer lifetime | Specify detail-to-reader pending sharing/cancellation and transient detail-only retention; define converter/mode/engine lifetime | Reuse existing generation guards; no application-wide event framework or unlimited pending/result map |
-| G4 — recovery integration | Identify exactly which native fields are required before prose display and how source controls load/retry on normal and failure paths | Do not trade away source recovery to remove one await |
+| G2 — cache-format evolution (resolved) | Upgrade the existing database to version 2, adding a `catalogs` store keyed by the existing scope; preserve chapter/control stores. Catalog reads/writes and all pruning include the same control transaction/epoch. Parse persisted catalogs before reuse. Existing blocked-open, versionchange and storage-failure fallback cover old tabs/downgrades. | One control epoch and retained-book registry; no durable reader schema migration or cache deletion on upgrade. |
+| G3 — consumer lifetime (resolved) | Cache owner retains catalogs with its three reading books plus at most one unretained handoff scope. Entry coordinator shares only pending qualified catalog requests; polling continues only while a consumer is current and removes completed/failed requests. Display reuse uses the existing WeakMaps for canonical objects and the two supported modes; replace the converter when capability engine/version/presets or reader changes. | No new permanent request/result registry. Detail-only handoff does not admit a persistent book or change recency. |
+| G4 — recovery integration (resolved) | Reader prose needs no native BookSource fields. Fetch native metadata when the source sheet opens; show its existing shell with loading/error/retry until metadata arrives. Catalog failure opens the same recovery sheet without delaying the chapter error. Guard metadata by reader generation/book revision. Entry capability replaces the eager conversion-capability GET; legacy servers retain that request. | Preserve source recovery and switching; no new UI surface or background metadata polling. |
 
 Confirm with the user if resolution requires changing accepted behavior, adding a dependency, a new public route rather than the preferred additive shape, changing data retention, or expanding scope. Routine private helper choices do not need separate interviews. API/schema decisions must be recorded as chosen rather than buried in code.
 
@@ -147,13 +147,13 @@ Confirm with the user if resolution requires changing accepted behavior, adding 
 Each implementation milestone should leave affected code runnable with its focused regressions passing. Update Current State, Next Action and Verification before a significant commit or unfinished handoff, not after every edit.
 
 - [x] **M0a — measurement and accepted direction.** Live evidence recorded; branch created; this plan establishes scope and invariants.
-- [ ] **M0b — resolve G1–G4 and authorize coding.** Inspect direct callers/tests for the selected boundaries; write down the wire shape, coherence proof, storage upgrade and lifetime rules. Do not implement during the documentation-only step.
+- [x] **M0b — resolve G1–G4 and authorize coding.** Implementation authorized; boundary decisions are recorded above.
 - [x] **M1 — lightweight server qualification.** Single-book GET now includes optional `readingContext`; definition, native binding and library state share one SQLite snapshot. Frontend parses optional metadata while accepting old-server absence. Provider/source-edit/missing-source/shelf contracts pass; reader reuse is not yet enabled. Existing home lease is unchanged; integrated invalidation races remain in M5.
-- [ ] **M2 — bounded catalog reuse.** Add catalog storage/memory eligibility and integrate transactional epoch/pruning rules. Test persistence/reload, retention and late-write rejection with the existing fake-indexeddb setup. Include safe blocked/older-tab/failure handling.
-- [ ] **M3 — shared reader-entry flow.** Integrate fresh validation + retained/pending catalog reuse in Reader and Detail. Preserve progress drain, polling/retry and revision-qualified navigation. Remove redundant catalog work, not validation itself. Prove a warm entry does not fetch the full catalog or cached chapter.
-- [ ] **M4 — reusable display and nonblocking recovery metadata.** Integrate retained conversion and lazy/noncritical source metadata with explicit loading/error/retry state. Cover Refresh, conversion-mode changes and failure/source-switch recovery. Prove warm prepared Traditional entry makes no repeated conversion POSTs.
-- [ ] **M5 — integrated regression and resource/performance verification.** Run boundary/race and native-browser checks; compare warm/cold/reload behavior and retained storage/memory. Fix causes of any regressions before considering merge.
-- [ ] **M6 — final documentation and delivery readiness.** Update only affected current architecture/usage docs, mark outcomes/limits here, and summarize readiness. Merge, push, hosted CI and deployment require the applicable user authorization; none follows automatically from this plan.
+- [x] **M2 — bounded catalog reuse.** Add catalog storage/memory eligibility and integrate transactional epoch/pruning rules. Test persistence/reload, retention and late-write rejection with the existing fake-indexeddb setup. Include safe blocked/older-tab/failure handling.
+- [x] **M3 — shared reader-entry flow.** Integrate fresh validation + retained/pending catalog reuse in Reader and Detail. Preserve progress drain, polling/retry and revision-qualified navigation. Remove redundant catalog work, not validation itself. Prove a warm entry does not fetch the full catalog or cached chapter.
+- [x] **M4 — reusable display and nonblocking recovery metadata.** Integrate retained conversion and lazy/noncritical source metadata with explicit loading/error/retry state. Cover Refresh, conversion-mode changes and failure/source-switch recovery. Prove warm prepared Traditional entry makes no repeated conversion POSTs.
+- [x] **M5 — integrated regression and resource/performance verification.** Run boundary/race and native-browser checks; compare warm/cold/reload behavior and retained storage/memory. Fix causes of any regressions before considering merge.
+- [x] **M6 — final documentation and delivery readiness.** Update only affected current architecture/usage docs, mark outcomes/limits here, and summarize readiness. Merge, push, hosted CI and deployment require the applicable user authorization; none follows automatically from this plan.
 
 ### Expected touchpoints
 
@@ -208,13 +208,14 @@ Start with the smallest relevant test file per milestone. As integration grows, 
 ## Current State
 
 - Branch: `feat/reader-entry-cache`, based on `docs/reader-reentry-analysis` at `1451c35` (which contains the sanitized measurement report). The eventual implementation branch can be merged once; the analysis branch needs no separate merge.
-- Implementation authorized; G1 and M1 complete. Additive qualification and optional frontend parsing are implemented; no new cache reuse is enabled yet. G2–G4 remain to be resolved before their production boundaries change.
-- No cache-format change or measured performance improvement is claimed.
+- M1–M4 implemented: additive snapshot qualification; version-2 catalog storage under existing retention/epoch; shared Detail/Reader requests and warm reuse; reader-owned weak conversion reuse and lazy source metadata. All engineering gates resolved above.
+- Full frontend regression (90 files/363 tests), typecheck, lint excluding local browser scratch files, and production build passed. Affected backend API/BookSource/reading package tests passed.
+- M5 completed with isolated Chrome checks and matched synthetic before/after timings below. Architecture, README and project routing reflect the implemented behavior. The branch is not merged, pushed or deployed.
 - User-owned untracked files are outside this work and must remain untouched.
 
 ## Next Action
 
-Resolve catalog storage/lifetime gates and implement bounded catalog reuse (M2), then wire the shared entry flow. Keep this plan as the single implementation handoff document.
+No implementation remains scheduled in this workstream. Await user review and merge/push authorization. Optional deployment-side measurement may confirm real-network gains; it is not replaced by the synthetic timings below.
 
 ## Verification
 
@@ -224,4 +225,12 @@ Planning validation completed: dated-filename check passed; all 48 local documen
 
 M1 verification: `go test -race ./internal/api ./internal/booksource -run 'ReaderEntry|LibraryReads|Identity' -timeout 60s` passed; frontend books/reader-session tests passed (2 files, 5 tests), and `vue-tsc --noEmit` passed. This checks provider qualification, definition edits without revision changes, missing-source recovery and additive/legacy parsing, not integrated client invalidation races.
 
-Pending implementation evidence: client regressions, cache-upgrade compatibility, resource measurements and before/after performance checks described above. Replace this pending summary with concrete results and remaining limits at meaningful milestones; do not append session diaries.
+Integrated verification:
+- `npm test`: 90 files, 363 tests passed; `vue-tsc --noEmit`, ESLint (excluding ignored local `.playwright-cli/**` scratch artifacts), and Vite production build passed. Final focused navigation/entry/cache/storage rerun passed 4 files/38 tests after Refresh/catalog-conversion assertions, deterministic shared-consumer synchronization and diff cleanup; typecheck and touched-area lint passed again.
+- `go test ./internal/api ./internal/booksource ./internal/reading -timeout 120s` passed. No whole-backend suite or production/live-source crawl was run for this workstream.
+- Deterministic coverage includes version-1 IndexedDB upgrade preserving chapters, safe downgrade error, catalog retention/late-write rejection across connections, definition/home replacement, late invalidated catalog responses, pending Detail/Reader sharing, warm canonical/display reuse, Refresh without catalog reconversion, and lazy source metadata failure/retry. Existing TTL, progress/navigation, quota fallback and provider regressions pass.
+- Isolated Chrome used synthetic API fixtures with 150 ms response delay and 1,137 catalog rows. Compared the pre-change frontend at `6e07612` against this implementation on the same host/browser. Three warm click-to-prose-DOM trials: Original **323–340 ms → 172–184 ms**; Traditional **493–498 ms → 176–177 ms**. New warm entries issued only single-book validation before display—no catalog/content, native metadata or conversion requests. These measurements exclude later position restoration/progress completion and are not a production SLA or server CPU benchmark.
+- Cold synthetic entry and full reload succeeded. Reload reused catalog/chapter IndexedDB data; Traditional reload correctly repeated two memory-only conversion requests. After four committed book visits and asynchronous publication, native IndexedDB held exactly the newest three catalogs/chapters (one visited chapter each), totaling **215,260 serialized UTF-8 catalog bytes**; catalogs contained canonical, not converted, text. The memory owner held three books. This verifies retention counts/serialized cost, not a process-wide heap byte ceiling or forced-GC result.
+- Source metadata error/retry passed in the actual browser; desktop (1280×900) and mobile (390×844) error-sheet screenshots were inspected. The UI detector reported no findings. Local synthetic harness/screenshots remain ignored under `.playwright-cli/`; no real account data or credentials were used.
+
+Limits: no live deployment remeasurement, low-end-device benchmark, strict JS heap measurement or exhaustive interleaving test. Fresh entry validation, existing chapter TTL and three-book/five-chapter limits remain unchanged; mixed-version fallback may forgo cache reuse rather than display unqualified data.

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { chapterCache } from '../reader/chapter-cache';
+import { chapterCache, type CacheValidation } from '../reader/chapter-cache';
 import { defineComponent } from "vue";
 import {
   clearBookSources,
@@ -12,7 +12,7 @@ import {
 } from "../../api/books";
 import type { CatalogNavigation } from '../../api/catalog-navigation';
 import type { AltSource, Chapter } from "../../api/models";
-import { switchBookSource, waitForCatalog } from "../../api/reader";
+import { switchBookSource } from "../../api/reader";
 import AppIcon from '../../ui/components/AppIcon.vue';
 import AppButton from "../../ui/components/AppButton.vue";
 import FeatureScaffold from "../../ui/components/FeatureScaffold.vue";
@@ -21,7 +21,7 @@ import BookCover from "./BookCover.vue";
 import BookDetailSection from "./BookDetailSection.vue";
 import BookDetailToc from "./BookDetailToc.vue";
 import { clearCandidateCommittedBook } from "../candidates/candidate-operation";
-import { loadReaderSnapshot, readerResumeLocation } from '../reader/reader-session';
+import { loadReaderSnapshot, loadValidatedCatalog, readerResumeLocation } from '../reader/reader-session';
 import { readableChapterLabel } from "./book-display";
 
 export default defineComponent({
@@ -38,6 +38,7 @@ export default defineComponent({
   data() {
     return {
       book: null as LibraryBook | null,
+      cacheValidation: null as CacheValidation | null,
       nativeBook: null as Book | null,
       chapters: [] as Chapter[],
       catalogNavigation: undefined as CatalogNavigation | undefined,
@@ -91,6 +92,7 @@ export default defineComponent({
   async mounted() {
     await this.load();
   },
+  beforeUnmount() { this.loadGeneration++; },
   methods: {
     readerResumeLocation,
     async load() {
@@ -99,6 +101,7 @@ export default defineComponent({
       this.bookError = "";
       this.tocError = "";
       try {
+        this.cacheValidation = await chapterCache.beginValidation();
         const book = await getBook(this.bookId);
         if (request !== this.loadGeneration) return;
         this.book = book;
@@ -122,15 +125,18 @@ export default defineComponent({
       this.catalogRetrying = retry;
       this.tocError = "";
       try {
-        let catalog = await waitForCatalog(this.bookId, {
+        if (!this.book) return;
+        const result = await loadValidatedCatalog(this.book, this.cacheValidation ?? await chapterCache.beginValidation(), {
           retry,
           isCurrent: () => request === this.loadGeneration,
         });
+        let catalog = result.catalog;
         if (request !== this.loadGeneration) return;
-        if (this.book?.contentRevision !== catalog.contentRevision) {
+        this.cacheValidation = result.cacheValidation;
+        if (this.book?.contentRevision !== catalog.contentRevision || (this.book.readingContext && this.book.readingContext.sourceIdentity !== catalog.sourceIdentity)) {
           const snapshot = await loadReaderSnapshot(this.bookId, { isCurrent: () => request === this.loadGeneration });
           if (request !== this.loadGeneration) return;
-          this.book = snapshot.book; catalog = snapshot.catalog;
+          this.book = snapshot.book; catalog = snapshot.catalog; this.cacheValidation = snapshot.cacheValidation;
         }
         this.catalogRevision = catalog.contentRevision;
         this.chapters = catalog.chapters;

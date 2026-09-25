@@ -1,4 +1,7 @@
 import type { Chapter } from '../../api/models';
+import type { ChineseConversionCapability } from '../../api/system';
+import { createReaderDisplayConverter } from './chinese-conversion';
+import { parseChapterCatalog, type ChapterCatalog } from '../../api/chapter-catalog';
 import { parseChapterContent, type ReadingContent } from '../../api/reader';
 import { cacheScope, chapterWindow, retainedBooks, retainedChapters, savedChapter, savedChapterIsFresh, type ChapterCacheIdentity, type SavedChapter } from './chapter-cache-policy';
 import { ChapterCacheStorage, type CacheInvalidation } from './chapter-cache-storage';
@@ -9,17 +12,26 @@ export class ChapterCacheInvalidated extends Error {
 export interface CacheValidation { readerId?: string; epoch?: number; local: number }
 interface Ticket { version: number; epoch?: number }
 interface Receipt extends Ticket { content: ReadingContent; entry?: SavedChapter; monotonic: number }
-interface MemoryBook { identity: ChapterCacheIdentity; scope: string; version: number; entries: Map<number, Receipt>; window: number[]; retained: boolean; epoch?: number }
+type BookIdentity = Omit<ChapterCacheIdentity, 'readerId'>;
+interface MemoryBook { catalog?: ChapterCatalog; identity: ChapterCacheIdentity; scope: string; version: number; entries: Map<number, Receipt>; window: number[]; retained: boolean; epoch?: number }
 
 /** Owns memory, persistent eligibility and invalidation; it never starts HTTP work. */
 export class ChapterCache {
   private readerId?: string;
+  private display?: { key: string; convert: ReturnType<typeof createReaderDisplayConverter> };
   private local = 0;
   private books = new Map<string, MemoryBook>();
   private pending: Promise<unknown> = Promise.resolve();
   private disabled = false;
   private channel?: BroadcastChannel;
   constructor(private readonly storage = new ChapterCacheStorage()) {}
+
+  displayConverter(capability?: ChineseConversionCapability) {
+    if (!capability || !this.readerId) return createReaderDisplayConverter();
+    const key = JSON.stringify([capability.available, capability.engine, capability.version, capability.presets?.simplified, capability.presets?.traditional, [...capability.modes].sort()]);
+    if (this.display?.key !== key) this.display = { key, convert: createReaderDisplayConverter() };
+    return this.display.convert;
+  }
 
   connect() {
     if (this.channel || typeof window.BroadcastChannel !== 'function') return;
@@ -39,7 +51,7 @@ export class ChapterCache {
       if (filter.provider && filter.provider !== book.identity.provider) continue;
       book.version++;
       if (filter.index === undefined) {
-        book.entries.clear(); book.retained = false; this.books.delete(book.scope);
+        book.entries.clear(); book.catalog = undefined; book.retained = false; this.books.delete(book.scope);
       }
       else book.entries.delete(filter.index);
     }
@@ -66,11 +78,22 @@ export class ChapterCache {
     }
   }
 
+  private store(scope: string, work: () => Promise<unknown>) {
+    return this.disk(async () => {
+      try { return await work(); }
+      catch (cause) {
+        if (!(cause instanceof DOMException) || cause.name !== 'QuotaExceededError') throw cause;
+        await this.storage.evictInactive(scope);
+        return work();
+      }
+    });
+  }
+
   useReader(readerId?: string, reset = false): Promise<unknown> {
     this.connect();
     const changed = this.readerId !== readerId;
     this.readerId = readerId;
-    if (changed || reset) { this.clearMemory(); this.books.clear(); }
+    if (changed || reset) { this.clearMemory(); this.books.clear(); this.display = undefined; }
     this.pending = this.pending.then(() => this.disk(() => this.storage.useReader(readerId ?? null, reset)));
     if (reset) this.channel?.postMessage({});
     return this.pending;
@@ -95,9 +118,9 @@ export class ChapterCache {
     return { readerId, epoch, local };
   }
 
-  async bind(identity: Omit<ChapterCacheIdentity, 'readerId'>, chapters: readonly Chapter[], validation: CacheValidation, resume: number) {
+  private async qualify(identity: BookIdentity, validation: CacheValidation) {
     if (validation.local !== this.local || validation.readerId !== this.readerId) throw new ChapterCacheInvalidated();
-    if (!validation.readerId || !identity.homeGeneration || (identity.provider === 'booksource' && !identity.sourceIdentity)) return this.ephemeral(identity.bookId, identity.revision);
+    if (!validation.readerId || !identity.homeGeneration || (identity.provider === 'booksource' && !identity.sourceIdentity)) return undefined;
     const owner = { ...identity, readerId: validation.readerId };
     const scope = cacheScope(owner);
     let epoch = validation.epoch;
@@ -115,12 +138,53 @@ export class ChapterCache {
     if (validation.readerId !== this.readerId) throw new ChapterCacheInvalidated();
     let book = this.books.get(scope);
     if (!book) {
-      book = { identity: owner, scope, version: 0, entries: new Map(), window: chapterWindow(chapters, resume), retained: false, epoch };
+      // Detail-to-reader handoff is transient, not another retained-book budget.
+      for (const [key, old] of this.books) if (!old.retained) { old.version++; old.entries.clear(); old.catalog = undefined; this.books.delete(key); }
+      book = { identity: owner, scope, version: 0, entries: new Map(), window: [], retained: false, epoch };
       this.books.set(scope, book);
     } else if (book.epoch !== epoch) {
-      book.version++; book.entries.clear(); book.epoch = epoch;
+      book.version++; book.entries.clear(); book.catalog = undefined; book.epoch = epoch;
     }
-    return this.session(book, chapters, Boolean(owner.readerId && owner.homeGeneration), false);
+    return book;
+  }
+
+  async bind(identity: BookIdentity, chapters: readonly Chapter[], validation: CacheValidation, resume: number) {
+    const book = await this.qualify(identity, validation);
+    if (!book) return this.ephemeral(identity.bookId, identity.revision);
+    if (!book.retained) book.window = chapterWindow(chapters, resume);
+    return this.session(book, chapters, true, false);
+  }
+
+  /** Fresh entry validation qualifies both memory and disk; HTTP stays with the caller. */
+  async catalog(identity: BookIdentity, validation: CacheValidation) {
+    const book = await this.qualify(identity, validation);
+    if (!book) return { catalog: undefined, validation, accept: async () => undefined };
+    const qualified = { ...validation, local: this.local, epoch: book.epoch };
+    const version = book.version;
+    const current = () => {
+      if (qualified.local !== this.local || qualified.readerId !== this.readerId || version !== book.version) throw new ChapterCacheInvalidated();
+    };
+    const matches = (catalog: ChapterCatalog) => catalog.contentRevision === identity.revision && catalog.sourceIdentity === identity.sourceIdentity;
+    if (!book.catalog && book.epoch !== undefined) {
+      const stored = await this.disk(() => this.storage.getCatalog(book.scope, book.epoch!));
+      current();
+      if (!book.catalog && stored && Array.isArray(stored.chapters) && matches(stored)) {
+        try { book.catalog = parseChapterCatalog(stored.chapters, stored.contentRevision, stored.navigation, stored.sourceIdentity); }
+        catch { /* Disposable malformed catalogs are misses. */ }
+      }
+    }
+    current();
+    return {
+      catalog: book.catalog,
+      validation: qualified,
+      accept: async (catalog: ChapterCatalog) => {
+        current();
+        if (!matches(catalog)) return;
+        book.catalog = catalog;
+        if (book.retained && qualified.epoch !== undefined) void this.store(book.scope, () => this.storage.putCatalog(book.identity.readerId, book.scope, catalog, qualified.epoch!));
+        current();
+      },
+    };
   }
 
   // Registry-less/legacy callers remain reader-instance-local; never persist an
@@ -144,14 +208,7 @@ export class ChapterCache {
       const entry = receipt.entry;
       writes = writes.then(async () => {
         if (receipt.version !== book.version) return;
-        await this.disk(async () => {
-          try { await this.storage.put(entry, receipt.epoch!); }
-          catch (cause) {
-            if (!(cause instanceof DOMException) || cause.name !== 'QuotaExceededError') throw cause;
-            await this.storage.evictInactive(book.scope);
-            await this.storage.put(entry, receipt.epoch!);
-          }
-        });
+        await this.store(book.scope, () => this.storage.put(entry, receipt.epoch!));
       });
     };
     const admit = (index: number, receipt: Receipt) => {
@@ -221,9 +278,16 @@ export class ChapterCache {
           book.retained = true;
           this.books.delete(book.scope); this.books.set(book.scope, book);
           const retained = [...this.books.values()].filter(value => value.retained);
-          for (const old of retained.slice(0, Math.max(0, retained.length - retainedBooks))) { old.retained = false; old.entries.clear(); this.books.delete(old.scope); }
+          for (const old of retained.slice(0, Math.max(0, retained.length - retainedBooks))) { old.retained = false; old.entries.clear(); old.catalog = undefined; this.books.delete(old.scope); }
           for (const key of book.entries.keys()) if (!book.window.includes(key)) book.entries.delete(key);
-          if (persistent && receipt.epoch !== undefined) writes = writes.then(() => this.disk(() => this.storage.retain(book.identity.readerId, { scope: book.scope, window: [...book.window] }, receipt.epoch!)));
+          if (persistent && receipt.epoch !== undefined) {
+            const catalog = book.catalog;
+            const window = [...book.window];
+            writes = writes.then(() => this.store(book.scope, async () => {
+              if (!await this.storage.retain(book.identity.readerId, { scope: book.scope, window }, receipt.epoch!)) return;
+              if (catalog) await this.storage.putCatalog(book.identity.readerId, book.scope, catalog, receipt.epoch!);
+            }));
+          }
         }
         admit(index, receipt);
       },
