@@ -131,7 +131,6 @@ export class ChapterCache {
   }
 
   private session(book: MemoryBook, chapters: readonly Chapter[], persistent: boolean, ephemeral: boolean) {
-    const thisCache = this;
     const receipts = new WeakMap<ReadingContent, Receipt>();
     let retired = false;
     let writes: Promise<unknown> = Promise.resolve();
@@ -176,7 +175,7 @@ export class ChapterCache {
         if (!savedChapterIsFresh(receipt.entry)) return 0;
         return Math.max(0, Math.min(receipt.monotonic - performance.now(), receipt.entry.expiresAt === null ? Infinity : receipt.entry.expiresAt - Date.now()));
       },
-      async lookup(index: number, bypass = false): Promise<{ content?: ReadingContent; ticket: Ticket }> {
+      lookup: async (index: number, bypass = false): Promise<{ content?: ReadingContent; ticket: Ticket }> => {
         const ticket: Ticket = { version: book.version };
         current(ticket);
         if (!bypass) {
@@ -187,11 +186,11 @@ export class ChapterCache {
           }
           book.entries.delete(index);
         }
-        await thisCache.pending;
-        if (persistent) ticket.epoch = await thisCache.disk(() => thisCache.storage.capture(book.identity.readerId));
+        await this.pending;
+        if (persistent) ticket.epoch = await this.disk(() => this.storage.capture(book.identity.readerId));
         current(ticket);
         if (!bypass && ticket.epoch !== undefined) {
-          const entry = await thisCache.disk(() => thisCache.storage.get(book.scope, index, ticket.epoch!));
+          const entry = await this.disk(() => this.storage.get(book.scope, index, ticket.epoch!));
           current(ticket);
           if (entry && entry.scope === book.scope && entry.index === index && savedChapterIsFresh(entry)) {
             try {
@@ -215,22 +214,22 @@ export class ChapterCache {
         remember(receipt); admit(index, receipt);
       },
       assertCurrent(content: ReadingContent) { const receipt = receipts.get(content); if (!receipt) throw new ChapterCacheInvalidated(); current(receipt); },
-      commit(index: number, content: ReadingContent, main = true) {
+      commit: (index: number, content: ReadingContent, main = true) => {
         const receipt = receipts.get(content); if (!receipt) throw new ChapterCacheInvalidated(); current(receipt);
         if (!ephemeral) {
           if (main) book.window = chapterWindow(chapters, index);
           book.retained = true;
-          thisCache.books.delete(book.scope); thisCache.books.set(book.scope, book);
-          const retained = [...thisCache.books.values()].filter(value => value.retained);
-          for (const old of retained.slice(0, Math.max(0, retained.length - retainedBooks))) { old.retained = false; old.entries.clear(); thisCache.books.delete(old.scope); }
+          this.books.delete(book.scope); this.books.set(book.scope, book);
+          const retained = [...this.books.values()].filter(value => value.retained);
+          for (const old of retained.slice(0, Math.max(0, retained.length - retainedBooks))) { old.retained = false; old.entries.clear(); this.books.delete(old.scope); }
           for (const key of book.entries.keys()) if (!book.window.includes(key)) book.entries.delete(key);
-          if (persistent && receipt.epoch !== undefined) writes = writes.then(() => thisCache.disk(() => thisCache.storage.retain(book.identity.readerId, { scope: book.scope, window: [...book.window] }, receipt.epoch!)));
+          if (persistent && receipt.epoch !== undefined) writes = writes.then(() => this.disk(() => this.storage.retain(book.identity.readerId, { scope: book.scope, window: [...book.window] }, receipt.epoch!)));
         }
         admit(index, receipt);
       },
-      async refresh(index: number) {
+      refresh: async (index: number) => {
         if (ephemeral) { book.version++; book.entries.delete(index); return; }
-        await thisCache.invalidate({ bookId: book.identity.bookId, index });
+        await this.invalidate({ bookId: book.identity.bookId, index });
       },
       dispose() { retired = true; if (ephemeral) book.entries.clear(); },
       settled: () => writes,
