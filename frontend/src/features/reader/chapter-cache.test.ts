@@ -1,9 +1,10 @@
-import { IDBFactory } from 'fake-indexeddb';
+import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Chapter } from '../../api/models';
 import type { ChapterContent } from '../../api/reader';
 import { ChapterCache, ChapterCacheInvalidated } from './chapter-cache';
 import { ChapterCacheStorage } from './chapter-cache-storage';
+import { cacheScope } from './chapter-cache-policy';
 
 const chapters = [0, 1, 2, 3, 4, 5, 6].map(index => ({ index, title: String(index), isVolume: false })) as Chapter[];
 const identity = { homeGeneration: 'home', bookId: 'book', revision: 1, provider: 'txt' as const };
@@ -160,4 +161,40 @@ it('hands off canonical catalogs, persists only reading books and rejects invali
   await expect(pending.accept(catalog)).rejects.toThrow(ChapterCacheInvalidated);
   expect((await cache.catalog(identity, await cache.beginValidation())).catalog).toBeUndefined();
   await storage.close(); await otherStorage.close();
+});
+
+it('writes a catalog on admission, not every chapter commit, and restores it after disk eviction', async () => {
+  const storage = new ChapterCacheStorage('catalog-publication', new IDBFactory());
+  const cache = new ChapterCache(storage);
+  await cache.useReader('reader');
+  const publication = vi.spyOn(IDBObjectStore.prototype, 'put');
+  const catalogWrites = () => publication.mock.contexts.filter(store => (store as IDBObjectStore).name === 'catalogs').length;
+  const catalog = { contentRevision: 1, chapters };
+  const qualified = await cache.catalog(identity, await cache.beginValidation());
+  await qualified.accept(catalog);
+  const session = await cache.bind(identity, chapters, qualified.validation, 0);
+  for (const index of [0, 1, 2]) {
+    const document = { ...content };
+    const lookup = await session.lookup(index);
+    session.accept(index, document, lookup.ticket, started());
+    session.commit(index, document);
+    await session.settled();
+  }
+  expect(catalogWrites()).toBe(1);
+  // Another tab can evict a persisted scope without clearing this tab's memory.
+  await storage.evictInactive('another-scope');
+  session.commit(2, session.peek(2)!);
+  await session.settled();
+  expect(catalogWrites()).toBe(2);
+  session.dispose();
+  const scope = cacheScope({ ...identity, readerId: 'reader' });
+  const epoch = (await storage.capture('reader'))!;
+  await storage.putCatalog('reader', scope, { ...catalog, chapters: [{ index: 'invalid' }] } as unknown as typeof catalog, epoch);
+  const reopened = new ChapterCache(storage);
+  await reopened.useReader('reader');
+  const miss = await reopened.catalog(identity, await reopened.beginValidation());
+  expect(miss.catalog).toBeUndefined();
+  await miss.accept(catalog);
+  expect(await storage.getCatalog(scope, epoch)).toEqual(catalog);
+  await storage.close();
 });

@@ -181,7 +181,9 @@ export class ChapterCache {
         current();
         if (!matches(catalog)) return;
         book.catalog = catalog;
-        if (book.retained && qualified.epoch !== undefined) void this.store(book.scope, () => this.storage.putCatalog(book.identity.readerId, book.scope, catalog, qualified.epoch!));
+        // Storage owns retention eligibility, including scopes retained before reload.
+        // A fresh fetch also repairs an existing malformed persisted catalog.
+        if (qualified.epoch !== undefined) void this.store(book.scope, () => this.storage.putCatalog(book.identity.readerId, book.scope, catalog, qualified.epoch!));
         current();
       },
     };
@@ -283,10 +285,7 @@ export class ChapterCache {
           if (persistent && receipt.epoch !== undefined) {
             const catalog = book.catalog;
             const window = [...book.window];
-            writes = writes.then(() => this.store(book.scope, async () => {
-              if (!await this.storage.retain(book.identity.readerId, { scope: book.scope, window }, receipt.epoch!)) return;
-              if (catalog) await this.storage.putCatalog(book.identity.readerId, book.scope, catalog, receipt.epoch!);
-            }));
+            writes = writes.then(() => this.store(book.scope, () => this.storage.retain(book.identity.readerId, { scope: book.scope, window }, receipt.epoch!, catalog)));
           }
         }
         admit(index, receipt);

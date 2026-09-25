@@ -147,12 +147,16 @@ export class ChapterCacheStorage {
   }
 
   // Only a committed foreground visit changes recency or the retained window.
-  retain(readerId: string, book: RetainedBook, epoch: number): Promise<boolean> {
+  retain(readerId: string, book: RetainedBook, epoch: number, catalog?: ChapterCatalog): Promise<boolean> {
     return this.transaction('readwrite', async (tx, control) => {
       if (control.readerId !== readerId || control.epoch !== epoch) return false;
       control.books = [book, ...control.books.filter(value => value.scope !== book.scope)].slice(0, retainedBooks);
       this.saveControl(tx, control);
       await this.prune(tx, (scope, index) => control.books.some(value => value.scope === scope && value.window.includes(index)), scope => control.books.some(value => value.scope === scope));
+      // Moving the chapter window does not change a scope's canonical catalog.
+      // Check disk rather than a memory flag: another tab may have evicted it.
+      const catalogs = tx.objectStore('catalogs');
+      if (catalog && await request(catalogs.getKey(book.scope)) === undefined) catalogs.put(catalog, book.scope);
       return true;
     });
   }
