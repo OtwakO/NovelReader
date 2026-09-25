@@ -61,8 +61,9 @@ Accepted future-facing architecture:
 
 [Native ARM64 container releases](docs/plans/2026-09-26-arm64-containers.md) — implemented and verified.
 Native AMD64/ARM64 builds, both browser modes, Compose E2E and multi-platform registry checks passed
-in verification-only run 36176447907 without changing public image aliases. Production publication
-runs through the same verification gates on `main`; its first multi-platform release is pending.
+in verification-only run 36176447907. Production run [36180574302](https://github.com/OtwakO/NovelReader/actions/runs/36180574302)
+succeeded after retrying an interrupted Chrome download; both published `latest` image indexes were
+verified to include `linux/amd64` and `linux/arm64`.
 
 The multi-provider branch is integrated into local `main` with a history-preserving merge after [clean-checkout integration checks](docs/notes/2026-09-21-import-user-testing-and-branch-review.md#local-branch-integration). That integration has not been pushed or deployed. The cache/prefetch workstream is implemented, locally verified, and merged into local `main`; it has not been pushed or deployed.
 
