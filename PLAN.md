@@ -150,7 +150,8 @@ Continue Reading's narrow-screen reflow (`947a2b8`) and the bookshelf cover-gall
 [Import user-testing issues and branch review](docs/notes/2026-09-21-import-user-testing-and-branch-review.md) — U1–U4 and R1–R3 are resolved: preview/history improvements, retained inbox refresh notifications, behavior-preserving reader readability, and corrected test fixtures. Final reader/import verification passed 126 tests without warnings, typecheck and production build. The note retains original findings and scoped verification limits.
 
 [Unified original-cover caching](docs/plans/2026-09-26-unified-cover-cache.md) is implemented and
-locally verified on `feat/unified-cover-cache` (not yet merged/pushed). BookSource and EPUB covers
+locally verified; integration into `main` is authorized, with container publication not yet verified.
+BookSource and EPUB covers
 share seven-day private browser caching with source/publication/reader-home qualification; no
 new image processing or storage. Real-browser checks showed zero warm/reload cover transfers;
 affected API/EPUB-storage tests and focused race checks passed. Verification limits are in the plan.

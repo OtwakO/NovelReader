@@ -149,6 +149,21 @@ mechanisms and safe diagnostic conventions.
 - All projections reuse the same provider-specific identity helpers; shelf enrichment remains
   batched. The frontend continues consuming `coverDisplayUrl` unchanged.
 
+### Keep explicit provider handling; accept minor duplicate reads
+
+The API owns cover qualification/HTTP policy; existing provider stores and retrieval paths own
+image acquisition. Keep the two explicit provider branches rather than adding a generic provider
+interface or repository layer solely to eliminate duplicate reads.
+
+`loadStoredCover` reads the library item, and BookSource `GetBook` reads it again as part of its
+coherent native projection. Repeating this before/after acquisition adds two redundant indexed local
+reads per server-handled BookSource cover. Fresh browser hits bypass this work entirely. No measured
+bottleneck justifies more indirection; preserve the before/after identity checks for correctness.
+
+Revisit only if profiling shows material cost or additional real callers need the same snapshot.
+Then prefer one coherent metadata read returning the required cover inputs, not a generic cover
+framework. The user accepted retaining the current implementation after the scoped sanity review.
+
 ## Milestones and progress
 
 - [x] **M0 — Plan and branch:** accepted scope, inspected baseline, boundaries and handoff recorded.
@@ -256,9 +271,11 @@ Implementation and scoped verification complete on `feat/unified-cover-cache`. S
 lives in `cover_stored.go`; projection and signed candidate delivery share replacement-aware identity
 and the success response policy. No frontend, general EPUB-resource, image processing, schema or
 filesystem-layout changes. Current architecture is updated in `docs/architecture/discovery-and-reading.md`.
-The implementation remains local and unmerged; no deployment or public performance gain is claimed.
+Merge into `main` and remote push are authorized. Container publication/deployment has not been
+verified at this documentation checkpoint; no public performance gain is claimed.
 
 ## Next Action
 
-No implementation work remains. Merge/push only when authorized; reload book metadata (and clear
-old browser cache if desired) during manual testing. Keep unrelated Lighthouse/TOC work separate.
+No implementation work remains. Verify the publication workflow after integration; reload book
+metadata (and clear old browser cache if desired) during manual testing. Keep unrelated Lighthouse/TOC
+work separate.
