@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 updated: 2026-09-26
 ---
 
@@ -13,8 +13,8 @@ reuse a fresh original cover; known source/publication changes and reader-home r
 must select a different cache identity.
 
 **Branch:** `feat/unified-cover-cache`, created from `main` at `2bc5a70`.
-**Decision status:** direction accepted by the user. This checkpoint delivers the requested
-branch and detailed plan only; application implementation has not started.
+**Decision status:** implementation authorized. The user confirmed this is internal development:
+old cover URLs need not remain compatible; manual testing can clear browser data.
 
 Done means both providers use the shared cover presentation boundary, fresh covers can be
 reused without a server request, invalidation/isolation tests pass, and actual browser-cache
@@ -38,7 +38,7 @@ Excluded:
   Lighthouse findings. These are separate workstreams, not implicit additions to this plan.
 - New refresh controls, background upstream polling, data migrations, deployment, or a push.
 
-## Evidence and current implementation
+## Baseline evidence and implementation
 
 The latest local Lighthouse reports, captured on 2026-09-26 after the `2bc5a70` release, showed
 an approximately 790 KiB original EPUB cover downloaded during both navigation and the later
@@ -49,10 +49,10 @@ The first download remains full-sized by explicit user choice.
 Reports are disposable, untracked evidence: `lighthouse-analysis-nagivation-latest.html`
 (filename spelling intentional) and `lighthouse-analysis-timespan-latest.html`, plus the earlier
 captures. Do not commit reports, extracted raw report JSON, private book identifiers, or URLs.
-Keep them available during this work, then remove the disposable reports after the associated
-analysis/improvement work is finished, as requested. Tests must not depend on them.
+The disposable reports were removed after this work, as requested. Tests do not depend on them.
 
-Verified code entry points (paths relative to repository root):
+Pre-change code entry points (paths relative to repository root; final behavior is recorded under
+Current State and in `docs/architecture/discovery-and-reading.md`):
 
 | Owner | Current behavior / implementation reference |
 |---|---|
@@ -66,10 +66,9 @@ Verified code entry points (paths relative to repository root):
 | Browser presentation | `frontend/src/features/books/BookCover.vue`: renders the supplied URL, keeps aspect-ratio/backdrop behavior, and resets failed-image state when the URL changes. |
 | Empty covers directory | `backend/internal/readerstore/home.go`: `files/covers/` is created and required by home validation, but has no production cover writer. Leave it alone. |
 
-**Important existing gap:** BookSource cover identity does not currently include the persistent
-home generation. Do not describe restore invalidation as already implemented. EPUB resource
-URLs already include reader and generation qualification; changing their general policy is not
-necessary to make EPUB covers cacheable.
+**Baseline gap addressed by this work:** BookSource cover identity did not include the persistent
+home generation. Cover-only generation qualification now closes that gap. EPUB resource URLs
+already included reader/generation qualification; their general policy remains unchanged.
 
 ## Accepted approach
 
@@ -134,40 +133,33 @@ reader-home leases and source execution ownership rather than adding disconnecte
 Never serialize credentials/cookies into new cache-key parameters; use existing opaque/version
 mechanisms and safe diagnostic conventions.
 
-## Implementation gates
+## Resolved implementation contract
 
-Resolve these narrowly in M1 and record the result here before changing the HTTP contract.
-They are implementation details, not permission to broaden the accepted scope.
-
-1. **Qualification and compatibility:** specify how stored EPUB URLs express revision/cover
-   identity and how both stored providers include home generation. Distinguish current generated,
-   legacy unqualified, malformed and stale URLs. Existing BookSource `v` is a cache buster rather
-   than a checked resource identity; tightening handling must account for current clients/tests.
-   Preserve route compatibility where possible, without giving mismatched bytes a long cache TTL.
-2. **Identity coherence:** trace source/profile revision lookup through retrieval and publication
-   reads. Establish where a changed qualifier is rejected and how existing ownership handles
-   concurrent source updates or home replacement. Confirm candidate references receive the needed
-   generation qualification too; do not accidentally change EPUB internal-resource semantics by
-   globally redefining `coverCacheScope` (it is shared with `epubResourceHref`).
-3. **Projection coverage:** identify every stored-book/candidate response that publishes a cover
-   URL so shelf, detail and admission agree. Keep public frontend response fields unchanged and
-   avoid provider branches in `BookCover.vue`.
-
-Ask the user only if resolving a gate requires a material policy change, such as per-display
-revalidation, dropping compatibility, adding persistence, or weakening isolation. Otherwise use
-the smallest existing mechanism and document the resolved contract here.
+- Stored covers require the current `v` qualifier; absent/stale qualifiers return an uncached
+  not-found response. No legacy fallback or new version-negotiation layer: the user explicitly
+  waived old-URL compatibility. Imported books themselves need no migration.
+- Keep the existing reader-ID scope used by general EPUB resources unchanged. A cover-only
+  scope adds home generation to stored and signed candidate identities. Candidate references
+  must match their current scope and source/profile revision, not merely have a valid signature.
+- Reuse EPUB `ReadResource` for the designated cover only; preserve its bounded reads and
+  publication checks. No new image preparation or storage path.
+- Qualify BookSource inputs before retrieval and recheck current cover identity after retrieval,
+  before making the response cacheable. Existing source workflow and home leases remain owners;
+  optimistic revision checks reject concurrent changes without a second lock or storage layer.
+- All projections reuse the same provider-specific identity helpers; shelf enrichment remains
+  batched. The frontend continues consuming `coverDisplayUrl` unchanged.
 
 ## Milestones and progress
 
 - [x] **M0 — Plan and branch:** accepted scope, inspected baseline, boundaries and handoff recorded.
-- [ ] **M1 — Finalize contract:** resolve the three gates; add deterministic tests for the intended
+- [x] **M1 — Finalize contract:** resolve the three gates; add deterministic tests for the intended
   qualification and cache policy, reproducing the current EPUB no-store/restore identity gaps.
-- [ ] **M2 — Shared delivery:** extend stored-cover handling through library/provider ownership;
+- [x] **M2 — Shared delivery:** extend stored-cover handling through library/provider ownership;
   reuse original-image acquisition and the common success writer; keep general EPUB resources
   unchanged. Integrate all cover URL projections and identity invalidation in the same working step.
-- [ ] **M3 — Correctness verification:** run focused API/provider regressions, lifecycle/isolation
+- [x] **M3 — Correctness verification:** run focused API/provider regressions, lifecycle/isolation
   tests and relevant frontend tests; review the actual diff for orphaned helpers and scope creep.
-- [ ] **M4 — Browser verification and completion:** demonstrate repeat cache hits and changed-key
+- [x] **M4 — Browser verification and completion:** demonstrate repeat cache hits and changed-key
   misses, update current architecture documentation if needed, record limits and complete the plan.
 
 Commit complete working steps, not half-wired HTTP changes. Update Current State, Next Action and
@@ -176,9 +168,25 @@ Do not merge or push without authorization.
 
 ## Verification
 
-Planning checkpoint: the dated-filename validator passed, the `PLAN.md` link and required handoff
-sections were checked, and the documentation diff passed whitespace validation. AFT has no
-Markdown diagnostic producer; no application test or runtime verification is claimed here.
+Passed:
+- `go test -race ./internal/api -run 'Cover|EPUBPublication|LibraryReads' -timeout 120s`.
+- Complete affected packages: `go test ./internal/api ./internal/epubstore -timeout 180s`.
+- `npm test -- src/features/books/BookCover.test.ts` (unchanged frontend presentation contract).
+- Scoped diff review and whitespace validation. AFT lacked authoritative Go/Markdown diagnostics;
+  the actual Go compilation/tests above are the verification authority.
+
+Real-browser check: local Linux Headless Chrome 148, fresh cache, no extensions or request
+interception, synthetic original PNG covers through the real authenticated server. An ephemeral
+fixture reused the existing ownership/EPUB test setup and was removed afterward. For **each** of
+BookSource and EPUB, cold loading transferred 396 browser-reported bytes (96-byte image plus
+Resource Timing overhead); leaving/re-entering and normal reload each transferred **0 bytes** and
+made **no additional cover request at the server**. Advancing source/publication revisions produced
+new URLs and one fresh request per cover. Both images decoded at their original 3×2 dimensions.
+
+Limits: this is cover-delivery verification, not a new live Lighthouse benchmark or full Vue journey.
+Real seven-day expiry/browser-restart disk persistence was not waited out. Reader-switch/restore
+rejection was verified in authenticated API tests, not browser automation. No new image/file writes
+were introduced (code inspection); no server disk-growth benchmark is claimed.
 
 ### Existing reusable tests
 
@@ -231,7 +239,8 @@ promised Lighthouse score. Report measured requests/bytes and browser conditions
 
 ## Compatibility and rollback
 
-Keep `coverDisplayUrl` and existing routes; prefer backend-only wiring. Old EPUB resource URLs
+Keep `coverDisplayUrl` and existing routes; use backend-only wiring. Old stored/candidate cover
+qualifiers are intentionally unsupported (internal-development decision); reload metadata. Old EPUB resource URLs
 remain valid under their original no-store policy. No migration, new storage directory, or backup
 format change is planned. Inspect authorization/cache behavior carefully: browser identity and
 restore boundaries make implementation security-sensitive despite the narrow user-visible change.
@@ -243,13 +252,13 @@ correctness fix must avoid an existing cached response. Do not promise immediate
 
 ## Current State
 
-Planning only on `feat/unified-cover-cache`; no application code changed. Accepted constraints and
-baseline code/test references are recorded above. Implementation gates M1 remain unresolved; no
-runtime, HTTP-cache, isolation, performance or compatibility verification has been performed for
-this proposed change. Existing Lighthouse evidence is diagnostic baseline only.
+Implementation and scoped verification complete on `feat/unified-cover-cache`. Stored delivery
+lives in `cover_stored.go`; projection and signed candidate delivery share replacement-aware identity
+and the success response policy. No frontend, general EPUB-resource, image processing, schema or
+filesystem-layout changes. Current architecture is updated in `docs/architecture/discovery-and-reading.md`.
+The implementation remains local and unmerged; no deployment or public performance gain is claimed.
 
 ## Next Action
 
-Begin M1 when implementation is requested: settle qualified/legacy URL behavior using the existing
-cover and authenticated EPUB tests, record the concrete contract here, then implement the smallest
-complete original-cover delivery change. Keep thumbnails, TOC work and server image caching out.
+No implementation work remains. Merge/push only when authorized; reload book metadata (and clear
+old browser cache if desired) during manual testing. Keep unrelated Lighthouse/TOC work separate.

@@ -46,7 +46,8 @@ func TestStoredBookCoverUsesSourceHeadersAndDecodeScript(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	response := performAPIRequest(server, http.MethodGet, "/api/books/cover-book/cover", nil)
+	server.standalone.addStoredCoverDisplayURL(&b)
+	response := performAPIRequest(server, http.MethodGet, b.CoverDisplayURL, nil)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -86,7 +87,8 @@ func TestStoredBookCoverAppliesURLScopedHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	response := performAPIRequest(server, http.MethodGet, "/api/books/header-cover/cover", nil)
+	server.standalone.addStoredCoverDisplayURL(&b)
+	response := performAPIRequest(server, http.MethodGet, b.CoverDisplayURL, nil)
 	if response.Code != http.StatusOK || response.Body.String() != "cover" {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -111,7 +113,8 @@ func TestStoredBookCoverPreservesOriginalBytesWhenDecoderReturnsNull(t *testing.
 		t.Fatal(err)
 	}
 
-	response := performAPIRequest(server, http.MethodGet, "/api/books/null-cover/cover", nil)
+	server.standalone.addStoredCoverDisplayURL(&b)
+	response := performAPIRequest(server, http.MethodGet, b.CoverDisplayURL, nil)
 	if response.Code != http.StatusOK || !bytes.Equal(response.Body.Bytes(), original) {
 		t.Fatalf("status=%d body=%v", response.Code, response.Body.Bytes())
 	}
@@ -221,6 +224,12 @@ func TestStoredBookResponsesUseVersionedSameOriginCoverURL(t *testing.T) {
 	if updated.CoverDisplayURL == firstURL {
 		t.Fatalf("cover URL did not change after source replacement: %q", firstURL)
 	}
+	for _, invalid := range []string{firstURL, "/api/books/display-book/cover", "/api/books/display-book/cover?v=invalid"} {
+		got := performAPIRequest(server, http.MethodGet, invalid, nil)
+		if got.Code != http.StatusNotFound || got.Header().Get("Cache-Control") != "private, no-store" {
+			t.Fatalf("unqualified cover: %d %s", got.Code, got.Body.String())
+		}
+	}
 }
 
 func TestCandidateCoverURLChangesWithSourceRevision(t *testing.T) {
@@ -276,5 +285,44 @@ func TestCandidateCoverReferenceRejectsTampering(t *testing.T) {
 	response := performAPIRequest(server, http.MethodGet, parsed.String(), nil)
 	if response.Code != http.StatusBadRequest || !bytes.Contains(response.Body.Bytes(), []byte("invalid_cover_reference")) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestCoverDoesNotCacheConcurrentSourceChange(t *testing.T) {
+	server, closeDB := newWorkflowAPIServer(t)
+	defer closeDB()
+	src := booksource.BookSource{BookSourceName: "changing cover"}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := server.standalone.db.Exec(`UPDATE book_sources SET updated_at = updated_at + 1 WHERE id = ?`, src.ID); err != nil {
+			t.Error(err)
+			http.Error(w, "fixture update failed", 500)
+			return
+		}
+		w.Write([]byte("cover"))
+	}))
+	defer upstream.Close()
+	src.BookSourceURL = upstream.URL
+	if err := server.standalone.sourceStore.Upsert(&src); err != nil {
+		t.Fatal(err)
+	}
+	b := book.Book{ID: "changing-cover", Name: "Cover", SourceID: src.ID, SourceURL: src.BookSourceURL, BookURL: upstream.URL + "/book", CoverURL: upstream.URL + "/cover"}
+	if err := server.standalone.bookStore.AddBook(&b); err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range []bool{false, true} {
+		server.standalone.addStoredCoverDisplayURL(&b)
+		href := b.CoverDisplayURL
+		if candidate {
+			href = server.standalone.coverDisplayURL(b.SourceID, b.SourceURL, b.BookURL, b.CoverURL, server.standalone.coverCacheRevision(src.ID))
+		}
+		response := performAPIRequest(server, http.MethodGet, href, nil)
+		if response.Code != http.StatusNotFound || response.Header().Get("Cache-Control") != "private, no-store" {
+			t.Fatalf("changed cover (candidate=%v): %d %s", candidate, response.Code, response.Body.String())
+		}
+		// The now-stale URL must also fail before another upstream fetch.
+		response = performAPIRequest(server, http.MethodGet, href, nil)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("stale cover (candidate=%v): %d", candidate, response.Code)
+		}
 	}
 }

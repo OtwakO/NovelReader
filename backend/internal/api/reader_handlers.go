@@ -270,42 +270,6 @@ func (s *readerAPI) handleGetBookSource(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, b)
 }
 
-func (s *readerAPI) handleGetBookCover(w http.ResponseWriter, r *http.Request) {
-	if s.bookStore == nil || s.sourceStore == nil || s.searcher == nil {
-		writeError(w, http.StatusServiceUnavailable, "cover service unavailable")
-		return
-	}
-	b, err := s.bookStore.GetBook(r.PathValue("id"))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load book failed")
-		return
-	}
-	if b == nil {
-		writeErrorCode(w, http.StatusNotFound, "book_not_found", "book not found")
-		return
-	}
-	if b.CoverURL == "" {
-		writeErrorCode(w, http.StatusNotFound, "cover_not_found", "book cover not found")
-		return
-	}
-	src, err := s.sourceStore.GetByID(b.SourceID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "load source failed")
-		return
-	}
-	if src == nil {
-		writeErrorCode(w, http.StatusNotFound, "source_not_found", "book source not found")
-		return
-	}
-	data, contentType, err := s.searcher.GetBookCover(r.Context(), *src, b)
-	if err != nil {
-		slog.Warn("cover: fetch failed", "bookId", b.ID, "source", b.SourceURL, "err", err)
-		writeErrorCode(w, http.StatusBadGateway, "cover_fetch_failed", "book cover unavailable")
-		return
-	}
-	writeCoverBytes(w, data, contentType)
-}
-
 func (s *readerAPI) handleMergeBookSources(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Sources []book.AltSource `json:"sources"`

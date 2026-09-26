@@ -16,6 +16,7 @@ import (
 
 	"github.com/otwako/novelreader/internal/book"
 	"github.com/otwako/novelreader/internal/candidate"
+	"github.com/otwako/novelreader/internal/library"
 	"github.com/otwako/novelreader/internal/sourceprofile"
 )
 
@@ -90,7 +91,7 @@ func (s *readerAPI) coverDisplayURL(sourceID, sourceURL, bookURL, coverURL strin
 	if s == nil || len(s.coverReferenceKey) == 0 || strings.TrimSpace(sourceID) == "" || strings.TrimSpace(sourceURL) == "" || strings.TrimSpace(bookURL) == "" || strings.TrimSpace(coverURL) == "" {
 		return ""
 	}
-	version := coverRevision(s.coverCacheScope, revision, sourceID, sourceURL, bookURL, coverURL)
+	version := coverRevision(s.coverIdentityScope(), revision, sourceID, sourceURL, bookURL, coverURL)
 	payload, err := json.Marshal(coverReference{SourceID: sourceID, SourceURL: sourceURL, BookURL: bookURL, CoverURL: coverURL, Revision: version})
 	if err != nil || len(payload) > maxCoverReferenceBytes {
 		return ""
@@ -105,14 +106,26 @@ func (s *readerAPI) addStoredCoverDisplayURL(stored *book.Book) {
 	if stored == nil || strings.TrimSpace(stored.CoverURL) == "" {
 		return
 	}
-	stored.CoverDisplayURL = storedCoverDisplayURL(stored, s.coverCacheRevision(stored.SourceID), s.coverCacheScope)
+	stored.CoverDisplayURL = storedCoverDisplayURL(stored, s.coverCacheRevision(stored.SourceID), s.coverIdentityScope())
 }
 
 func storedCoverDisplayURL(stored *book.Book, revision coverCacheRevision, cacheScope string) string {
 	if stored == nil || strings.TrimSpace(stored.ID) == "" {
 		return ""
 	}
-	return versionedCoverURL("/api/books/"+url.PathEscape(stored.ID)+"/cover", coverRevision(cacheScope, revision, stored.SourceID, stored.SourceURL, stored.BookURL, stored.CoverURL, stored.VariableMap))
+	return versionedCoverURL("/api/books/"+url.PathEscape(stored.ID)+"/cover", storedCoverVersion(stored, revision, cacheScope))
+}
+
+// Covers use a replacement-aware namespace without changing EPUB resource URLs.
+func (s *readerAPI) coverIdentityScope() string {
+	if s.home == nil {
+		return s.coverCacheScope
+	}
+	return coverRevision(s.coverCacheScope, coverCacheRevision{}, s.home.Generation())
+}
+
+func storedCoverVersion(stored *book.Book, revision coverCacheRevision, cacheScope string) string {
+	return coverRevision(cacheScope, revision, stored.SourceID, stored.SourceURL, stored.BookURL, stored.CoverURL, stored.VariableMap)
 }
 
 func coverRevision(cacheScope string, revision coverCacheRevision, values ...string) string {
@@ -132,16 +145,27 @@ func coverRevision(cacheScope string, revision coverCacheRevision, values ...str
 }
 
 func (s *readerAPI) coverCacheRevision(sourceID string) coverCacheRevision {
+	revision, err := s.readCoverCacheRevision(sourceID)
+	if err != nil {
+		slog.Warn("cover: revision unavailable", "sourceId", sourceID, "err", err)
+	}
+	return revision
+}
+
+// Delivery must not turn a failed identity lookup into a cacheable success.
+func (s *readerAPI) readCoverCacheRevision(sourceID string) (coverCacheRevision, error) {
 	var revision coverCacheRevision
+	var err error
 	if s.sourceStore != nil {
-		var err error
 		revision.Source, err = s.sourceStore.DefinitionRevision(sourceID)
 		if err != nil {
-			slog.Warn("cover: source revision unavailable", "sourceId", sourceID, "err", err)
+			return revision, err
 		}
 	}
-	revision.Profile = s.sourceProfileRevision(sourceID)
-	return revision
+	if s.sourceProfiles != nil {
+		revision.Profile, err = s.sourceProfiles.CacheRevision(sourceID)
+	}
+	return revision, err
 }
 
 func (s *readerAPI) coverCacheRevisions() map[string]coverCacheRevision {
@@ -217,7 +241,19 @@ func (s *readerAPI) parseCoverReference(value string) (coverReference, error) {
 	return ref, nil
 }
 
+func (s *readerAPI) checkCoverReference(ref coverReference) error {
+	revision, err := s.readCoverCacheRevision(ref.SourceID)
+	if err != nil {
+		return err
+	}
+	if ref.Revision != coverRevision(s.coverIdentityScope(), revision, ref.SourceID, ref.SourceURL, ref.BookURL, ref.CoverURL) {
+		return library.ErrNotFound
+	}
+	return nil
+}
+
 func (s *readerAPI) handleGetCoverDisplay(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	if s.sourceStore == nil || s.searcher == nil {
 		writeError(w, http.StatusServiceUnavailable, "cover service unavailable")
 		return
@@ -225,6 +261,10 @@ func (s *readerAPI) handleGetCoverDisplay(w http.ResponseWriter, r *http.Request
 	ref, err := s.parseCoverReference(r.PathValue("reference"))
 	if err != nil {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_cover_reference", "cover reference is invalid")
+		return
+	}
+	if err := s.checkCoverReference(ref); err != nil {
+		writeReadingError(w, err)
 		return
 	}
 	src, err := s.sourceStore.GetByID(ref.SourceID)
@@ -240,6 +280,10 @@ func (s *readerAPI) handleGetCoverDisplay(w http.ResponseWriter, r *http.Request
 	data, contentType, err := s.searcher.GetBookCover(r.Context(), *src, candidate)
 	if err != nil {
 		writeErrorCode(w, http.StatusBadGateway, "cover_fetch_failed", "book cover unavailable")
+		return
+	}
+	if err := s.checkCoverReference(ref); err != nil {
+		writeReadingError(w, err)
 		return
 	}
 	writeCoverBytes(w, data, contentType)

@@ -21,14 +21,24 @@ Collection mutations capture prior Source IDs in the storage transaction. Manual
 
 ## Covers
 
-Cover display URLs are backend-issued and reader-scoped. Stored-book URLs carry a version query;
-transient discovery references carry a signed revision. Revisions change with cover inputs, the
-installed source definition, and independent source settings/authentication generations. Shelf lists
-batch revision lookup rather than loading a source definition per book.
+BookSource and EPUB covers share `/api/books/{id}/cover?v=…` and the same success response policy.
+URLs are backend-issued and scoped to both reader identity and persistent home generation. BookSource
+versions include native cover/binding inputs, source definition and settings/authentication revisions;
+EPUB versions include publication revision and designated cover identity. Transient discovery covers
+retain signed references with the same reader/home and source qualification. Shelf revision lookup
+remains batched; metadata projection never fetches images.
 
-Responses use `Cache-Control: private, max-age=604800`, `Vary: Cookie`, and `nosniff`, without
-`immutable`. Invalidation changes newly issued URLs; previously issued valid signed references remain
-servable. Upstream bytes changing at an otherwise unchanged URL may remain cached for seven days.
+Delivery checks qualification before acquisition and rechecks identity before publishing a cacheable
+success. Missing/stale stored qualifiers and stale signed references fail with `private, no-store`;
+old cover URLs are intentionally unsupported during internal development. Existing home leases,
+source-aware fetching/decoding and EPUB publication/resource validation remain in force. EPUB covers
+read the designated existing image representation; no new resizing, encoding or image storage is added.
+General EPUB internal-resource URLs and their `private, no-store` policy are unchanged.
+
+Successful covers use `Cache-Control: private, max-age=604800`, `Vary: Cookie`, and `nosniff`, without
+`immutable`. Fresh browser hits make no authorization request; seven days bounds freshness, not disk
+retention or revocation of cached bytes. Invalidation selects a new URL when metadata is refreshed,
+not a browser-cache purge. Upstream bytes changing at an unchanged URL may remain cached until expiry.
 
 The shared `BookCover.vue` keeps the full cover visible in a 3:4 frame. Nonstandard aspect ratios get
 a subdued image-derived backdrop; callers own sizing/framing rather than duplicating cover rendering.

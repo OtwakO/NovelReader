@@ -90,14 +90,14 @@ func (s *readerAPI) libraryBooks(ctx context.Context, id string) ([]libraryBookR
 			}
 			if strings.TrimSpace(item.CoverURL) != "" {
 				projection := book.Book{ID: item.ID, CoverURL: item.CoverURL, SourceID: native.SourceID, SourceURL: native.SourceURL, BookURL: native.BookURL, VariableMap: native.VariableMap}
-				response.CoverDisplayURL = storedCoverDisplayURL(&projection, revisions[native.SourceID], s.coverCacheScope)
+				response.CoverDisplayURL = storedCoverDisplayURL(&projection, revisions[native.SourceID], s.coverIdentityScope())
 			}
 		}
 		if item.Provider == library.EPUB {
 			response.OriginLabel = "EPUB"
 			response.CoverURL = ""
 			if item.CoverURL != "" {
-				response.CoverDisplayURL = s.epubResourceHref(item.ID, item.ContentRevision, item.CoverURL)
+				response.CoverDisplayURL = s.epubCoverDisplayURL(&item)
 			}
 		}
 		result = append(result, response)

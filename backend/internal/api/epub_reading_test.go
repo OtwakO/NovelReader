@@ -142,8 +142,20 @@ func TestEPUBPublicationThroughAuthorizedReadingRoutes(t *testing.T) {
 	}
 	var dto libraryBookResponse
 	response = get(base)
-	if err = json.Unmarshal(response.Body.Bytes(), &dto); err != nil || dto.CoverDisplayURL != imageHref || dto.CoverURL != "" {
+	if err = json.Unmarshal(response.Body.Bytes(), &dto); err != nil || !strings.HasPrefix(dto.CoverDisplayURL, base+"/cover?v=") || dto.CoverURL != "" {
 		t.Fatal("cover", response.Body.String(), err)
+	}
+	cover := get(dto.CoverDisplayURL)
+	if cover.Code != 200 || !bytes.Equal(cover.Body.Bytes(), imageResponse.Body.Bytes()) || cover.Header().Get("Content-Type") != "image/png" || cover.Header().Get("Cache-Control") != coverCacheControl || cover.Header().Get("Vary") != "Cookie" {
+		t.Fatal("original cover", cover.Code, cover.Header())
+	}
+	for _, invalid := range []string{base + "/cover", base + "/cover?v=stale"} {
+		if got := get(invalid); got.Code != 404 || got.Header().Get("Cache-Control") != "private, no-store" {
+			t.Fatal("unqualified cover", got.Code, got.Header())
+		}
+	}
+	if got := request("", "GET", dto.CoverDisplayURL, ""); got.Code != 401 {
+		t.Fatal("unauthenticated cover", got.Code)
 	}
 	if got := request("", "GET", imageHref, ""); got.Code != 401 {
 		t.Fatal("unauthenticated", got.Code)
@@ -158,6 +170,9 @@ func TestEPUBPublicationThroughAuthorizedReadingRoutes(t *testing.T) {
 	}
 	if got := request(other.Token, "GET", imageHref, ""); got.Code != 404 {
 		t.Fatal("wrong reader", got.Code, got.Body.String())
+	}
+	if got := request(other.Token, "GET", dto.CoverDisplayURL, ""); got.Code != 404 {
+		t.Fatal("wrong reader cover", got.Code)
 	}
 	stale, err := url.Parse(imageHref)
 	if err != nil {
@@ -182,8 +197,25 @@ func TestEPUBPublicationThroughAuthorizedReadingRoutes(t *testing.T) {
 	if got := request(credential.Token, "PUT", base+"/progress", `{"contentRevision":1,"stateVersion":1,"chapterIndex":0,"position":0.4}`); got.Code != 200 {
 		t.Fatal("main progress", got.Code, got.Body.String())
 	}
+	if _, err := home.DB().ExecContext(t.Context(), `UPDATE library_items SET content_revision=content_revision+1 WHERE id=?`, item.ID); err != nil {
+		t.Fatal(err)
+	}
+	var renewed libraryBookResponse
+	response = get(base)
+	if err := json.Unmarshal(response.Body.Bytes(), &renewed); err != nil || renewed.CoverDisplayURL == dto.CoverDisplayURL {
+		t.Fatal("publication cover identity", response.Body.String(), err)
+	}
+	if got := get(dto.CoverDisplayURL); got.Code != 404 || got.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatal("stale publication cover", got.Code, got.Header())
+	}
+	if got := get(renewed.CoverDisplayURL); got.Code != 200 || !bytes.Equal(got.Body.Bytes(), cover.Body.Bytes()) {
+		t.Fatal("renewed cover", got.Code)
+	}
 	if got := request(credential.Token, "DELETE", "/api/books?id="+item.ID, ""); got.Code != 200 {
 		t.Fatal("remove", got.Code, got.Body.String())
+	}
+	if got := get(dto.CoverDisplayURL); got.Code != 404 || got.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatal("removed cover", got.Code, got.Header())
 	}
 	if got := get(imageHref); got.Code != 404 {
 		t.Fatal("removed image", got.Code)
