@@ -70,11 +70,21 @@ describe('BookDetailView catalog synchronization', () => {
   });
 
   it('shows the catalog failure and retries through the sync endpoint', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify(book), { status: 200, headers: { 'Content-Type': 'application/json' } }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(book), { status: 200, headers: { 'Content-Type': 'application/json' } }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ code: 'source_request_failed', error: 'All aggregate routes failed.' }), { status: 502, headers: { 'Content-Type': 'application/json' } }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ state: 'syncing' }), { status: 202, headers: { 'Content-Type': 'application/json' } }));
+    vi.useFakeTimers();
+    let syncRequested = false;
+    const currentBook = { ...book, contentRevision: 1 };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === '/api/books/book-1' || url === '/api/books/book-1/booksource') return new Response(JSON.stringify(currentBook));
+      if (url === '/api/books/book-1/chapters/sync' && init?.method === 'POST') {
+        syncRequested = true;
+        return new Response(JSON.stringify({ state: 'syncing' }), { status: 202 });
+      }
+      if (url === '/api/books/book-1/chapters') return syncRequested
+        ? new Response(JSON.stringify({ contentRevision: 1, chapters: [{ index: 0, title: 'Recovered chapter', isVolume: false }] }))
+        : new Response(JSON.stringify({ code: 'source_request_failed', error: 'All aggregate routes failed.' }), { status: 502 });
+      throw new Error(`Unexpected request: ${url}`);
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     const wrapper = mount(BookDetailView, {
@@ -85,19 +95,30 @@ describe('BookDetailView catalog synchronization', () => {
           RouterLink: { template: '<a><slot /></a>' }, FeatureScaffold: { template: '<main><slot /></main>' },
           BookCover: true, BookDetailSection: { template: '<section><slot name="body" /><slot /></section>' },
           BookDetailToc: true, SourceRecoveryPanel: true, WebViewFailureHint: true,
-          AppButton: { props: ['busy'], template: '<button @click="$emit(\'click\')"><slot /></button>' },
         },
       },
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('All aggregate routes failed.');
-    const retry = wrapper.findAll('button').find((button) => button.text() === 'Retry chapter list');
-    expect(retry).toBeDefined();
-    await retry!.trigger('click');
-    await flushPromises();
-
-    expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/books/book-1/chapters/sync', expect.objectContaining({ method: 'POST' }));
+    try {
+      expect(wrapper.text()).toContain('All aggregate routes failed.');
+      const retry = wrapper.findAll('button').find((button) => button.text() === 'Retry chapter list');
+      expect(retry).toBeDefined();
+      fetchMock.mockClear();
+      await retry!.trigger('click');
+      await flushPromises();
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+        '/api/books/book-1', '/api/books/book-1/chapters/sync',
+      ]);
+      expect(fetchMock).toHaveBeenCalledWith('/api/books/book-1/chapters/sync', expect.objectContaining({ method: 'POST' }));
+      expect(wrapper.text()).toContain('Synchronizing the chapter list…');
+      await vi.advanceTimersByTimeAsync(500);
+      await flushPromises();
+      expect(wrapper.vm.chapters.map(chapter => chapter.title)).toEqual(['Recovered chapter']);
+      expect(wrapper.vm.catalogRevision).toBe(1);
+      expect(wrapper.text()).not.toContain('All aggregate routes failed.');
+      expect(wrapper.text()).not.toContain('Synchronizing the chapter list…');
+    } finally { wrapper.unmount(); }
   });
 });
 
